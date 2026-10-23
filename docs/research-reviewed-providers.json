@@ -1,0 +1,182 @@
+{
+  "schemaVersion": 1,
+  "reviewedChannelProviders": [
+    {
+      "id": "iptv-org-global",
+      "name": "IPTV.org global channels",
+      "location": "https://iptv-org.github.io/iptv/index.m3u",
+      "provenance": "https://github.com/iptv-org/iptv",
+      "allowHttp": false
+    },
+    {
+      "id": "free-tv-public",
+      "name": "Free-TV public channels",
+      "location": "https://raw.githubusercontent.com/Free-TV/IPTV/master/playlist.m3u8",
+      "provenance": "https://github.com/Free-TV/IPTV",
+      "allowHttp": false
+    },
+    {
+      "id": "tdtchannels-spain",
+      "name": "TDTChannels Spain",
+      "location": "https://www.tdtchannels.com/lists/tv.m3u8",
+      "provenance": "https://www.tdtchannels.com/listas/",
+      "allowHttp": false
+    },
+    {
+      "id": "m3upt-portugal",
+      "name": "M3UPT Portugal",
+      "location": "https://m3upt.com/iptv",
+      "provenance": "https://m3upt.com/en/docs/m3upt/quickstart/",
+      "allowHttp": false
+    },
+    {
+      "id": "iptv-org-us",
+      "name": "IPTV-org United States",
+      "location": "https://iptv-org.github.io/iptv/countries/us.m3u",
+      "provenance": "https://github.com/iptv-org/iptv",
+      "allowHttp": false
+    },
+    {
+      "id": "iptv-org-illinois",
+      "name": "IPTV-org Illinois",
+      "location": "https://iptv-org.github.io/iptv/subdivisions/us-il.m3u",
+      "provenance": "https://github.com/iptv-org/iptv",
+      "allowHttp": false
+    },
+    {
+      "id": "iptv-org-ca",
+      "name": "IPTV-org Canada",
+      "location": "https://iptv-org.github.io/iptv/countries/ca.m3u",
+      "provenance": "https://github.com/iptv-org/iptv",
+      "allowHttp": false
+    },
+    {
+      "id": "iptv-org-uk",
+      "name": "IPTV-org United Kingdom",
+      "location": "https://iptv-org.github.io/iptv/countries/uk.m3u",
+      "provenance": "https://github.com/iptv-org/iptv",
+      "allowHttp": false
+    },
+    {
+      "id": "iptv-org-au",
+      "name": "IPTV-org Australia",
+      "location": "https://iptv-org.github.io/iptv/countries/au.m3u",
+      "provenance": "https://github.com/iptv-org/iptv",
+      "allowHttp": false
+    },
+    {
+      "id": "iptv-org-vn",
+      "name": "IPTV-org Vietnam",
+      "location": "https://iptv-org.github.io/iptv/countries/vn.m3u",
+      "provenance": "https://github.com/iptv-org/iptv",
+      "allowHttp": false
+    },
+    {
+      "id": "iptv-org-mx",
+      "name": "IPTV-org Mexico",
+      "location": "https://iptv-org.github.io/iptv/countries/mx.m3u",
+      "provenance": "https://github.com/iptv-org/iptv",
+      "allowHttp": false
+    },
+    {
+      "id": "iptv-org-americas",
+      "name": "IPTV-org Americas",
+      "location": "https://iptv-org.github.io/iptv/regions/amer.m3u",
+      "provenance": "https://github.com/iptv-org/iptv",
+      "allowHttp": false
+    },
+    {
+      "id": "iptv-org-western-europe",
+      "name": "IPTV-org Western Europe",
+      "location": "https://iptv-org.github.io/iptv/regions/wer.m3u",
+      "provenance": "https://github.com/iptv-org/iptv",
+      "allowHttp": false
+    },
+    {
+      "id": "iptv-org-asia",
+      "name": "IPTV-org Asia",
+      "location": "https://iptv-org.github.io/iptv/regions/asia.m3u",
+      "provenance": "https://github.com/iptv-org/iptv",
+      "allowHttp": false
+    },
+    {
+      "id": "iptv-org-oceania",
+      "name": "IPTV-org Oceania",
+      "location": "https://iptv-org.github.io/iptv/regions/oce.m3u",
+      "provenance": "https://github.com/iptv-org/iptv",
+      "allowHttp": false
+    },
+    {
+      "id": "iptv-org-news",
+      "name": "IPTV-org News",
+      "location": "https://iptv-org.github.io/iptv/categories/news.m3u",
+      "provenance": "https://github.com/iptv-org/iptv",
+      "allowHttp": false
+    },
+    {
+      "id": "iptv-org-sports",
+      "name": "IPTV-org Sports",
+      "location": "https://iptv-org.github.io/iptv/categories/sports.m3u",
+      "provenance": "https://github.com/iptv-org/iptv",
+      "allowHttp": false
+    },
+    {
+      "id": "iptv-org-movies",
+      "name": "IPTV-org Movies",
+      "location": "https://iptv-org.github.io/iptv/categories/movies.m3u",
+      "provenance": "https://github.com/iptv-org/iptv",
+      "allowHttp": false
+    },
+    {
+      "id": "iptv-org-music",
+      "name": "IPTV-org Music",
+      "location": "https://iptv-org.github.io/iptv/categories/music.m3u",
+      "provenance": "https://github.com/iptv-org/iptv",
+      "allowHttp": false
+    },
+    {
+      "id": "iptv-org-entertainment",
+      "name": "IPTV-org Entertainment",
+      "location": "https://iptv-org.github.io/iptv/categories/entertainment.m3u",
+      "provenance": "https://github.com/iptv-org/iptv",
+      "allowHttp": false
+    },
+    {
+      "id": "iptv-org-documentary",
+      "name": "IPTV-org Documentary",
+      "location": "https://iptv-org.github.io/iptv/categories/documentary.m3u",
+      "provenance": "https://github.com/iptv-org/iptv",
+      "allowHttp": false
+    },
+    {
+      "id": "doms9-combined",
+      "name": "doms9 TV and live events",
+      "location": "https://raw.githubusercontent.com/doms9/iptv/default/M3U8/TV.m3u8",
+      "provenance": "https://github.com/doms9/iptv",
+      "allowHttp": false
+    }
+  ],
+  "reviewedGuideProviders": [
+    {
+      "id": "epgtalk-us-local",
+      "name": "US local station schedules",
+      "location": "https://raw.githubusercontent.com/acidjesuz/EPGTalk/master/US_local_guide.xml.gz",
+      "provenance": "https://github.com/acidjesuz/EPGTalk",
+      "limitations": "About three days; station IDs require review. Local station schedules do not establish the schedules of news-only streaming channels."
+    },
+    {
+      "id": "epgtalk-us-lite",
+      "name": "US station schedules \u2014 smaller guide",
+      "location": "https://raw.githubusercontent.com/acidjesuz/EPGTalk/master/US_lite.xml.gz",
+      "provenance": "https://github.com/acidjesuz/EPGTalk",
+      "limitations": "About two days; vendor IDs and station variants require review. No guaranteed seven-day coverage or verified sports-stream mappings."
+    },
+    {
+      "id": "pluto-us-reviewed",
+      "name": "Pluto US sports schedules",
+      "location": "https://raw.githubusercontent.com/matthuisman/i.mjh.nz/master/PlutoTV/us.xml.gz",
+      "provenance": "https://github.com/matthuisman/i.mjh.nz",
+      "limitations": "About one day of observed schedules. Reviewed exact identifiers support PGA Tour, CBS Golazo and World Poker Tour; other channels and simultaneous stream programming are not guaranteed."
+    }
+  ]
+}

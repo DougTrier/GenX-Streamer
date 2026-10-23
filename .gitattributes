@@ -1,0 +1,3 @@
+# Files are stored and checked out byte-for-byte: test fixtures and their
+# receipts pin exact bytes, so no line-ending conversion.
+* -text

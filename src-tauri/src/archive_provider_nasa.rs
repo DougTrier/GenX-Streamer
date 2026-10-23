@@ -443,14 +443,14 @@ mod tests {
     #[test]
     fn nasa_observed_official_search_and_manifest_validate_without_master_claims() {
         let search: Value = serde_json::from_str(include_str!(
-            "../../artifacts/archive-providers/2026-10-15/loc-nasa-adapters-v1/nasa-search.json"
+            "../../tests/fixtures/archive-providers/nasa-search.json"
         ))
         .unwrap();
         let page = parse_search(&search).unwrap();
         assert_eq!(page.hits.len(), 2);
         assert_eq!(page.next_cursor.as_deref(), Some("2"));
         let assets: Value = serde_json::from_str(include_str!(
-            "../../artifacts/archive-providers/2026-10-15/loc-nasa-adapters-v1/nasa-assets.json"
+            "../../tests/fixtures/archive-providers/nasa-assets.json"
         ))
         .unwrap();
         let item = parse_item(

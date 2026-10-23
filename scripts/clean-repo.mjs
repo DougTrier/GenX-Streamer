@@ -47,9 +47,10 @@ const ROOT_FILES = new Set([
   'Engineering Spec.MD',
   'README.md',
   'TASKS.md',
+  '.gitattributes',
 ]);
 const FOLDERS = ['src/', 'src-tauri/', 'assets/', 'tests/', 'scripts/'];
-const DOCS = new Set(['docs/user-guide.md']);
+const DOCS = new Set(['docs/user-guide.md', 'docs/research-reviewed-providers.json']);
 /** Inside the copied folders: tooling tied to this machine's backups or the old project ledger. */
 const EXCLUDED = [
   /^scripts\/checkpoint\.ps1$/,

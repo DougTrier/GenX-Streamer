@@ -895,7 +895,7 @@ mod tests {
     fn official_loc_header_proves_actual_h264_aac_without_media_body() {
         // Exact 351,838-byte moov from the official item00694220 representation.
         // No mdat bytes; this is configuration proof, never decoder acceptance.
-        let bytes = include_bytes!("../../artifacts/archive-providers/2026-10-15/loc-probe-followup-v6/loc-00694220-moov.bin");
+        let bytes = include_bytes!("../../tests/fixtures/archive-providers/loc-00694220-moov.bin");
         let payload = verified_moov_payload(bytes, 8, bytes.len() as u64).unwrap();
         assert_eq!(mp4_tracks(payload).unwrap(), ("h264", Some("aac")));
     }
