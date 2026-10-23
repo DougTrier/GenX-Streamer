@@ -1,0 +1,129 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="262" viewBox="0 0 400 262"><defs>
+<linearGradient id="body" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#26262C"/><stop offset=".2" stop-color="#141418"/><stop offset="1" stop-color="#08080B"/></linearGradient>
+<linearGradient id="neon" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#22E3FF"/><stop offset=".55" stop-color="#FF36B4"/><stop offset="1" stop-color="#FFAD6B"/></linearGradient>
+<linearGradient id="chrome" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#FFFFFF"/><stop offset=".3" stop-color="#C9D2DE"/><stop offset=".55" stop-color="#5D6676"/><stop offset=".75" stop-color="#E6ECF4"/><stop offset="1" stop-color="#8C96A6"/></linearGradient>
+<linearGradient id="chromeH" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#8C96A6"/><stop offset=".3" stop-color="#FFFFFF"/><stop offset=".6" stop-color="#5D6676"/><stop offset="1" stop-color="#DCE3EC"/></linearGradient>
+<radialGradient id="knob" cx=".38" cy=".32" r=".75"><stop stop-color="#FFFFFF"/><stop offset=".45" stop-color="#B7C1CF"/><stop offset="1" stop-color="#3C4452"/></radialGradient>
+<linearGradient id="dial" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#2C3D4C"/><stop offset="1" stop-color="#1A2733"/></linearGradient>
+<linearGradient id="sunset" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#FFAD6B"/><stop offset=".5" stop-color="#FF36B4"/><stop offset="1" stop-color="#22E3FF"/></linearGradient>
+<pattern id="mesh" width="2.6" height="2.6" patternUnits="userSpaceOnUse"><rect width="2.6" height="2.6" fill="#2B2925"/><path d="M0 0L2.6 2.6M2.6 0L0 2.6" stroke="#121110" stroke-width=".9"/></pattern>
+<radialGradient id="depth" cx=".5" cy=".5" r=".5"><stop offset=".25" stop-color="#C8BBA0" stop-opacity=".18"/><stop offset=".55" stop-color="#000" stop-opacity="0"/><stop offset=".82" stop-color="#000" stop-opacity=".35"/><stop offset="1" stop-color="#000" stop-opacity=".85"/></radialGradient>
+<radialGradient id="dome" cx=".42" cy=".38" r=".6"><stop stop-color="#FFFFFF" stop-opacity=".22"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></radialGradient>
+<linearGradient id="sheen" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FFFFFF" stop-opacity=".09"/><stop offset=".35" stop-color="#FFFFFF" stop-opacity="0"/><stop offset=".7" stop-color="#FFFFFF" stop-opacity=".03"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></linearGradient>
+<linearGradient id="ringIn" x1="0" y1="1" x2="0" y2="0"><stop stop-color="#FFFFFF"/><stop offset=".45" stop-color="#6E7888"/><stop offset="1" stop-color="#2A2F38"/></linearGradient>
+<filter id="drop" x="-10%" y="-30%" width="120%" height="180%"><feDropShadow dx="0" dy="2" stdDeviation="1.6" flood-color="#000" flood-opacity=".75"/></filter>
+<filter id="floor" x="-10%" y="-200%" width="120%" height="500%"><feGaussianBlur stdDeviation="6"/></filter>
+<filter id="glow" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="2.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+<g id="woofer">
+<circle r="56" fill="#060608"/>
+<circle r="50" fill="url(#mesh)"/>
+<circle r="30" fill="none" stroke="#000" stroke-width="2" opacity=".35"/>
+<circle r="16" fill="url(#dome)"/>
+<circle r="16" fill="none" stroke="#000" stroke-width="1.4" opacity=".4"/>
+<circle r="50" fill="url(#depth)"/>
+<circle r="49.5" fill="none" stroke="url(#ringIn)" stroke-width="1.6"/>
+<circle r="52.5" fill="none" stroke="url(#chrome)" stroke-width="5.5" filter="url(#drop)"/>
+<path d="M-38-42 A56 56 0 0 1 22-50" fill="none" stroke="#FFFFFF" stroke-width="1.6" opacity=".85" stroke-linecap="round"/>
+<circle r="56" fill="none" stroke="#22E3FF" stroke-width="1" opacity=".45"/>
+<g filter="url(#drop)">
+<path d="M-58-23 H-46 L-42-19 H42 L46-23 H58 V-15 H46 L42-12 H-42 L-46-15 H-58Z" fill="url(#chrome)"/>
+<path d="M-58 15 H-46 L-42 12 H42 L46 15 H58 V23 H46 L42 19 H-42 L-46 23 H-58Z" fill="url(#chrome)"/>
+</g>
+<path d="M-40-18 H40 M-40 13 H40" stroke="#FFFFFF" stroke-width=".9" opacity=".9"/>
+</g>
+<g id="tweeter">
+<path d="M0 0 H34 V30 H0Z" fill="#0C0C10"/>
+<path d="M-2 2 L36 2 L32 8 L2 8Z M-2 28 L36 28 L32 22 L2 22Z" fill="url(#chrome)"/>
+<circle cx="17" cy="15" r="8" fill="url(#mesh)" stroke="url(#chrome)" stroke-width="1.6"/>
+<path d="M2 15 H32" stroke="url(#chromeH)" stroke-width="2.4"/>
+</g>
+<g id="smallknob"><circle r="8" fill="#000" opacity=".5" transform="translate(0 1.4)"/><circle r="7.5" fill="#2C2C34"/><circle r="7" fill="none" stroke="#8C96A6" stroke-width="1" stroke-dasharray=".8 .8"/><circle r="5.6" fill="url(#knob)"/><path d="M0-5.6v3" stroke="#14141A" stroke-width="1.4"/></g>
+<g id="pkey"><rect width="12" height="10" rx="1.2" fill="url(#chrome)"/><path d="M2 2.5h8M2 5h8" stroke="#5D6676" stroke-width=".6"/></g>
+</defs>
+<!-- handle -->
+<path d="M70 52 V16 Q70 10 76 10 H324 Q330 10 330 16 V52" fill="none" stroke="url(#chromeH)" stroke-width="5"/>
+<rect x="86" y="6" width="228" height="11" rx="5" fill="#0E0E12" stroke="#3A3A42"/>
+<path d="M92 9.5H308M92 13.5H308" stroke="#2A2A30" stroke-width="1"/>
+<!-- body -->
+<ellipse cx="200" cy="258" rx="190" ry="6" fill="#000" opacity=".7" filter="url(#floor)"/>
+<rect x="8" y="46" width="384" height="208" rx="8" fill="url(#body)"/>
+<rect x="8" y="46" width="384" height="208" rx="8" fill="none" stroke="url(#neon)" stroke-width="2.4" filter="url(#glow)"/>
+<rect x="8" y="254" width="384" height="4" rx="2" fill="#050507"/>
+<path d="M12 48.5 H388" stroke="#FFFFFF" stroke-opacity=".25" stroke-width="1"/>
+<path d="M10 129 H390" stroke="#000" stroke-width="1.6"/><path d="M10 130.4 H390" stroke="#FFFFFF" stroke-opacity=".08" stroke-width=".8"/>
+<!-- tuner row -->
+<rect x="14" y="52" width="372" height="34" rx="3" fill="#101014"/>
+<rect x="18" y="56" width="18" height="26" fill="#F2C230"/><path d="M27 64v12M22 64l5 5 5-5" stroke="#14141A" stroke-width="1.4" fill="none"/>
+<rect x="37" y="56" width="18" height="26" fill="#5A57C8"/><circle cx="46" cy="66" r="4" fill="url(#knob)"/>
+<rect x="56" y="56" width="18" height="26" fill="#2AA9D8"/><path d="M60 72c2-8 4-8 6 0s4 8 6 0" stroke="#14141A" stroke-width="1.4" fill="none"/>
+<rect x="80" y="58" width="44" height="22" fill="#0A0A0E" stroke="url(#chrome)" stroke-width="1.6"/>
+<path d="M84 76 L100 62 L120 62" stroke="#3A4656" stroke-width="1"/>
+<rect x="130" y="56" width="196" height="26" rx="1.5" fill="url(#dial)"/>
+<g font-family="Arial, sans-serif" fill="#E6ECF4" text-anchor="middle">
+<text x="140" y="63" font-size="5.5" font-weight="700">FM</text>
+<text x="160" y="63" font-size="5">88</text><text x="178" y="63" font-size="5">92</text><text x="196" y="63" font-size="5">96</text><text x="214" y="63" font-size="5">100</text><text x="232" y="63" font-size="5">104</text><text x="250" y="63" font-size="5">108</text>
+<text x="140" y="79" font-size="5.5" font-weight="700">AM</text>
+<text x="160" y="79" font-size="5">53</text><text x="178" y="79" font-size="5">70</text><text x="196" y="79" font-size="5">90</text><text x="214" y="79" font-size="5">120</text><text x="232" y="79" font-size="5">140</text><text x="250" y="79" font-size="5">160</text>
+<text x="292" y="63" font-size="4.2" fill="#9FB2C4">FREQUENCY MODULATION</text>
+<text x="292" y="79" font-size="4.2" fill="#9FB2C4">AMPLITUDE MODULATION</text>
+</g>
+<rect x="152" y="67" width="110" height="3" fill="#121A22"/>
+<path d="M156 66v5M165 67v3M174 66v5M183 67v3M192 66v5M201 67v3M210 66v5M219 67v3M228 66v5M237 67v3M246 66v5M255 67v3" stroke="#9FB2C4" stroke-width=".6"/>
+<rect x="270" y="66" width="44" height="5" rx="1" fill="url(#sunset)" opacity=".9"/>
+<path d="M205 57v24" stroke="#FF36B4" stroke-width="2" stroke-linecap="round" filter="url(#glow)"/>
+<rect x="330" y="56" width="20" height="26" fill="none" stroke="#5D6676" stroke-width=".8"/><rect x="335" y="64" width="10" height="10" fill="none" stroke="#E6ECF4" stroke-width="1"/>
+<circle cx="368" cy="70" r="16" fill="#000" opacity=".55"/><circle cx="368" cy="68" r="15" fill="#1C1C22"/><circle cx="368" cy="68" r="14" fill="none" stroke="#9AA4B4" stroke-width="2" stroke-dasharray="1 1"/><circle cx="368" cy="68" r="12" fill="url(#knob)"/><circle cx="368" cy="68" r="7.5" fill="none" stroke="#8C96A6" stroke-width=".8"/><ellipse cx="363" cy="62" rx="4" ry="2.4" fill="#FFFFFF" opacity=".8"/>
+<!-- controls row -->
+<use href="#tweeter" x="14" y="92"/>
+<use href="#tweeter" x="352" y="92"/>
+<rect x="52" y="90" width="96" height="36" rx="2" fill="#16161C" stroke="#050507" stroke-width="1.2"/>
+<use href="#smallknob" x="66" y="102"/><use href="#smallknob" x="88" y="102"/><use href="#smallknob" x="128" y="102"/>
+<rect x="111" y="97" width="9" height="5" rx="1" fill="#FF5A5A"/>
+<g fill="#C9D2DE"><rect x="60" y="114" width="6" height="8" rx="1"/><rect x="78" y="114" width="6" height="8" rx="1"/><rect x="96" y="114" width="6" height="8" rx="1"/><rect x="116" y="112" width="6" height="11" rx="1"/></g>
+<rect x="152" y="90" width="96" height="36" rx="2" fill="#16161C" stroke="#050507" stroke-width="1.2"/>
+<rect x="155" y="92" width="90" height="5" fill="#E04A3A"/>
+<text x="200" y="96" text-anchor="middle" font-family="Arial, sans-serif" font-size="3.8" fill="#FFE0DA" letter-spacing=".6">5-BAND GRAPHIC EQUALIZER</text>
+<g stroke-width=".6" opacity=".7"><path d="M157 99 L243 124 M157 124 L243 99" stroke="#FF36B4"/><path d="M157 111.5 H243" stroke="#22E3FF"/></g>
+<g fill="#050507"><rect x="164" y="99" width="3" height="25"/><rect x="181" y="99" width="3" height="25"/><rect x="198" y="99" width="3" height="25"/><rect x="215" y="99" width="3" height="25"/><rect x="232" y="99" width="3" height="25"/></g>
+<g fill="url(#chrome)"><rect x="161.5" y="103" width="8" height="5" rx="1"/><rect x="178.5" y="110" width="8" height="5" rx="1"/><rect x="195.5" y="101" width="8" height="5" rx="1"/><rect x="212.5" y="108" width="8" height="5" rx="1"/><rect x="229.5" y="104" width="8" height="5" rx="1"/></g>
+<rect x="252" y="90" width="96" height="36" rx="2" fill="#16161C" stroke="#050507" stroke-width="1.2"/>
+<text x="275" y="104" text-anchor="middle" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-style="italic" font-size="6" fill="#FF5A7A">AUTO REVERSE</text>
+<path d="M258 107 Q275 114 292 107" fill="none" stroke="#FF36B4" stroke-width="1"/>
+<use href="#smallknob" x="308" y="101"/><use href="#smallknob" x="332" y="101"/><use href="#smallknob" x="318" y="117"/>
+<rect x="262" y="112" width="18" height="10" fill="none" stroke="#22E3FF" stroke-width=".7"/><rect x="284" y="111" width="5" height="12" rx="1" fill="#C9D2DE"/>
+<g stroke="#FFFFFF" stroke-opacity=".12" stroke-width=".8"><path d="M53 126.6H147M153 126.6H247M253 126.6H347"/></g>
+<!-- speakers -->
+<use href="#woofer" x="92" y="190"/>
+<use href="#woofer" x="308" y="190"/>
+<!-- center column -->
+<rect x="156" y="132" width="88" height="22" rx="2" fill="#16161C" stroke="#050507" stroke-width="1.2"/>
+<rect x="176" y="138" width="50" height="10" rx="1.5" fill="#E8E2D2"/>
+<text x="201" y="145.6" text-anchor="middle" font-family="Arial, sans-serif" font-style="italic" font-size="5.5" fill="#D8263A">AUTO REVERSE</text>
+<rect x="162" y="138" width="10" height="10" rx="1" fill="url(#chrome)"/><rect x="230" y="138" width="8" height="10" rx="1" fill="#2C2C34" stroke="#5D6676" stroke-width=".6"/>
+<text x="164" y="152.6" font-family="Arial, sans-serif" font-size="3.6" fill="#9FB2C4">TAPE A</text>
+<rect x="156" y="157" width="88" height="15" rx="2" fill="#101014" stroke="#050507" stroke-width="1.2"/>
+<rect x="161" y="161" width="16" height="7" rx="1" fill="#050507"/><text x="169" y="166.6" text-anchor="middle" font-family="Courier New, monospace" font-size="5.5" fill="#E6ECF4">000</text>
+<text x="238" y="168.4" text-anchor="end" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-style="italic" font-size="10" fill="url(#neon)" filter="url(#glow)">GenX</text>
+<rect x="156" y="175" width="88" height="44" rx="2" fill="#101014" stroke="#3A3A42"/>
+<text x="162" y="186" font-family="Arial Black, Arial, sans-serif" font-weight="900" font-size="7" fill="#E6ECF4">GX-1990</text>
+<rect x="162" y="190" width="30" height="20" fill="#08080B" stroke="#2C2C34"/>
+<circle cx="171" cy="200" r="5" fill="none" stroke="#5D6676"/><circle cx="184" cy="200" r="5" fill="none" stroke="#5D6676"/>
+<rect x="198" y="182" width="42" height="30" rx="2" fill="#0E2A30" stroke="#22E3FF" stroke-width=".8"/>
+<g font-family="Arial, sans-serif" font-size="3.6" text-anchor="middle">
+<rect x="201" y="185" width="17" height="6" fill="#16161C"/><text x="209.5" y="189.4" fill="#E6ECF4">REW</text>
+<rect x="220" y="185" width="17" height="6" fill="#16161C"/><text x="228.5" y="189.4" fill="#E6ECF4">F.FWD</text>
+<rect x="201" y="193" width="17" height="6" fill="#F2C230"/><text x="209.5" y="197.4" fill="#14141A">PLAY</text>
+<rect x="220" y="193" width="17" height="6" fill="#16161C"/><text x="228.5" y="197.4" fill="#FF5A5A">REC</text>
+<rect x="201" y="201" width="17" height="6" fill="#16161C"/><text x="209.5" y="205.4" fill="#E6ECF4">STOP</text>
+<rect x="220" y="201" width="17" height="6" fill="#16161C"/><text x="228.5" y="205.4" fill="#E6ECF4">PAUSE</text>
+</g>
+<text x="162" y="216" font-family="Arial, sans-serif" font-size="3.6" fill="#9FB2C4">STEREO CASSETTE RECORDER · TAPE B</text>
+<rect x="156" y="222" width="88" height="14" rx="2" fill="#101014" stroke="#050507" stroke-width="1.2"/>
+<rect x="160" y="225" width="4" height="4" fill="#FF5A5A"/>
+<use href="#pkey" x="167" y="224"/><use href="#pkey" x="179" y="224"/><use href="#pkey" x="191" y="224"/><use href="#pkey" x="203" y="224"/><use href="#pkey" x="215" y="224"/><use href="#pkey" x="227" y="224"/>
+<rect x="156" y="239" width="88" height="11" rx="2" fill="#101014"/>
+<path d="M200 241v7M204 241v7M208 241v7M212 241v7M216 241v7M220 241v7M224 241v7M228 241v7M232 241v7M236 241v7M200 244.5H238" stroke="#5D6676" stroke-width=".5"/>
+<rect x="162" y="243" width="30" height="2.5" rx="1" fill="url(#sunset)"/>
+<!-- plastic sheen over everything below the handle -->
+<rect x="8" y="46" width="384" height="208" rx="8" fill="url(#sheen)" pointer-events="none"/>
+</svg>

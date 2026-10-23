@@ -1,0 +1,925 @@
+/* One compact browsing vocabulary for live stations and grouped on-demand titles. */
+:root {
+  --result-surface: #081326;
+  --result-selected: #0b2941;
+  --result-divider: #25425b7a;
+  --result-title: #f0f5ff;
+  --result-subtitle: #a8bbd1;
+}
+
+#app #genxtra-browse-filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  flex: 0 0 auto;
+  min-width: 0;
+  gap: 8px;
+  margin: 0 0 8px;
+  padding: 0;
+}
+
+#app #genxtra-browse-filters[hidden] {
+  display: none !important;
+}
+
+#app #genxtra-browse-filters > select,
+#app #genxtra-browse-filters > .in-app-select > button {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  height: 44px;
+  padding: 6px 10px;
+  border: 1px solid #34566e;
+  border-radius: 6px;
+  background: #10263c;
+  color: var(--result-title);
+  font-size: 0.875rem;
+  line-height: 1.2;
+  text-align: left;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#app #genxtra-browse-filters > .in-app-select > button::before {
+  content: none;
+  display: none;
+}
+
+#app #genxtra-browse-filters > .in-app-select > button {
+  position: relative;
+  padding-right: 28px;
+}
+
+#app #genxtra-browse-filters > .in-app-select > button::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  width: 6px;
+  height: 6px;
+  border-right: 1.5px solid #8ae8f3;
+  border-bottom: 1.5px solid #8ae8f3;
+  transform: translateY(-70%) rotate(45deg);
+  pointer-events: none;
+}
+
+#app #genxtra-browse-filters > select:focus-visible,
+#app #genxtra-browse-filters > .in-app-select > button:focus-visible {
+  outline: 2px solid #ffc4ec;
+  outline-offset: -3px;
+}
+
+#channel-rows .media-result-row,
+#genxtra-library .gx-archive-result-row {
+  display: flex;
+  align-items: stretch;
+  min-width: 0;
+  gap: 0;
+  margin: 0;
+  padding: 0 2px;
+  border: 1px solid transparent;
+  border-bottom-color: var(--result-divider);
+  border-radius: 7px;
+  background: linear-gradient(100deg, #0c182bba, #07101eb3);
+  box-shadow: none;
+}
+
+#channel-rows .media-result-row[data-selected='true'],
+#genxtra-library .gx-archive-result-row[data-selected='true'] {
+  border-color: #1bd4f2;
+  background: linear-gradient(105deg, #0c344b, #0b213b);
+  box-shadow:
+    inset 3px 0 #33e4ff,
+    0 0 8px #17c8ed24;
+}
+
+#channel-rows .media-result-main,
+#genxtra-library .gx-archive-title-button {
+  display: flex;
+  align-items: center;
+  flex: 1 1 0;
+  min-width: 0;
+  width: auto;
+  gap: 12px;
+  margin: 0;
+  padding: 9px 10px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  text-align: left;
+  box-shadow: none;
+}
+
+#channel-rows .media-result-main {
+  height: 100% !important;
+}
+
+#genxtra-library .gx-archive-result-row {
+  flex-wrap: wrap;
+  min-height: 72px;
+}
+
+#genxtra-library .gx-archive-inline-videos {
+  flex: 0 0 100%;
+  min-width: 0;
+  padding: 4px 4px 10px 12px;
+}
+
+#genxtra-library .gx-archive-inline-videos .gx-archive-files {
+  margin: 4px 0 0;
+}
+
+#genxtra-library .gx-archive-result-row:has(> .gx-archive-inline-videos) > .gx-archive-favorite {
+  align-self: flex-start;
+  margin-top: 3px;
+}
+
+#genxtra-library .gx-archive-inline-videos .gx-archive-file-name {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+#genxtra-library .gx-archive-title-button {
+  position: relative;
+}
+
+#genxtra-library .gx-archive-title-button::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 1px;
+  width: 4px;
+  height: 4px;
+  border-right: 1.5px solid #8ae8f3;
+  border-bottom: 1.5px solid #8ae8f3;
+  transform: translateY(-50%) rotate(-45deg);
+  pointer-events: none;
+}
+
+#genxtra-library .gx-archive-title-button[aria-expanded='true']::after {
+  content: '';
+  transform: translateY(-50%) rotate(45deg);
+}
+
+#channel-rows .media-result-artwork,
+#genxtra-library .gx-archive-result-artwork {
+  display: grid;
+  place-items: center;
+  flex: 0 0 60px;
+  width: 60px;
+  height: 44px;
+  overflow: hidden;
+  border: 1px solid #325372;
+  border-radius: 5px;
+  background: linear-gradient(145deg, #162c47, #10192d);
+  color: #9eeeff;
+  font:
+    700 1rem/1 'GenX UI',
+    'Segoe UI',
+    sans-serif;
+  letter-spacing: 0.04em;
+  text-shadow: none;
+}
+
+#genxtra-library .gx-archive-result-artwork img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+#channel-rows .media-result-copy,
+#genxtra-library .gx-archive-result-copy {
+  display: grid;
+  flex: 1 1 0;
+  min-width: 0;
+  gap: 4px;
+  align-content: center;
+}
+
+#app #channel-rows .media-result-title,
+#genxtra-library .gx-archive-result-name {
+  display: block;
+  overflow: hidden;
+  color: var(--result-title);
+  font:
+    650 1.0625rem/1.2 'GenX UI',
+    'Segoe UI',
+    sans-serif;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+#app #channel-rows .media-result-subtitle,
+#genxtra-library .gx-archive-result-subtitle {
+  display: block;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  color: var(--result-subtitle);
+  font:
+    400 0.84375rem/1.3 'GenX UI',
+    'Segoe UI',
+    sans-serif;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+#channel-rows .channel-action,
+#genxtra-library .gx-archive-result-row > .gx-archive-favorite {
+  align-self: center;
+  flex: 0 0 44px;
+  min-width: 44px;
+  width: 44px;
+  min-height: 44px;
+  height: 44px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 5px;
+  background: transparent;
+  color: #9bb1cb;
+  font-size: 1.5rem;
+  text-align: center;
+  box-shadow: none;
+}
+
+#channel-rows .channel-favorite[aria-pressed='true'],
+#genxtra-library .gx-archive-favorite[aria-pressed='true'] {
+  color: #ff90cf;
+  background: transparent;
+}
+
+#channel-rows .media-result-row button:focus-visible,
+#genxtra-library .gx-archive-result-row button:focus-visible {
+  outline: 2px solid #ffc4ec;
+  outline-offset: -3px;
+  background: #18324e;
+}
+
+#channel-rows .media-result-row button:hover,
+#genxtra-library .gx-archive-result-row button:hover {
+  background-color: #16314a70;
+}
+
+#genxtra-library .gx-archive-search {
+  padding: 0;
+  gap: 6px;
+}
+
+#genxtra-library .gx-archive-results {
+  flex: 1 1 0;
+  min-height: 0;
+  padding: 2px;
+  scroll-padding: 3px;
+  scrollbar-width: thin;
+}
+
+#genxtra-library .gx-archive-tools {
+  position: relative;
+  z-index: 2;
+  gap: 4px;
+  height: 44px;
+  min-height: 44px;
+  padding: 0 2px;
+}
+
+#genxtra-library .gx-archive-tools > .gx-archive-result-summary {
+  flex: 1 1 0;
+  align-self: center;
+  padding: 0 2px;
+}
+
+#genxtra-library .gx-archive-tools > .gx-archive-find-more {
+  flex: 0 0 auto;
+  max-width: none;
+  height: 44px;
+  margin: 0;
+  padding: 6px;
+  white-space: nowrap;
+}
+
+#genxtra-library .gx-archive-filter-options {
+  flex: 0 0 auto;
+  min-width: 0;
+  margin: 0;
+}
+
+#genxtra-library .gx-archive-filter-toggle {
+  display: grid;
+  place-items: center;
+  min-width: 58px;
+  height: 44px;
+  padding: 6px;
+  border: 1px solid #34566e;
+  border-radius: 6px;
+  color: var(--result-title);
+  background: #10263c;
+  font-size: 0.875rem;
+  cursor: pointer;
+  list-style: none;
+}
+
+#genxtra-library .gx-archive-filter-toggle::-webkit-details-marker {
+  display: none;
+}
+
+#genxtra-library .gx-archive-filter-toggle:focus-visible {
+  outline: 2px solid #ffc4ec;
+  outline-offset: -3px;
+}
+
+#genxtra-library .gx-archive-filter-panel {
+  position: absolute;
+  top: 100%;
+  right: 2px;
+  display: grid;
+  gap: 8px;
+  width: 280px;
+  max-width: calc(100% - 4px);
+  max-height: 220px;
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid #52799b;
+  border-radius: 8px;
+  background: #0d1d33;
+  box-shadow: 0 8px 24px #0009;
+  font-size: 0.875rem;
+}
+
+#genxtra-library .gx-archive-filter-options:not([open]) .gx-archive-filter-panel {
+  display: none;
+}
+
+#genxtra-library .gx-archive-filter-panel > .gx-archive-language,
+#genxtra-library .gx-archive-filter-panel > .in-app-select {
+  width: 100%;
+  min-width: 0;
+}
+
+#genxtra-library .gx-archive-filter-panel p {
+  color: var(--result-subtitle);
+  font-size: 0.8125rem;
+}
+
+#genxtra-library .gx-archive-tools button,
+#genxtra-library .gx-archive-language {
+  padding: 8px 10px;
+  font-size: 0.875rem;
+}
+
+#genxtra-library .gx-archive-status {
+  margin: 0;
+  padding: 0 3px;
+  font-size: 0.8125rem;
+}
+
+/* Selection is already visible in the row/details. Keep its live announcement
+   without spending another results line; progress, empty and error states stay visible. */
+#genxtra-library .gx-archive-status[data-passive='true'] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+#app[data-device-kind='tv'] #genxtra-library .gx-archive-result-row {
+  min-height: 60px;
+}
+
+#app[data-device-kind='tv'] #genxtra-library .gx-archive-title-button {
+  padding-block: 6px;
+}
+
+@media (max-height: 600px) {
+  #app[data-device-kind='tv'] #genxtra-browse-filters > select,
+  #app[data-device-kind='tv'] #genxtra-browse-filters > .in-app-select > button {
+    min-height: 40px;
+    height: 40px;
+    padding-block: 4px;
+  }
+
+  #app[data-device-kind='tv'] .gx-archive-inline-videos .gx-archive-file-row {
+    grid-template-columns: minmax(0, 1fr) 44px 40px;
+    gap: 4px;
+    padding: 4px;
+  }
+
+  #app[data-device-kind='tv'] .gx-archive-inline-videos .gx-archive-file-button,
+  #app[data-device-kind='tv'] .gx-archive-inline-videos .gx-archive-file-details > summary {
+    min-width: 40px;
+    min-height: 40px;
+    width: 40px;
+    height: 40px;
+    padding: 0;
+  }
+
+  #app[data-device-kind='tv'] #genxtra-library .gx-archive-result-row {
+    min-height: 52px;
+  }
+
+  #app[data-device-kind='tv'] #genxtra-library .gx-archive-title-button {
+    padding-block: 3px;
+  }
+
+  #app[data-device-kind='tv'] #genxtra-filter-status {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+
+#genxtra-library .gx-archive-result-summary {
+  flex: 0 0 auto;
+  min-width: 0;
+  margin: 0;
+  padding: 5px 3px;
+  overflow: hidden;
+  color: #d8e7f7;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#genxtra-library .gx-archive-paging {
+  flex: 0 0 auto;
+  gap: 8px;
+  min-height: 44px;
+  padding: 6px 2px 0;
+  border-top: 1px solid var(--result-divider);
+  font-size: 0.8125rem;
+}
+
+#genxtra-library .gx-archive-paging button {
+  font-size: 0.8125rem;
+}
+
+#genxtra-library .gx-archive-result-footer {
+  flex: 0 0 auto;
+  min-height: 22px;
+  padding: 3px;
+  border-top: 1px solid var(--result-divider);
+  color: var(--result-subtitle);
+  font-size: 0.8125rem;
+  line-height: 1.3;
+}
+
+/* One calm status band; disclosures float within this library's scroll owner. */
+#genxtra-library .gx-archive-footer-band {
+  position: relative;
+  display: flex;
+  flex: 0 0 auto;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px 8px;
+  min-width: 0;
+  border-top: 1px solid var(--result-divider);
+}
+#genxtra-library .gx-archive-footer-band:not(:has(> :not([hidden]))) {
+  display: none;
+}
+#genxtra-library .gx-archive-footer-band > .gx-archive-result-footer {
+  min-height: 0;
+  padding: 2px 3px;
+  border: 0;
+  white-space: nowrap;
+  margin-left: auto;
+  font-size: 0.75rem;
+}
+#genxtra-library .gx-archive-footer-band > .gx-archive-pending {
+  position: static;
+  border: 0;
+}
+#genxtra-library .gx-archive-footer-band .gx-archive-pending-summary,
+#genxtra-library .gx-archive-footer-band .gx-archive-downloads > details > summary {
+  display: flex;
+  align-items: center;
+  min-height: 34px;
+  margin: 0;
+  padding: 4px;
+  font-size: 0.8125rem;
+  line-height: 1.3;
+  white-space: nowrap;
+  cursor: pointer;
+}
+#genxtra-library .gx-archive-footer-band .gx-archive-pending-summary::before,
+#genxtra-library .gx-archive-footer-band .gx-archive-downloads > details > summary::before {
+  content: '▸';
+  margin-right: 4px;
+}
+#genxtra-library .gx-archive-footer-band details[open] > summary::before {
+  content: '▾';
+}
+#genxtra-library .gx-archive-footer-band .gx-archive-pending-content,
+#genxtra-library .gx-archive-footer-band .gx-archive-saved-panel {
+  position: absolute;
+  z-index: 4;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  max-height: min(160px, 40dvh);
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid #34566e;
+  border-radius: 6px;
+  padding: 6px;
+  background: #081525;
+  box-shadow: 0 -4px 16px #0008;
+}
+#genxtra-library .gx-archive-footer-band > .gx-archive-downloads {
+  min-width: 0;
+  max-width: 100%;
+  max-height: none;
+  overflow: visible;
+}
+#genxtra-library .gx-archive-footer-band .gx-archive-download-progress:not([hidden]) {
+  margin: 3px;
+}
+
+#genxtra-library .gx-archive-pending {
+  flex: 0 0 auto;
+  max-height: none;
+  overflow: visible;
+  padding: 0;
+}
+
+#genxtra-library .gx-archive-pending-summary {
+  min-height: 44px;
+  padding: 11px 4px;
+  color: var(--result-subtitle);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+#genxtra-library .gx-archive-pending-summary:focus-visible {
+  outline: 2px solid #ffc4ec;
+  outline-offset: -2px;
+}
+
+#genxtra-library .gx-archive-pending-content {
+  max-height: 160px;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+
+#archive-details {
+  flex: 0 1 auto;
+  min-width: 0;
+  min-height: 0;
+  max-height: min(32dvh, 260px);
+  overflow: auto;
+  border: 1px solid #344b6b;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #0f1e34f5, #080f20f5);
+  scrollbar-width: thin;
+}
+
+#archive-details .gx-archive-detail-pane {
+  min-width: 0;
+  padding: 18px 20px;
+  color: var(--gx-text);
+}
+
+#archive-details .gx-archive-detail-hero {
+  min-width: 0;
+}
+
+#archive-details .gx-archive-detail-artwork {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  place-items: center;
+  width: 100%;
+  height: clamp(100px, 20dvh, 200px);
+  overflow: hidden;
+  border: 1px solid #345b7b;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #102d48, #15132b 70%, #31203d);
+  color: #a8efff;
+  font-size: 3rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+#archive-details .gx-archive-detail-artwork img {
+  display: block;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+#archive-details .gx-archive-detail-overview {
+  min-width: 0;
+  margin-top: 16px;
+}
+
+#archive-details .gx-archive-synopsis {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  margin: 10px 0;
+  padding: 0;
+  overflow: hidden;
+  color: var(--result-subtitle);
+  font-size: 0.9375rem;
+  line-height: 1.4;
+}
+
+#archive-details .gx-archive-detail-actions {
+  display: flex;
+  align-items: flex-start;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+#archive-details .gx-archive-detail-favorite,
+#archive-details .gx-archive-title-info > summary {
+  min-width: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid #365773;
+  border-radius: 6px;
+  background: #10263c;
+  color: #eaf5ff;
+}
+
+#archive-details .gx-archive-detail-favorite[aria-pressed='true'] {
+  border-color: #e16cb2;
+  color: #ffb9e0;
+}
+
+#archive-details .gx-archive-detail-actions > .gx-archive-title-info {
+  min-width: 0;
+  flex: 1 1 180px;
+  margin: 0;
+}
+
+:is(#archive-details, #genxtra-library .gx-archive-inline-videos) .gx-archive-videos-heading {
+  margin: 18px 0 10px;
+  color: #eaf5ff;
+  font-size: 1rem;
+  line-height: 1.3;
+}
+
+#archive-details .gx-archive-detail-title {
+  margin: 0 0 8px;
+  color: #f1f7ff;
+  font-size: 1.5rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+#archive-details .gx-archive-metadata {
+  margin: 0 0 18px;
+  padding: 0;
+  color: var(--result-subtitle);
+  font-size: 0.875rem;
+}
+
+:is(#archive-details, #genxtra-library .gx-archive-inline-videos) .gx-archive-files {
+  margin: 0;
+  gap: 8px;
+}
+
+:is(#archive-details, #genxtra-library .gx-archive-inline-videos) .gx-archive-file-button {
+  min-height: 52px;
+  padding: 10px 14px;
+  border: 1px solid #365773;
+  border-radius: 7px;
+  background: #10263c;
+  color: #f1f7ff;
+  font:
+    600 1rem/1.35 'GenX UI',
+    'Segoe UI',
+    sans-serif;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+:is(#archive-details, #genxtra-library .gx-archive-inline-videos) .gx-archive-file-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 52px 44px;
+  align-items: center;
+  min-width: 0;
+  min-height: 64px;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid #2b475f;
+  border-radius: 7px;
+  background: #0a192d;
+}
+
+:is(#archive-details, #genxtra-library .gx-archive-inline-videos) .gx-archive-file-copy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+:is(#archive-details, #genxtra-library .gx-archive-inline-videos) .gx-archive-file-name {
+  overflow: hidden;
+  color: var(--result-title);
+  font-size: 1rem;
+  line-height: 1.25;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+:is(#archive-details, #genxtra-library .gx-archive-inline-videos)
+  .gx-archive-file-row
+  .gx-archive-file-button {
+  display: grid;
+  place-items: center;
+  width: 52px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 4px;
+  background: #103b52;
+  color: #c4f7ff;
+  font-size: 0.875rem;
+}
+
+:is(#archive-details, #genxtra-library .gx-archive-inline-videos)
+  .gx-archive-file-row
+  .gx-archive-file-details {
+  min-width: 0;
+  margin: 0;
+}
+
+:is(#archive-details, #genxtra-library .gx-archive-inline-videos)
+  .gx-archive-file-row
+  .gx-archive-file-details
+  > summary {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  margin: 0;
+  padding: 0;
+  border-radius: 5px;
+  background: #10263c;
+  list-style: none;
+  font-size: 1.25rem;
+}
+
+:is(#archive-details, #genxtra-library .gx-archive-inline-videos)
+  .gx-archive-file-row
+  .gx-archive-file-details[open] {
+  grid-column: 1 / -1;
+}
+
+:is(#archive-details, #genxtra-library .gx-archive-inline-videos)
+  .gx-archive-file-details[open]
+  > summary {
+  margin-left: auto;
+}
+
+#archive-details[data-playback-active='true'] .gx-archive-detail-artwork {
+  display: none;
+}
+
+/* Active viewing uses the left inline video choices. Retain selected overview DOM
+   for idle browsing without reserving a second panel below the real decoder. */
+#app #archive-details[data-playback-active='true'] {
+  display: none;
+}
+
+#app:not(.viewing-fullscreen)
+  .view:has(#archive-details[data-playback-active='true'])
+  > .watch-card {
+  flex: 1 1 0;
+  max-height: none;
+}
+
+#app:not(.viewing-fullscreen)
+  .view:has(#archive-details[data-playback-active='true'])
+  > .watch-card
+  > .screen {
+  align-self: stretch;
+  min-height: 0;
+  height: 100%;
+  max-height: none;
+  aspect-ratio: auto;
+}
+
+#archive-details[data-playback-active='true'] .gx-archive-detail-overview {
+  margin-top: 0;
+}
+
+:is(#archive-details, #genxtra-library .gx-archive-inline-videos) .gx-archive-file-button:hover {
+  border-color: #65dcec;
+}
+
+#archive-details :is(.gx-archive-title-info, .gx-archive-file-details) {
+  margin-top: 16px;
+  color: var(--result-subtitle);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+#archive-details summary {
+  min-height: 44px;
+  padding: 10px 0;
+  cursor: pointer;
+}
+
+#archive-details p {
+  overflow-wrap: anywhere;
+}
+
+#app:not(.viewing-fullscreen)[data-content-library='genxtra']
+  .view:has(#archive-details:not([hidden])[data-playback-active='false'])
+  > .watch-card {
+  display: none;
+}
+
+#app:not(.viewing-fullscreen) #archive-details[data-playback-active='false'] {
+  flex: 1 1 0;
+  max-height: none;
+  border-color: #6c579c;
+}
+
+#app.viewing-fullscreen #archive-details {
+  display: none;
+}
+
+@media (max-width: 600px) {
+  #channel-rows .media-result-main,
+  #genxtra-library .gx-archive-title-button {
+    gap: 8px;
+    padding-inline: 6px;
+  }
+
+  #channel-rows .media-result-artwork,
+  #genxtra-library .gx-archive-result-artwork {
+    flex-basis: 48px;
+    width: 48px;
+    height: 40px;
+  }
+
+  #archive-details .gx-archive-detail-pane {
+    padding: 14px;
+  }
+}
+
+/* Live TV reserves the viewing pane for the video and its controls. Guide
+   information and mapping belong to the separate Guide page. */
+#app:not([data-content-library='genxtra']) .workspace > .view > .watch-card > .watchhead {
+  display: none;
+}
+@media (min-width: 851px) and (min-height: 421px) {
+  #app:not([data-content-library='genxtra']):not(.viewing-fullscreen):not(.keyboard-open)
+    .workspace
+    > .view
+    > .watch-card {
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+  #app:not([data-content-library='genxtra']):not(.viewing-fullscreen):not(.keyboard-open)
+    .workspace
+    > .view
+    > .watch-card
+    > .screen {
+    grid-row: 1;
+  }
+  #app:not([data-content-library='genxtra']):not(.viewing-fullscreen):not(.keyboard-open)
+    .workspace
+    > .view
+    > .watch-card
+    > .dock {
+    grid-row: 2;
+  }
+}
+
+#app:not([data-content-library='genxtra']) .workspace > .view > .watch-card {
+  flex: 1 1 auto;
+  max-height: none;
+  min-height: 0;
+}
+
+/* The empty GenXtra preview is a viewing surface too. Let the existing video
+   grid fill its column instead of reserving the former metadata strip below it. */
+@media (min-width: 851px) and (min-height: 421px) {
+  #app:not(.viewing-fullscreen):not(.keyboard-open) .workspace > .view > .watch-card {
+    flex: 1 1 0;
+    min-height: 0;
+    max-height: none;
+  }
+}

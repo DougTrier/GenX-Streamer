@@ -1,0 +1,807 @@
+.gx-timeline {
+  --gx-channel-width: 224px;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  gap: 4px;
+  color: var(--gx-text, #eef2f7);
+  background: var(--gx-surface, #080e22);
+  border: 1px solid var(--gx-border, #28435c);
+  border-radius: 12px;
+  padding: 4px;
+}
+.guide-dialog.guide-with-timeline {
+  width: min(1280px, calc(100vw - 32px));
+  padding: 12px;
+  gap: 4px;
+}
+.guide-with-timeline .guide-header h2 {
+  margin: 0;
+  font-size: 1.25em;
+}
+.guide-with-timeline .guide-header button {
+  min-height: 44px;
+  font: inherit;
+}
+.guide-with-timeline .guide-feedback p {
+  margin: 0;
+  font-size: 1em;
+}
+@media (min-width: 651px), (max-height: 430px) {
+  .guide-dialog.guide-with-timeline[open] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto auto auto minmax(0, 1fr);
+  }
+  .guide-with-timeline > .guide-header {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+  .guide-with-timeline > .guide-dropdown {
+    grid-column: 1;
+    grid-row: 2;
+  }
+  .guide-with-timeline > button:not([hidden]) {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .guide-with-timeline > .guide-feedback {
+    grid-column: 1 / -1;
+    grid-row: 3;
+  }
+  .guide-with-timeline > .guide-body {
+    grid-column: 1 / -1;
+    grid-row: 4;
+  }
+}
+.guide-with-timeline .guide-timeline-panel {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+}
+.gx-timeline [hidden] {
+  display: none !important;
+}
+.gx-timeline-toolbar {
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  gap: 8px;
+  align-items: center;
+  flex-shrink: 0;
+}
+.gx-timeline-categories,
+.gx-timeline-time-controls {
+  display: flex;
+  gap: 4px;
+  flex-wrap: nowrap;
+  flex-shrink: 0;
+}
+.gx-timeline-time-controls {
+  margin-left: auto;
+}
+.gx-timeline-date {
+  font-weight: 600;
+  color: var(--gx-cyan, #7feafa);
+}
+/* Guide search fills the space between the date and the time controls. */
+.gx-timeline .gx-timeline-toolbar input.gx-timeline-search {
+  flex: 1 1 120px;
+  min-width: 72px;
+  max-width: 560px;
+  /* As tall as the toolbar buttons, never taller: the grid keeps its rows. */
+  align-self: stretch;
+  min-height: 0;
+  padding: 0 10px;
+  font: inherit;
+  color: var(--gx-text, #eef2f7);
+  background: #101720;
+  border: 1px solid #344b48;
+  border-radius: 8px;
+}
+.gx-timeline .gx-timeline-toolbar input.gx-timeline-search:focus-visible {
+  outline: 2px solid var(--gx-cyan, #7feafa);
+  outline-offset: 1px;
+}
+.gx-timeline-categories button[aria-pressed='true'] {
+  color: var(--gx-text, #eef2f7);
+  background: #3b1647;
+  border-color: var(--gx-magenta, #f563c1);
+}
+.gx-timeline button {
+  min-height: 44px;
+  min-width: 0;
+  font: inherit;
+  line-height: 1.25;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--gx-border, #28435c);
+  border-radius: 8px;
+  padding: 6px;
+  color: inherit;
+  background: var(--gx-panel, #132039);
+}
+.gx-timeline button:focus-visible {
+  outline: 3px solid var(--gx-cyan, #7feafa);
+  outline-offset: -3px;
+  box-shadow: inset 0 0 0 1px #ffffff;
+}
+.gx-timeline-status {
+  margin: 0;
+  color: var(--gx-muted, #aebed1);
+  max-height: 3em;
+  overflow: auto;
+  flex-shrink: 0;
+}
+.gx-timeline-axis {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  margin-left: var(--gx-channel-width);
+  font-size: 1em;
+  gap: 4px;
+  flex-shrink: 0;
+}
+.gx-timeline-axis span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gx-timeline-viewport {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  position: relative;
+  overscroll-behavior: contain;
+}
+.gx-timeline-content {
+  position: relative;
+  min-width: 0;
+}
+.gx-timeline-row {
+  position: absolute;
+  width: 100%;
+  height: var(--gx-row-height, 64px);
+  display: grid;
+  grid-template-columns: var(--gx-channel-width) minmax(0, 1fr);
+  padding-block: 4px;
+}
+.gx-timeline-channel {
+  margin-right: 8px;
+  text-align: left;
+  overflow: hidden;
+}
+.gx-timeline-track {
+  position: relative;
+  min-width: 0;
+  overflow: hidden;
+}
+.gx-timeline-cell {
+  position: absolute;
+  inset-block: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+.gx-timeline-cell-label {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  max-height: 2.5em;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+}
+.gx-timeline-current {
+  border-bottom: 3px solid #8addbf !important;
+  background: #163a37;
+}
+.gx-timeline-conflict {
+  border-color: #c49a68 !important;
+}
+.gx-timeline-note {
+  display: block;
+  font-size: 0.95em;
+  line-height: 1.35;
+  border: 0;
+  background: transparent;
+  color: var(--gx-muted, #aebed1);
+  padding: 8px;
+}
+.gx-timeline-now {
+  position: absolute;
+  inset-block: 0;
+  width: 2px;
+  background: var(--gx-cyan, #7feafa);
+  box-shadow: 0 0 6px #7feafa66;
+  pointer-events: none;
+}
+.gx-timeline-selected {
+  background: #512044 !important;
+  border-color: var(--gx-magenta, #f563c1) !important;
+}
+.gx-timeline-details {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  overflow: auto;
+  max-height: 45%;
+  border: 1px solid var(--gx-border, #28435c);
+  border-radius: 10px;
+  padding: 16px;
+  background: var(--gx-panel, #132039);
+  line-height: 1.5;
+}
+.gx-timeline-details p {
+  margin: 0;
+}
+.gx-timeline-details summary {
+  min-height: 44px;
+  min-width: 44px;
+  line-height: 44px;
+  cursor: pointer;
+}
+.gx-timeline-countdown {
+  color: var(--gx-cyan, #7feafa);
+  font-variant-numeric: tabular-nums;
+}
+.gx-timeline-choices {
+  display: grid;
+  gap: 8px;
+}
+@media (max-width: 650px) {
+  .gx-timeline {
+    --gx-channel-width: 104px;
+  }
+}
+@media (max-height: 430px) {
+  .guide-with-timeline .guide-body {
+    overflow: auto;
+  }
+  .guide-with-timeline .gx-timeline {
+    min-height: 300px;
+    overflow: visible;
+  }
+  .guide-with-timeline .gx-timeline-viewport {
+    min-height: 128px;
+  }
+}
+
+.gx-timeline-detail-title {
+  font-size: 1.3em;
+  line-height: 1.25;
+}
+.gx-timeline-detail-channel {
+  color: var(--gx-magenta, #f563c1);
+  font-weight: 600;
+}
+@media (min-width: 850px) and (min-height: 500px) {
+  .gx-timeline {
+    display: grid;
+    padding: 0;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto auto auto minmax(128px, 1fr);
+    gap: 4px 12px;
+  }
+  .gx-timeline-toolbar {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+  .gx-timeline-status {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .gx-timeline-axis {
+    grid-column: 1;
+    grid-row: 3;
+  }
+  .gx-timeline-viewport {
+    grid-column: 1;
+    grid-row: 4;
+  }
+  .gx-timeline-details {
+    grid-column: 1;
+    grid-row: 3 / 5;
+    max-height: none;
+  }
+  .gx-timeline-has-details {
+    grid-template-columns: minmax(200px, 25%) minmax(0, 1fr);
+  }
+  .gx-timeline-has-details .gx-timeline-axis,
+  .gx-timeline-has-details .gx-timeline-viewport {
+    grid-column: 2;
+  }
+}
+@media (max-width: 849px), (max-height: 499px) {
+  .gx-timeline-has-details .gx-timeline-axis,
+  .gx-timeline-has-details .gx-timeline-viewport {
+    display: none;
+  }
+  .gx-timeline-has-details .gx-timeline-details {
+    flex: 1;
+    max-height: none;
+  }
+  .gx-timeline-time-controls {
+    margin-left: 0;
+  }
+  .gx-timeline-toolbar button {
+    flex-shrink: 0;
+    white-space: nowrap;
+  }
+}
+
+.gx-timeline-date {
+  flex-shrink: 0;
+}
+.gx-timeline-toolbar button {
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 44px;
+}
+
+/* Normal Guide is already beneath the shared navigation: keep the grid primary. */
+.guide-compact-page > .guide-header {
+  display: none;
+}
+.guide-dialog.guide-compact-page[open] {
+  display: flex;
+  flex-direction: column;
+  padding: 6px;
+  gap: 4px;
+}
+.guide-compact-page .guide-feedback {
+  flex-shrink: 0;
+  font-size: 14px;
+}
+.guide-compact-page .gx-timeline-toolbar > button {
+  flex-shrink: 0;
+}
+@media (min-width: 850px) and (min-height: 500px) {
+  #app[data-device-kind='tv'] .guide-compact-page .gx-timeline {
+    display: flex;
+    --gx-channel-width: 200px;
+    font-size: inherit;
+    padding: 0;
+    gap: 2px;
+  }
+  #app[data-device-kind='tv'] .guide-compact-page .gx-timeline-selection-hint {
+    display: none;
+  }
+  /* Two lines, everything on screen (owner report, October 19, 2026: on the
+     Sansui TV the toolbar needed 868 px in a 541 px guide and Close sat off
+     screen, out of the remote's reach). Line one: categories, search, time
+     buttons; line two: date, listings note, guide actions, Close at the end.
+     The visual order matches the page order, which Left/Right follow. */
+  #app[data-device-kind='tv'] .guide-compact-page .gx-timeline-toolbar {
+    gap: 4px;
+    flex-wrap: wrap;
+    overflow: visible;
+    font-size: 0.875em;
+  }
+  #app[data-device-kind='tv'] .guide-compact-page .gx-timeline-toolbar > .gx-timeline-categories {
+    order: 1;
+  }
+  #app[data-device-kind='tv'] .guide-compact-page .gx-timeline-toolbar > .gx-timeline-search {
+    order: 2;
+    /* Starts small so the time buttons stay on line one; grows into the rest. */
+    flex: 1 1 60px;
+    min-width: 60px;
+  }
+  #app[data-device-kind='tv']
+    .guide-compact-page
+    .gx-timeline-toolbar
+    > .gx-timeline-time-controls {
+    order: 3;
+  }
+  #app[data-device-kind='tv'] .guide-compact-page .gx-timeline-toolbar::after {
+    content: '';
+    order: 4;
+    flex-basis: 100%;
+    height: 0;
+  }
+  #app[data-device-kind='tv'] .guide-compact-page .gx-timeline-toolbar > .gx-timeline-date {
+    order: 5;
+  }
+  #app[data-device-kind='tv'] .guide-compact-page .gx-timeline-toolbar > .guide-feedback {
+    order: 6;
+    flex: 1 1 100px;
+    min-width: 0;
+  }
+  #app[data-device-kind='tv'] .guide-compact-page .gx-timeline-toolbar > button {
+    order: 7;
+  }
+  #app[data-device-kind='tv'] .guide-compact-page .guide-feedback {
+    flex: 0 0 100px;
+    max-height: 44px;
+    overflow: auto;
+    font-size: 12px;
+    line-height: 1.2;
+  }
+  #app[data-device-kind='tv'] .guide-compact-page .gx-timeline-status {
+    font-size: 0.75em;
+    line-height: 1.2;
+  }
+  #app[data-device-kind='tv'] .guide-compact-page .gx-timeline-status[data-state='ready'] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  #app[data-device-kind='tv'] .guide-compact-page .gx-timeline-channel {
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+  #app[data-device-kind='tv'] .guide-compact-page .gx-timeline-row {
+    padding-block: 0;
+  }
+  #app[data-device-kind='tv'] .guide-compact-page .gx-timeline-details {
+    max-height: 45%;
+  }
+}
+
+@media (max-width: 849px), (max-height: 499px) {
+  .gx-timeline-toolbar {
+    flex-wrap: wrap;
+    overflow-x: visible;
+  }
+  .gx-timeline-categories {
+    width: 100%;
+  }
+  .gx-timeline-categories button {
+    flex: 1;
+  }
+  .gx-timeline-time-controls {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+  }
+  .gx-timeline-time-controls button {
+    min-width: 44px;
+  }
+}
+
+/* Landscape handsets need a grid, not the portrait stack of full-width controls. */
+@media (min-width: 640px) and (max-height: 499px) {
+  .guide-compact-page .guide-body {
+    overflow: hidden;
+  }
+  .guide-compact-page .gx-timeline {
+    min-height: 0;
+    overflow: hidden;
+    gap: 2px;
+    --gx-channel-width: 200px;
+  }
+  .guide-compact-page .gx-timeline-toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    gap: 4px;
+    font-size: 0.875em;
+  }
+  .guide-compact-page .gx-timeline-categories,
+  .guide-compact-page .gx-timeline-time-controls {
+    display: flex;
+    width: auto;
+    gap: 4px;
+    flex-wrap: nowrap;
+  }
+  .guide-compact-page .gx-timeline-categories button {
+    flex: 0 0 auto;
+  }
+  /* No room beside the Guide actions on a landscape phone; portrait has search. */
+  .guide-compact-page .gx-timeline-toolbar input.gx-timeline-search {
+    display: none;
+  }
+  .guide-compact-page .guide-feedback {
+    flex: 0 0 100px;
+    max-height: 44px;
+    overflow: auto;
+    font-size: 12px;
+    line-height: 1.2;
+  }
+  .guide-compact-page .gx-timeline-viewport {
+    min-height: 0;
+  }
+  .guide-compact-page .gx-timeline-status[data-state='ready'] {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+  .guide-compact-page .gx-timeline-channel {
+    white-space: nowrap;
+    text-overflow: ellipsis;
+  }
+}
+/* A narrow channel agenda shares the timeline's cached query/detail/clock owner. */
+.gx-timeline[data-layout='agenda'] {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  gap: 4px;
+}
+.gx-timeline[data-layout='agenda'] .gx-timeline-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  overflow-x: hidden;
+  overflow-y: auto;
+  min-width: 0;
+  max-width: 100%;
+  gap: 6px;
+}
+.gx-timeline[data-layout='agenda'] .gx-timeline-categories,
+.gx-timeline[data-layout='agenda'] .gx-timeline-time-controls {
+  display: flex;
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: 100%;
+  width: auto;
+  overflow-x: auto;
+  flex-wrap: nowrap;
+  gap: 4px;
+  margin-left: 0;
+}
+.gx-timeline[data-layout='agenda'] .gx-timeline-time-controls {
+  flex: 0 0 100%;
+  width: 100%;
+}
+.gx-timeline[data-layout='agenda'] .gx-timeline-categories button {
+  flex: 0 0 auto;
+}
+.gx-agenda-header {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  gap: 4px;
+  flex-shrink: 0;
+  min-width: 0;
+}
+.gx-agenda-header:has(.gx-agenda-watch:not([hidden])) {
+  grid-template-columns: 44px minmax(0, 1fr) 44px minmax(64px, max-content);
+}
+.gx-agenda-watch {
+  white-space: nowrap;
+}
+@media (max-width: 420px) and (min-height: 500px) {
+  .gx-agenda-header:has(.gx-agenda-watch:not([hidden])) {
+    grid-template-columns: 44px minmax(0, 1fr) 44px;
+  }
+  .gx-agenda-header:has(.gx-agenda-watch:not([hidden])) .gx-agenda-channel {
+    display: block;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    max-height: calc(1.5em + 14px);
+  }
+  .gx-agenda-watch {
+    grid-column: 1 / -1;
+  }
+}
+.gx-agenda-header > button {
+  min-width: 44px;
+  min-height: 44px;
+}
+.gx-agenda-channel {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  max-height: calc(2.5em + 14px);
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.gx-timeline[data-layout='agenda'] .gx-timeline-content {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 2px;
+}
+.gx-agenda-listing {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  flex-shrink: 0;
+  min-height: 44px;
+  width: 100%;
+  text-align: left;
+  gap: 4px;
+}
+.gx-agenda-listing strong {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  max-height: 2.8em;
+  line-height: 1.4;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+.gx-agenda-time {
+  display: block;
+  font-size: 0.875em;
+  line-height: 1.4;
+  color: var(--gx-muted, #aebed1);
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.gx-timeline[data-layout='agenda'] .gx-timeline-status[data-state='ready'] {
+  position: static;
+  width: auto;
+  height: auto;
+  clip-path: none;
+  max-height: 1.5em;
+  overflow: auto;
+  font-size: 0.875em;
+}
+.gx-timeline[data-layout='agenda'] .gx-timeline-viewport {
+  min-height: 44px;
+}
+.gx-timeline[data-layout='agenda'] .gx-timeline-selection-hint {
+  display: none;
+}
+.gx-agenda-channel-options {
+  position: relative;
+  flex: 1;
+  min-height: 44px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.gx-agenda-channel-options-content {
+  position: relative;
+  min-width: 0;
+}
+.gx-agenda-channel-option {
+  position: absolute;
+  width: 100%;
+  min-height: 44px;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  text-align: left;
+}
+/* Keep explanatory status in the agenda scroll owner, reserving readable listings. */
+.gx-timeline[data-layout='agenda'] .gx-timeline-content > .gx-timeline-status {
+  max-height: none;
+  overflow: visible;
+  margin-top: 6px;
+}
+.gx-timeline[data-layout='agenda'][data-agenda-compact='true'] .gx-agenda-channel {
+  -webkit-line-clamp: 1;
+  max-height: calc(1.25em + 14px);
+}
+.gx-agenda-controls-toggle {
+  min-height: 44px;
+  min-width: 44px;
+  text-align: left;
+  flex-shrink: 0;
+}
+.gx-agenda-absolute-time {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+/* Guide feedback has its own row: progress and failures must not be clipped
+   inside the horizontally scrolling transport/navigation controls. */
+.guide-compact-page .gx-timeline > .guide-feedback,
+#app[data-device-kind='tv'] .guide-compact-page .gx-timeline > .guide-feedback {
+  flex: 0 0 auto;
+  width: 100%;
+  min-width: 0;
+  max-height: 3.9em;
+  overflow: auto;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+/* The same artwork/name vocabulary as Live TV, within the existing row target. */
+.gx-timeline .gx-timeline-channel,
+.gx-timeline[data-layout='agenda'] .gx-agenda-header .gx-agenda-channel {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  gap: 8px;
+  padding: 4px 6px;
+  border: 1px solid #25425b7a;
+  border-radius: 7px;
+  background: linear-gradient(100deg, #0c182b, #07101e);
+}
+.gx-timeline .media-result-artwork {
+  display: grid;
+  place-items: center;
+  flex: 0 0 44px;
+  width: 44px;
+  height: 32px;
+  overflow: hidden;
+  box-sizing: border-box;
+  border: 1px solid #325372;
+  border-radius: 5px;
+  background: linear-gradient(145deg, #162c47, #10192d);
+  color: #9eeeff;
+  font:
+    700 1rem/1 'GenX UI',
+    'Segoe UI',
+    sans-serif;
+  letter-spacing: 0.04em;
+}
+.gx-timeline .media-result-artwork[data-artwork='logo'] {
+  padding: 3px;
+  background: #071425;
+}
+.gx-timeline .channel-logo-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.gx-timeline .media-result-copy {
+  display: grid;
+  flex: 1 1 0;
+  min-width: 0;
+  gap: 2px;
+  align-content: center;
+}
+.gx-timeline .media-result-title,
+.gx-timeline .media-result-subtitle {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.15;
+}
+.gx-timeline .media-result-title {
+  font-size: 1em;
+  font-weight: 650;
+  color: #f0f5ff;
+}
+.gx-timeline .media-result-subtitle {
+  font-size: 0.75em;
+  color: #a8bbd1;
+}
+.gx-agenda-channel .media-result-subtitle {
+  display: none;
+}
+/* Listings matching the Guide search. */
+.gx-timeline .gx-timeline-match {
+  border-color: var(--gx-magenta, #f563c1);
+  box-shadow: inset 0 0 0 2px var(--gx-magenta, #f563c1);
+}
+
+/* Alternating row bands (owner requests, October 19, 2026): each row one
+   solid color, navy and plum from the GenX palette, so the eye can follow a
+   channel across. White text keeps a contrast of about 14:1 on both. Cells
+   are separated by thin lines. */
+.gx-timeline-row[data-band] {
+  --gx-band: #10294a;
+  --gx-band-line: #2f5f8a;
+  background: var(--gx-band);
+}
+.gx-timeline-row[data-band='b'] {
+  --gx-band: #34163d;
+  --gx-band-line: #74336e;
+}
+/* Solid only: no gradient, glow or "on now" underline inside a band (the
+   owner asked for plain solid rows). The selected programme and Guide search
+   matches keep their magenta outline, so the remote's position and search
+   results stay visible. */
+.gx-timeline .gx-timeline-row[data-band] .gx-timeline-channel,
+.gx-timeline-row[data-band] .gx-timeline-cell:not(.gx-timeline-selected):not(.gx-timeline-match) {
+  background: var(--gx-band) !important;
+  background-image: none !important;
+  border-color: var(--gx-band-line) !important;
+  border-bottom-width: 1px !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  color: #f4f7ff;
+}

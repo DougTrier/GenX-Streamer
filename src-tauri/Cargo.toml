@@ -1,0 +1,72 @@
+[package]
+name = "tmg-tv"
+version = "0.1.0"
+description = "GenX Streamer portable IPTV player"
+edition = "2021"
+rust-version = "1.88"
+license = "MIT"
+
+[lib]
+name = "tmg_tv_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["unstable"] }
+tauri-plugin-dialog = { version = "=2.6.0", default-features = false }
+tauri-plugin-fs = "=2.4.5"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
+# Already in the build through reqwest; used for a pass-through connect timer.
+tower-layer = "0.3"
+tower-service = "0.3"
+tokio = { version = "1", features = ["time", "sync", "macros", "net", "io-util"] }
+tempfile = "3"
+getrandom = "0.4"
+regex = "1"
+base64 = "0.22"
+bytes = "=1.11.1"
+sha2 = "0.10"
+sha1 = "=0.10.6"
+fs2 = "=0.4.3"
+zeroize = "=1.8.2"
+rusqlite = { version = "=0.40.2", default-features = false, features = ["bundled", "hooks", "backup", "functions"] }
+socket2 = { version = "0.6", features = ["all"] }
+if-addrs = "0.15"
+quick-xml = "0.41"
+chrono = { version = "=0.4.44", default-features = false, features = ["std"] }
+flate2 = "=1.1.9"
+unicode-normalization = "=0.1.25"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security_Cryptography", "Win32_Storage_FileSystem", "Win32_NetworkManagement_IpHelper", "Win32_Networking_WinSock", "Win32_NetworkManagement_Ndis", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging"] }
+
+windows = {version="=0.61.3",features= ["Win32_Media_Speech", "Win32_System_Com"] }
+# The same WebView2 bindings Tauri uses: station-page hardening (docs/web-viewer-invariants.md).
+webview2-com = "=0.38.2"
+
+[target.'cfg(target_os = "android")'.dependencies]
+# Trier MPEG Video's bridge to the Android player (already in Tauri's tree).
+jni = "0.21"
+
+[patch.crates-io]
+tao = { path = "vendor/tao" }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["test-util"] }
+
+# Third-party code is optimized even in development builds, which run on the
+# test TVs: unoptimized, secure-connection setup (P-256) and SQLite (compiled
+# from C) cost several times more, and on the Sansui a debug build kept one to
+# two of its four cores busy with channel checks and guide matching
+# (October 21, 2026). GenX's own crate keeps the development settings, so it
+# stays debuggable; release builds are optimized throughout.
+[profile.dev.package."*"]
+opt-level = 2
+[profile.dev.package.ring]
+opt-level = 3

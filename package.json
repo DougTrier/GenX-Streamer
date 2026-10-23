@@ -1,0 +1,47 @@
+{
+  "name": "genx-streamer",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 1420 --strictPort",
+    "typecheck": "tsc --noEmit",
+    "build": "npm run typecheck && vite build",
+    "test": "vitest run --reporter=default --reporter=json --outputFile=artifacts/tests/unit.json",
+    "test:watch": "vitest",
+    "tauri": "tauri",
+    "native:dev": "tauri dev",
+    "native:build": "tauri build --no-bundle",
+    "android:init": "tauri android init",
+    "android:build": "pwsh -NoProfile -File src-tauri/scripts/build-android.ps1",
+    "docs:check": "python -B -X utf8 scripts/tmg.py check",
+    "lint": "eslint src tests scripts --no-warn-ignored",
+    "format:check": "prettier --check src tests scripts/*.mjs *.ts *.mjs *.json",
+    "test:ui": "playwright test",
+    "fixtures": " node scripts/generate-fixtures.mjs",
+    "test:native": " node scripts/native-smoke.mjs",
+    "test:soak": " node scripts/windows-soak.mjs",
+    "test:android": "node scripts/android-smoke.mjs",
+    "test:tv-endurance": "node scripts/tv-endurance.mjs",
+    "verify": "node scripts/verify-development.mjs"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "2.11.0",
+    "@tauri-apps/plugin-dialog": "2.6.0",
+    "@tauri-apps/plugin-fs": "2.4.5",
+    "hls.js": "1.7.3",
+    "mpegts.js": "1.8.2"
+  },
+  "devDependencies": {
+    "@eslint/js": "10.0.1",
+    "@playwright/test": "1.64.0",
+    "@tauri-apps/cli": "2.12.1",
+    "eslint": "10.12.0",
+    "ffmpeg-static": "5.3.0",
+    "prettier": "3.9.10",
+    "typescript": "6.0.3",
+    "typescript-eslint": "8.71.1",
+    "vite": "8.3.4",
+    "vitest": "5.0.3"
+  }
+}

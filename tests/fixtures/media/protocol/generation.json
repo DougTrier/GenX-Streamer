@@ -1,0 +1,98 @@
+{
+  "seed": "owned-aes-range-v1-sequence100",
+  "encryption": "AES-128-CBC PKCS7, explicit sequence IVs 100–103; public fixture key",
+  "inputs": [
+    {
+      "name": "segment000.ts",
+      "bytes": 68620,
+      "sha256": "ed3aa1cf52dc7ac3bd5abb60cbe2688548e310bd8369cb2f15246f652b46eba3"
+    },
+    {
+      "name": "segment001.ts",
+      "bytes": 76704,
+      "sha256": "7c30b2066806b4fa0a3cc2fd7bcc200ce0b2575fe2872e41e369f94e136ead4d"
+    },
+    {
+      "name": "segment002.ts",
+      "bytes": 73884,
+      "sha256": "ce8a8320de7b7d394371095a9f7fe38c2e4b4819e9d45b50c7c046013202851b"
+    },
+    {
+      "name": "segment003.ts",
+      "bytes": 79148,
+      "sha256": "15e3cfbf44301540913f0b09273bab6d70a04634c3a12cc18281adb1e6ca534d"
+    },
+    {
+      "name": "init.mp4",
+      "bytes": 1334,
+      "sha256": "595bc68aa313066bb9b5c74f17a3b3ad753354a4b8b427940963f4bf298f874a"
+    },
+    {
+      "name": "fmp4segment000.m4s",
+      "bytes": 60275,
+      "sha256": "970b35458f53e6039254ccd7aa05534a141c5eb8fd806bb805a390906736c7c7"
+    },
+    {
+      "name": "fmp4segment001.m4s",
+      "bytes": 68803,
+      "sha256": "595fbbd5fa37ff441ac6ce977403fbc2a992d3640babdbc213056284a0462a93"
+    },
+    {
+      "name": "fmp4segment002.m4s",
+      "bytes": 65678,
+      "sha256": "217899c681dde63879887a91c83776e42a1e7b3edf3012e806ad06369a6e056e"
+    },
+    {
+      "name": "fmp4segment003.m4s",
+      "bytes": 71464,
+      "sha256": "65ad0d71f3e6d60de6329bf23866795d8aa081d1d8892eff453934fc8834050b"
+    }
+  ],
+  "outputs": [
+    {
+      "name": "aes.key",
+      "bytes": 16,
+      "sha256": "a8faed6abbf35c12a4b26e40f6feb19d736d90045c83b9f9a31f638d323e6811"
+    },
+    {
+      "name": "aes000.ts",
+      "bytes": 68624,
+      "sha256": "66e68be7a42649cf58fc8b4d0b18b0e66ed7a8f52dfe20c6db2332b25bf544bf"
+    },
+    {
+      "name": "aes001.ts",
+      "bytes": 76720,
+      "sha256": "75928d4b7646f6ffb5e611ef784c1fca28f6e509d8a1a7b24ee18dee182051ce"
+    },
+    {
+      "name": "aes002.ts",
+      "bytes": 73888,
+      "sha256": "0abdfa0ff0e81137fc65fb2266a8961af30c6c41e87ddee1532816f8c1ffcd59"
+    },
+    {
+      "name": "aes003.ts",
+      "bytes": 79152,
+      "sha256": "0e0f9c91e38e8581153fd633a6269bb746d45c24eb4d26952411d92a49ca3b4f"
+    },
+    {
+      "name": "aes.m3u8",
+      "bytes": 755,
+      "sha256": "5402c09e41d87a68f0d3168248db77386e8de336852004a38e1775dff32f161a"
+    },
+    {
+      "name": "master.m3u8",
+      "bytes": 99,
+      "sha256": "896fd50c38b8ef482155c4b915a4cc9f154afabcc28913339554d621cbb360d1"
+    },
+    {
+      "name": "ranges.mp4",
+      "bytes": 267554,
+      "sha256": "8430f81744205bf033ac333da754605675a7db473007f8e2b75edd4f0b11b4b0"
+    },
+    {
+      "name": "range.m3u8",
+      "bytes": 508,
+      "sha256": "27760334363030b8294e6696f5f4d1d0e68f5e1fe76cb48107de2cdbe0be2e4c"
+    }
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "default": "../assets/tmg-retro-tv.png",
+  "bg_color": "#111827",
+  "android_bg": "icon-background.svg",
+  "android_fg": "../assets/tmg-retro-tv.png",
+  "android_fg_scale": 55
+}

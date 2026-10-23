@@ -1,0 +1,50 @@
+/* While the native on-demand player shows a movie beneath the WebView, the
+   page leaves a see-through hole at the picture (docs/native-vod-player.md).
+   The app's background moves to a masked layer; the picture's own fill and the
+   web video element step aside. Everything drawn over the picture stays. */
+html[data-native-video='on'],
+html[data-native-video='on'] body {
+  background: transparent !important;
+}
+html[data-native-video='on'] #app {
+  background: none !important;
+  isolation: isolate;
+}
+html[data-native-video='on'] #app::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    linear-gradient(#080f2459, #080f2459),
+    url('../../assets/genx-synthwave.svg') center / cover no-repeat,
+    var(--gx-surface);
+  -webkit-mask:
+    linear-gradient(#000 0 0),
+    linear-gradient(#000 0 0) var(--gx-hole-x, 0) var(--gx-hole-y, 0) / var(--gx-hole-w, 0)
+      var(--gx-hole-h, 0) no-repeat;
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}
+html[data-native-video='on'] :is(.workspace, .view, .watch-card, .screen) {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+html[data-native-video='on'] #video {
+  visibility: hidden;
+}
+/* The channel panel paints its own background; where the picture sits over it
+   (the Guide's picture at the top left) the same hole goes through it. The
+   picture covers that spot, so nothing of the panel's own content is lost.
+   Only while the Guide is open: a mask also clips anything drawn outside the
+   panel, so other layouts keep the panel unmasked. */
+html[data-native-video='on'] #app[data-guide-panel='open'] .browser {
+  -webkit-mask:
+    linear-gradient(#000 0 0),
+    linear-gradient(#000 0 0) calc(var(--gx-hole-x, 0px) - var(--gx-panel-x, 0px))
+      calc(var(--gx-hole-y, 0px) - var(--gx-panel-y, 0px)) / var(--gx-hole-w, 0) var(--gx-hole-h, 0)
+      no-repeat;
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+}

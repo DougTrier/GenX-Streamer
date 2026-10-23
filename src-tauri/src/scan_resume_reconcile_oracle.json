@@ -1,0 +1,2440 @@
+{
+  "schemaVersion": 1,
+  "oracle": "stageScanSelection + prepareOwnedNativeScanBatch + applyCatalogPatch",
+  "cases": [
+    {
+      "name": "provider-url-rotation-preserves-id-preferences",
+      "catalog": {
+        "schemaVersion": 1,
+        "sources": [
+          {
+            "id": "s",
+            "name": "Fixture s",
+            "kind": "url",
+            "location": "https://fixture.invalid/s.m3u",
+            "allowHttp": false
+          }
+        ],
+        "channels": [
+          {
+            "sourceId": "s",
+            "name": "Station",
+            "category": "News",
+            "urls": [
+              "https://media.fixture.invalid/a.m3u8"
+            ],
+            "providerId": "provider",
+            "id": "old"
+          },
+          {
+            "sourceId": "s",
+            "name": "Other",
+            "category": "News",
+            "urls": [
+              "https://media.fixture.invalid/a.m3u8"
+            ],
+            "providerId": "other",
+            "id": "untouched"
+          }
+        ]
+      },
+      "preferences": {
+        "schemaVersion": 1,
+        "channelCategoryOverrides": [
+          {
+            "channelId": "old",
+            "category": "Sports"
+          }
+        ],
+        "favorites": [
+          "old"
+        ],
+        "removedChannels": [
+          "untouched"
+        ],
+        "volume": 0.8,
+        "muted": false,
+        "panelWidth": 360,
+        "sources": [
+          {
+            "id": "s",
+            "name": "Fixture s",
+            "location": "https://fixture.invalid/s.m3u",
+            "kind": "url",
+            "allowHttp": false
+          }
+        ],
+        "automaticSourceRefresh": false,
+        "automaticGuideUpdates": true,
+        "sourceRefreshCadence": "off",
+        "sourceRefreshAttemptAt": 0,
+        "voiceSearchConsent": false,
+        "reviewedChannelProviders": [],
+        "reviewedGuideProviders": [],
+        "preferredRegion": {
+          "country": "US",
+          "state": "US-IL",
+          "postal": "60601",
+          "origin": "manual"
+        }
+      },
+      "sourcePolicies": [
+        {
+          "source": {
+            "id": "s",
+            "name": "Fixture s",
+            "kind": "url",
+            "location": "https://fixture.invalid/s.m3u",
+            "allowHttp": false
+          },
+          "definitionFingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "capturedFingerprint": "capture-s"
+        }
+      ],
+      "selected": [
+        {
+          "originalIndex": 0,
+          "candidate": {
+            "key": "key-0",
+            "sourceId": "s",
+            "sourceFingerprint": "capture-s",
+            "sessionRevision": "session",
+            "channel": {
+              "sourceId": "s",
+              "name": "Station",
+              "category": "News",
+              "urls": [
+                "https://media.fixture.invalid/rotated.m3u8"
+              ],
+              "providerId": "provider"
+            }
+          },
+          "observation": {
+            "channelId": "key-0",
+            "sourceId": "s",
+            "fingerprint": "capture-s",
+            "platform": "android",
+            "observedAt": 100000,
+            "verdict": "Reachable",
+            "evidence": {
+              "kind": "recognized-media-response"
+            }
+          }
+        }
+      ],
+      "scopes": [
+        {
+          "sourceId": "s",
+          "ambiguousProviderKeys": [],
+          "ambiguousMetadataKeys": []
+        }
+      ],
+      "expected": {
+        "schemaVersion": 1,
+        "catalogPatch": {
+          "schemaVersion": 1,
+          "baseSourceCount": 1,
+          "baseChannelCount": 2,
+          "finalSourceCount": 1,
+          "finalChannelCount": 2,
+          "sources": [],
+          "channels": [
+            {
+              "id": "old",
+              "sourceId": "s",
+              "name": "Station",
+              "category": "News",
+              "urls": [
+                "https://media.fixture.invalid/rotated.m3u8"
+              ],
+              "providerId": "provider"
+            }
+          ]
+        },
+        "nextPreferences": {
+          "schemaVersion": 1,
+          "channelCategoryOverrides": [
+            {
+              "channelId": "old",
+              "category": "Sports"
+            }
+          ],
+          "favorites": [
+            "old"
+          ],
+          "removedChannels": [
+            "untouched"
+          ],
+          "volume": 0.8,
+          "muted": false,
+          "panelWidth": 360,
+          "sources": [
+            {
+              "id": "s",
+              "name": "Fixture s",
+              "location": "https://fixture.invalid/s.m3u",
+              "kind": "url",
+              "allowHttp": false
+            }
+          ],
+          "automaticSourceRefresh": false,
+          "automaticGuideUpdates": true,
+          "sourceRefreshCadence": "off",
+          "sourceRefreshAttemptAt": 0,
+          "voiceSearchConsent": false,
+          "reviewedChannelProviders": [],
+          "reviewedGuideProviders": [],
+          "preferredRegion": {
+            "country": "US",
+            "state": "US-IL",
+            "postal": "60601",
+            "origin": "manual"
+          }
+        },
+        "incomingHealth": [
+          {
+            "channelId": "old",
+            "sourceId": "s",
+            "checkedUrlOrdinal": 0,
+            "targetFingerprint": "2ce809ab48a1854bc99417c63fa30dd7b8348c28e084cf0ecae90cd4c3cd810b",
+            "schemaVersion": 1,
+            "platform": "android",
+            "observerProfile": "fixture-v1",
+            "observedAt": 100000,
+            "verdict": "Reachable",
+            "evidence": {
+              "kind": "recognized-media-response"
+            },
+            "origin": "local"
+          }
+        ]
+      },
+      "expectedCatalog": {
+        "schemaVersion": 1,
+        "sources": [
+          {
+            "id": "s",
+            "name": "Fixture s",
+            "kind": "url",
+            "location": "https://fixture.invalid/s.m3u",
+            "allowHttp": false
+          }
+        ],
+        "channels": [
+          {
+            "id": "old",
+            "sourceId": "s",
+            "name": "Station",
+            "category": "News",
+            "urls": [
+              "https://media.fixture.invalid/rotated.m3u8"
+            ],
+            "providerId": "provider"
+          },
+          {
+            "sourceId": "s",
+            "name": "Other",
+            "category": "News",
+            "urls": [
+              "https://media.fixture.invalid/a.m3u8"
+            ],
+            "providerId": "other",
+            "id": "untouched"
+          }
+        ]
+      },
+      "generatedIds": 0
+    },
+    {
+      "name": "variants-exact-and-omitted-geography",
+      "catalog": {
+        "schemaVersion": 1,
+        "sources": [
+          {
+            "id": "s",
+            "name": "Fixture s",
+            "kind": "url",
+            "location": "https://fixture.invalid/s.m3u",
+            "allowHttp": false
+          }
+        ],
+        "channels": [
+          {
+            "sourceId": "s",
+            "name": "Same",
+            "category": "News",
+            "urls": [
+              "https://media.fixture.invalid/sd.m3u8"
+            ],
+            "providerId": "shared",
+            "geography": {
+              "country": "US",
+              "region": "AMER",
+              "state": "US-IL"
+            },
+            "geographyProvenance": [
+              {
+                "field": "country",
+                "value": "US",
+                "sourceId": "s",
+                "kind": "m3u",
+                "scope": "country-group"
+              },
+              {
+                "field": "state",
+                "value": "US-IL",
+                "sourceId": "s",
+                "kind": "provider",
+                "scope": "provider-declared"
+              }
+            ],
+            "id": "sd"
+          },
+          {
+            "sourceId": "s",
+            "name": "Same",
+            "category": "News",
+            "urls": [
+              "https://media.fixture.invalid/hd.m3u8"
+            ],
+            "providerId": "shared",
+            "id": "hd"
+          }
+        ]
+      },
+      "preferences": {
+        "schemaVersion": 1,
+        "channelCategoryOverrides": [
+          {
+            "channelId": "sd",
+            "category": "Sports"
+          }
+        ],
+        "favorites": [
+          "sd"
+        ],
+        "removedChannels": [
+          "hd"
+        ],
+        "volume": 0.8,
+        "muted": false,
+        "panelWidth": 360,
+        "sources": [
+          {
+            "id": "s",
+            "name": "Fixture s",
+            "location": "https://fixture.invalid/s.m3u",
+            "kind": "url",
+            "allowHttp": false
+          }
+        ],
+        "automaticSourceRefresh": false,
+        "automaticGuideUpdates": true,
+        "sourceRefreshCadence": "off",
+        "sourceRefreshAttemptAt": 0,
+        "voiceSearchConsent": false,
+        "reviewedChannelProviders": [],
+        "reviewedGuideProviders": [],
+        "preferredRegion": {
+          "country": "US",
+          "state": "US-IL",
+          "postal": "60601",
+          "origin": "manual"
+        }
+      },
+      "sourcePolicies": [
+        {
+          "source": {
+            "id": "s",
+            "name": "Fixture s",
+            "kind": "url",
+            "location": "https://fixture.invalid/s.m3u",
+            "allowHttp": false
+          },
+          "definitionFingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "capturedFingerprint": "capture-s"
+        }
+      ],
+      "selected": [
+        {
+          "originalIndex": 0,
+          "candidate": {
+            "key": "key-0",
+            "sourceId": "s",
+            "sourceFingerprint": "capture-s",
+            "sessionRevision": "session",
+            "channel": {
+              "sourceId": "s",
+              "name": "Same",
+              "category": "News",
+              "urls": [
+                "https://media.fixture.invalid/sd.m3u8"
+              ],
+              "providerId": "shared"
+            }
+          },
+          "observation": {
+            "channelId": "key-0",
+            "sourceId": "s",
+            "fingerprint": "capture-s",
+            "platform": "android",
+            "observedAt": 100000,
+            "verdict": "Reachable",
+            "evidence": {
+              "kind": "recognized-media-response"
+            }
+          }
+        },
+        {
+          "originalIndex": 1,
+          "candidate": {
+            "key": "key-1",
+            "sourceId": "s",
+            "sourceFingerprint": "capture-s",
+            "sessionRevision": "session",
+            "channel": {
+              "sourceId": "s",
+              "name": "Same",
+              "category": "News",
+              "urls": [
+                "https://media.fixture.invalid/hd.m3u8"
+              ],
+              "providerId": "shared"
+            }
+          },
+          "observation": {
+            "channelId": "key-1",
+            "sourceId": "s",
+            "fingerprint": "capture-s",
+            "platform": "android",
+            "observedAt": 100000,
+            "verdict": "Reachable",
+            "evidence": {
+              "kind": "recognized-media-response"
+            }
+          }
+        }
+      ],
+      "scopes": [
+        {
+          "sourceId": "s",
+          "ambiguousProviderKeys": [
+            "[\"s\",\"shared\"]"
+          ],
+          "ambiguousMetadataKeys": [
+            "[\"s\",\"shared\",\"same\",\"news\"]"
+          ]
+        }
+      ],
+      "expected": {
+        "schemaVersion": 1,
+        "catalogPatch": {
+          "schemaVersion": 1,
+          "baseSourceCount": 1,
+          "baseChannelCount": 2,
+          "finalSourceCount": 1,
+          "finalChannelCount": 2,
+          "sources": [],
+          "channels": []
+        },
+        "nextPreferences": {
+          "schemaVersion": 1,
+          "channelCategoryOverrides": [
+            {
+              "channelId": "sd",
+              "category": "Sports"
+            }
+          ],
+          "favorites": [
+            "sd"
+          ],
+          "removedChannels": [
+            "hd"
+          ],
+          "volume": 0.8,
+          "muted": false,
+          "panelWidth": 360,
+          "sources": [
+            {
+              "id": "s",
+              "name": "Fixture s",
+              "location": "https://fixture.invalid/s.m3u",
+              "kind": "url",
+              "allowHttp": false
+            }
+          ],
+          "automaticSourceRefresh": false,
+          "automaticGuideUpdates": true,
+          "sourceRefreshCadence": "off",
+          "sourceRefreshAttemptAt": 0,
+          "voiceSearchConsent": false,
+          "reviewedChannelProviders": [],
+          "reviewedGuideProviders": [],
+          "preferredRegion": {
+            "country": "US",
+            "state": "US-IL",
+            "postal": "60601",
+            "origin": "manual"
+          }
+        },
+        "incomingHealth": [
+          {
+            "channelId": "sd",
+            "sourceId": "s",
+            "checkedUrlOrdinal": 0,
+            "targetFingerprint": "243e6b0f3daea0aace6d62308502e06c7b1b133a1f6aa94a7fc33ac8bd0afb70",
+            "schemaVersion": 1,
+            "platform": "android",
+            "observerProfile": "fixture-v1",
+            "observedAt": 100000,
+            "verdict": "Reachable",
+            "evidence": {
+              "kind": "recognized-media-response"
+            },
+            "origin": "local"
+          },
+          {
+            "channelId": "hd",
+            "sourceId": "s",
+            "checkedUrlOrdinal": 0,
+            "targetFingerprint": "0ffdcd25e5311641c7de7b46ec23911306a9e67739f884e4491b12cc47d95dc8",
+            "schemaVersion": 1,
+            "platform": "android",
+            "observerProfile": "fixture-v1",
+            "observedAt": 100000,
+            "verdict": "Reachable",
+            "evidence": {
+              "kind": "recognized-media-response"
+            },
+            "origin": "local"
+          }
+        ]
+      },
+      "expectedCatalog": {
+        "schemaVersion": 1,
+        "sources": [
+          {
+            "id": "s",
+            "name": "Fixture s",
+            "kind": "url",
+            "location": "https://fixture.invalid/s.m3u",
+            "allowHttp": false
+          }
+        ],
+        "channels": [
+          {
+            "sourceId": "s",
+            "name": "Same",
+            "category": "News",
+            "urls": [
+              "https://media.fixture.invalid/sd.m3u8"
+            ],
+            "providerId": "shared",
+            "geography": {
+              "country": "US",
+              "region": "AMER",
+              "state": "US-IL"
+            },
+            "geographyProvenance": [
+              {
+                "field": "country",
+                "value": "US",
+                "sourceId": "s",
+                "kind": "m3u",
+                "scope": "country-group"
+              },
+              {
+                "field": "state",
+                "value": "US-IL",
+                "sourceId": "s",
+                "kind": "provider",
+                "scope": "provider-declared"
+              }
+            ],
+            "id": "sd"
+          },
+          {
+            "sourceId": "s",
+            "name": "Same",
+            "category": "News",
+            "urls": [
+              "https://media.fixture.invalid/hd.m3u8"
+            ],
+            "providerId": "shared",
+            "id": "hd"
+          }
+        ]
+      },
+      "generatedIds": 0
+    },
+    {
+      "name": "duplicate-canonical-records-retained-stable-utf16",
+      "catalog": {
+        "schemaVersion": 1,
+        "sources": [
+          {
+            "id": "s",
+            "name": "Fixture s",
+            "kind": "url",
+            "location": "https://fixture.invalid/s.m3u",
+            "allowHttp": false
+          }
+        ],
+        "channels": [
+          {
+            "sourceId": "s",
+            "name": "Same",
+            "category": "News",
+            "urls": [
+              "https://media.fixture.invalid/sd.m3u8"
+            ],
+            "providerId": "shared",
+            "id": "😀"
+          },
+          {
+            "sourceId": "s",
+            "name": "Same",
+            "category": "News",
+            "urls": [
+              "https://media.fixture.invalid/sd.m3u8"
+            ],
+            "providerId": "shared",
+            "id": ""
+          }
+        ]
+      },
+      "preferences": {
+        "schemaVersion": 1,
+        "channelCategoryOverrides": [
+          {
+            "channelId": "😀",
+            "category": "Sports"
+          }
+        ],
+        "favorites": [
+          "😀"
+        ],
+        "removedChannels": [
+          ""
+        ],
+        "volume": 0.8,
+        "muted": false,
+        "panelWidth": 360,
+        "sources": [
+          {
+            "id": "s",
+            "name": "Fixture s",
+            "location": "https://fixture.invalid/s.m3u",
+            "kind": "url",
+            "allowHttp": false
+          }
+        ],
+        "automaticSourceRefresh": false,
+        "automaticGuideUpdates": true,
+        "sourceRefreshCadence": "off",
+        "sourceRefreshAttemptAt": 0,
+        "voiceSearchConsent": false,
+        "reviewedChannelProviders": [],
+        "reviewedGuideProviders": [],
+        "preferredRegion": {
+          "country": "US",
+          "state": "US-IL",
+          "postal": "60601",
+          "origin": "manual"
+        }
+      },
+      "sourcePolicies": [
+        {
+          "source": {
+            "id": "s",
+            "name": "Fixture s",
+            "kind": "url",
+            "location": "https://fixture.invalid/s.m3u",
+            "allowHttp": false
+          },
+          "definitionFingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "capturedFingerprint": "capture-s"
+        }
+      ],
+      "selected": [
+        {
+          "originalIndex": 0,
+          "candidate": {
+            "key": "key-0",
+            "sourceId": "s",
+            "sourceFingerprint": "capture-s",
+            "sessionRevision": "session",
+            "channel": {
+              "sourceId": "s",
+              "name": "Same",
+              "category": "News",
+              "urls": [
+                "https://media.fixture.invalid/sd.m3u8"
+              ],
+              "providerId": "shared"
+            }
+          },
+          "observation": {
+            "channelId": "key-0",
+            "sourceId": "s",
+            "fingerprint": "capture-s",
+            "platform": "android",
+            "observedAt": 100000,
+            "verdict": "Reachable",
+            "evidence": {
+              "kind": "recognized-media-response"
+            }
+          }
+        }
+      ],
+      "scopes": [
+        {
+          "sourceId": "s",
+          "ambiguousProviderKeys": [],
+          "ambiguousMetadataKeys": []
+        }
+      ],
+      "expected": {
+        "schemaVersion": 1,
+        "catalogPatch": {
+          "schemaVersion": 1,
+          "baseSourceCount": 1,
+          "baseChannelCount": 2,
+          "finalSourceCount": 1,
+          "finalChannelCount": 2,
+          "sources": [],
+          "channels": []
+        },
+        "nextPreferences": {
+          "schemaVersion": 1,
+          "channelCategoryOverrides": [
+            {
+              "channelId": "😀",
+              "category": "Sports"
+            }
+          ],
+          "favorites": [
+            "😀"
+          ],
+          "removedChannels": [
+            ""
+          ],
+          "volume": 0.8,
+          "muted": false,
+          "panelWidth": 360,
+          "sources": [
+            {
+              "id": "s",
+              "name": "Fixture s",
+              "location": "https://fixture.invalid/s.m3u",
+              "kind": "url",
+              "allowHttp": false
+            }
+          ],
+          "automaticSourceRefresh": false,
+          "automaticGuideUpdates": true,
+          "sourceRefreshCadence": "off",
+          "sourceRefreshAttemptAt": 0,
+          "voiceSearchConsent": false,
+          "reviewedChannelProviders": [],
+          "reviewedGuideProviders": [],
+          "preferredRegion": {
+            "country": "US",
+            "state": "US-IL",
+            "postal": "60601",
+            "origin": "manual"
+          }
+        },
+        "incomingHealth": [
+          {
+            "channelId": "😀",
+            "sourceId": "s",
+            "checkedUrlOrdinal": 0,
+            "targetFingerprint": "17fc3567ca2d32a42801907eeb13249f9967e4e2fd90c343212ff4f7b2dba737",
+            "schemaVersion": 1,
+            "platform": "android",
+            "observerProfile": "fixture-v1",
+            "observedAt": 100000,
+            "verdict": "Reachable",
+            "evidence": {
+              "kind": "recognized-media-response"
+            },
+            "origin": "local"
+          }
+        ]
+      },
+      "expectedCatalog": {
+        "schemaVersion": 1,
+        "sources": [
+          {
+            "id": "s",
+            "name": "Fixture s",
+            "kind": "url",
+            "location": "https://fixture.invalid/s.m3u",
+            "allowHttp": false
+          }
+        ],
+        "channels": [
+          {
+            "sourceId": "s",
+            "name": "Same",
+            "category": "News",
+            "urls": [
+              "https://media.fixture.invalid/sd.m3u8"
+            ],
+            "providerId": "shared",
+            "id": "😀"
+          },
+          {
+            "sourceId": "s",
+            "name": "Same",
+            "category": "News",
+            "urls": [
+              "https://media.fixture.invalid/sd.m3u8"
+            ],
+            "providerId": "shared",
+            "id": ""
+          }
+        ]
+      },
+      "generatedIds": 0
+    },
+    {
+      "name": "normalized-metadata-fallback-unicode",
+      "catalog": {
+        "schemaVersion": 1,
+        "sources": [
+          {
+            "id": "s",
+            "name": "Fixture s",
+            "kind": "url",
+            "location": "https://fixture.invalid/s.m3u",
+            "allowHttp": false
+          }
+        ],
+        "channels": [
+          {
+            "sourceId": "s",
+            "name": "foo",
+            "category": "News",
+            "urls": [
+              "https://media.fixture.invalid/old.m3u8"
+            ],
+            "id": "named"
+          }
+        ]
+      },
+      "preferences": {
+        "schemaVersion": 1,
+        "channelCategoryOverrides": [
+          {
+            "channelId": "named",
+            "category": "Sports"
+          }
+        ],
+        "favorites": [
+          "named"
+        ],
+        "removedChannels": [],
+        "volume": 0.8,
+        "muted": false,
+        "panelWidth": 360,
+        "sources": [
+          {
+            "id": "s",
+            "name": "Fixture s",
+            "location": "https://fixture.invalid/s.m3u",
+            "kind": "url",
+            "allowHttp": false
+          }
+        ],
+        "automaticSourceRefresh": false,
+        "automaticGuideUpdates": true,
+        "sourceRefreshCadence": "off",
+        "sourceRefreshAttemptAt": 0,
+        "voiceSearchConsent": false,
+        "reviewedChannelProviders": [],
+        "reviewedGuideProviders": [],
+        "preferredRegion": {
+          "country": "US",
+          "state": "US-IL",
+          "postal": "60601",
+          "origin": "manual"
+        }
+      },
+      "sourcePolicies": [
+        {
+          "source": {
+            "id": "s",
+            "name": "Fixture s",
+            "kind": "url",
+            "location": "https://fixture.invalid/s.m3u",
+            "allowHttp": false
+          },
+          "definitionFingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "capturedFingerprint": "capture-s"
+        }
+      ],
+      "selected": [
+        {
+          "originalIndex": 0,
+          "candidate": {
+            "key": "key-0",
+            "sourceId": "s",
+            "sourceFingerprint": "capture-s",
+            "sessionRevision": "session",
+            "channel": {
+              "sourceId": "s",
+              "name": "ＦＯＯ",
+              "category": "News",
+              "urls": [
+                "https://media.fixture.invalid/new.m3u8"
+              ]
+            }
+          },
+          "observation": {
+            "channelId": "key-0",
+            "sourceId": "s",
+            "fingerprint": "capture-s",
+            "platform": "android",
+            "observedAt": 100000,
+            "verdict": "Reachable",
+            "evidence": {
+              "kind": "recognized-media-response"
+            }
+          }
+        }
+      ],
+      "scopes": [
+        {
+          "sourceId": "s",
+          "ambiguousProviderKeys": [],
+          "ambiguousMetadataKeys": []
+        }
+      ],
+      "expected": {
+        "schemaVersion": 1,
+        "catalogPatch": {
+          "schemaVersion": 1,
+          "baseSourceCount": 1,
+          "baseChannelCount": 1,
+          "finalSourceCount": 1,
+          "finalChannelCount": 1,
+          "sources": [],
+          "channels": [
+            {
+              "id": "named",
+              "sourceId": "s",
+              "name": "ＦＯＯ",
+              "category": "News",
+              "urls": [
+                "https://media.fixture.invalid/new.m3u8"
+              ]
+            }
+          ]
+        },
+        "nextPreferences": {
+          "schemaVersion": 1,
+          "channelCategoryOverrides": [
+            {
+              "channelId": "named",
+              "category": "Sports"
+            }
+          ],
+          "favorites": [
+            "named"
+          ],
+          "removedChannels": [],
+          "volume": 0.8,
+          "muted": false,
+          "panelWidth": 360,
+          "sources": [
+            {
+              "id": "s",
+              "name": "Fixture s",
+              "location": "https://fixture.invalid/s.m3u",
+              "kind": "url",
+              "allowHttp": false
+            }
+          ],
+          "automaticSourceRefresh": false,
+          "automaticGuideUpdates": true,
+          "sourceRefreshCadence": "off",
+          "sourceRefreshAttemptAt": 0,
+          "voiceSearchConsent": false,
+          "reviewedChannelProviders": [],
+          "reviewedGuideProviders": [],
+          "preferredRegion": {
+            "country": "US",
+            "state": "US-IL",
+            "postal": "60601",
+            "origin": "manual"
+          }
+        },
+        "incomingHealth": [
+          {
+            "channelId": "named",
+            "sourceId": "s",
+            "checkedUrlOrdinal": 0,
+            "targetFingerprint": "641f37b48382f9a121d3c7f0d820ec99c2c4239e50ef25d7365f5dea88c005aa",
+            "schemaVersion": 1,
+            "platform": "android",
+            "observerProfile": "fixture-v1",
+            "observedAt": 100000,
+            "verdict": "Reachable",
+            "evidence": {
+              "kind": "recognized-media-response"
+            },
+            "origin": "local"
+          }
+        ]
+      },
+      "expectedCatalog": {
+        "schemaVersion": 1,
+        "sources": [
+          {
+            "id": "s",
+            "name": "Fixture s",
+            "kind": "url",
+            "location": "https://fixture.invalid/s.m3u",
+            "allowHttp": false
+          }
+        ],
+        "channels": [
+          {
+            "id": "named",
+            "sourceId": "s",
+            "name": "ＦＯＯ",
+            "category": "News",
+            "urls": [
+              "https://media.fixture.invalid/new.m3u8"
+            ]
+          }
+        ]
+      },
+      "generatedIds": 0
+    },
+    {
+      "name": "generated-id-provider-encoding-alternate-order",
+      "catalog": {
+        "schemaVersion": 1,
+        "sources": [
+          {
+            "id": "s ü",
+            "name": "Fixture s ü",
+            "kind": "url",
+            "location": "https://fixture.invalid/s%20%C3%BC.m3u",
+            "allowHttp": false
+          }
+        ],
+        "channels": []
+      },
+      "preferences": {
+        "schemaVersion": 1,
+        "channelCategoryOverrides": [],
+        "favorites": [],
+        "removedChannels": [],
+        "volume": 0.8,
+        "muted": false,
+        "panelWidth": 360,
+        "sources": [
+          {
+            "id": "s ü",
+            "name": "Fixture s ü",
+            "location": "https://fixture.invalid/s%20%C3%BC.m3u",
+            "kind": "url",
+            "allowHttp": false
+          }
+        ],
+        "automaticSourceRefresh": false,
+        "automaticGuideUpdates": true,
+        "sourceRefreshCadence": "off",
+        "sourceRefreshAttemptAt": 0,
+        "voiceSearchConsent": false,
+        "reviewedChannelProviders": [],
+        "reviewedGuideProviders": [],
+        "preferredRegion": {
+          "country": "US",
+          "state": "US-IL",
+          "postal": "60601",
+          "origin": "manual"
+        }
+      },
+      "sourcePolicies": [
+        {
+          "source": {
+            "id": "s ü",
+            "name": "Fixture s ü",
+            "kind": "url",
+            "location": "https://fixture.invalid/s%20%C3%BC.m3u",
+            "allowHttp": false
+          },
+          "definitionFingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "capturedFingerprint": "capture-s ü"
+        }
+      ],
+      "selected": [
+        {
+          "originalIndex": 0,
+          "candidate": {
+            "key": "key-0",
+            "sourceId": "s ü",
+            "sourceFingerprint": "capture-s ü",
+            "sessionRevision": "session",
+            "channel": {
+              "sourceId": "s ü",
+              "name": "New",
+              "category": "News",
+              "urls": [
+                "https://media.fixture.invalid/z.m3u8",
+                "https://media.fixture.invalid/a.m3u8"
+              ],
+              "providerId": "station 💜"
+            }
+          },
+          "observation": {
+            "channelId": "key-0",
+            "sourceId": "s ü",
+            "fingerprint": "capture-s ü",
+            "platform": "android",
+            "observedAt": 100000,
+            "verdict": "Reachable",
+            "evidence": {
+              "kind": "recognized-media-response"
+            }
+          }
+        },
+        {
+          "originalIndex": 1,
+          "candidate": {
+            "key": "key-1",
+            "sourceId": "s ü",
+            "sourceFingerprint": "capture-s ü",
+            "sessionRevision": "session",
+            "channel": {
+              "sourceId": "s ü",
+              "name": "Unidentified",
+              "category": "News",
+              "urls": [
+                "https://media.fixture.invalid/u.m3u8"
+              ]
+            }
+          },
+          "observation": {
+            "channelId": "key-1",
+            "sourceId": "s ü",
+            "fingerprint": "capture-s ü",
+            "platform": "android",
+            "observedAt": 100000,
+            "verdict": "Reachable",
+            "evidence": {
+              "kind": "recognized-media-response"
+            }
+          }
+        }
+      ],
+      "scopes": [
+        {
+          "sourceId": "s ü",
+          "ambiguousProviderKeys": [],
+          "ambiguousMetadataKeys": []
+        }
+      ],
+      "expected": {
+        "schemaVersion": 1,
+        "catalogPatch": {
+          "schemaVersion": 1,
+          "baseSourceCount": 1,
+          "baseChannelCount": 0,
+          "finalSourceCount": 1,
+          "finalChannelCount": 2,
+          "sources": [],
+          "channels": [
+            {
+              "id": "provider:s%20%C3%BC:station%20%F0%9F%92%9C",
+              "sourceId": "s ü",
+              "name": "New",
+              "category": "News",
+              "urls": [
+                "https://media.fixture.invalid/z.m3u8",
+                "https://media.fixture.invalid/a.m3u8"
+              ],
+              "providerId": "station 💜"
+            },
+            {
+              "id": "00000000-0000-4000-8000-000000000001",
+              "sourceId": "s ü",
+              "name": "Unidentified",
+              "category": "News",
+              "urls": [
+                "https://media.fixture.invalid/u.m3u8"
+              ]
+            }
+          ]
+        },
+        "nextPreferences": {
+          "schemaVersion": 1,
+          "channelCategoryOverrides": [],
+          "favorites": [],
+          "removedChannels": [],
+          "volume": 0.8,
+          "muted": false,
+          "panelWidth": 360,
+          "sources": [
+            {
+              "id": "s ü",
+              "name": "Fixture s ü",
+              "location": "https://fixture.invalid/s%20%C3%BC.m3u",
+              "kind": "url",
+              "allowHttp": false
+            }
+          ],
+          "automaticSourceRefresh": false,
+          "automaticGuideUpdates": true,
+          "sourceRefreshCadence": "off",
+          "sourceRefreshAttemptAt": 0,
+          "voiceSearchConsent": false,
+          "reviewedChannelProviders": [],
+          "reviewedGuideProviders": [],
+          "preferredRegion": {
+            "country": "US",
+            "state": "US-IL",
+            "postal": "60601",
+            "origin": "manual"
+          }
+        },
+        "incomingHealth": [
+          {
+            "channelId": "provider:s%20%C3%BC:station%20%F0%9F%92%9C",
+            "sourceId": "s ü",
+            "checkedUrlOrdinal": 0,
+            "targetFingerprint": "0e027fbf23786702f6e5c99a89b766b620885a621a81b0e6ed20229ad0e7f516",
+            "schemaVersion": 1,
+            "platform": "android",
+            "observerProfile": "fixture-v1",
+            "observedAt": 100000,
+            "verdict": "Reachable",
+            "evidence": {
+              "kind": "recognized-media-response"
+            },
+            "origin": "local"
+          },
+          {
+            "channelId": "00000000-0000-4000-8000-000000000001",
+            "sourceId": "s ü",
+            "checkedUrlOrdinal": 0,
+            "targetFingerprint": "a0e3fec82c0c95248f48617bf7b01501e40b0b319c8b69aa942fb0a96d6a4d56",
+            "schemaVersion": 1,
+            "platform": "android",
+            "observerProfile": "fixture-v1",
+            "observedAt": 100000,
+            "verdict": "Reachable",
+            "evidence": {
+              "kind": "recognized-media-response"
+            },
+            "origin": "local"
+          }
+        ]
+      },
+      "expectedCatalog": {
+        "schemaVersion": 1,
+        "sources": [
+          {
+            "id": "s ü",
+            "name": "Fixture s ü",
+            "kind": "url",
+            "location": "https://fixture.invalid/s%20%C3%BC.m3u",
+            "allowHttp": false
+          }
+        ],
+        "channels": [
+          {
+            "id": "provider:s%20%C3%BC:station%20%F0%9F%92%9C",
+            "sourceId": "s ü",
+            "name": "New",
+            "category": "News",
+            "urls": [
+              "https://media.fixture.invalid/z.m3u8",
+              "https://media.fixture.invalid/a.m3u8"
+            ],
+            "providerId": "station 💜"
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000001",
+            "sourceId": "s ü",
+            "name": "Unidentified",
+            "category": "News",
+            "urls": [
+              "https://media.fixture.invalid/u.m3u8"
+            ]
+          }
+        ]
+      },
+      "generatedIds": 1
+    },
+    {
+      "name": "changed-country-drops-incompatible-state-keeps-provenance",
+      "catalog": {
+        "schemaVersion": 1,
+        "sources": [
+          {
+            "id": "s",
+            "name": "Fixture s",
+            "kind": "url",
+            "location": "https://fixture.invalid/s.m3u",
+            "allowHttp": false
+          }
+        ],
+        "channels": [
+          {
+            "sourceId": "s",
+            "name": "Station",
+            "category": "News",
+            "urls": [
+              "https://media.fixture.invalid/a.m3u8"
+            ],
+            "providerId": "provider",
+            "geography": {
+              "country": "US",
+              "region": "AMER",
+              "state": "US-IL"
+            },
+            "geographyProvenance": [
+              {
+                "field": "country",
+                "value": "US",
+                "sourceId": "s",
+                "kind": "m3u",
+                "scope": "country-group"
+              },
+              {
+                "field": "state",
+                "value": "US-IL",
+                "sourceId": "s",
+                "kind": "provider",
+                "scope": "provider-declared"
+              }
+            ],
+            "id": "old"
+          }
+        ]
+      },
+      "preferences": {
+        "schemaVersion": 1,
+        "channelCategoryOverrides": [
+          {
+            "channelId": "old",
+            "category": "Sports"
+          }
+        ],
+        "favorites": [
+          "old"
+        ],
+        "removedChannels": [],
+        "volume": 0.8,
+        "muted": false,
+        "panelWidth": 360,
+        "sources": [
+          {
+            "id": "s",
+            "name": "Fixture s",
+            "location": "https://fixture.invalid/s.m3u",
+            "kind": "url",
+            "allowHttp": false
+          }
+        ],
+        "automaticSourceRefresh": false,
+        "automaticGuideUpdates": true,
+        "sourceRefreshCadence": "off",
+        "sourceRefreshAttemptAt": 0,
+        "voiceSearchConsent": false,
+        "reviewedChannelProviders": [],
+        "reviewedGuideProviders": [],
+        "preferredRegion": {
+          "country": "US",
+          "state": "US-IL",
+          "postal": "60601",
+          "origin": "manual"
+        }
+      },
+      "sourcePolicies": [
+        {
+          "source": {
+            "id": "s",
+            "name": "Fixture s",
+            "kind": "url",
+            "location": "https://fixture.invalid/s.m3u",
+            "allowHttp": false
+          },
+          "definitionFingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "capturedFingerprint": "capture-s"
+        }
+      ],
+      "selected": [
+        {
+          "originalIndex": 0,
+          "candidate": {
+            "key": "key-0",
+            "sourceId": "s",
+            "sourceFingerprint": "capture-s",
+            "sessionRevision": "session",
+            "channel": {
+              "sourceId": "s",
+              "name": "Station",
+              "category": "News",
+              "urls": [
+                "https://media.fixture.invalid/new.m3u8"
+              ],
+              "providerId": "provider",
+              "geography": {
+                "country": "GB"
+              },
+              "geographyProvenance": [
+                {
+                  "field": "country",
+                  "value": "GB",
+                  "sourceId": "s",
+                  "kind": "provider",
+                  "scope": "provider-declared"
+                }
+              ]
+            }
+          },
+          "observation": {
+            "channelId": "key-0",
+            "sourceId": "s",
+            "fingerprint": "capture-s",
+            "platform": "android",
+            "observedAt": 100000,
+            "verdict": "Reachable",
+            "evidence": {
+              "kind": "recognized-media-response"
+            }
+          }
+        }
+      ],
+      "scopes": [
+        {
+          "sourceId": "s",
+          "ambiguousProviderKeys": [],
+          "ambiguousMetadataKeys": []
+        }
+      ],
+      "expected": {
+        "schemaVersion": 1,
+        "catalogPatch": {
+          "schemaVersion": 1,
+          "baseSourceCount": 1,
+          "baseChannelCount": 1,
+          "finalSourceCount": 1,
+          "finalChannelCount": 1,
+          "sources": [],
+          "channels": [
+            {
+              "id": "old",
+              "sourceId": "s",
+              "name": "Station",
+              "category": "News",
+              "urls": [
+                "https://media.fixture.invalid/new.m3u8"
+              ],
+              "providerId": "provider",
+              "geography": {
+                "country": "GB",
+                "region": "AMER"
+              },
+              "geographyProvenance": [
+                {
+                  "field": "country",
+                  "value": "GB",
+                  "sourceId": "s",
+                  "kind": "provider",
+                  "scope": "provider-declared"
+                }
+              ]
+            }
+          ]
+        },
+        "nextPreferences": {
+          "schemaVersion": 1,
+          "channelCategoryOverrides": [
+            {
+              "channelId": "old",
+              "category": "Sports"
+            }
+          ],
+          "favorites": [
+            "old"
+          ],
+          "removedChannels": [],
+          "volume": 0.8,
+          "muted": false,
+          "panelWidth": 360,
+          "sources": [
+            {
+              "id": "s",
+              "name": "Fixture s",
+              "location": "https://fixture.invalid/s.m3u",
+              "kind": "url",
+              "allowHttp": false
+            }
+          ],
+          "automaticSourceRefresh": false,
+          "automaticGuideUpdates": true,
+          "sourceRefreshCadence": "off",
+          "sourceRefreshAttemptAt": 0,
+          "voiceSearchConsent": false,
+          "reviewedChannelProviders": [],
+          "reviewedGuideProviders": [],
+          "preferredRegion": {
+            "country": "US",
+            "state": "US-IL",
+            "postal": "60601",
+            "origin": "manual"
+          }
+        },
+        "incomingHealth": [
+          {
+            "channelId": "old",
+            "sourceId": "s",
+            "checkedUrlOrdinal": 0,
+            "targetFingerprint": "2fc711cd5c28ede58baf276b32291931c81cb8dda8d6df9dadb25e24095b78ec",
+            "schemaVersion": 1,
+            "platform": "android",
+            "observerProfile": "fixture-v1",
+            "observedAt": 100000,
+            "verdict": "Reachable",
+            "evidence": {
+              "kind": "recognized-media-response"
+            },
+            "origin": "local"
+          }
+        ]
+      },
+      "expectedCatalog": {
+        "schemaVersion": 1,
+        "sources": [
+          {
+            "id": "s",
+            "name": "Fixture s",
+            "kind": "url",
+            "location": "https://fixture.invalid/s.m3u",
+            "allowHttp": false
+          }
+        ],
+        "channels": [
+          {
+            "id": "old",
+            "sourceId": "s",
+            "name": "Station",
+            "category": "News",
+            "urls": [
+              "https://media.fixture.invalid/new.m3u8"
+            ],
+            "providerId": "provider",
+            "geography": {
+              "country": "GB",
+              "region": "AMER"
+            },
+            "geographyProvenance": [
+              {
+                "field": "country",
+                "value": "GB",
+                "sourceId": "s",
+                "kind": "provider",
+                "scope": "provider-declared"
+              }
+            ]
+          }
+        ]
+      },
+      "generatedIds": 0
+    },
+    {
+      "name": "full-review-ambiguity-outside-selected-page",
+      "catalog": {
+        "schemaVersion": 1,
+        "sources": [
+          {
+            "id": "s",
+            "name": "Fixture s",
+            "kind": "url",
+            "location": "https://fixture.invalid/s.m3u",
+            "allowHttp": false
+          }
+        ],
+        "channels": [
+          {
+            "sourceId": "s",
+            "name": "Same",
+            "category": "News",
+            "urls": [
+              "https://media.fixture.invalid/sd.m3u8"
+            ],
+            "providerId": "shared",
+            "id": "old-same"
+          }
+        ]
+      },
+      "preferences": {
+        "schemaVersion": 1,
+        "channelCategoryOverrides": [
+          {
+            "channelId": "old-same",
+            "category": "Sports"
+          }
+        ],
+        "favorites": [
+          "old-same"
+        ],
+        "removedChannels": [],
+        "volume": 0.8,
+        "muted": false,
+        "panelWidth": 360,
+        "sources": [
+          {
+            "id": "s",
+            "name": "Fixture s",
+            "location": "https://fixture.invalid/s.m3u",
+            "kind": "url",
+            "allowHttp": false
+          }
+        ],
+        "automaticSourceRefresh": false,
+        "automaticGuideUpdates": true,
+        "sourceRefreshCadence": "off",
+        "sourceRefreshAttemptAt": 0,
+        "voiceSearchConsent": false,
+        "reviewedChannelProviders": [],
+        "reviewedGuideProviders": [],
+        "preferredRegion": {
+          "country": "US",
+          "state": "US-IL",
+          "postal": "60601",
+          "origin": "manual"
+        }
+      },
+      "sourcePolicies": [
+        {
+          "source": {
+            "id": "s",
+            "name": "Fixture s",
+            "kind": "url",
+            "location": "https://fixture.invalid/s.m3u",
+            "allowHttp": false
+          },
+          "definitionFingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "capturedFingerprint": "capture-s"
+        }
+      ],
+      "selected": [
+        {
+          "originalIndex": 0,
+          "candidate": {
+            "key": "key-0",
+            "sourceId": "s",
+            "sourceFingerprint": "capture-s",
+            "sessionRevision": "session",
+            "channel": {
+              "sourceId": "s",
+              "name": "Same",
+              "category": "News",
+              "urls": [
+                "https://media.fixture.invalid/bulk-0.m3u8"
+              ],
+              "providerId": "shared"
+            }
+          },
+          "observation": {
+            "channelId": "key-0",
+            "sourceId": "s",
+            "fingerprint": "capture-s",
+            "platform": "android",
+            "observedAt": 100000,
+            "verdict": "Reachable",
+            "evidence": {
+              "kind": "recognized-media-response"
+            }
+          }
+        },
+        {
+          "originalIndex": 129,
+          "candidate": {
+            "key": "key-129",
+            "sourceId": "s",
+            "sourceFingerprint": "capture-s",
+            "sessionRevision": "session",
+            "channel": {
+              "sourceId": "s",
+              "name": "Bulk 129",
+              "category": "News",
+              "urls": [
+                "https://media.fixture.invalid/bulk-129.m3u8"
+              ],
+              "providerId": "bulk-129"
+            }
+          },
+          "observation": {
+            "channelId": "key-129",
+            "sourceId": "s",
+            "fingerprint": "capture-s",
+            "platform": "android",
+            "observedAt": 100000,
+            "verdict": "Reachable",
+            "evidence": {
+              "kind": "recognized-media-response"
+            }
+          }
+        }
+      ],
+      "scopes": [
+        {
+          "sourceId": "s",
+          "ambiguousProviderKeys": [
+            "[\"s\",\"shared\"]"
+          ],
+          "ambiguousMetadataKeys": [
+            "[\"s\",\"shared\",\"same\",\"news\"]"
+          ]
+        }
+      ],
+      "expected": {
+        "schemaVersion": 1,
+        "catalogPatch": {
+          "schemaVersion": 1,
+          "baseSourceCount": 1,
+          "baseChannelCount": 1,
+          "finalSourceCount": 1,
+          "finalChannelCount": 3,
+          "sources": [],
+          "channels": [
+            {
+              "id": "00000000-0000-4000-8000-000000000001",
+              "sourceId": "s",
+              "name": "Same",
+              "category": "News",
+              "urls": [
+                "https://media.fixture.invalid/bulk-0.m3u8"
+              ],
+              "providerId": "shared"
+            },
+            {
+              "id": "provider:s:bulk-129",
+              "sourceId": "s",
+              "name": "Bulk 129",
+              "category": "News",
+              "urls": [
+                "https://media.fixture.invalid/bulk-129.m3u8"
+              ],
+              "providerId": "bulk-129"
+            }
+          ]
+        },
+        "nextPreferences": {
+          "schemaVersion": 1,
+          "channelCategoryOverrides": [
+            {
+              "channelId": "old-same",
+              "category": "Sports"
+            }
+          ],
+          "favorites": [
+            "old-same"
+          ],
+          "removedChannels": [],
+          "volume": 0.8,
+          "muted": false,
+          "panelWidth": 360,
+          "sources": [
+            {
+              "id": "s",
+              "name": "Fixture s",
+              "location": "https://fixture.invalid/s.m3u",
+              "kind": "url",
+              "allowHttp": false
+            }
+          ],
+          "automaticSourceRefresh": false,
+          "automaticGuideUpdates": true,
+          "sourceRefreshCadence": "off",
+          "sourceRefreshAttemptAt": 0,
+          "voiceSearchConsent": false,
+          "reviewedChannelProviders": [],
+          "reviewedGuideProviders": [],
+          "preferredRegion": {
+            "country": "US",
+            "state": "US-IL",
+            "postal": "60601",
+            "origin": "manual"
+          }
+        },
+        "incomingHealth": [
+          {
+            "channelId": "00000000-0000-4000-8000-000000000001",
+            "sourceId": "s",
+            "checkedUrlOrdinal": 0,
+            "targetFingerprint": "4c58574096f57c5e97cab365c06c5828a7f217142c429dc8d3ebabd3f3a48d3c",
+            "schemaVersion": 1,
+            "platform": "android",
+            "observerProfile": "fixture-v1",
+            "observedAt": 100000,
+            "verdict": "Reachable",
+            "evidence": {
+              "kind": "recognized-media-response"
+            },
+            "origin": "local"
+          },
+          {
+            "channelId": "provider:s:bulk-129",
+            "sourceId": "s",
+            "checkedUrlOrdinal": 0,
+            "targetFingerprint": "3b676f808deddd1f1dd3a2c8a03acf934c8dcdfa8a3ef2f41e7f3179dcc023d5",
+            "schemaVersion": 1,
+            "platform": "android",
+            "observerProfile": "fixture-v1",
+            "observedAt": 100000,
+            "verdict": "Reachable",
+            "evidence": {
+              "kind": "recognized-media-response"
+            },
+            "origin": "local"
+          }
+        ]
+      },
+      "expectedCatalog": {
+        "schemaVersion": 1,
+        "sources": [
+          {
+            "id": "s",
+            "name": "Fixture s",
+            "kind": "url",
+            "location": "https://fixture.invalid/s.m3u",
+            "allowHttp": false
+          }
+        ],
+        "channels": [
+          {
+            "sourceId": "s",
+            "name": "Same",
+            "category": "News",
+            "urls": [
+              "https://media.fixture.invalid/sd.m3u8"
+            ],
+            "providerId": "shared",
+            "id": "old-same"
+          },
+          {
+            "id": "00000000-0000-4000-8000-000000000001",
+            "sourceId": "s",
+            "name": "Same",
+            "category": "News",
+            "urls": [
+              "https://media.fixture.invalid/bulk-0.m3u8"
+            ],
+            "providerId": "shared"
+          },
+          {
+            "id": "provider:s:bulk-129",
+            "sourceId": "s",
+            "name": "Bulk 129",
+            "category": "News",
+            "urls": [
+              "https://media.fixture.invalid/bulk-129.m3u8"
+            ],
+            "providerId": "bulk-129"
+          }
+        ]
+      },
+      "generatedIds": 1
+    },
+    {
+      "name": "source-order-channel-order-and-interleaved-health",
+      "catalog": {
+        "schemaVersion": 1,
+        "sources": [
+          {
+            "id": "b",
+            "name": "Fixture b",
+            "kind": "url",
+            "location": "https://fixture.invalid/b.m3u",
+            "allowHttp": false
+          }
+        ],
+        "channels": [
+          {
+            "sourceId": "b",
+            "name": "OldB",
+            "category": "News",
+            "urls": [
+              "https://media.fixture.invalid/b.m3u8"
+            ],
+            "providerId": "old-b",
+            "id": "b-old"
+          }
+        ]
+      },
+      "preferences": {
+        "schemaVersion": 1,
+        "channelCategoryOverrides": [
+          {
+            "channelId": "b-old",
+            "category": "Sports"
+          }
+        ],
+        "favorites": [
+          "b-old"
+        ],
+        "removedChannels": [],
+        "volume": 0.8,
+        "muted": false,
+        "panelWidth": 360,
+        "sources": [
+          {
+            "id": "b",
+            "name": "Fixture b",
+            "location": "https://fixture.invalid/b.m3u",
+            "kind": "url",
+            "allowHttp": false
+          }
+        ],
+        "automaticSourceRefresh": false,
+        "automaticGuideUpdates": true,
+        "sourceRefreshCadence": "off",
+        "sourceRefreshAttemptAt": 0,
+        "voiceSearchConsent": false,
+        "reviewedChannelProviders": [],
+        "reviewedGuideProviders": [],
+        "preferredRegion": {
+          "country": "US",
+          "state": "US-IL",
+          "postal": "60601",
+          "origin": "manual"
+        }
+      },
+      "sourcePolicies": [
+        {
+          "source": {
+            "id": "s",
+            "name": "Fixture s",
+            "kind": "url",
+            "location": "https://fixture.invalid/s.m3u",
+            "allowHttp": false
+          },
+          "definitionFingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "capturedFingerprint": "capture-s"
+        },
+        {
+          "source": {
+            "id": "b",
+            "name": "Fixture b",
+            "kind": "url",
+            "location": "https://fixture.invalid/b.m3u",
+            "allowHttp": false
+          },
+          "definitionFingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "capturedFingerprint": "capture-b"
+        }
+      ],
+      "selected": [
+        {
+          "originalIndex": 0,
+          "candidate": {
+            "key": "key-0",
+            "sourceId": "s",
+            "sourceFingerprint": "capture-s",
+            "sessionRevision": "session",
+            "channel": {
+              "sourceId": "s",
+              "name": "A1",
+              "category": "News",
+              "urls": [
+                "https://media.fixture.invalid/a.m3u8"
+              ],
+              "providerId": "a1"
+            }
+          },
+          "observation": {
+            "channelId": "key-0",
+            "sourceId": "s",
+            "fingerprint": "capture-s",
+            "platform": "android",
+            "observedAt": 100000,
+            "verdict": "Reachable",
+            "evidence": {
+              "kind": "recognized-media-response"
+            }
+          }
+        },
+        {
+          "originalIndex": 1,
+          "candidate": {
+            "key": "key-1",
+            "sourceId": "b",
+            "sourceFingerprint": "capture-b",
+            "sessionRevision": "session",
+            "channel": {
+              "sourceId": "b",
+              "name": "B1",
+              "category": "News",
+              "urls": [
+                "https://media.fixture.invalid/b1.m3u8"
+              ],
+              "providerId": "b1"
+            }
+          },
+          "observation": {
+            "channelId": "key-1",
+            "sourceId": "b",
+            "fingerprint": "capture-b",
+            "platform": "android",
+            "observedAt": 100000,
+            "verdict": "Reachable",
+            "evidence": {
+              "kind": "recognized-media-response"
+            }
+          }
+        },
+        {
+          "originalIndex": 2,
+          "candidate": {
+            "key": "key-2",
+            "sourceId": "s",
+            "sourceFingerprint": "capture-s",
+            "sessionRevision": "session",
+            "channel": {
+              "sourceId": "s",
+              "name": "A2",
+              "category": "News",
+              "urls": [
+                "https://media.fixture.invalid/a.m3u8"
+              ],
+              "providerId": "a2"
+            }
+          },
+          "observation": {
+            "channelId": "key-2",
+            "sourceId": "s",
+            "fingerprint": "capture-s",
+            "platform": "android",
+            "observedAt": 100000,
+            "verdict": "Reachable",
+            "evidence": {
+              "kind": "recognized-media-response"
+            }
+          }
+        }
+      ],
+      "scopes": [
+        {
+          "sourceId": "s",
+          "ambiguousProviderKeys": [],
+          "ambiguousMetadataKeys": []
+        },
+        {
+          "sourceId": "b",
+          "ambiguousProviderKeys": [],
+          "ambiguousMetadataKeys": []
+        }
+      ],
+      "expected": {
+        "schemaVersion": 1,
+        "catalogPatch": {
+          "schemaVersion": 1,
+          "baseSourceCount": 1,
+          "baseChannelCount": 1,
+          "finalSourceCount": 2,
+          "finalChannelCount": 4,
+          "sources": [
+            {
+              "id": "s",
+              "name": "Fixture s",
+              "location": "https://fixture.invalid/s.m3u",
+              "kind": "url",
+              "allowHttp": false
+            }
+          ],
+          "channels": [
+            {
+              "id": "provider:s:a1",
+              "sourceId": "s",
+              "name": "A1",
+              "category": "News",
+              "urls": [
+                "https://media.fixture.invalid/a.m3u8"
+              ],
+              "providerId": "a1"
+            },
+            {
+              "id": "provider:s:a2",
+              "sourceId": "s",
+              "name": "A2",
+              "category": "News",
+              "urls": [
+                "https://media.fixture.invalid/a.m3u8"
+              ],
+              "providerId": "a2"
+            },
+            {
+              "id": "provider:b:b1",
+              "sourceId": "b",
+              "name": "B1",
+              "category": "News",
+              "urls": [
+                "https://media.fixture.invalid/b1.m3u8"
+              ],
+              "providerId": "b1"
+            }
+          ]
+        },
+        "nextPreferences": {
+          "schemaVersion": 1,
+          "channelCategoryOverrides": [
+            {
+              "channelId": "b-old",
+              "category": "Sports"
+            }
+          ],
+          "favorites": [
+            "b-old"
+          ],
+          "removedChannels": [],
+          "volume": 0.8,
+          "muted": false,
+          "panelWidth": 360,
+          "sources": [
+            {
+              "id": "b",
+              "name": "Fixture b",
+              "location": "https://fixture.invalid/b.m3u",
+              "kind": "url",
+              "allowHttp": false
+            },
+            {
+              "id": "s",
+              "name": "Fixture s",
+              "location": "https://fixture.invalid/s.m3u",
+              "kind": "url",
+              "allowHttp": false
+            }
+          ],
+          "automaticSourceRefresh": false,
+          "automaticGuideUpdates": true,
+          "sourceRefreshCadence": "off",
+          "sourceRefreshAttemptAt": 0,
+          "voiceSearchConsent": false,
+          "reviewedChannelProviders": [],
+          "reviewedGuideProviders": [],
+          "preferredRegion": {
+            "country": "US",
+            "state": "US-IL",
+            "postal": "60601",
+            "origin": "manual"
+          }
+        },
+        "incomingHealth": [
+          {
+            "channelId": "provider:s:a1",
+            "sourceId": "s",
+            "checkedUrlOrdinal": 0,
+            "targetFingerprint": "a4a857674cfbe4aaa07bda61cb51c5ece476740454606700c0e6496664c5a09a",
+            "schemaVersion": 1,
+            "platform": "android",
+            "observerProfile": "fixture-v1",
+            "observedAt": 100000,
+            "verdict": "Reachable",
+            "evidence": {
+              "kind": "recognized-media-response"
+            },
+            "origin": "local"
+          },
+          {
+            "channelId": "provider:b:b1",
+            "sourceId": "b",
+            "checkedUrlOrdinal": 0,
+            "targetFingerprint": "e26ea6015d2eb31a38711e7bde602e4d89afcd15108010b526a4c43b644a81d8",
+            "schemaVersion": 1,
+            "platform": "android",
+            "observerProfile": "fixture-v1",
+            "observedAt": 100000,
+            "verdict": "Reachable",
+            "evidence": {
+              "kind": "recognized-media-response"
+            },
+            "origin": "local"
+          },
+          {
+            "channelId": "provider:s:a2",
+            "sourceId": "s",
+            "checkedUrlOrdinal": 0,
+            "targetFingerprint": "a8aab8a20520eaf3fbaded2ca8851d3fec4e6d0386e872d20a0df182930ce876",
+            "schemaVersion": 1,
+            "platform": "android",
+            "observerProfile": "fixture-v1",
+            "observedAt": 100000,
+            "verdict": "Reachable",
+            "evidence": {
+              "kind": "recognized-media-response"
+            },
+            "origin": "local"
+          }
+        ]
+      },
+      "expectedCatalog": {
+        "schemaVersion": 1,
+        "sources": [
+          {
+            "id": "b",
+            "name": "Fixture b",
+            "kind": "url",
+            "location": "https://fixture.invalid/b.m3u",
+            "allowHttp": false
+          },
+          {
+            "id": "s",
+            "name": "Fixture s",
+            "location": "https://fixture.invalid/s.m3u",
+            "kind": "url",
+            "allowHttp": false
+          }
+        ],
+        "channels": [
+          {
+            "sourceId": "b",
+            "name": "OldB",
+            "category": "News",
+            "urls": [
+              "https://media.fixture.invalid/b.m3u8"
+            ],
+            "providerId": "old-b",
+            "id": "b-old"
+          },
+          {
+            "id": "provider:s:a1",
+            "sourceId": "s",
+            "name": "A1",
+            "category": "News",
+            "urls": [
+              "https://media.fixture.invalid/a.m3u8"
+            ],
+            "providerId": "a1"
+          },
+          {
+            "id": "provider:s:a2",
+            "sourceId": "s",
+            "name": "A2",
+            "category": "News",
+            "urls": [
+              "https://media.fixture.invalid/a.m3u8"
+            ],
+            "providerId": "a2"
+          },
+          {
+            "id": "provider:b:b1",
+            "sourceId": "b",
+            "name": "B1",
+            "category": "News",
+            "urls": [
+              "https://media.fixture.invalid/b1.m3u8"
+            ],
+            "providerId": "b1"
+          }
+        ]
+      },
+      "generatedIds": 0
+    },
+    {
+      "name": "observed-mime-normalizes-on-copy",
+      "catalog": {
+        "schemaVersion": 1,
+        "sources": [],
+        "channels": []
+      },
+      "preferences": {
+        "schemaVersion": 1,
+        "channelCategoryOverrides": [],
+        "favorites": [],
+        "removedChannels": [],
+        "volume": 0.8,
+        "muted": false,
+        "panelWidth": 360,
+        "sources": [],
+        "automaticSourceRefresh": false,
+        "automaticGuideUpdates": true,
+        "sourceRefreshCadence": "off",
+        "sourceRefreshAttemptAt": 0,
+        "voiceSearchConsent": false,
+        "reviewedChannelProviders": [],
+        "reviewedGuideProviders": [],
+        "preferredRegion": {
+          "country": "US",
+          "state": "US-IL",
+          "postal": "60601",
+          "origin": "manual"
+        }
+      },
+      "sourcePolicies": [
+        {
+          "source": {
+            "id": "s",
+            "name": "Fixture s",
+            "kind": "url",
+            "location": "https://fixture.invalid/s.m3u",
+            "allowHttp": false,
+            "contentKind": "catalog",
+            "mediaMime": "Application/Vnd.Apple.MpegURL; charset=UTF-8"
+          },
+          "definitionFingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "capturedFingerprint": "capture-s"
+        }
+      ],
+      "selected": [
+        {
+          "originalIndex": 0,
+          "candidate": {
+            "key": "key-0",
+            "sourceId": "s",
+            "sourceFingerprint": "capture-s",
+            "sessionRevision": "session",
+            "channel": {
+              "sourceId": "s",
+              "name": "Station",
+              "category": "News",
+              "urls": [
+                "https://media.fixture.invalid/a.m3u8"
+              ],
+              "providerId": "provider"
+            }
+          },
+          "observation": {
+            "channelId": "key-0",
+            "sourceId": "s",
+            "fingerprint": "capture-s",
+            "platform": "android",
+            "observedAt": 100000,
+            "verdict": "Reachable",
+            "evidence": {
+              "kind": "recognized-media-response"
+            }
+          }
+        }
+      ],
+      "scopes": [
+        {
+          "sourceId": "s",
+          "ambiguousProviderKeys": [],
+          "ambiguousMetadataKeys": []
+        }
+      ],
+      "expected": {
+        "schemaVersion": 1,
+        "catalogPatch": {
+          "schemaVersion": 1,
+          "baseSourceCount": 0,
+          "baseChannelCount": 0,
+          "finalSourceCount": 1,
+          "finalChannelCount": 1,
+          "sources": [
+            {
+              "id": "s",
+              "name": "Fixture s",
+              "location": "https://fixture.invalid/s.m3u",
+              "kind": "url",
+              "allowHttp": false,
+              "contentKind": "catalog",
+              "mediaMime": "application/vnd.apple.mpegurl"
+            }
+          ],
+          "channels": [
+            {
+              "id": "provider:s:provider",
+              "sourceId": "s",
+              "name": "Station",
+              "category": "News",
+              "urls": [
+                "https://media.fixture.invalid/a.m3u8"
+              ],
+              "providerId": "provider"
+            }
+          ]
+        },
+        "nextPreferences": {
+          "schemaVersion": 1,
+          "channelCategoryOverrides": [],
+          "favorites": [],
+          "removedChannels": [],
+          "volume": 0.8,
+          "muted": false,
+          "panelWidth": 360,
+          "sources": [
+            {
+              "id": "s",
+              "name": "Fixture s",
+              "location": "https://fixture.invalid/s.m3u",
+              "kind": "url",
+              "allowHttp": false,
+              "contentKind": "catalog",
+              "mediaMime": "application/vnd.apple.mpegurl"
+            }
+          ],
+          "automaticSourceRefresh": false,
+          "automaticGuideUpdates": true,
+          "sourceRefreshCadence": "off",
+          "sourceRefreshAttemptAt": 0,
+          "voiceSearchConsent": false,
+          "reviewedChannelProviders": [],
+          "reviewedGuideProviders": [],
+          "preferredRegion": {
+            "country": "US",
+            "state": "US-IL",
+            "postal": "60601",
+            "origin": "manual"
+          }
+        },
+        "incomingHealth": [
+          {
+            "channelId": "provider:s:provider",
+            "sourceId": "s",
+            "checkedUrlOrdinal": 0,
+            "targetFingerprint": "183f9a821e788b274c96d34b36ee940f30fd1797e80dae24b3cfb3e469a60fa9",
+            "schemaVersion": 1,
+            "platform": "android",
+            "observerProfile": "fixture-v1",
+            "observedAt": 100000,
+            "verdict": "Reachable",
+            "evidence": {
+              "kind": "recognized-media-response"
+            },
+            "origin": "local"
+          }
+        ]
+      },
+      "expectedCatalog": {
+        "schemaVersion": 1,
+        "sources": [
+          {
+            "id": "s",
+            "name": "Fixture s",
+            "location": "https://fixture.invalid/s.m3u",
+            "kind": "url",
+            "allowHttp": false,
+            "contentKind": "catalog",
+            "mediaMime": "application/vnd.apple.mpegurl"
+          }
+        ],
+        "channels": [
+          {
+            "id": "provider:s:provider",
+            "sourceId": "s",
+            "name": "Station",
+            "category": "News",
+            "urls": [
+              "https://media.fixture.invalid/a.m3u8"
+            ],
+            "providerId": "provider"
+          }
+        ]
+      },
+      "generatedIds": 0
+    }
+  ]
+}

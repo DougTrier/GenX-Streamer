@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><defs>
+<radialGradient id="sea" cx="0.38" cy="0.32" r="0.78"><stop stop-color="#7FF0FF"/><stop offset=".32" stop-color="#1A8FD1"/><stop offset=".72" stop-color="#14306E"/><stop offset="1" stop-color="#2A0F4F"/></radialGradient>
+<linearGradient id="rim" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#FFFFFF"/><stop offset=".3" stop-color="#A4E5FF"/><stop offset=".55" stop-color="#34629D"/><stop offset=".8" stop-color="#C3F7FF"/><stop offset="1" stop-color="#7772D5"/></linearGradient>
+<linearGradient id="orbit" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#08D8FB"/><stop offset=".55" stop-color="#FF36B4"/><stop offset="1" stop-color="#FFAD6B"/></linearGradient>
+<radialGradient id="shine" cx="0.5" cy="0.5" r="0.5"><stop stop-color="#FFFFFF" stop-opacity=".95"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></radialGradient>
+<clipPath id="ball"><circle cx="16" cy="16" r="10.6"/></clipPath>
+</defs>
+<circle cx="16" cy="16" r="11.4" fill="#08D8FB" opacity=".18"/>
+<circle cx="16" cy="16" r="10.6" fill="url(#sea)"/>
+<g clip-path="url(#ball)" fill="none" stroke="#9FF6FF" stroke-width="1" opacity=".85">
+<ellipse cx="16" cy="16" rx="4.6" ry="10.6"/>
+<path d="M16 5.4v21.2 M5.4 16h21.2 M7 10.6c5.6 2 12.4 2 18 0 M7 21.4c5.6-2 12.4-2 18 0"/>
+</g>
+<g clip-path="url(#ball)" fill="#3DDC97" opacity=".55"><path d="M9.5 9.5c2.2-1.4 4.6-.9 5.4.7.6 1.3-.6 2.4-1.9 2.6-1.6.3-1.6 2-3.1 2.1-1.2.1-1.9-1.6-1.7-3 .1-.9.5-1.7 1.3-2.4z M18.4 15.6c1.6-.8 3.9-.2 4.6 1.4.6 1.5-.3 3.6-1.9 4.4-1.3.7-2.2-.4-2.5-1.7-.3-1.3-1.8-1.9-1.4-3 .2-.4.6-.8 1.2-1.1z"/></g>
+<circle cx="16" cy="16" r="10.6" fill="none" stroke="url(#rim)" stroke-width="1.4"/>
+<ellipse cx="16" cy="16.8" rx="14.4" ry="4.2" fill="none" stroke="url(#orbit)" stroke-width="1.6" transform="rotate(-18 16 16.8)"/>
+<ellipse cx="12.4" cy="10.4" rx="4.2" ry="2.6" fill="url(#shine)" transform="rotate(-28 12.4 10.4)"/>
+</svg>

@@ -1,0 +1,9 @@
+{
+  "url": "https://archive.org/download/thenewadventuresofgilligans1/__ia_thumb.jpg",
+  "sourceMetadata": "tests/fixtures/archive-search-metadata/thenewadventuresofgilligans1.json",
+  "capturedUtc": "2026-10-15T01:37:21.745687+00:00",
+  "bytes": 7326,
+  "sha256": "bbc1b0cea1b88a715ab4b02930be9fe82ce26bb1efd22295056610cce10e618a",
+  "providerSha1Matches": true,
+  "scope": "Actual provider Item Tile image fixture only; never bundled as user content. No playback or rights proof."
+}

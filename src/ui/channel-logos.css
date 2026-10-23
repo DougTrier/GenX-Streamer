@@ -1,0 +1,10 @@
+.media-result-artwork[data-artwork='logo'] {
+  background: #071425;
+  padding: 4px;
+}
+.media-result-artwork .channel-logo-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}

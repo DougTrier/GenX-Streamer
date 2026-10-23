@@ -1,0 +1,44 @@
+.channel-actions {
+  display: flex;
+  gap: 7px;
+  flex-shrink: 0;
+}
+.source-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 8px 0;
+}
+.source-row span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 13px;
+}
+.source-row button {
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.dialog-head h2 {
+  white-space: normal;
+}
+@media (max-width: 650px) {
+  .channel-actions {
+    gap: 4px;
+  }
+  .watchhead #remove-channel {
+    font-size: 10px;
+    padding: 7px;
+  }
+  .watchhead {
+    align-items: flex-start;
+  }
+  .watchhead h2 {
+    max-width: 170px;
+  }
+  .channel-actions {
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+    max-width: none;
+  }
+}

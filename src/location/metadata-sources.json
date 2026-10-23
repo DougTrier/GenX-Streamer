@@ -1,0 +1,8 @@
+{
+  "countries": "https://iptv-org.github.io/api/countries.json",
+  "channels": "https://iptv-org.github.io/api/channels.json",
+  "subdivisions": "https://iptv-org.github.io/api/subdivisions.json",
+  "feeds": "https://iptv-org.github.io/api/feeds.json",
+  "cities": "https://iptv-org.github.io/api/cities.json",
+  "blocklist": "https://iptv-org.github.io/api/blocklist.json"
+}

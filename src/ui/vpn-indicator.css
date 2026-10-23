@@ -1,0 +1,53 @@
+/* The header's VPN shield, marked with a V: neon glass like the premium buttons,
+   lit green while a VPN is connected and red when none is (grey when the device
+   cannot tell). */
+.vpn-status {
+  --vpn-size: 16px;
+  --vpn-color: #ff5c7a;
+  --vpn-glow: #ff3d6b8c;
+  position: fixed;
+  z-index: 2;
+  width: calc(var(--vpn-size) * 0.875);
+  height: var(--vpn-size);
+  transform: translate(-50%, -50%);
+  pointer-events: auto;
+  filter: drop-shadow(0 0 2px var(--vpn-glow)) drop-shadow(0 1px 1px #000000a6);
+  transition: filter 0.3s;
+}
+.vpn-status[hidden] {
+  display: none;
+}
+.vpn-status[data-state='connected'] {
+  --vpn-color: #46f5a6;
+  --vpn-glow: #2df59a99;
+}
+.vpn-status[data-state='error'] {
+  --vpn-color: #8ea3bd;
+  --vpn-glow: #8ea3bd40;
+}
+.vpn-status svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.vpn-status .vpn-shield {
+  fill: url(#gx-vpn-glass);
+  stroke: var(--vpn-color);
+  stroke-width: 1.7;
+  stroke-linejoin: round;
+  transition: stroke 0.3s;
+}
+.vpn-status .vpn-sheen {
+  fill: #ffffff;
+  opacity: 0.1;
+}
+.vpn-status .vpn-text {
+  fill: var(--vpn-color);
+  font:
+    900 13px 'GenX UI',
+    'Segoe UI',
+    system-ui,
+    sans-serif;
+  transition: fill 0.3s;
+}

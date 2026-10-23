@@ -1,0 +1,124 @@
+/* Instant replay on live TV (docs/instant-replay.md). Replay sits with the
+   playback controls; while a replay runs, its controls take the dock's place.
+   No Lucide replay icon is bundled, so its mark is a text glyph. */
+.replay-transport {
+  flex-wrap: wrap;
+  row-gap: 6px;
+}
+.replay-transport output {
+  min-width: 64px;
+}
+#replay-button[hidden] {
+  display: none !important;
+}
+#replay-button[aria-pressed='true'] {
+  border-color: var(--accent, currentColor);
+}
+/* Wide docks show icon and text: the glyph replaces the icon mask. */
+#app:not(.viewing-fullscreen) .dock .controls > #replay-button::before,
+#app.viewing-fullscreen .workspace > .view .dock .controls > #replay-button::before {
+  content: '\27f2';
+  mask: none;
+  background: none;
+  width: auto;
+  height: auto;
+  font-size: 18px;
+  line-height: 1;
+}
+/* While a replay runs, its controls replace the dock's (its Pause/Play and
+   Live stand in for them; everything returns with Live). Sharing one row
+   overflowed the Sansui's dock on both sides (October 21, 2026). */
+#app:has(#replay-transport:not([hidden]))
+  .dock
+  :is(.controls, .secondary-controls, .channel-actions) {
+  display: none !important;
+}
+#app:has(#replay-transport:not([hidden])) .dock > .replay-transport {
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: center;
+}
+/* Wide non-TV docks: compact replay controls, as the on-demand ones are. */
+@media (min-width: 851px) and (min-height: 421px) {
+  #app:not([data-device-kind='tv']):not(.viewing-fullscreen) .dock .replay-transport {
+    flex-wrap: nowrap;
+    gap: 4px;
+  }
+  #app:not([data-device-kind='tv']):not(.viewing-fullscreen) .dock .replay-transport button {
+    min-width: 44px;
+    height: 44px;
+    padding: 4px 8px;
+    font-size: 12px;
+  }
+  #app:not([data-device-kind='tv']):not(.viewing-fullscreen) .dock .replay-transport output {
+    min-width: 56px;
+    font-size: 12px;
+  }
+}
+/* The icon on the picture, used by phones instead of the dock button. */
+.replay-overlay {
+  display: none;
+}
+/* Phones: Replay is a round icon at the picture's bottom right, shown only
+   once a replay is possible; the replay controls stay in the dock. */
+@media (max-width: 850px), (max-height: 420px) {
+  #app:not(.viewing-fullscreen) .dock .controls > #replay-button {
+    display: none !important;
+  }
+  #app:not(.viewing-fullscreen) .screen > .replay-overlay:not([hidden]):not(:disabled) {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    z-index: 3;
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    padding: 0;
+    border-radius: 50%;
+    border: 1px solid var(--gx-border, rgba(255, 255, 255, 0.35));
+    background: rgba(6, 9, 14, 0.62);
+    color: #fff;
+    font-size: 24px;
+    line-height: 1;
+  }
+  #app:not(.viewing-fullscreen) .screen > .replay-overlay[aria-pressed='true'] {
+    border-color: var(--accent, currentColor);
+  }
+  #app:not(.viewing-fullscreen) .watch-card > .dock > .replay-transport {
+    grid-column: 1 / -1;
+    grid-row: 1;
+    gap: 4px;
+  }
+  #app:not(.viewing-fullscreen) .replay-transport button {
+    min-width: 40px;
+    padding: 4px 6px;
+  }
+  #app:not(.viewing-fullscreen) .replay-transport output {
+    display: none;
+  }
+}
+/* Full screen: the dock is a grid whose buttons fill their cells; the replay
+   controls stay one compact row across it instead (phones stacked them off
+   the screen otherwise). */
+#app.viewing-fullscreen .workspace > .view .dock > .replay-transport:not([hidden]) {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+#app.viewing-fullscreen .workspace > .view .dock > .replay-transport button {
+  flex: 1 1 0;
+  width: auto;
+  min-width: 36px;
+  height: auto;
+  min-height: 40px;
+  padding: 4px;
+}
+#app.viewing-fullscreen .workspace > .view .dock > .replay-transport output {
+  flex: 0 1 auto;
+  min-width: 0;
+}

@@ -1,0 +1,44 @@
+[package]
+name = "trier-video-bench"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Trier MPEG Video benchmark: the decoder's own sources, compiled in place (docs/trier-mpeg-video.md)."
+
+[[bin]]
+name = "trier-video-bench"
+path = "main.rs"
+
+[build-dependencies]
+# Only to compile the optional libmpeg2 reference decoder (build.rs).
+cc = "1"
+
+[target.'cfg(target_os = "android")'.dependencies]
+jni = "0.21"
+
+[profile.release]
+debug = true
+opt-level = 3
+
+# Same optimisation as GenX's Android packages built with -Optimization 2.
+[profile.genx]
+inherits = "release"
+opt-level = 2
+
+[workspace]
+
+# Exactly GenX's Android debug packages (-Optimization 2): checks stay on.
+[profile.genx-app]
+inherits = "release"
+opt-level = 2
+overflow-checks = true
+debug-assertions = true
+
+# Exactly what build-android.ps1 -Optimization 2 compiles: the dev profile
+# (incremental, 256 codegen units) at opt-level 2 with debug checks.
+[profile.genx-dev]
+inherits = "dev"
+opt-level = 2
+debug = 2
+debug-assertions = true
+overflow-checks = true

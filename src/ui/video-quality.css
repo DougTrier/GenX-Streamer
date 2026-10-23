@@ -1,0 +1,43 @@
+.video-quality-button {
+  min-width: 44px;
+  min-height: 44px;
+}
+.video-quality-menu {
+  position: fixed;
+  z-index: 100;
+  padding: 4px;
+  border: 1px solid var(--line, #364150);
+  border-radius: 10px;
+  background: #111a27;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  box-shadow: 0 8px 30px #0009;
+}
+.video-quality-menu[hidden] {
+  display: none;
+}
+.video-quality-menu button {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  max-height: calc(4.05em + 26px);
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+  text-align: left;
+  white-space: normal;
+}
+.video-quality-menu button > span {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+.video-quality-menu button[aria-checked='true'] {
+  color: #f0d986;
+}
+.video-quality-menu button:focus-visible {
+  outline: 3px solid #f0d986;
+  outline-offset: -3px;
+}

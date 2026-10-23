@@ -1,0 +1,78 @@
+/* Modal-only visible bounds include the native IME overlay on adjustNothing TV. */
+html.viewport-keyboard-open
+  :is(
+    dialog[open],
+    #settings-dialog[open],
+    #import-dialog[open],
+    #cast-dialog[open],
+    #about-dialog[open]
+  ) {
+  position: fixed;
+  inset-block-start: var(--modal-viewport-top, var(--viewport-top, 0px));
+  inset-block-end: auto;
+  margin-block: 8px 0;
+  height: max(
+    0px,
+    calc(var(--modal-visible-viewport-height, var(--visible-viewport-height, 100dvh)) - 16px)
+  );
+  max-height: max(
+    0px,
+    calc(var(--modal-visible-viewport-height, var(--visible-viewport-height, 100dvh)) - 16px)
+  );
+  min-height: 0;
+  box-sizing: border-box;
+  overflow: hidden;
+  padding-block: 8px;
+}
+html.viewport-keyboard-open dialog[open] .dialog-body,
+html.viewport-keyboard-open dialog[open] .guide-body,
+html.viewport-keyboard-open dialog[open] .scan-body,
+html.viewport-keyboard-open dialog[open] .website-body,
+html.viewport-keyboard-open dialog[open] [data-settings-panel],
+html.viewport-keyboard-open .location-dialog[open] #geography-controls {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scroll-padding-block: 12px;
+}
+html.viewport-keyboard-open #settings-dialog[open] [data-settings-panel] {
+  padding: 8px;
+  scroll-padding-inline: 12px;
+}
+html.viewport-keyboard-open dialog[open] > header,
+html.viewport-keyboard-open dialog[open] .dialog-head,
+html.viewport-keyboard-open dialog[open] > footer,
+html.viewport-keyboard-open dialog[open] .settings-footer,
+html.viewport-keyboard-open .location-dialog[open] > button {
+  flex-shrink: 0;
+}
+/* Plain error/review dialogs have no body container: retain a scrollable fallback. */
+html.viewport-keyboard-open
+  dialog[open]:not(
+    :has(
+      .dialog-body,
+      .guide-body,
+      .scan-body,
+      .website-body,
+      [data-settings-panel],
+      #geography-controls
+    )
+  ) {
+  overflow: auto;
+}
+
+/* Keep the initial Scan form compact under the visual-viewport owner. */
+html.viewport-keyboard-open
+  :is(
+    dialog[open],
+    #settings-dialog[open],
+    #import-dialog[open],
+    #cast-dialog[open],
+    #about-dialog[open]
+  )[data-scan-state='start'] {
+  height: auto;
+}
+html.viewport-keyboard-open dialog[open][data-scan-state='start'] .scan-body {
+  flex: 0 1 auto;
+}

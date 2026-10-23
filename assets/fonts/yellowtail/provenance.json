@@ -1,0 +1,27 @@
+{
+  "schemaVersion": 1,
+  "accessDate": "2026-10-11",
+  "commit": "e77fdf0f4f6757f773feeea5603898e7d875dceb",
+  "license": "Apache-2.0",
+  "files": [
+    {
+      "file": "Yellowtail-Regular.ttf",
+      "bytes": 62216,
+      "sha256": "3e06841b13000975f3cc38aa84e326e601a4378a4c52d50b5e9fee3598c5d236",
+      "url": "https://raw.githubusercontent.com/google/fonts/e77fdf0f4f6757f773feeea5603898e7d875dceb/apache/yellowtail/Yellowtail-Regular.ttf"
+    },
+    {
+      "file": "LICENSE.txt",
+      "bytes": 11358,
+      "sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "url": "https://raw.githubusercontent.com/google/fonts/e77fdf0f4f6757f773feeea5603898e7d875dceb/apache/yellowtail/LICENSE.txt"
+    },
+    {
+      "file": "METADATA.pb",
+      "bytes": 705,
+      "sha256": "83473cc148bd7eb300292e2f52f25b6f3eb0fd0fe72603c252dfc2187532b283",
+      "url": "https://raw.githubusercontent.com/google/fonts/e77fdf0f4f6757f773feeea5603898e7d875dceb/apache/yellowtail/METADATA.pb"
+    }
+  ],
+  "scope": "External font preparation only; no CSS or device rendering proof."
+}

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><defs>
+<linearGradient id="panel" x1="0" y1="0" x2="0.25" y2="1"><stop stop-color="#12243C"/><stop offset="1" stop-color="#09172A"/></linearGradient>
+<linearGradient id="focus" x1="0" y1="0" x2="0.5" y2="1"><stop stop-color="#104F84"/><stop offset="1" stop-color="#0C223B"/></linearGradient>
+<linearGradient id="chrome" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#FFFFFF"/><stop offset=".23" stop-color="#A4E5FF"/><stop offset=".46" stop-color="#34629D"/><stop offset=".72" stop-color="#C3F7FF"/><stop offset="1" stop-color="#7772D5"/></linearGradient>
+<linearGradient id="sun" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#FFAD6B"/><stop offset=".54" stop-color="#F65B95"/><stop offset="1" stop-color="#8131A3"/></linearGradient>
+<linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#030715"/><stop offset=".68" stop-color="#09142E"/><stop offset="1" stop-color="#250D3B"/></linearGradient>
+<linearGradient id="button" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#095F8B"/><stop offset="1" stop-color="#0F2447"/></linearGradient>
+<linearGradient id="accent" x1="0" y1="0" x2="1" y2="0"><stop stop-color="#08D8FB"/><stop offset="1" stop-color="#FF36B4"/></linearGradient>
+<filter id="glow" x="-45%" y="-65%" width="190%" height="230%"><feGaussianBlur stdDeviation="6"/></filter>
+<filter id="softGlow" x="-80%" y="-100%" width="260%" height="300%"><feGaussianBlur stdDeviation="12"/></filter>
+</defs><g fill="none" stroke="#08D8FB" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4v24M4 16h24"/></g></svg>

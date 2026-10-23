@@ -1,0 +1,19 @@
+/* Screensaver for long scans (scan-screensaver.ts): black, one dim moving line. */
+#scan-screensaver {
+  position: fixed;
+  inset: 0;
+  z-index: 2147483000;
+  background: #000;
+  cursor: none;
+}
+#scan-screensaver[hidden] {
+  display: none;
+}
+.scan-screensaver-line {
+  position: absolute;
+  margin: 0;
+  max-width: 36ch;
+  color: #5a5a5a;
+  font-size: 1.25rem;
+  line-height: 1.4;
+}

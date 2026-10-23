@@ -1,0 +1,4 @@
+name	class	kind	width	height	rate_num	rate_den	bytes	fnv64
+sd	sd	inter	720	480	30000	1001	540777	6ac92eea3f415d59
+hd720	hd720	inter	1280	720	60000	1001	965273	6010b15e5ca87baa
+hd1080i	hd1080i	inter	1920	1080	30000	1001	1259385	4d51fb391d5a1d04

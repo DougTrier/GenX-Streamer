@@ -1,0 +1,359 @@
+/* Local: area code / ZIP scan in the sidebar; the chosen station in the viewing area. */
+#local-button {
+  min-width: 52px;
+  padding-inline: 8px;
+}
+#app #local-button[aria-pressed='true'] {
+  background: linear-gradient(135deg, #07374b, #3b1745);
+  border-color: #ff8bdf;
+  box-shadow:
+    inset 0 0 12px #f36bd633,
+    0 0 12px #1edfff66,
+    0 0 18px #f568d04d;
+}
+#local-button .local-globe {
+  width: 30px;
+  height: 30px;
+}
+.local-streams {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+}
+.local-streams[hidden],
+.local-stage-note[hidden],
+#app[data-content-library='genxtra'] #local-streams {
+  display: none;
+}
+/* Local owns the sidebar: channel search, filters and the scan bar return on leaving. */
+#app:has(#local-streams:not([hidden]))
+  .browser
+  > :is(.search-controls, .browse-options, #inline-source-scan, #account-library, .sidefoot) {
+  display: none;
+}
+/* The note replaces the player's empty-state text until a station is chosen. */
+#screen:has(> .local-stage-note:not([hidden], [data-radio])) > .player-overlay {
+  visibility: hidden;
+}
+.local-form {
+  display: flex;
+  gap: 6px;
+}
+.local-form #local-area {
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  letter-spacing: 0.08em;
+}
+.local-form .local-scan {
+  min-height: 40px;
+  padding-inline: 16px;
+}
+.local-status {
+  margin: 0;
+  color: var(--sub);
+  font-size: 12px;
+}
+.local-status:empty {
+  display: none;
+}
+.local-status[data-error] {
+  color: var(--gx-magenta, #f563c1);
+}
+.local-results {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 2px;
+}
+.local-results > * {
+  flex: 0 0 auto;
+}
+.local-heading {
+  margin: 8px 2px 2px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gx-cyan, #7feafa);
+}
+.local-item {
+  display: grid;
+  gap: 2px;
+  min-height: 48px;
+  padding: 6px 10px;
+  text-align: left;
+}
+.local-item strong {
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.local-item small {
+  color: var(--sub);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.local-item[aria-pressed='true'] {
+  background: #35243f;
+  border-color: var(--gx-magenta, #f563c1);
+}
+/* A plain note (opening, closed) covers the player's blank frame. */
+.local-stage-note:not([data-radio]) {
+  background: #070d1c;
+}
+/* The radio card shows only while the player has nothing to say (playing). */
+.local-stage-note[data-radio] {
+  /* Everything scales with the viewing area, from fullscreen down to a phone. */
+  container-type: size;
+  align-content: center;
+  gap: 10px;
+  gap: clamp(2px, 2cqh, 12px);
+  padding: 8px;
+  font-size: clamp(9px, 3.4cqh, 16px);
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 40%, #1b2a55, #070d1c 70%);
+  color: var(--gx-cyan, #7feafa);
+}
+.local-stage-note[data-radio] strong {
+  font-size: 28px;
+  font-size: clamp(12px, 6cqh, 30px);
+  color: #fff0fc;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.local-radio-art {
+  width: min(62%, 560px);
+  /* At most ~58% of the height (the art is 400 x 262) and 86% of the width. */
+  width: min(86cqw, 88cqh, 640px);
+  height: auto;
+  filter: drop-shadow(0 0 18px #22e3ff55);
+}
+/* Five neon bars; still when the viewer prefers less motion. */
+.local-radio-eq {
+  width: 70px;
+  height: 22px;
+  height: clamp(8px, 4.5cqh, 24px);
+  background: linear-gradient(90deg, #22e3ff, #ff36b4);
+  mask: repeating-linear-gradient(90deg, #000 0 10px, transparent 10px 15px);
+  transform-origin: bottom;
+  animation: local-eq 0.9s ease-in-out infinite alternate;
+}
+@keyframes local-eq {
+  from {
+    transform: scaleY(0.35);
+  }
+  to {
+    transform: scaleY(1);
+  }
+}
+@container (max-height: 180px) {
+  .local-stage-note[data-radio] :is(small, span:not(.local-radio-eq)) {
+    display: none;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .local-radio-eq {
+    animation: none;
+  }
+}
+#screen:has(> .player-overlay:not([hidden])) > .local-stage-note[data-radio] {
+  display: none;
+}
+.local-stage-enter {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  opacity: 0;
+}
+.local-stage-enter[hidden] {
+  display: none;
+}
+/* The page is drawn above GenX, so the ring goes around the viewing area. */
+#screen:has(> .local-stage-enter:focus) {
+  outline: 3px solid var(--gx-magenta, #f563c1);
+  outline-offset: 2px;
+}
+.local-stage-note {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  margin: 0;
+  padding: 24px;
+  text-align: center;
+  color: var(--sub);
+  font-size: 15px;
+  pointer-events: none;
+}
+/* A station row: the station, then its favorite star. */
+.local-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.local-row .local-item {
+  min-width: 0;
+}
+.local-star {
+  min-width: 44px;
+  font-size: 20px;
+  color: var(--sub);
+}
+.local-star[aria-pressed='true'] {
+  color: #ffd166;
+  border-color: #ffd166;
+}
+.local-save-area {
+  min-height: 40px;
+  white-space: nowrap;
+}
+.local-save-area[aria-pressed='true'] {
+  color: #ffd166;
+}
+.local-save-area[hidden],
+.local-areas[hidden] {
+  display: none;
+}
+/* Saved areas: one press reruns that area's scan. */
+.local-areas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.local-area-chip {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+}
+/* Results | Favorites */
+.local-tabs {
+  position: relative;
+  display: grid;
+  grid-template-columns: max-content 1fr 1fr;
+  gap: 6px;
+}
+/* Favorites / APK sites: a short list under the middle tab (Android). */
+.local-list-menu {
+  position: absolute;
+  z-index: 5;
+  top: calc(100% + 4px);
+  left: 25%;
+  right: 25%;
+  display: grid;
+  gap: 4px;
+  padding: 6px;
+  background: #0d1426;
+  border: 1px solid var(--gx-magenta, #f563c1);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 55%);
+}
+.local-list-menu[hidden] {
+  display: none;
+}
+#app .local-list-menu button {
+  min-height: 44px;
+  text-align: left;
+  padding-inline: 10px !important;
+}
+.local-list-menu button[aria-checked='true'] {
+  border-color: var(--gx-magenta, #f563c1);
+}
+.local-tabs[hidden] {
+  display: none;
+}
+/* Three tabs on one line, even in a narrow TV sidebar. */
+#app .local-tabs button {
+  min-width: 0 !important;
+  padding-inline: 4px !important;
+  font-size: 13px !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.local-tabs button[aria-pressed='true'] {
+  background: #35243f;
+  border-color: var(--gx-magenta, #f563c1);
+  color: #fff0fc;
+}
+/* Narrow windows and 960-wide TV layouts: the globe is icon-only like Cast, so
+   the top row stays on one line. */
+@media (max-width: 1100px) {
+  #app #local-button {
+    min-width: 44px;
+    padding-inline: 4px;
+  }
+  #app #local-button .local-globe {
+    width: 26px;
+    height: 26px;
+  }
+}
+/* A station page in Full screen on a desktop: GenX's dock stays visible below
+   the page (the page is a window layer that would otherwise cover it). */
+#app.local-page-open.viewing-fullscreen.fullscreen-dock-hidden .dock {
+  visibility: visible;
+  pointer-events: auto;
+}
+/* Websites: address (typed or said) and Go. */
+.local-web-form {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.local-web-form[hidden],
+.local-form[hidden] {
+  display: none;
+}
+.local-web-form #local-web {
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+}
+.local-web-form .local-go {
+  min-height: 40px;
+  padding-inline: 16px;
+}
+/* PC address strip above a page in the viewing area. */
+.local-page-strip {
+  position: absolute;
+  inset: 0 0 auto;
+  z-index: 3;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  padding: 4px 6px;
+  background: #0a1022;
+  border-bottom: 1px solid #334766;
+}
+.local-page-strip[hidden] {
+  display: none;
+}
+.local-page-strip button {
+  min-height: 30px;
+  padding: 2px 10px;
+}
+.local-page-strip .local-page-address {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: left;
+  color: var(--sub, #9fb2c4);
+}
+.local-page-strip .local-page-save[aria-pressed='true'] {
+  color: #ffd166;
+}

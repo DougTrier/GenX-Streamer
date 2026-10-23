@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="580" height="134" viewBox="0 0 580 134" role="img" aria-label="GenX Streamer — Good TV never gets old">
+<defs>
+ <linearGradient id="chrome" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#ffffff"/><stop offset=".28" stop-color="#d6f8ff"/><stop offset=".43" stop-color="#749bbf"/><stop offset=".49" stop-color="#183f6c"/><stop offset=".52" stop-color="#edfaff"/><stop offset=".70" stop-color="#86d8ef"/><stop offset="1" stop-color="#e5faff"/></linearGradient>
+ <linearGradient id="pink" x1="0" y1="0" x2=".8" y2="1"><stop stop-color="#ff80c9"/><stop offset=".45" stop-color="#ff37b5"/><stop offset="1" stop-color="#db198a"/></linearGradient>
+</defs>
+<!-- Original outlined letterforms; no installed or embedded font determines the wordmark. -->
+<g transform="translate(17 0) skewX(-8)" fill="url(#chrome)" stroke="#6be7ff" stroke-width=".85" stroke-linejoin="round" fill-rule="evenodd">
+ <path d="M60 17C50 10 39 8 29 10C11 13 3 29 3 53C3 78 12 91 31 93C44 94 56 89 63 82V49H33V64H46V76C42 79 37 80 33 79C23 78 20 70 20 53C20 36 24 26 33 25C41 24 48 27 54 32Z"/>
+ <path d="M119 62C119 42 110 31 95 31C78 31 68 43 68 62C68 83 78 94 96 94C105 94 113 91 119 85L110 74C106 78 102 80 97 80C90 80 85 76 84 69H119ZM85 57C86 49 89 45 95 45C101 45 104 49 104 57Z"/>
+ <path d="M128 33H144V40C149 34 155 31 163 31C177 31 184 40 184 56V92H168V59C168 49 165 45 159 45C153 45 148 49 144 56V92H128Z"/>
+ <path d="M190 12H208L220 37L234 12H253L230 51L251 92H231L218 65L203 92H184L209 50Z"/>
+</g>
+<!-- Connected original handwritten strokes, tilted upward across the chrome baseline. -->
+<g transform="translate(275 10) rotate(-5 130 55)" fill="none" stroke="url(#pink)" stroke-width="5.5" stroke-linecap="round" stroke-linejoin="round">
+ <path d="M35 29C40 14 17 10 7 22C-3 35 18 39 24 45C38 58 26 78 9 76C-2 75-6 67-1 61M14 76C25 76 36 70 45 58"/>
+ <path d="M49 24C45 38 39 55 39 66C39 82 52 70 59 61M34 42C44 40 53 39 62 40"/>
+ <path d="M56 65C64 56 70 46 71 43C74 38 80 39 76 48C72 55 78 59 86 50M64 52L58 74"/>
+ <path d="M85 61C106 54 102 41 94 44C83 48 76 64 83 72C91 80 106 71 114 61"/>
+ <path d="M133 46C124 37 110 52 108 65C106 79 119 76 130 55M133 46C128 57 125 71 130 74C134 76 143 67 148 61"/>
+ <path d="M148 45L140 75C148 56 158 42 163 45C168 49 157 70 159 74C167 55 176 42 183 45C189 49 177 71 181 74C187 76 197 66 202 59"/>
+ <path d="M200 61C220 54 218 41 210 44C199 48 192 64 199 72C208 80 223 71 232 59"/>
+ <path d="M229 66C237 56 243 46 244 43C247 38 253 39 249 48C245 55 251 59 259 50M237 52L231 75M233 75C248 79 267 73 282 62"/>
+</g>
+<path d="M275 97C356 100 442 92 558 87" fill="none" stroke="#ff40ad" stroke-width="1.8" stroke-linecap="round" opacity=".65"/>
+<text x="10" y="124" font-family="Segoe UI, Arial, sans-serif" font-size="14" font-weight="750" fill="#08d8fb" letter-spacing="4">GOOD TV NEVER GETS OLD</text>
+</svg>

@@ -1,0 +1,72 @@
+/* TV and Windows: the categories fold into one button at the start of the
+   channel row ("All · 8,588 ▾"); the category buttons open below it as a list. */
+.category-trigger {
+  display: none;
+}
+.browse-options[data-category-menu] {
+  position: relative;
+}
+.browse-options[data-category-menu] .category-trigger:not([hidden]) {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  flex: 1 1 auto;
+  justify-content: flex-start;
+  padding: 6px 10px;
+  font-size: 12px;
+  min-height: 32px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.browse-options[data-category-menu] .category-trigger::after {
+  content: '▾';
+  margin-left: auto;
+  padding-left: 6px;
+}
+.browse-options[data-category-menu] .category-current {
+  flex: none;
+  font-weight: 600;
+}
+/* Only the count gives way when the row is tight; the name and ▾ stay. */
+.browse-options[data-category-menu] .category-count {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.8;
+}
+.browse-options[data-category-menu] .category-trigger::after {
+  flex: none;
+}
+.browse-options[data-category-menu] .category-count[hidden] {
+  display: none;
+}
+/* The count now lives in the button. */
+.browse-options[data-category-menu] .sidehead #channel-count {
+  display: none;
+}
+.browse-options[data-category-menu] .filters {
+  position: absolute;
+  z-index: 6;
+  left: 0;
+  top: 100%;
+  width: min(220px, 100%);
+  display: grid !important;
+  grid-template-columns: 1fr;
+  gap: 4px;
+  margin: 4px 0 0 !important;
+  padding: 6px;
+  background: #0d1426;
+  border: 1px solid var(--gx-magenta, #f563c1);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 55%);
+}
+.browse-options[data-category-menu] .filters[hidden] {
+  display: none !important;
+}
+.browse-options[data-category-menu] .filters button {
+  justify-content: flex-start;
+  min-height: 44px;
+}

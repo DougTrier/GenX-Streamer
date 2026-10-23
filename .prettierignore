@@ -1,0 +1,14 @@
+node_modules/
+dist/
+artifacts/
+src-tauri/
+tests/fixtures/media/
+assets/
+layout-preview.png
+layout-qa.cjs
+*.MD
+*.md
+docs/
+config/context-topics.json
+scripts/tmg.py
+tests/tooling/

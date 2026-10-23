@@ -1,0 +1,231 @@
+/* Premium neon-glass controls, after the user's synthwave sprite sheet
+   (I:\GenX Sprites, October 18, 2026), rebuilt in CSS so every label stays crisp
+   at any size. This sheet paints only: colours, borders, shadows and icons. It
+   never changes a control's size, so layout and TV fit contracts are untouched.
+
+   Three states, each clearly different from across the room:
+   - normal: dark navy glass, a quiet steel-cyan edge, a soft top sheen;
+   - selected (pressed, current, open): magenta glass with a pink neon glow;
+   - focused (remote or keyboard): a bright cyan neon ring and glow.
+   Channel rows, guide listings, posters and menu options keep their own look. */
+:root {
+  --gx-glass-sheen: linear-gradient(180deg, #ffffff1f 0%, #ffffff08 45%, #ffffff00 55%);
+  --gx-glass-fill: linear-gradient(180deg, #1c2f50 0%, #111d36 60%, #0b1429 100%);
+  --gx-glass-edge: #4f80a3b3;
+  --gx-glass-depth: inset 0 1px 0 #ffffff24, inset 0 -1px 0 #00000066, 0 2px 8px #02081799;
+  --gx-selected-fill: linear-gradient(180deg, #5a2470 0%, #3a1650 55%, #240c35 100%);
+  --gx-selected-edge: #ff7fd8;
+  --gx-selected-glow: inset 0 1px 0 #ffffff33, inset 0 0 12px #ff5fcf38, 0 0 12px #ff5fcf66;
+  --gx-focus-edge: #a6f5ff;
+  --gx-focus-glow:
+    inset 0 1px 0 #ffffff33, inset 0 0 10px #29d9ff40, 0 0 0 1px #a6f5ff, 0 0 18px #29d9ffb3;
+  --gx-primary-fill: linear-gradient(180deg, #23aee0 0%, #1478b5 55%, #0d4f86 100%);
+}
+
+/* Glass buttons: navigation, the player dock, the library row, dialogs, VOD and
+   the Guide's own controls. */
+#app
+  :is(
+    .top-actions button:not(#genxtra-button),
+    .dock button,
+    .sidehead :is(button, summary),
+    .sidefoot button,
+    .dialog-actions button,
+    .channel-transfer-controls button,
+    .inline-scan-actions button,
+    #retry-button,
+    .vod-banner-actions button,
+    .vod-sections button,
+    .account-vod :is(.vod-reopen, .vod-retry),
+    .paid-guide-head button,
+    .gx-timeline-toolbar > button,
+    .gx-timeline-time-controls button,
+    .guide-header > button,
+    .file-button
+  ) {
+  color: #e8f2ff;
+  background: var(--gx-glass-sheen), var(--gx-glass-fill);
+  border-color: var(--gx-glass-edge);
+  box-shadow: var(--gx-glass-depth);
+  text-shadow: 0 1px 1px #00000080;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s,
+    color 0.15s;
+}
+
+/* Tabs stay quiet until chosen: library filters, VOD categories, Guide chips. */
+#app
+  :is(.filters button, .vod-categories button, .gx-timeline-categories button):not(
+    [aria-pressed='true']
+  ) {
+  color: #c3d3e8;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+@media (hover: hover) {
+  #app
+    :is(
+      .top-actions button:not(#genxtra-button),
+      .dock button,
+      .sidehead :is(button, summary),
+      .sidefoot button,
+      .dialog-actions button,
+      .channel-transfer-controls button,
+      .inline-scan-actions button,
+      #retry-button,
+      .vod-banner-actions button,
+      .vod-sections button,
+      .account-vod :is(.vod-reopen, .vod-retry),
+      .paid-guide-head button,
+      .gx-timeline-toolbar > button,
+      .gx-timeline-time-controls button,
+      .guide-header > button,
+      .file-button,
+      .filters button,
+      .vod-categories button,
+      .gx-timeline-categories button
+    ):not(:disabled):hover {
+    color: #ffffff;
+    border-color: #7fe9ffd9;
+    box-shadow:
+      var(--gx-glass-depth),
+      0 0 10px #29d9ff4d;
+  }
+}
+
+/* Selected: the library, filter, mode or toggle that is on right now. */
+#app
+  :is(
+    .top-actions button:not(#genxtra-button),
+    .dock button,
+    .sidehead :is(button, summary),
+    .vod-sections button,
+    .paid-guide-head button,
+    .gx-timeline-toolbar > button,
+    .guide-header > button,
+    .filters button,
+    .vod-categories button,
+    .gx-timeline-categories button
+  ):is([aria-pressed='true'], [aria-current='page'], [aria-expanded='true'], details[open] > *) {
+  color: #fff4fc;
+  background: var(--gx-glass-sheen), var(--gx-selected-fill);
+  border-color: var(--gx-selected-edge);
+  box-shadow: var(--gx-selected-glow);
+  text-shadow: 0 0 8px #ff8bdc8c;
+}
+
+/* The main action of a screen: Play, Scan, Import. */
+#app :is(button.primary, #import-button, .vod-banner-actions .vod-play) {
+  color: #ffffff;
+  background: var(--gx-glass-sheen), var(--gx-primary-fill);
+  border-color: #9cf2ff;
+  box-shadow:
+    inset 0 1px 0 #ffffff47,
+    inset 0 -1px 0 #00000059,
+    0 0 12px #29d9ff59;
+  text-shadow: 0 1px 2px #00000099;
+}
+
+/* Focus: a cyan neon ring the remote can always find, on any of the above.
+   The outline from style.css stays for the shared focus contract. */
+#app
+  :is(
+    .top-actions button:not(#genxtra-button),
+    .dock button,
+    .sidehead :is(button, summary),
+    .sidefoot button,
+    .dialog-actions button,
+    .channel-transfer-controls button,
+    .inline-scan-actions button,
+    #retry-button,
+    .vod-banner-actions button,
+    .vod-sections button,
+    .account-vod :is(.vod-reopen, .vod-retry),
+    .paid-guide-head button,
+    .gx-timeline-toolbar > button,
+    .gx-timeline-time-controls button,
+    .guide-header > button,
+    .filters button,
+    .vod-categories button,
+    .gx-timeline-categories button
+  ):focus-visible,
+#app .file-button:focus-within {
+  color: #ffffff;
+  border-color: var(--gx-focus-edge);
+  box-shadow: var(--gx-focus-glow);
+}
+
+/* Disabled controls lose their glow as well as their contrast. */
+#app
+  :is(.top-actions, .dock, .sidehead, .sidefoot, .dialog-actions, .vod-banner-actions)
+  button:disabled {
+  border-color: #34566e80;
+  box-shadow: inset 0 1px 0 #ffffff14;
+  text-shadow: none;
+}
+
+/* Line icons (assets/icons/lucide), painted in the button's own colour. */
+.top-actions .nav-icon {
+  background: currentColor;
+  -webkit-mask: var(--gx-icon) center / contain no-repeat;
+  mask: var(--gx-icon) center / contain no-repeat;
+}
+#live-tv-button {
+  --gx-icon: url('../../assets/icons/lucide/tv.svg');
+}
+#paid-tv-button {
+  --gx-icon: url('../../assets/icons/lucide/tv-minimal-play.svg');
+}
+#cast-button {
+  --gx-icon: url('../../assets/icons/lucide/cast.svg');
+}
+#settings-button {
+  --gx-icon: url('../../assets/icons/lucide/settings.svg');
+}
+.vod-banner-actions button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  --gx-icon: url('../../assets/icons/lucide/info.svg');
+}
+.vod-banner-actions .vod-play {
+  --gx-icon: url('../../assets/icons/lucide/play.svg');
+}
+.vod-banner-actions button::before {
+  content: '';
+  flex: 0 0 15px;
+  width: 15px;
+  height: 15px;
+  background: currentColor;
+  -webkit-mask: var(--gx-icon) center / contain no-repeat;
+  mask: var(--gx-icon) center / contain no-repeat;
+}
+
+/* Loc & Sort is a summary with no border of its own: a rounded inset ring gives
+   it the same glass edge. Its disclosure triangle gives way to side padding (the
+   open state shows in pink instead); this is the one control whose width changes.
+   (The id in :not() only matches the specificity of the shared rules above.) */
+#app .sidehead summary:not(#genxtra-button) {
+  list-style: none;
+  padding-inline: 8px;
+  border-radius: 9px;
+  box-shadow:
+    inset 0 0 0 1px var(--gx-glass-edge),
+    var(--gx-glass-depth);
+}
+#app .sidehead details[open] > summary:not(#genxtra-button) {
+  box-shadow:
+    inset 0 0 0 1px var(--gx-selected-edge),
+    var(--gx-selected-glow);
+}
+#app .sidehead summary:not(#genxtra-button):focus-visible {
+  box-shadow:
+    inset 0 0 0 1px var(--gx-focus-edge),
+    var(--gx-focus-glow);
+}
+#app .sidehead summary::-webkit-details-marker {
+  display: none;
+}

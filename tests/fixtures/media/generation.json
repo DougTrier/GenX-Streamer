@@ -1,0 +1,173 @@
+{
+  "version": "ffmpeg version 6.1.1-essentials_build-www.gyan.dev Copyright (c) 2000-2023 the FFmpeg developers",
+  "fixtureSeed": "lavfi-testsrc2-320x180-24fps-sine440-8sec-v1",
+  "commands": [
+    [
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-y",
+      "-f",
+      "lavfi",
+      "-i",
+      "testsrc2=size=320x180:rate=24",
+      "-f",
+      "lavfi",
+      "-i",
+      "sine=frequency=440:sample_rate=48000",
+      "-t",
+      "8",
+      "-map",
+      "0:v",
+      "-map",
+      "1:a",
+      "-c:v",
+      "libx264",
+      "-profile:v",
+      "baseline",
+      "-level",
+      "3.0",
+      "-pix_fmt",
+      "yuv420p",
+      "-preset",
+      "veryfast",
+      "-crf",
+      "28",
+      "-threads",
+      "1",
+      "-g",
+      "48",
+      "-keyint_min",
+      "48",
+      "-sc_threshold",
+      "0",
+      "-c:a",
+      "aac",
+      "-b:a",
+      "64k",
+      "-f",
+      "hls",
+      "-hls_time",
+      "2",
+      "-hls_playlist_type",
+      "vod",
+      "-hls_segment_filename",
+      "segment%03d.ts",
+      "index.m3u8"
+    ],
+    [
+      "-hide_banner",
+      "-loglevel",
+      "error",
+      "-y",
+      "-f",
+      "lavfi",
+      "-i",
+      "testsrc2=size=320x180:rate=24",
+      "-f",
+      "lavfi",
+      "-i",
+      "sine=frequency=440:sample_rate=48000",
+      "-t",
+      "8",
+      "-map",
+      "0:v",
+      "-map",
+      "1:a",
+      "-c:v",
+      "libx264",
+      "-profile:v",
+      "baseline",
+      "-level",
+      "3.0",
+      "-pix_fmt",
+      "yuv420p",
+      "-preset",
+      "veryfast",
+      "-crf",
+      "28",
+      "-threads",
+      "1",
+      "-g",
+      "48",
+      "-keyint_min",
+      "48",
+      "-sc_threshold",
+      "0",
+      "-c:a",
+      "aac",
+      "-b:a",
+      "64k",
+      "-f",
+      "hls",
+      "-hls_time",
+      "2",
+      "-hls_playlist_type",
+      "vod",
+      "-hls_segment_type",
+      "fmp4",
+      "-hls_fmp4_init_filename",
+      "init.mp4",
+      "-hls_segment_filename",
+      "fmp4segment%03d.m4s",
+      "fmp4.m3u8"
+    ]
+  ],
+  "files": [
+    {
+      "name": "fmp4.m3u8",
+      "bytes": 287,
+      "sha256": "d4c05b25150290ce07b884ef082a2e1a72a14e1a051c0f6d8e9df391cd114dff"
+    },
+    {
+      "name": "fmp4segment000.m4s",
+      "bytes": 60275,
+      "sha256": "970b35458f53e6039254ccd7aa05534a141c5eb8fd806bb805a390906736c7c7"
+    },
+    {
+      "name": "fmp4segment001.m4s",
+      "bytes": 68803,
+      "sha256": "595fbbd5fa37ff441ac6ce977403fbc2a992d3640babdbc213056284a0462a93"
+    },
+    {
+      "name": "fmp4segment002.m4s",
+      "bytes": 65678,
+      "sha256": "217899c681dde63879887a91c83776e42a1e7b3edf3012e806ad06369a6e056e"
+    },
+    {
+      "name": "fmp4segment003.m4s",
+      "bytes": 71464,
+      "sha256": "65ad0d71f3e6d60de6329bf23866795d8aa081d1d8892eff453934fc8834050b"
+    },
+    {
+      "name": "index.m3u8",
+      "bytes": 241,
+      "sha256": "95bffe47ff78ca6fa00d9427c42561b407b739e5af701193494467c0738a7d0a"
+    },
+    {
+      "name": "init.mp4",
+      "bytes": 1334,
+      "sha256": "595bc68aa313066bb9b5c74f17a3b3ad753354a4b8b427940963f4bf298f874a"
+    },
+    {
+      "name": "segment000.ts",
+      "bytes": 68620,
+      "sha256": "ed3aa1cf52dc7ac3bd5abb60cbe2688548e310bd8369cb2f15246f652b46eba3"
+    },
+    {
+      "name": "segment001.ts",
+      "bytes": 76704,
+      "sha256": "7c30b2066806b4fa0a3cc2fd7bcc200ce0b2575fe2872e41e369f94e136ead4d"
+    },
+    {
+      "name": "segment002.ts",
+      "bytes": 73884,
+      "sha256": "ce8a8320de7b7d394371095a9f7fe38c2e4b4819e9d45b50c7c046013202851b"
+    },
+    {
+      "name": "segment003.ts",
+      "bytes": 79148,
+      "sha256": "15e3cfbf44301540913f0b09273bab6d70a04634c3a12cc18281adb1e6ca534d"
+    }
+  ]
+}

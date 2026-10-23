@@ -1,0 +1,200 @@
+/* The TV owner's explicit compact-control preference. Personal/touch layouts
+   and native text fields/checkboxes keep their existing sizing contracts. */
+body:has(#app[data-device-kind='tv']) button:not(.media-result-main):not(.gx-archive-title-button),
+body:has(#app[data-device-kind='tv']) :is(summary, select) {
+  min-width: 34px !important;
+  min-height: 34px !important;
+  height: auto !important;
+  padding: 5px 8px !important;
+  font-size: 14px !important;
+  line-height: 1.2 !important;
+}
+
+body:has(#app[data-device-kind='tv']) .top-actions button {
+  min-height: 36px !important;
+  font-size: 17px !important;
+}
+
+/* Favorite and removal remain in the title row and its management menu. */
+body:has(#app[data-device-kind='tv']) .dock .channel-actions {
+  display: none !important;
+}
+
+body:has(#app[data-device-kind='tv']) #app .watch-card > .dock {
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+}
+
+body:has(#app[data-device-kind='tv']) #app .dock :is(.controls > button, #captions-button) {
+  height: 34px !important;
+  max-height: 34px;
+  flex: 0 0 auto;
+  width: auto;
+}
+
+body:has(#app[data-device-kind='tv']) #app .dock :is(#video-quality, #audio-tracks) {
+  flex: 0 1 auto;
+  width: auto;
+  min-width: 34px;
+  max-width: 120px;
+}
+
+body:has(#app[data-device-kind='tv']) #app .dock .video-quality-button {
+  display: block;
+  flex: 0 1 auto;
+  width: auto;
+  max-width: 100%;
+  height: 34px !important;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+body:has(#app[data-device-kind='tv']) #app .dock .vod-transport {
+  display: flex;
+  flex: 0 0 auto;
+  width: auto;
+  min-width: 0;
+  gap: 8px;
+}
+
+body:has(#app[data-device-kind='tv']) #app .dock .vod-transport button {
+  flex: 0 0 auto;
+  width: auto;
+  height: 34px !important;
+}
+
+/* The magnifier owns an accessible text label that is intentionally visualized
+   by its existing icon. Compact text sizing must not expose that hidden copy. */
+body:has(#app[data-device-kind='tv']) #search-programs {
+  font-size: 0 !important;
+}
+
+@media (min-width: 851px) and (min-height: 421px) {
+  body:has(#app[data-device-kind='tv'][data-play-mode='on-demand']) .dock .video-quality-button {
+    font-size: 0 !important;
+  }
+}
+
+@media (max-width: 850px), (max-height: 420px) {
+  body:has(#app[data-device-kind='tv']) .dock .controls > button {
+    font-size: 0 !important;
+  }
+}
+
+body:has(#app[data-device-kind='tv']) .in-app-select-options {
+  gap: 6px;
+}
+
+body:has(#app[data-device-kind='tv']) .browse-options .filters button {
+  padding-inline: 4px !important;
+  height: 34px !important;
+  white-space: nowrap;
+}
+
+body:has(#app[data-device-kind='tv']) #app .browse-options .filters {
+  min-height: 34px;
+  align-items: center;
+}
+
+@media (min-width: 851px) and (min-height: 421px) {
+  body:has(#app[data-device-kind='tv']) .dock .controls > button {
+    padding-inline: 4px !important;
+    white-space: nowrap !important;
+  }
+
+  body:has(#app[data-device-kind='tv']) .dock #fullscreen-button {
+    min-width: 34px !important;
+  }
+}
+
+body:has(#app[data-device-kind='tv']) :is(button[data-close], button[aria-label^='Close ']) {
+  min-width: 34px !important;
+}
+
+body:has(#app[data-device-kind='tv']) :is(.channel-action, .gx-archive-favorite) {
+  flex-basis: 34px !important;
+  width: 34px !important;
+  height: 34px !important;
+  padding: 0 !important;
+  font-size: 20px !important;
+  line-height: 1 !important;
+  color: #9bb1cb !important;
+}
+
+body:has(#app[data-device-kind='tv'])
+  :is(.channel-favorite, .gx-archive-favorite)[aria-pressed='true'] {
+  color: #ff90cf !important;
+}
+
+body:has(#app[data-device-kind='tv']) #channel-rows .channel-manage {
+  flex-basis: 26px !important;
+  min-width: 26px !important;
+  width: 26px !important;
+}
+
+body:has(#app[data-device-kind='tv']) #channel-rows .media-result-main {
+  padding-block: 3px;
+  gap: 12px;
+}
+
+body:has(#app[data-device-kind='tv']) #channel-rows .media-result-artwork {
+  display: grid;
+  width: 60px;
+  height: 44px;
+  line-height: 1;
+}
+
+body:has(#app[data-device-kind='tv'])
+  :is(#channel-rows .media-result-copy, #genxtra-library .gx-archive-result-copy) {
+  gap: 2px;
+}
+
+body:has(#app[data-device-kind='tv']) #channel-rows .media-result-subtitle {
+  margin-top: 0;
+}
+
+body:has(#app[data-device-kind='tv']) #genxtra-browse-filters > .in-app-select > button {
+  padding-right: 28px !important;
+}
+
+body:has(#app[data-device-kind='tv']) .gx-archive-tools {
+  min-height: 34px;
+  height: 34px;
+}
+
+body:has(#app[data-device-kind='tv']) .gx-archive-filter-toggle {
+  min-width: 58px !important;
+}
+
+body:has(#app[data-device-kind='tv']) .gx-archive-inline-videos .gx-archive-file-row {
+  grid-template-columns: minmax(0, 1fr) 42px 26px !important;
+  min-height: 48px !important;
+  gap: 8px !important;
+  padding: 5px 6px !important;
+}
+
+body:has(#app[data-device-kind='tv'])
+  .gx-archive-inline-videos
+  .gx-archive-file-row
+  > .gx-archive-file-button {
+  min-width: 42px !important;
+  width: 42px !important;
+  max-width: 42px !important;
+  height: 34px !important;
+  padding-inline: 4px !important;
+  white-space: nowrap !important;
+}
+
+body:has(#app[data-device-kind='tv']) .gx-archive-inline-videos .gx-archive-file-details > summary {
+  min-width: 26px !important;
+  width: 26px !important;
+  max-width: 26px !important;
+  height: 34px !important;
+  padding: 0 !important;
+  font-size: 20px !important;
+  line-height: 1 !important;
+}

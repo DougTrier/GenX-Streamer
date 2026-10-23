@@ -1,0 +1,261 @@
+/* The Guide opens in the right panel: the channel list stays on the left, the
+   playing picture shrinks to the top of the panel (still playing, with sound)
+   and the guide fills the rest. Loaded last: it overrides the panel layouts. */
+#app[data-guide-panel='open']:not(.viewing-fullscreen) .view {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+#app[data-guide-panel='open']:not(.viewing-fullscreen) .watch-card {
+  display: flex !important;
+  flex-direction: column;
+  flex: 0 0 auto !important;
+  height: auto !important;
+  min-height: 0 !important;
+  max-height: none !important;
+  overflow: hidden;
+}
+#app[data-guide-panel='open']:not(.viewing-fullscreen) .watch-card > .watchhead,
+#app[data-guide-panel='open']:not(.viewing-fullscreen) .watch-card > .dock,
+#app[data-guide-panel='open']:not(.viewing-fullscreen) #selected-guide-status-slot,
+#app[data-guide-panel='open']:not(.viewing-fullscreen) #archive-details {
+  display: none !important;
+}
+/* While something plays, the picture moves to the top of the channel column
+   (covering search and filters, which the Guide has itself) and the Guide
+   takes the whole right side. Positioned, never moved in the DOM: moving the
+   video element would pause it. */
+#app[data-guide-panel='open']:not(.viewing-fullscreen):not([data-player-idle='true']) .workspace {
+  position: relative;
+}
+#app[data-guide-panel='open']:not(.viewing-fullscreen):not([data-player-idle='true']) .watch-card {
+  position: absolute !important;
+  top: 0;
+  left: 0;
+  z-index: 3;
+  width: var(--sidebar);
+  box-sizing: border-box;
+  padding: 10px 12px 0;
+}
+/* Pinned to the channel column itself, whatever its inset on this layout. */
+@supports (anchor-name: --gx-channel-column) {
+  #app[data-guide-panel='open']:not(.viewing-fullscreen):not([data-player-idle='true']) .browser {
+    anchor-name: --gx-channel-column;
+  }
+  #app[data-guide-panel='open']:not(.viewing-fullscreen):not([data-player-idle='true'])
+    .watch-card {
+    position-anchor: --gx-channel-column;
+    left: anchor(left);
+    top: anchor(top);
+    width: anchor-size(width);
+  }
+}
+#app[data-guide-panel='open']:not(.viewing-fullscreen):not([data-player-idle='true'])
+  .watch-card
+  > .screen {
+  flex: 0 0 auto !important;
+  width: 100% !important;
+  /* 16:9 of the column's inner width (another layout rule defeats aspect-ratio). */
+  height: calc((var(--sidebar) - 24px) * 9 / 16) !important;
+  min-height: 0 !important;
+  max-height: none !important;
+}
+#app[data-guide-panel='open']:not(.viewing-fullscreen):not([data-player-idle='true']) .browser {
+  padding-top: calc((var(--sidebar) - 24px) * 9 / 16 + 26px) !important;
+}
+#app[data-guide-panel='open']:not(.viewing-fullscreen):not([data-player-idle='true'])
+  .browser
+  > :is(
+    .search-controls,
+    .browse-options,
+    #genxtra-browse-filters,
+    #genxtra-filter-status,
+    #inline-source-scan,
+    #account-library
+  ) {
+  display: none !important;
+}
+
+/* Nothing is playing: no empty picture box above the guide. */
+#app[data-guide-panel='open'][data-player-idle='true'] .watch-card {
+  display: none !important;
+}
+/* The grid's ready line ("5:00 PM") stays for screen readers, not on screen. */
+#app[data-guide-panel='open'] .gx-timeline-status[data-state='ready'] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+#app[data-guide-panel='open'] #primary-view-host {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+  min-width: 0;
+}
+#app[data-guide-panel='open'].viewing-fullscreen #primary-view-host {
+  display: none;
+}
+
+/* Paid TV guide header: title, status, actions. */
+.paid-guide {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  gap: 8px;
+}
+.paid-guide[hidden] {
+  display: none;
+}
+.paid-guide-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+/* Title and status on one line; the full status stays in its tooltip. */
+.paid-guide-head h2 {
+  margin: 0;
+  font-size: 18px;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.paid-guide-status {
+  margin: 0;
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--sub);
+  font-size: 13px;
+}
+.paid-guide-head button {
+  flex: 0 0 auto;
+}
+.paid-guide-head button {
+  min-height: 44px;
+}
+#app[data-device-kind='tv'] .paid-guide-head button {
+  min-height: 34px;
+}
+.paid-guide-timeline {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  min-width: 0;
+}
+.paid-guide-timeline > .gx-timeline {
+  flex: 1;
+  min-height: 0;
+}
+
+/* Phones (one panel at a time): the guide takes the whole panel and the
+   channel keeps playing with sound; Close guide brings the picture back. */
+#app.compact-content[data-guide-panel='open']:not(.viewing-fullscreen) .watch-card {
+  display: none !important;
+}
+@media (max-width: 700px) {
+  /* Phones stack the list over the player, so the guide uses the whole area. */
+  #app[data-guide-panel='open']:not(.viewing-fullscreen) .workspace {
+    display: flex !important;
+    flex-direction: column;
+  }
+  #app[data-guide-panel='open']:not(.viewing-fullscreen) .watch-card,
+  #app[data-guide-panel='open']:not(.viewing-fullscreen) .browser,
+  #app[data-guide-panel='open']:not(.viewing-fullscreen) #divider {
+    display: none !important;
+  }
+  #app[data-guide-panel='open']:not(.viewing-fullscreen) .view {
+    flex: 1 1 auto !important;
+    height: 100% !important;
+    min-height: 0;
+    padding: 0 !important;
+  }
+}
+
+/* The preview is a control while the Guide is open: OK or a click opens full screen. */
+#screen[role='button'] {
+  cursor: pointer;
+}
+#screen[role='button']:focus-visible {
+  outline: 3px solid var(--gx-magenta, #f563c1);
+  outline-offset: 2px;
+}
+
+/* Dense rows (TV and desktop): many channels at once, one line each. */
+#app[data-guide-panel='open']:not([data-device-kind='personal']) .gx-timeline {
+  font-size: 13px;
+}
+#app[data-guide-panel='open']:not([data-device-kind='personal']) .gx-timeline-row {
+  padding-block: 1px;
+}
+#app[data-guide-panel='open']:not([data-device-kind='personal'])
+  :is(.gx-timeline-channel, .gx-timeline-cell) {
+  min-height: 0;
+  min-width: 0;
+  padding-block: 0;
+  line-height: 1.2;
+  font-size: inherit;
+}
+#app[data-guide-panel='open']:not([data-device-kind='personal'])
+  .gx-timeline-channel
+  :is(.media-result-artwork, .media-result-subtitle, .channel-logo-image) {
+  display: none;
+}
+#app[data-guide-panel='open']:not([data-device-kind='personal'])
+  .gx-timeline-channel
+  .media-result-title,
+#app[data-guide-panel='open']:not([data-device-kind='personal']) .gx-timeline-cell-label {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  -webkit-line-clamp: unset;
+  max-height: none;
+  font-size: inherit;
+}
+
+/* TV buttons are at least 34 px tall (tv-density.css); the guide's dense
+   rows are thinner, so its cells and channel names fit their row instead. */
+body:has(#app[data-device-kind='tv'][data-guide-panel='open'])
+  .gx-timeline
+  :is(.gx-timeline-cell, .gx-timeline-channel) {
+  min-height: 0 !important;
+  padding: 0 6px !important;
+  font-size: 13px !important;
+  line-height: 1.2 !important;
+}
+/* A narrower channel column leaves the programmes most of the width. */
+#app[data-guide-panel='open']:not([data-device-kind='personal']) .gx-timeline {
+  --gx-channel-width: 190px;
+}
+/* Details float over the grid instead of squeezing it to a strip. */
+#app[data-guide-panel='open']:not([data-device-kind='personal']) .gx-timeline {
+  position: relative;
+}
+#app[data-guide-panel='open']:not([data-device-kind='personal']) .gx-timeline-has-details {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+#app[data-guide-panel='open']:not([data-device-kind='personal'])
+  .gx-timeline-has-details
+  :is(.gx-timeline-axis, .gx-timeline-viewport) {
+  grid-column: 1 !important;
+}
+#app[data-guide-panel='open']:not([data-device-kind='personal']) .gx-timeline-details {
+  position: absolute;
+  top: 52px;
+  right: 6px;
+  bottom: 6px;
+  width: min(380px, 46%);
+  z-index: 6;
+  max-height: none;
+  box-shadow: 0 10px 36px rgb(0 0 0 / 0.65);
+}

@@ -1,0 +1,140 @@
+/* Header buttons painted with the owner's art (October 19, 2026): the middle
+   row of "Neon Cyberpunk TV Button Sprite Sheet.png", cut into
+   assets/genx-nav-*.png (assets/genx-nav-art-provenance.md). The labels are
+   part of the art; each button keeps its accessible name.
+
+   Each layout keeps its own button height; on TVs and wider screens the width
+   follows the art's shape. Phones have six buttons in about 360 px, so Cast
+   and Settings show only their painted icons there.
+
+   States, each clear from across the room: Free TV / Paid TV not chosen are
+   dimmed, the chosen one is full brightness with a pink glow; the remote's
+   focus adds a bright cyan ring. No filters: they would cost the TV extra
+   graphics layers. */
+#app
+  .top-actions
+  :is(#live-tv-button, #paid-tv-button, #local-button, #cast-button, #settings-button) {
+  background: var(--gx-nav-art) center / contain no-repeat !important;
+  border: 0 !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+  color: transparent !important;
+  text-shadow: none !important;
+  font-size: 0 !important;
+  transition:
+    opacity 0.15s,
+    box-shadow 0.15s;
+}
+#app .top-actions :is(#live-tv-button, #paid-tv-button, #local-button) > :is(.nav-icon, img) {
+  display: none !important;
+}
+#app .top-actions :is(#cast-button, #settings-button) > .nav-icon {
+  display: none !important;
+}
+#live-tv-button {
+  --gx-nav-art: url('../../assets/genx-nav-free-tv.png');
+  --gx-nav-ratio: 1.992;
+}
+#paid-tv-button {
+  --gx-nav-art: url('../../assets/genx-nav-paid-tv.png');
+  --gx-nav-ratio: 1.933;
+}
+#local-button {
+  --gx-nav-art: url('../../assets/genx-nav-globe.png');
+  --gx-nav-ratio: 0.975;
+}
+#cast-button {
+  --gx-nav-art: url('../../assets/genx-nav-cast.png');
+  --gx-nav-ratio: 1.917;
+}
+#settings-button {
+  --gx-nav-art: url('../../assets/genx-nav-settings.png');
+  --gx-nav-ratio: 2.008;
+}
+/* The two libraries read as tabs: the one not chosen steps back. */
+#app .top-actions :is(#live-tv-button, #paid-tv-button)[aria-pressed='false'] {
+  opacity: 0.72;
+}
+#app .top-actions :is(#live-tv-button, #paid-tv-button, #local-button)[aria-pressed='true'],
+#app .top-actions #settings-button[aria-expanded='true'] {
+  opacity: 1;
+  box-shadow: 0 0 10px 1px #ff5fcf8c !important;
+}
+#app
+  .top-actions
+  :is(#live-tv-button, #paid-tv-button, #local-button, #cast-button, #settings-button):hover {
+  opacity: 1;
+}
+#app
+  .top-actions
+  :is(
+    #live-tv-button,
+    #paid-tv-button,
+    #local-button,
+    #cast-button,
+    #settings-button
+  ):focus-visible {
+  opacity: 1;
+  outline: 2px solid #a6f5ff !important;
+  outline-offset: 2px;
+  box-shadow: 0 0 14px 2px #29d9ffb3 !important;
+}
+#app
+  .top-actions
+  :is(#live-tv-button, #paid-tv-button, #local-button, #cast-button, #settings-button):disabled {
+  opacity: 0.45;
+}
+
+/* TVs and wider screens: the art sets the width; the layout keeps the height. */
+@media (min-width: 700px) {
+  #app
+    .top-actions
+    :is(#live-tv-button, #paid-tv-button, #local-button, #cast-button, #settings-button) {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    aspect-ratio: var(--gx-nav-ratio);
+  }
+}
+
+/* Phones: Free TV, Paid TV and the globe fit their share. */
+/* Phones and handhelds below 1000 px (not TVs): Cast and Settings show their
+   painted icons on the usual glass, square. The Retroid Flip 2 (854 px wide)
+   clipped the labelled Settings off the screen's edge (October 19, 2026). */
+@media (max-width: 999px) {
+  #app:not([data-device-kind='tv']) .top-actions :is(#cast-button, #settings-button) {
+    background:
+      var(--gx-nav-icon) center / 62% no-repeat,
+      var(--gx-glass-sheen),
+      var(--gx-glass-fill) !important;
+    border: 1px solid var(--gx-glass-edge) !important;
+    flex: 0 0 44px !important;
+    width: 44px !important;
+    aspect-ratio: auto;
+  }
+  #cast-button {
+    --gx-nav-icon: url('../../assets/genx-nav-cast-icon.png');
+  }
+  #settings-button {
+    --gx-nav-icon: url('../../assets/genx-nav-settings-icon.png');
+  }
+}
+@media (max-width: 699px) {
+  /* The labelled art needs the width; the round and icon buttons stay square. */
+  /* Free TV, Paid TV and GenXtra: one size, an equal share of the row, which
+     fills the header beside the logo (see genxtra.css). */
+  #app:not(.viewing-fullscreen) .topbar .top-actions {
+    flex: 1 1 auto;
+  }
+  #app:not(.viewing-fullscreen)
+    .top-actions
+    :is(#live-tv-button, #paid-tv-button, #genxtra-button) {
+    flex: 1 1 0 !important;
+    min-width: 44px;
+  }
+  #app:not(.viewing-fullscreen) .top-actions :is(#local-button, #cast-button, #settings-button) {
+    flex: 0 0 44px !important;
+  }
+}

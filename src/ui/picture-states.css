@@ -1,0 +1,205 @@
+/* The picture's states with the owner's artwork (October 19, 2026): play
+   (nothing playing), buffering (opening, buffering, reconnecting) and failed
+   (could not connect). main.ts sets data-art on #player-overlay. */
+.picture-stage {
+  display: none;
+}
+#player-overlay:not([data-art='none']):not([data-art='']) {
+  container-type: size;
+  /* The artwork brings its own scene; letterbox bars stay black. */
+  background: #04060c;
+  place-items: start center;
+}
+#player-overlay:not([data-art='none']) .picture-stage {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  max-height: none;
+  overflow: hidden;
+  pointer-events: none;
+}
+/* The 16:9 artwork, as large as fits (object-fit: contain, as a box). */
+#player-overlay .picture-art {
+  position: relative;
+  width: min(100cqw, calc(100cqh * 1672 / 941));
+  aspect-ratio: 1672 / 941;
+}
+#player-overlay img.picture-image {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  max-width: none !important;
+  opacity: 1 !important;
+  object-fit: cover;
+}
+/* The words go in the artwork's dark sky at the top. */
+#player-overlay:not([data-art='none']) .overlay-copy {
+  position: relative;
+  z-index: 1;
+  margin-top: 2%;
+  padding: 6px 14px;
+  max-width: min(86%, 560px);
+  border-radius: 10px;
+  background: rgb(4 8 22 / 72%);
+  backdrop-filter: blur(2px);
+}
+#player-overlay:not([data-art='none']) .overlay-copy h3 {
+  margin: 0;
+  font-size: 16px;
+}
+#player-overlay:not([data-art='none']) .overlay-copy p {
+  margin: 4px auto 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+/* Busy: the artwork already says BUFFERING · TUNING IN; only the title shows. */
+#player-overlay[data-art='buffering'] .overlay-copy p {
+  display: none;
+}
+/* A slow light sweeps round the painted ring so the screen visibly works. */
+.picture-spinner {
+  display: none;
+}
+#player-overlay[data-art='buffering'] .picture-spinner {
+  display: block;
+  position: absolute;
+  left: 50%;
+  top: 59.5%;
+  width: 25.5%;
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  border-radius: 50%;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0 70%,
+    rgb(255 255 255 / 0%) 72%,
+    rgb(255 255 255 / 55%) 92%,
+    transparent 100%
+  );
+  -webkit-mask: radial-gradient(
+    closest-side,
+    transparent 60%,
+    #000 63%,
+    #000 97%,
+    transparent 100%
+  );
+  mask: radial-gradient(closest-side, transparent 60%, #000 63%, #000 97%, transparent 100%);
+  mix-blend-mode: screen;
+  animation: picture-sweep 1.6s linear infinite;
+}
+@keyframes picture-sweep {
+  to {
+    rotate: 1turn;
+  }
+}
+/* A stall during playback appears only after a moment (no flash on hiccups). */
+#player-overlay[data-wait] {
+  animation: picture-wait 0.25s ease 0.9s both;
+}
+@keyframes picture-wait {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+/* Failed: the painted TRY AGAIN button is the real Retry (OK or a click). */
+#player-overlay .picture-art #retry-button {
+  position: absolute;
+  left: 33.6%;
+  top: 76.6%;
+  width: 33%;
+  height: 12.6%;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  margin: 0;
+  padding: 0 !important;
+  border: 2px solid transparent !important;
+  border-radius: 14px !important;
+  /* The painted button shows through; the app's button theme must not cover it. */
+  background: transparent !important;
+  background-image: none !important;
+  color: transparent !important;
+  text-shadow: none !important;
+  box-shadow: none !important;
+  pointer-events: auto;
+}
+#player-overlay .picture-art #retry-button::before,
+#player-overlay .picture-art #retry-button::after {
+  content: none !important;
+}
+#player-overlay .picture-art #retry-button[hidden] {
+  display: none;
+}
+#player-overlay .picture-art #retry-button:focus,
+#player-overlay .picture-art #retry-button:hover {
+  outline: none !important;
+  border-color: #c3f7ff !important;
+  box-shadow:
+    0 0 0 3px rgb(245 99 193 / 85%),
+    0 0 22px rgb(8 216 251 / 70%) !important;
+}
+/* Paused: the painted PRESS PLAY TO RESUME is the real Resume. */
+#player-overlay .picture-art #picture-resume {
+  position: absolute;
+  left: 30.7%;
+  top: 76.6%;
+  width: 38.9%;
+  height: 12.3%;
+}
+#player-overlay .picture-art :is(#retry-button, #picture-resume) {
+  min-width: 0 !important;
+  min-height: 0 !important;
+  margin: 0;
+  padding: 0 !important;
+  border: 2px solid transparent !important;
+  border-radius: 14px !important;
+  background: transparent !important;
+  background-image: none !important;
+  color: transparent !important;
+  text-shadow: none !important;
+  box-shadow: none !important;
+  pointer-events: auto;
+}
+#player-overlay .picture-art #picture-resume[hidden] {
+  display: none;
+}
+#player-overlay .picture-art #picture-resume:focus,
+#player-overlay .picture-art #picture-resume:hover {
+  outline: none !important;
+  border-color: #c3f7ff !important;
+  box-shadow:
+    0 0 0 3px rgb(245 99 193 / 85%),
+    0 0 22px rgb(8 216 251 / 70%) !important;
+}
+/* Paused by the viewer: the artwork alone (it says PAUSED). */
+#player-overlay[data-quiet] .overlay-copy {
+  display: none;
+}
+@media (prefers-reduced-motion: reduce) {
+  #player-overlay[data-art='buffering'] .picture-spinner {
+    animation: none;
+  }
+}
+/* A channel whose picture this device cannot decode (MPEG-2 on the Galaxy S25):
+   a quiet note on the black picture while its sound plays. */
+.picture-note {
+  position: absolute;
+  inset: auto 0 12% 0;
+  z-index: 2;
+  margin: 0 auto;
+  width: fit-content;
+  max-width: 90%;
+  padding: 6px 12px;
+  border-radius: 8px;
+  background: rgb(4 6 12 / 0.8);
+  color: #e8f1ff;
+  font-size: 14px;
+  text-align: center;
+  pointer-events: none;
+}
+.picture-note[hidden] {
+  display: none;
+}

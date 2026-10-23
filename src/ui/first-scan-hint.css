@@ -1,0 +1,59 @@
+/* First Free TV scan: the magnifier glows and a callout says where to start. */
+#search-programs.first-scan {
+  border-color: var(--gx-magenta, #f563c1);
+  box-shadow:
+    0 0 0 2px #ff36b4,
+    0 0 18px #22e3ffaa;
+  animation: first-scan-glow 1.4s ease-in-out infinite alternate;
+}
+@keyframes first-scan-glow {
+  from {
+    box-shadow:
+      0 0 0 2px #ff36b4,
+      0 0 8px #22e3ff66;
+  }
+  to {
+    box-shadow:
+      0 0 0 3px #ff36b4,
+      0 0 22px #22e3ffcc;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  #search-programs.first-scan {
+    animation: none;
+  }
+}
+.first-scan-callout {
+  display: grid;
+  gap: 2px;
+  margin: 6px 0 0;
+  padding: 8px 12px;
+  border: 1px solid #ff36b4;
+  border-radius: 10px;
+  background: #1a0f2e;
+  color: var(--sub, #9fb2c4);
+  font-size: 14px;
+  position: relative;
+}
+.first-scan-callout[hidden] {
+  display: none;
+}
+/* A small pointer up toward the magnifier at the start of the search row. */
+.first-scan-callout::before {
+  content: '';
+  position: absolute;
+  top: -7px;
+  left: 22px;
+  width: 12px;
+  height: 12px;
+  background: #1a0f2e;
+  border-left: 1px solid #ff36b4;
+  border-top: 1px solid #ff36b4;
+  transform: rotate(45deg);
+}
+.first-scan-callout strong {
+  color: #fff0fc;
+  font-size: 16px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}

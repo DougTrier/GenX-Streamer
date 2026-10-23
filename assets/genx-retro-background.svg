@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900">
+  <defs>
+    <linearGradient id="night" x2="0" y2="1"><stop stop-color="#080f29"/><stop offset="1" stop-color="#17102d"/></linearGradient>
+    <linearGradient id="sun" x2="0" y2="1"><stop stop-color="#ff9ab5"/><stop offset=".45" stop-color="#e652ac"/><stop offset="1" stop-color="#763281"/></linearGradient>
+    <pattern id="stars" width="240" height="190" patternUnits="userSpaceOnUse"><circle cx="21" cy="37" r="1" fill="#8dcfe4"/><circle cx="176" cy="101" r="1" fill="#dabfe1"/><path d="M118 17v6m-3-3h6" stroke="#97bbd9" stroke-width=".7"/></pattern>
+    <clipPath id="horizon"><rect width="1440" height="642"/></clipPath>
+  </defs>
+  <path fill="url(#night)" d="M0 0h1440v900H0z"/>
+  <path fill="url(#stars)" opacity=".4" d="M0 0h1440v650H0z"/>
+  <g opacity=".25" clip-path="url(#horizon)"><circle cx="1050" cy="602" r="133" fill="url(#sun)"/><path d="M900 546h300m-300 26h300m-300 30h300m-300 32h300" stroke="#11132b" stroke-width="9"/></g>
+  <g fill="none" stroke="#b84fc2" stroke-width="1" opacity=".18"><path d="M0 642h1440M0 672h1440M0 717h1440M0 781h1440M0 865h1440M720 642 0 900M720 642 240 900M720 642 480 900M720 642v258M720 642 960 900M720 642 1200 900M720 642 1440 900"/></g>
+  <g fill="#060d20" opacity=".8"><path d="M1280 775c-1-76 4-137 23-195l10 3c-13 61-12 121-6 192zM1307 586c-40-51-74-47-110-32 45-1 62 14 92 41-33-5-56 9-69 32 34-18 50-16 84-25-8-34-2-55 17-77-3 30-2 39-5 54 28-27 52-24 77-12-27 1-38 6-65 26 32-2 54 17 66 36-27-13-49-14-72-21zM112 867c-4-86-3-145 17-201l9 4c-12 62-6 121 1 197zM133 676c-39-43-71-47-102-31 33 3 51 13 81 38-30-3-54 13-64 34 28-18 50-17 73-23-5-29 4-51 20-71-2 25-3 38-4 47 32-24 55-20 76-8-27 0-41 9-68 24 29 1 50 20 60 39-28-16-44-16-66-26z"/></g>
+</svg>

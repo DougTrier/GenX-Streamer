@@ -1,0 +1,98 @@
+/* Cached programme matches share the channel pane and never replace the player. */
+.gx-program-search.gx-program-search-inline {
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  position: relative;
+  width: 100%;
+  height: auto;
+  min-width: 0;
+  min-height: 0;
+  max-height: min(38%, 280px);
+  margin: 4px 0 0;
+  padding: 0;
+  border-radius: 8px;
+  gap: 4px;
+  overflow: hidden;
+}
+.gx-program-search.gx-program-search-inline[hidden] {
+  display: none !important;
+}
+.gx-program-search.gx-program-search-inline header {
+  flex: 0 0 auto;
+  min-height: 44px;
+  padding: 0;
+}
+.gx-program-search.gx-program-search-inline .gx-program-search-collapse {
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 0;
+  text-align: left;
+  font-size: 0.9rem;
+}
+.gx-program-search.gx-program-search-inline .gx-program-search-collapse::after {
+  content: ' ▾';
+}
+.gx-program-search.gx-program-search-inline .gx-program-search-collapse[aria-expanded='false']::after {
+  content: ' ▸';
+}
+.gx-program-search.gx-program-search-inline [role='status'] {
+  margin: 0 8px;
+  font-size: 0.75rem;
+  max-height: 2lh;
+}
+.gx-program-search.gx-program-search-inline .gx-program-search-body {
+  display: flex;
+  flex-direction: column;
+  position: static;
+  gap: 6px;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.gx-program-search.gx-program-search-inline .gx-program-search-groups {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  gap: 8px;
+  overflow: visible;
+  padding: 3px 6px;
+}
+.gx-program-search.gx-program-search-inline .gx-program-search-groups > section {
+  gap: 4px;
+}
+.gx-program-search.gx-program-search-inline .gx-program-search-groups h3 {
+  font-size: 0.85rem;
+}
+.gx-program-search.gx-program-search-inline .gx-program-search-groups > section > p {
+  font-size: 0.75rem;
+}
+.gx-program-search.gx-program-search-inline .gx-program-search-groups button {
+  min-height: 44px;
+  padding: 6px 8px;
+  font-size: 0.85rem;
+  line-height: 1.3;
+}
+.gx-program-search.gx-program-search-inline .gx-program-search-groups > section > button {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.gx-program-search.gx-program-search-inline .gx-program-search-detail {
+  position: static;
+  flex: 0 0 auto;
+  min-height: 0;
+  padding: 8px;
+  margin: 0 6px 6px;
+  font-size: 0.85rem;
+  overflow: visible;
+}
+.gx-program-search.gx-program-search-inline .gx-program-search-detail h3 {
+  font-size: 0.95rem;
+}
+.gx-program-search.gx-program-search-inline .gx-program-search-detail > * + * {
+  margin-top: 6px;
+}

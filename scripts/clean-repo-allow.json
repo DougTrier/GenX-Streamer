@@ -1,0 +1,648 @@
+{
+ "schemaVersion": 1,
+ "note": "Line fingerprints (file + trimmed line) a person reviewed; an edited line needs a new review. No values are stored here.",
+ "reviewed": [
+  {
+   "file": "src-tauri/gen/android/app/src/test/java/com/tmg/tv/ApkRulesTest.kt",
+   "label": "address with a password",
+   "sha256": "24780784dd2fbcd49ae128aa4b992ade8d050799baea3629faf7157d9462e981",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/gen/android/app/src/test/java/com/tmg/tv/NativeVideoRulesTest.kt",
+   "label": "Xtream-style credentials",
+   "sha256": "8fff82ff41cf713b1ef8ac8cb072b4f7f5372dd6f37e3a26a3124327a2cc1926",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/gen/android/app/src/test/java/com/tmg/tv/NativeVideoRulesTest.kt",
+   "label": "address with a password",
+   "sha256": "aeb6108cda8d8efa72631c0453b32221522e33a99929fe43fc37a2c6be3fdddb",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/account_acquisition.rs",
+   "label": "username/password query",
+   "sha256": "ebce80102164cd9bb980f94d4f74ad0968413e8ea801043d11a33d80dd43cac0",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/account_acquisition.rs",
+   "label": "private network address",
+   "sha256": "783345b39d5aedda329a79cde9c5325b2dff9ac34bd71ef4e47bd0920fc5fd60",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/account_acquisition.rs",
+   "label": "address with a password",
+   "sha256": "af425d9b81376f84114c71e9f17e7d6545e606b8e6f28963fc07e0780d27765f",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/account_acquisition.rs",
+   "label": "username/password query",
+   "sha256": "7b9aaeb337e598a10f8a7141125ff27ddfbe4ee21f27ddd06e6829a661e6c322",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/account_acquisition.rs",
+   "label": "username/password query",
+   "sha256": "4ff8478993546546a3e33eec616422b66d6071cc6366f9a4b37aad12c84bff99",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/account_playback_proxy.rs",
+   "label": "address with a password",
+   "sha256": "a908675d7903e61a4c96ef060d9e3459818551f801a5706bc753a8e5a84d310d",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/account_playback_proxy.rs",
+   "label": "private network address",
+   "sha256": "624ebe3b91584311ca7bd523760a8c321048d2004d8274a2630a90eb0e5d5a31",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/account_playback_proxy.rs",
+   "label": "address with a password",
+   "sha256": "12ad556df132e2aee6e966e3b29b9319bec768f194d846b45cf96ccd3b748be6",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/account_vod.rs",
+   "label": "username/password query",
+   "sha256": "223a111f7e0075e3f60d7addb9f13d68f44bdfe40e57247e0e3b7322b1531c0d",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/account_vod.rs",
+   "label": "username/password query",
+   "sha256": "22711e22e9b1c886ae4ae9205fe576593221653c6771586444b925ec4580508d",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/archive_download_transfer.rs",
+   "label": "private network address",
+   "sha256": "97c85c8a60b67232c6dd9de84839668f4466ceab6d9a86510417b8bdc47f7ae9",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/archive_playback_proxy.rs",
+   "label": "address with a password",
+   "sha256": "9c85eb21b68ee900a16a55f719aabbbd34c2db185f548fb8b6c9ce2a8d0a3bd5",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/archive_playback_proxy.rs",
+   "label": "private network address",
+   "sha256": "b42dd992008bad3b4bf7d847bb1e0a832d6ef93f310561605309c33432f1f638",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/archive_playback_proxy.rs",
+   "label": "private network address",
+   "sha256": "460fc4c3d9c8c4635ccf53f62d6e74094ba9636a17e056e2f283e4c227986b6f",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/archive_provider_commons.rs",
+   "label": "address with a password",
+   "sha256": "bd2e2966c29aed32b2151bab7f52f0c4a01e1dc77b7826513988b6f6e18ef762",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/archive_provider_net.rs",
+   "label": "address with a password",
+   "sha256": "dea3b411d5ca60274de20d9c2d264ac670ea19b0215c3d0849dc178e983c51c7",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/archive_provider_net.rs",
+   "label": "address with a password",
+   "sha256": "a611eb3bcaa95d3d81b42c04e107f7ec5e609d8780144c5613044eb992015a4a",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/casting/chromecast.rs",
+   "label": "private network address",
+   "sha256": "e36baa8f0a36ed6a42d361fbf1fd34d10fdea1f7e32e35ea202c26051792543f",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/casting/discovery.rs",
+   "label": "private network address",
+   "sha256": "821f3b038619bc16f7a55595611448a3d3a3a32779c89e1084988ba938d0c91b",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/casting/discovery.rs",
+   "label": "private network address",
+   "sha256": "a16b3ba9ad5c3a584553679e315209b805d4a33a78bb61f4a1655553607ff0bd",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/casting/discovery.rs",
+   "label": "private network address",
+   "sha256": "a7bef9bdb399a51c60850f2508e646f1d9b4caa929e8b829566428bac6cb1535",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/casting/discovery.rs",
+   "label": "private network address",
+   "sha256": "6d8dda2d7035016817201fb612c25d6a8922a7d0aab5ac7de3925460d476ce09",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/casting/discovery.rs",
+   "label": "private network address",
+   "sha256": "e305bc69c039f9be0c8dea213f7d17f32749c0994cd057bf4c189b14727993d9",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/casting/dlna.rs",
+   "label": "private network address",
+   "sha256": "92a915fa2c7b1b7836527fa56a5483cfd3966d9c068b0552d541a7eae04c3e9c",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/casting/dlna.rs",
+   "label": "private network address",
+   "sha256": "7eeaaed51b9274dcc487b45d7d226ad3af2f04c049a00bfffb10a3a5dc919738",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/casting/mod.rs",
+   "label": "address with a password",
+   "sha256": "d99167af4f5a7c9c8a148a59edf363439c20bb972fb6ff3d8bab318c993510cb",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/casting/mod.rs",
+   "label": "private network address",
+   "sha256": "ba266056775ce52a02870bb303411ead4bc3b7e6b4d9236d87486d1e0bf29385",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/casting/mod.rs",
+   "label": "private network address",
+   "sha256": "42c6d43d3118d7a3cf62f8eface323c597d2c5bd5cc5e1c2a83f6bd555238e52",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/casting/mod.rs",
+   "label": "private network address",
+   "sha256": "aebe0e84b66c91cb3adb3a44fb010ec1ea8be3e49fd50f055bda7fda6bbcdf8a",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/casting/network_scope.rs",
+   "label": "private network address",
+   "sha256": "0958a9eb1d035b16f301612b49c6f9001fb042636ac0153496b765fca807d27f",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/casting/network_scope.rs",
+   "label": "private network address",
+   "sha256": "3acc6e337a42c6303e00357c6869d0bbafe93b136caf48b11c94054a97ca102e",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/casting/network_scope.rs",
+   "label": "private network address",
+   "sha256": "7ed96668563236b22aac40c0dc50df3d53521daa433fb48295775f9d667e246b",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/casting/receiver_relay_tests.rs",
+   "label": "private network address",
+   "sha256": "c4bdb0725600ad5180fd83222ed8e11de6c167afaa34c20d49640b32366793d2",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/casting/receiver_relay_tests.rs",
+   "label": "private network address",
+   "sha256": "d84cc3f353bf8b2795f16d3586c85fe5d5934d5b24e5458f7996232dcfdfefeb",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/casting/receiver_relay_tests.rs",
+   "label": "address with a password",
+   "sha256": "4f7691fbf8bc63dc72421dc435454e25cb8415fcbc6c7f63d2976be05d256aa8",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/casting/receiver_relay_tests.rs",
+   "label": "private network address",
+   "sha256": "c42ea2a98c4dc1e8e228525adf0d49d61e4e1619209bb837bead2fe8c7491929",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/casting/receiver_relay_tests.rs",
+   "label": "address with a password",
+   "sha256": "e1019a4ee40478eae8fd7793c97e22772f8c4f0c0b099e19eed4de190b76a503",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/channel_logos.rs",
+   "label": "address with a password",
+   "sha256": "01548d3995d9a80450087a49b25cdbc0d81ab507747b4d55d13b32a45482ce0d",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/discovery_unavailable.rs",
+   "label": "address with a password",
+   "sha256": "99a3d5ef060c9cef6afc6d30065b61c15280d50b9b72b00593b967829d045a2e",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/health_storage_tests.rs",
+   "label": "address with a password",
+   "sha256": "3299727e686834a55a2fda5de4f43e149ebe1f1d04edab992e3e10e1592eb9d6",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/local_favorites.rs",
+   "label": "address with a password",
+   "sha256": "ac76684dd6e4af5540269b5fe56c16ef014e07bebe70f3a4a694e393d12da186",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/local_streams_tests.rs",
+   "label": "address with a password",
+   "sha256": "15d6dc1368fe15530e9d188f968358c255c4da90722779ae8c96819af31251ca",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/native_live.rs",
+   "label": "private network address",
+   "sha256": "aa15d6279067137e6775f70d802da105f08b8d110d94c1e6a3860704b03c025f",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/native_sharing.rs",
+   "label": "private key",
+   "sha256": "e694e8c9deb1f3a1ec775b6012e6777b25e81867e8260ffa520b71bd0850ea1d",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/native_video.rs",
+   "label": "Xtream-style credentials",
+   "sha256": "78dbea1c29b67276bb2dbd0be670478fb15dea4ab1233224331c5466026f73d4",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/native_video.rs",
+   "label": "address with a password",
+   "sha256": "e10f04b09c9403d0a2a32df475aa01ad46723dabbb14c6540f542c2f7c54f71c",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/network.rs",
+   "label": "address with a password",
+   "sha256": "c549f04f8f74481bc95a0a36e5b252d12f1dbeeebf41ee58254ae2ed73b7f069",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/network.rs",
+   "label": "address with a password",
+   "sha256": "9bac810562860a2d75ca87decde84ff9f5b482a64f6a64904108c96a2c2f5988",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/network.rs",
+   "label": "address with a password",
+   "sha256": "cc1bc40e54d66d1311c41ef5e5bfc5e2cf2d81fc5a9b84f8120a8782b7df4eef",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/preference_extensions_tests.rs",
+   "label": "address with a password",
+   "sha256": "d6a510e0e56d8c870012fe13572def774ea5c2a177b19f3339af117df0d48ac4",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/scan_candidate_manifest_tests.rs",
+   "label": "address with a password",
+   "sha256": "485d1517d42b1ab5daf193d855c44840acfabc576b440cf792a04deff0b59599",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/scan_checkpoint_tests.rs",
+   "label": "address with a password",
+   "sha256": "d46c867f7941682b8cb6a4979490cf65a03257f3414ccf0946f10a2363fa200b",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/scan_manifest_origin_directory_tests.rs",
+   "label": "address with a password",
+   "sha256": "172ff8628f89a4555807ccb3fb08e5dc515e068421f57cae40007504ab332aa2",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/sharing_policy.rs",
+   "label": "private network address",
+   "sha256": "0a1612e39175328534d1271aa99029022edce6d07106e80fa03be061acbad8e8",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/sharing_policy.rs",
+   "label": "private network address",
+   "sha256": "6431e5ef1c6e5a4643b76f78f274ec60f88b60447f0f2821e3955be9bdc876c4",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "src-tauri/src/source_directory_tests.rs",
+   "label": "address with a password",
+   "sha256": "29ea5d2098ca9d8012792897c6a1d40acaf364f2ea91901b6a3492e5bf9ea002",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/application/account-vod.test.ts",
+   "label": "address with a password",
+   "sha256": "7a6416c45c0310d12ac34171878f848692edd2a9dbb69021d563f54ff7ebcbb6",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/application/discovered-source-configuration.test.ts",
+   "label": "address with a password",
+   "sha256": "33be83bc1ecf26a1ed83efe4acf053bb6d64d7ad46c7797459ff8cafc46aa5fe",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/application/scan-candidate-manifest.test.ts",
+   "label": "address with a password",
+   "sha256": "024819539fe42816244e7b195f6c0ad207a7ddfa3914e6e99d06851ac3d26eac",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/application/startup-observer.test.ts",
+   "label": "address with a password",
+   "sha256": "aab1c3f1fa6b8dc26cf74556f37dbf77edfdd9427aefce40bd51b0f179565d44",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/casting/known-receiver.test.ts",
+   "label": "private network address",
+   "sha256": "75398ac2de56d39c06807df17939a606cc635a4f7c63ea40fed57d7a1ed26120",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/casting/known-receiver.test.ts",
+   "label": "private network address",
+   "sha256": "1b68d0f78d11bdc25e7d8405ce4e73f5db12bd4afff78c201d5aad0b41a9b581",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/casting/known-receiver.test.ts",
+   "label": "private network address",
+   "sha256": "65f710fc8365d90b9134a90dd5f0e7c8529f29152ee06914fb23a5c6252f3802",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/casting/known-receiver.test.ts",
+   "label": "private network address",
+   "sha256": "16096d470cf1a06c70518d5fac368a96682146da2e75437b44c32b23a0717f89",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/casting/known-receiver.test.ts",
+   "label": "private network address",
+   "sha256": "c926059e27926b3053680f11d08c84a9b8a0f8aecb2e693a613f1b86019bd1d8",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/casting/receiver-validation.test.ts",
+   "label": "private network address",
+   "sha256": "a570447cd2b1d0f892c023136557f36f2863a86a0f1696effd53089ec75c0f8c",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/catalog/codec.test.ts",
+   "label": "address with a password",
+   "sha256": "6234afd6e1513fa9311b1a30bfb2f6c197496be0cd76994db774547ec4cc756c",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/catalog/playlist-export.test.ts",
+   "label": "address with a password",
+   "sha256": "63b1693056a3edf0630a429c156c1c051e0066f9e0d8f250bf57ac46376bcc76",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/catalog/unsupported-protocol.test.ts",
+   "label": "address with a password",
+   "sha256": "7ddb75d7c6677a5769a180bb33aa44016e40dd4f08cd576e3c6cae2eafa326ab",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/catalog/unsupported-protocol.test.ts",
+   "label": "address with a password",
+   "sha256": "dbfe7f738018e7480e571931744462afb752d0c586227b317ccf225733fb595b",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/discovery/automatic-check.test.ts",
+   "label": "address with a password",
+   "sha256": "d7a0bde4afaf7ed750cf8647f39879bcc5deea0832f85de7a2b6d1b62d46a328",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/discovery/candidates.test.ts",
+   "label": "address with a password",
+   "sha256": "9483bc7a021fff13ac60cc826f6219f302e57e572507725450da50de2c7756ee",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/discovery/candidates.test.ts",
+   "label": "address with a password",
+   "sha256": "0b3c1b85ced5014ca8fb1cbc036be139938932f7050eb897fc8f46c4d7ce51af",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/discovery/checkpoint-reconstruction.test.ts",
+   "label": "address with a password",
+   "sha256": "09fb7a41e2d7fceaa439acc89f1a4726809d01b84d08ddecd840041c59e5b22e",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/discovery/checkpoint-reconstruction.test.ts",
+   "label": "address with a password",
+   "sha256": "7b1bb5df8fac0b63b7c7cb56d5b37af034d7630ff70661eb0ab42dbad11e9957",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/discovery/online-source-scan.test.ts",
+   "label": "address with a password",
+   "sha256": "cf7443fb32911ce472ad4056c10cdf32513080a303b721db14d873c4cdb32e0c",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/discovery/online-source-scan.test.ts",
+   "label": "address with a password",
+   "sha256": "53848cb2b4b95c01d97e1ef9ecf9b0358ec065f825aa6f8cb6dad499f364610f",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/discovery/packed-checkpoint.test.ts",
+   "label": "address with a password",
+   "sha256": "b5e8c5cf78111d50c638e1285147aa45b3cb39b00a649dd8ebb6e498ea6b5a73",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/discovery/page-input.test.ts",
+   "label": "address with a password",
+   "sha256": "c76b2181690cb4dcb345d9803ee3d53bf5302e2896f5863b0fa9727558066bcc",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/discovery/probe-scheduler.test.ts",
+   "label": "address with a password",
+   "sha256": "58c32532d364194955b3f5ce2bfde11f661d63ece6474fdcddc0301f0ac147d6",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/discovery/provider-registry.test.ts",
+   "label": "address with a password",
+   "sha256": "21d62f37807ee94332b4ef3301d0bfdc6d54f59c6a0b81c07a6bb7ddcf4cbf09",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/discovery/scan-checkpoint.test.ts",
+   "label": "address with a password",
+   "sha256": "023f36aaa0a798dfc666a730d4e49957c319307559813b514e9320bdb52bd67f",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/discovery/scan-checkpoint.test.ts",
+   "label": "Xtream-style credentials",
+   "sha256": "d66bbb78cd18516a60c4212bff2dec0fe7f0d6936d7b9019f3aad24e0f66f6ff",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/discovery/selection-failure.test.ts",
+   "label": "address with a password",
+   "sha256": "7367ac35c24a85e20eb917314d90e067fb42b755b94dced001a71f5e2573dc07",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/discovery/selection-failure.test.ts",
+   "label": "address with a password",
+   "sha256": "0708b947ce1dbef2ed015e868bba57e97ac58d054d292bbb87d0e0fe78088632",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/discovery/source-index.test.ts",
+   "label": "address with a password",
+   "sha256": "ba46ddc240ebd48500320313db26daba6904b7e4a0cd3881045afc13059f619f",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/discovery/source-index.test.ts",
+   "label": "address with a password",
+   "sha256": "2abf0ca1e5ac75300a4a40e5d0767de243cb4bf2be1c65b96971b5e5569c991f",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/guide/discovery.test.ts",
+   "label": "address with a password",
+   "sha256": "eb5d601dbc9646e7f2dd9957605b9af564d28c9a283e7987bcea566c79146593",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/guide/discovery.test.ts",
+   "label": "address with a password",
+   "sha256": "9f47f9cea3fb393251e74bc7224bb544f87c3656aa9899055fcc29a04c4592eb",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/guide/proposed-preview.test.ts",
+   "label": "address with a password",
+   "sha256": "dcfbe9946645a6a5d35508b632450bc80a7d65c09c848c63034726aa391abf11",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/native/playback-error-smoke.mjs",
+   "label": "address with a password",
+   "sha256": "0cad6e4d9e123daf3ccd0c0a699809a10b4baba93b35869a8641421a31fc436d",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/platform/archive-public-providers.test.ts",
+   "label": "address with a password",
+   "sha256": "d501201d254c5c19a028c2f1696688a9ae5495ef67e9e2701d523e808226a90e",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/platform/local-streams.test.ts",
+   "label": "address with a password",
+   "sha256": "247c801aaa3d6659baf29401b085aaf6efdb25b3381161c3f921042d61f10659",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/platform/local-streams.test.ts",
+   "label": "address with a password",
+   "sha256": "716494bc74baefb9548a88d326d7b18ef5a762c5b9c993f26e847af1c9be51b5",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/playback/browser-engine.test.ts",
+   "label": "address with a password",
+   "sha256": "564de83d7c99d558ee581e33ed9db2ce4efd424cfee491db1ae1c1f6467e013b",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/playback/failure-guidance.test.ts",
+   "label": "address with a password",
+   "sha256": "792c99d8dff064f35fe1161dc258833d0e93f6213f46e0b6a32148215031414c",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/playback/native-hls-loader.test.ts",
+   "label": "address with a password",
+   "sha256": "bbb0b2de478a1fcd2b40a71841483faaa742ce5710d1d391dff4af62d1df8538",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/sharing/service.test.ts",
+   "label": "private network address",
+   "sha256": "84bd531cf18d0692d8c05da9973b97b6252e455638497ad9de446197d7ce0fb0",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/sources/health-inspection.test.ts",
+   "label": "address with a password",
+   "sha256": "84b6fa1c3fd1ca105e3d6068dd905831d4bb7615e5734f317cbfea64f871ad7f",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/tooling/large-scan-fixture-server.test.mjs",
+   "label": "address with a password",
+   "sha256": "5613837d7afb87aa8b950768f0cd97a978aabfe41b42d0fab8bb1c33635567dc",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/tooling/test_epg_source_audit.py",
+   "label": "address with a password",
+   "sha256": "8dec7f5aabbd47df7eeb63d1ac4bfe645518f8e44e0b83f198e8fc801ec5ea1e",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/tooling/test_epg_source_audit.py",
+   "label": "private network address",
+   "sha256": "ba38f63f94a4ed631210a5f1f94aa5e7edfdd99c7b1aa690c3aca23e144b0b64",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/ui/source-management.spec.ts",
+   "label": "private network address",
+   "sha256": "4d71bbc0c96be28fe4ae56561ffb73b7e2542d08423b7a8827a4e45a689f70d6",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  },
+  {
+   "file": "tests/ui/tv-surface-audit.spec.ts",
+   "label": "username/password query",
+   "sha256": "b9025f83e24220693c65bc4dd19e28703022775e68c452b3d44a6c7af1ae34d0",
+   "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+  }
+ ]
+}

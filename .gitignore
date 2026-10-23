@@ -1,0 +1,27 @@
+node_modules/
+dist/
+artifacts/
+src-tauri/target/
+**/target/
+src-tauri/gen/android/.gradle/
+src-tauri/gen/android/app/build/
+src-tauri/gen/android/.idea/
+src-tauri/gen/android/.kotlin/
+src-tauri/gen/android/app/.cxx/
+src-tauri/gen/android/app/src/main/jniLibs/
+src-tauri/gen/android/local.properties
+src-tauri/gen/schemas/
+__pycache__/
+*.pyc
+.env*
+private/
+local-only/
+/Design Concepts/
+*.jks
+*.keystore
+*.pfx
+*.pem
+*.log
+
+# Owner-specific privacy patterns for scripts/clean-repo.mjs (never committed)
+.private-patterns.json

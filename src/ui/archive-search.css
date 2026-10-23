@@ -1,0 +1,325 @@
+.gx-archive-search {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow: hidden;
+  padding: 8px;
+  color: var(--text, #f4f3ee);
+}
+.gx-archive-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+.gx-archive-tools > .gx-archive-source,
+#genxtra-library .gx-archive-tools > .gx-archive-source {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.gx-archive-tools > .gx-archive-language,
+.gx-archive-tools > .in-app-select {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 100%;
+}
+.gx-archive-language {
+  min-height: 44px;
+  border: 1px solid var(--line, #354044);
+  border-radius: 8px;
+  padding: 8px;
+  background: var(--panel, #1c272b);
+  color: var(--text, #f4f3ee);
+  font: inherit;
+}
+/* The active library is already named in the app navigation. Retain its
+   semantic heading without repeating a full visual row above the results. */
+#genxtra-library .gx-archive-search > h2 {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.gx-archive-search[hidden] {
+  display: none !important;
+}
+.gx-archive-search h2 {
+  margin: 0;
+  font-size: 1rem;
+}
+.gx-archive-search p {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.gx-archive-source,
+.gx-archive-metadata,
+.gx-archive-status,
+.gx-archive-rights {
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--muted, #b8bbbd);
+}
+.gx-archive-status {
+  flex: 0 0 auto;
+}
+.gx-archive-results {
+  min-height: 0;
+  padding: 4px;
+  scroll-padding: 4px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.gx-archive-title {
+  padding: 10px;
+  margin-bottom: 8px;
+  border: 1px solid var(--line, #354044);
+  border-radius: 10px;
+  background: linear-gradient(135deg, rgba(15, 33, 57, 0.9), rgba(6, 13, 28, 0.95));
+}
+.gx-archive-title:focus-within {
+  border-color: var(--accent, #08d8fb);
+}
+.gx-archive-context,
+.gx-archive-subjects,
+.gx-archive-synopsis {
+  padding: 3px 4px;
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--muted, #b8bbbd);
+}
+.gx-archive-subjects,
+.gx-archive-synopsis {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.gx-archive-title > .gx-archive-favorite {
+  margin-top: 6px;
+  background: transparent;
+  border-color: transparent;
+}
+.gx-archive-title > .gx-archive-title-management {
+  display: inline-block;
+  margin: 0 0 0 8px;
+}
+.gx-archive-search button {
+  min-height: 44px;
+  min-width: 44px;
+  padding: 8px 10px;
+  border: 1px solid var(--line, #354044);
+  border-radius: 8px;
+  background: var(--panel, #1c272b);
+  color: inherit;
+  font: inherit;
+  font-size: 0.88rem;
+  line-height: 1.3;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.gx-archive-search button:focus-visible {
+  outline: 2px solid var(--accent, #efbe75);
+  outline-offset: 2px;
+}
+.gx-archive-search button:disabled {
+  opacity: 0.55;
+}
+.gx-archive-title-button {
+  width: 100%;
+  font-weight: 600 !important;
+}
+.gx-archive-title-button::after {
+  content: ' · Choose video ▸';
+  color: var(--accent, #08d8fb);
+  font-size: 0.78rem;
+}
+.gx-archive-title-button[aria-expanded='true']::after {
+  content: ' · Videos ▾';
+}
+.gx-archive-metadata {
+  padding: 4px 4px 0;
+}
+.gx-archive-files {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 8px 0 0 8px;
+}
+.gx-archive-file-button {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+.gx-archive-file-metadata {
+  color: var(--muted, #b8bbbd);
+  font-size: 0.75rem;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+.gx-archive-paging {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+.gx-archive-paging[hidden] {
+  display: none;
+}
+.gx-archive-paging span {
+  font-size: 0.78rem;
+}
+
+.gx-archive-title-management,
+.gx-archive-file-details,
+.gx-archive-management {
+  margin: 6px 0;
+  color: var(--muted, #b8bbbd);
+  font-size: 0.8rem;
+}
+.gx-archive-title-management summary,
+.gx-archive-file-details summary,
+.gx-archive-management summary {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+.gx-archive-remove-confirmation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 6px 0;
+}
+.gx-archive-remove-confirmation p {
+  flex-basis: 100%;
+  margin: 0;
+}
+.gx-archive-remove-confirmation button {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Download metadata stays in the chosen file disclosure; it never widens the Play row. */
+.gx-archive-downloads {
+  flex: 0 0 auto;
+  max-height: 35%;
+  overflow: auto;
+  font-size: 0.82rem;
+}
+.gx-archive-downloads > details > summary {
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+.gx-archive-download-progress {
+  margin: 4px 0;
+}
+.gx-archive-file-downloads {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-block: 6px;
+}
+.gx-archive-file-downloads p {
+  flex-basis: 100%;
+  margin: 0;
+}
+.gx-archive-file-downloads button,
+.gx-archive-downloads button {
+  min-width: 44px;
+  min-height: 44px;
+}
+.gx-archive-saved-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-block: 8px;
+  border-bottom: 1px solid var(--line, #34434c);
+}
+.gx-archive-saved-row strong,
+.gx-archive-saved-row span {
+  flex-basis: 100%;
+  overflow-wrap: anywhere;
+}
+#app[data-device-kind='tv'] .gx-archive-downloads button,
+#app[data-device-kind='tv'] .gx-archive-downloads summary {
+  min-height: 34px;
+}
+.gx-archive-downloads [hidden],
+.gx-archive-file-downloads [hidden] {
+  display: none;
+}
+
+.gx-archive-file-facts {
+  display: grid;
+  grid-template-columns: minmax(0, 0.7fr) minmax(0, 1.3fr);
+  gap: 4px 10px;
+  margin: 8px 0;
+  font-size: 0.8rem;
+  line-height: 1.4;
+}
+.gx-archive-file-facts dt {
+  color: var(--muted, #b8bbbd);
+}
+.gx-archive-file-facts dd {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+/* Optional show suggestions after an explicit Search: one bounded, scrollable band. */
+.gx-archive-series {
+  flex: 0 0 auto;
+  max-height: 96px;
+  overflow-y: auto;
+  min-width: 0;
+}
+.gx-archive-series p {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  margin: 0 0 4px;
+}
+.gx-archive-series-label {
+  color: var(--muted, #b8c0c2);
+  font-size: 0.85em;
+}
+.gx-archive-series-chip {
+  min-height: 32px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border: 1px solid var(--line, #354044);
+  border-radius: 16px;
+  padding: 4px 10px;
+  background: var(--panel, #1c272b);
+  color: var(--text, #f4f3ee);
+  font: inherit;
+  font-size: 0.85em;
+  cursor: pointer;
+}
+.gx-archive-series-chip:focus-visible,
+.gx-archive-series-chip:hover {
+  border-color: var(--accent, #39d0e0);
+  outline: 2px solid var(--accent, #39d0e0);
+  outline-offset: 1px;
+}
+.gx-archive-series-attribution {
+  display: block;
+  color: var(--muted, #b8c0c2);
+  font-size: 0.75em;
+}
