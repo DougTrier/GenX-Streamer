@@ -158,6 +158,9 @@ $tmgBuildEnvironment = [ordered]@{
 $tmgBuildEnvironment["CARGO_TARGET_$($tmgRoute.CargoKey)_LINKER"] = $tmgLinker
 $tmgBuildEnvironment["CC_$($tmgRoute.CcKey)"] = $tmgLinker
 $tmgBuildEnvironment["AR_$($tmgRoute.CcKey)"] = $tmgArchiver
+# wry writes generated Kotlin here and requires the folder to exist; git keeps
+# no empty folders, so a fresh clone lacks it.
+New-Item -ItemType Directory -Force -Path $tmgBuildEnvironment['WRY_ANDROID_KOTLIN_FILES_OUT_DIR'] | Out-Null
 $tmgStage = 'shared-build'
 Invoke-TmgBuildEnvironment -Changes $tmgBuildEnvironment -Location $tmgRepo -Work {
 Write-Output ('Development profile ' + ($tmgProfile | ConvertTo-Json -Compress))
