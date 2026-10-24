@@ -369,7 +369,7 @@ pub(crate) async fn seal(
     for page in &mut prepared.pages {
         check()?;
         let plaintext = std::mem::take(&mut *page.plaintext);
-        let ciphertext = crate::protect_scan_manifest_page(
+        let ciphertext = crate::commands::scan::protect_scan_manifest_page(
             app.clone(),
             binding(
                 &prepared.fence,
@@ -596,7 +596,7 @@ pub(crate) async fn open(
     .map_err(|_| "account-vault-worker-failed")??;
     check()?;
     let plaintext = Zeroizing::new(
-        crate::protect_scan_manifest_page(
+        crate::commands::scan::protect_scan_manifest_page(
             app,
             binding(
                 &prepared.fence,

@@ -433,10 +433,14 @@ pub async fn seal(
     mut prepared: PreparedPut,
 ) -> Result<SealedPut, String> {
     let plaintext = std::mem::take(&mut *prepared.plaintext);
-    let ciphertext =
-        crate::protect_scan_manifest_page(app, binding(&prepared.metadata), plaintext, false)
-            .await
-            .map_err(|_| "account-vault-unavailable")?;
+    let ciphertext = crate::commands::scan::protect_scan_manifest_page(
+        app,
+        binding(&prepared.metadata),
+        plaintext,
+        false,
+    )
+    .await
+    .map_err(|_| "account-vault-unavailable")?;
     if ciphertext.is_empty() || ciphertext.len() > CIPHER_LIMIT {
         return Err("account-secret-too-large".into());
     }
@@ -581,9 +585,14 @@ pub(crate) async fn open(
     .await
     .map_err(|_| "account-vault-worker-failed")??;
     let plaintext = Zeroizing::new(
-        crate::protect_scan_manifest_page(app, binding(&prepared.metadata), cipher, true)
-            .await
-            .map_err(|_| "account-sign-in-required")?,
+        crate::commands::scan::protect_scan_manifest_page(
+            app,
+            binding(&prepared.metadata),
+            cipher,
+            true,
+        )
+        .await
+        .map_err(|_| "account-sign-in-required")?,
     );
     if plaintext.is_empty() || plaintext.len() > SECRET_LIMIT {
         return Err("account-sign-in-required".into());

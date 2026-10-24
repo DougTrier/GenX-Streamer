@@ -99,7 +99,7 @@ pub(crate) async fn activate(
                 })
                 .await?;
             owner.check()?;
-            let ciphertext = crate::protect_scan_manifest_page(
+            let ciphertext = crate::commands::scan::protect_scan_manifest_page(
                 protection_app.clone(),
                 prepared.binding.clone(),
                 prepared.plaintext.clone(),
@@ -131,7 +131,7 @@ pub(crate) async fn activate(
             })
             .await?;
         owner.check()?;
-        let ciphertext = crate::protect_scan_manifest_page(
+        let ciphertext = crate::commands::scan::protect_scan_manifest_page(
             protection_app,
             prepared.binding.clone(),
             prepared.plaintext.clone(),

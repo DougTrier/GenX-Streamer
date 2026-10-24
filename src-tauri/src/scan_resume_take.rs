@@ -173,7 +173,7 @@ pub(crate) async fn take(
                             })
                             .await?;
                         let mut plaintext = Zeroizing::new(
-                            crate::protect_scan_manifest_page(
+                            crate::commands::scan::protect_scan_manifest_page(
                                 app,
                                 proof.encrypted_page.binding.clone(),
                                 proof.encrypted_page.ciphertext.clone(),

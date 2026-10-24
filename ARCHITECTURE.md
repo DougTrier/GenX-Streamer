@@ -28,7 +28,8 @@ product requirements are in [Engineering Spec.MD](Engineering%20Spec.MD).
 
 The interface never talks to the network or disk directly for app data: it
 calls typed wrappers in `src/platform/`, which call native commands. About 200
-commands are registered in `src-tauri/src/lib.rs` (`generate_handler!`).
+commands are registered in `src-tauri/src/lib.rs` (`generate_handler!`); they live
+in `src-tauri/src/commands/` and in the area modules.
 
 ## Interface: `src/`
 
@@ -58,7 +59,9 @@ Most modules are flat files named by area prefix:
 
 | Prefix or folder | Owns |
 | --- | --- |
-| `lib.rs` | Tauri set-up, shared native state, command registration, shutdown. |
+| `lib.rs` | Tauri set-up (`run`), the shared native state and the list of registered commands (`generate_handler!`). |
+| `commands/` | The commands the interface calls, one file per area: `accounts`, `archive`, `casting`, `scan`, `sources`, `storage`, `viewing`. Most delegate to the area modules below. |
+| `lifecycle.rs` | Orderly exit: the close attempt, draining owned work, shutdown and the exit commands. |
 | `account_*` | Paid TV (Xtream-style) accounts: the credential vault, catalog, guide, video on demand and the playback relay. |
 | `archive_*` | GenXtra, the public archive library: providers (Internet Archive, Library of Congress, NASA, Wikimedia Commons), catalog, downloads, playback proxy. |
 | `catalog_*`, `channel_*` | Catalog queries, projections, deltas, groups, categories, logos and channel checks. |

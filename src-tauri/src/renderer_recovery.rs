@@ -131,7 +131,7 @@ mod android {
                 let _ = previous.await;
             }
             join_registration(&app).await;
-            let joined = crate::shutdown_owned(&app).await.is_ok();
+            let joined = crate::lifecycle::shutdown_owned(&app).await.is_ok();
             // Publish terminal native outcome before making Retry/Reopen visible on UI.
             retained.finish(joined);
             let _result = app
