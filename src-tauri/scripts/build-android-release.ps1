@@ -90,6 +90,14 @@ try {
     & npm.cmd run build
     if ($LASTEXITCODE -ne 0) { throw 'Shared application build failed' }
     & (Join-Path $PSScriptRoot 'sync-launcher-icons.ps1')
+    # The Android version, as Tauri's own build writes it (app/tauri.properties
+    # is not committed): versionName from tauri.conf.json, versionCode
+    # major*1000000 + minor*1000 + patch, so every release updates the last.
+    $tmgVersion = [version]((Get-Content -Raw -LiteralPath (Join-Path $tmgRepo 'src-tauri/tauri.conf.json') | ConvertFrom-Json).version)
+    $tmgVersionCode = $tmgVersion.Major * 1000000 + $tmgVersion.Minor * 1000 + $tmgVersion.Build
+    if ($tmgVersionCode -lt 1) { throw 'The app version must be x.y.z and above 0.0.0' }
+    @("tauri.android.versionName=$($tmgVersion.ToString(3))", "tauri.android.versionCode=$tmgVersionCode") |
+        Set-Content -LiteralPath (Join-Path $tmgAndroid 'app/tauri.properties') -Encoding ascii
     foreach ($tmgRoute in $tmgRoutes) {
         $tmgStage = "native-build-$($tmgRoute.Abi)"
         & cargo build --locked --offline --release --manifest-path src-tauri/Cargo.toml --target $tmgRoute.Target --features tauri/custom-protocol

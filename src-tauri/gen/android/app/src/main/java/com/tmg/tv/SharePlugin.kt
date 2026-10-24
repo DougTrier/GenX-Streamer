@@ -20,7 +20,6 @@ import android.app.Activity
 import android.content.ClipData
 import android.content.Intent
 import android.webkit.WebView
-import androidx.core.content.FileProvider
 import app.tauri.annotation.Command
 import app.tauri.annotation.InvokeArg
 import app.tauri.annotation.TauriPlugin
@@ -127,36 +126,25 @@ class SharePlugin(private val activity: Activity) : Plugin(activity) {
   }
 
   /**
-   * Shares this installed copy's APK (its own sourceDir), copied to the cache
-   * so the FileProvider can offer it. An app installed as several split APKs
-   * cannot be sent as one file, which is said plainly.
+   * Shares this installed copy's APK (its own sourceDir) through
+   * InstalledApkProvider, without copying it. An app installed as several
+   * split APKs cannot be sent as one file, which is said plainly.
    */
   @Command
   fun shareApp(invoke: Invoke) {
     val args = invoke.parseArgs(ShareArgs::class.java)
     val info = activity.applicationInfo
     if (!info.splitSourceDirs.isNullOrEmpty()) { invoke.reject("share-app-split"); return }
-    Thread {
-      val copy = try {
-        val folder = File(activity.cacheDir, "share").apply { mkdirs() }
-        val target = File(folder, "GenX-Streamer.apk")
-        val partial = File(folder, "GenX-Streamer.apk.partial")
-        File(info.sourceDir).inputStream().use { input -> partial.outputStream().use { input.copyTo(it) } }
-        if (!partial.renameTo(target)) { target.delete(); if (!partial.renameTo(target)) throw IllegalStateException() }
-        target
-      } catch (_: Exception) { null }
-      activity.runOnUiThread {
-        if (copy == null) { invoke.reject("share-app-unavailable"); return@runOnUiThread }
-        val uri = try {
-          FileProvider.getUriForFile(activity, "${activity.packageName}.fileprovider", copy)
-        } catch (_: IllegalArgumentException) { null }
-        if (uri == null) { invoke.reject("share-app-unavailable"); return@runOnUiThread }
-        val send = Intent(Intent.ACTION_SEND).setType("application/vnd.android.package-archive")
-          .putExtra(Intent.EXTRA_STREAM, uri).putExtra(Intent.EXTRA_SUBJECT, args.title)
-          .putExtra(Intent.EXTRA_TEXT, args.text).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-        send.clipData = ClipData.newRawUri(args.title, uri)
-        choose(send, args.title, invoke)
-      }
-    }.start()
+    // Earlier versions copied the APK to the cache; that copy is no longer needed.
+    File(activity.cacheDir, "share").listFiles()?.forEach { it.delete() }
+    activity.runOnUiThread {
+      // The installed file itself, read through InstalledApkProvider: no copy.
+      val uri = InstalledApkProvider.uri(activity.packageName)
+      val send = Intent(Intent.ACTION_SEND).setType(InstalledApkProvider.MIME)
+        .putExtra(Intent.EXTRA_STREAM, uri).putExtra(Intent.EXTRA_SUBJECT, args.title)
+        .putExtra(Intent.EXTRA_TEXT, args.text).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+      send.clipData = ClipData.newRawUri(args.title, uri)
+      choose(send, args.title, invoke)
+    }
   }
 }

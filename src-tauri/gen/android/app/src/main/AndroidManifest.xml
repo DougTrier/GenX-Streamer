@@ -63,6 +63,13 @@
           android:exported="false" android:process=":renderer_relaunch"
           android:taskAffinity="${applicationId}.renderer_relaunch" />
 
+        <!-- Send the app: this copy's own APK, read-only, granted per share (docs/share-links.md). -->
+        <provider
+          android:name=".InstalledApkProvider"
+          android:authorities="${applicationId}.installedapk"
+          android:exported="false"
+          android:grantUriPermissions="true" />
+
         <provider
           android:name="androidx.core.content.FileProvider"
           android:authorities="${applicationId}.fileprovider"
