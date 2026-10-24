@@ -26,6 +26,7 @@ and how it is tested.
 
 Other design notes: [about-and-support.md](about-and-support.md),
 [share-links.md](share-links.md), [verify-a-download.md](verify-a-download.md),
+[release-signing.md](release-signing.md),
 [automatic-guide-control.md](automatic-guide-control.md),
 [daily-source-refresh.md](daily-source-refresh.md),
 [event-history.md](event-history.md), [native-vod-player.md](native-vod-player.md),

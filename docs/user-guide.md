@@ -83,3 +83,5 @@ On Android, open the supplied APK with your device's package installer. If promp
 ## Development builds
 
 This guide describes implemented controls, not a signed release guarantee. Current development candidates may be unsigned or debug-signed. Complete receiver, phone-sharing, clean-environment portability and release checks remain pending. A browser development preview cannot provide native casting or native guide/storage behavior. Do not assume a development APK can update to a differently signed release without preserving its data first.
+
+**Moving to the official release on Android:** a release-signed GenX Streamer cannot install over a development copy. First save a **Full backup** (Settings → Audio and preferences), then uninstall the development copy, install the release, and import the backup. About GenX Streamer → **This copy** shows which one you have (Official release or Development build).

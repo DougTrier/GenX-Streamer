@@ -14,8 +14,25 @@ val tauriProperties = Properties().apply {
     }
 }
 
+// Release signing (docs/release-signing.md): the owner's key, read from a
+// properties file outside the repository that -PgenxSigning names (the
+// release build script passes it). Nothing about the key is committed.
+val releaseSigning = (findProperty("genxSigning") as String?)?.let { path ->
+    Properties().apply { file(path).inputStream().use { load(it) } }
+}
+
 android {
     compileSdk = 36
+    signingConfigs {
+        if (releaseSigning != null) {
+            create("release") {
+                storeFile = file(releaseSigning.getProperty("storeFile"))
+                storePassword = releaseSigning.getProperty("storePassword")
+                keyAlias = releaseSigning.getProperty("keyAlias")
+                keyPassword = releaseSigning.getProperty("keyPassword")
+            }
+        }
+    }
     namespace = "com.tmg.tv"
     defaultConfig {
         // Android's policy cannot vary by an approved individual source at runtime.
@@ -41,6 +58,7 @@ android {
             }
         }
         getByName("release") {
+            if (releaseSigning != null) signingConfig = signingConfigs.getByName("release")
             optimization {
                enable = true
             }

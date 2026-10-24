@@ -55,6 +55,15 @@ def minimum_sdk(badging):
     return 24
 
 
+def banner_paths(aapt2, apk, names):
+    table = subprocess.run([str(aapt2), 'dump', 'resources', str(apk)], check=True, capture_output=True, text=True, timeout=60).stdout
+    match = re.search(r'^\s+resource 0x[0-9a-f]{8} drawable/tv_banner\r?\n((?:[ \t]+\(.*\r?\n)+)', table, re.MULTILINE)
+    if not match:
+        return []
+    files = re.findall(r'^\s+\(xhdpi(?:-v\d+)?\) \(file\) (res/\S+\.png) type=PNG$', match.group(1), re.MULTILINE)
+    return [f for f in files if f in names]
+
+
 def check_apk(apk, aapt2):
     badging = subprocess.run([str(aapt2), 'dump', 'badging', str(apk)], check=True, capture_output=True, text=True, timeout=30).stdout
     tree = subprocess.run([str(aapt2), 'dump', 'xmltree', str(apk), '--file', 'AndroidManifest.xml'], check=True, capture_output=True, text=True, timeout=30).stdout
@@ -66,6 +75,10 @@ def check_apk(apk, aapt2):
     with zipfile.ZipFile(apk) as archive:
         names = archive.namelist()
         banners = [n for n in names if re.fullmatch(r'res/drawable-xhdpi(?:-v\d+)?/tv_banner\.png', n)]
+        if not banners:
+            # Release builds shorten resource file names (res/9n.png); the
+            # APK's own resource table still names drawable/tv_banner's file.
+            banners = banner_paths(aapt2, apk, names)
         if len(banners) != 1:
             raise ValueError('Packaged selected banner missing or ambiguous')
         banner_size(archive.read(banners[0]))
