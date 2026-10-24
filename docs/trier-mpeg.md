@@ -1,6 +1,6 @@
 # Trier MPEG
 
-> Public copy. Evidence paths (`artifacts/...`) and the linked research reports are kept in the project's private archive; the measurements and decisions are summarised here.
+> Public copy. Evidence paths (`artifacts/...`) and linked internal reports are kept in the project's private archive; the measurements and decisions are summarised here.
 
 Trier MPEG is GenX Streamer's own MPEG audio engine. It decodes MPEG audio Layer I and Layer II sound on Android, and it was built specifically for GenX on October 19, 2026. It is GenX's own engineering, written from the published standards, with no third-party code: ISO/IEC 11172-3 (MPEG-1 audio) and the lower-sampling-frequency extension in ISO/IEC 13818-3 (MPEG-2 audio).
 

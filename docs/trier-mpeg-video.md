@@ -1,6 +1,6 @@
 # Trier MPEG Video
 
-> Public copy. Evidence paths (`artifacts/...`) and the linked research reports are kept in the project's private archive; the measurements and decisions are summarised here.
+> Public copy. Evidence paths (`artifacts/...`) and linked internal reports are kept in the project's private archive; the measurements and decisions are summarised here.
 
 Trier MPEG Video is GenX Streamer's own MPEG-2 video decoder, built on October 19–20, 2026, the video counterpart of [Trier MPEG](trier-mpeg.md) (sound). Like Trier MPEG, it is GenX's own engineering, written from the published standard, ITU-T H.262 | ISO/IEC 13818-2, with no third-party decoder code. FFmpeg (`node_modules/ffmpeg-static`) is used on the PC only as a measuring stick in tests; it is never shipped and none of its code is used.
 
@@ -58,7 +58,7 @@ Display order: a reference frame (I or P) is held until the next reference is de
 | MV08 | The bridge is safe across Media3's two threads: the decoder thread (`decode`, `next`, `flush`, `counters`) and the playback thread (`render`, `release`) never share unsynchronised state | `android.rs`: each part of the state behind its own lock; the decoder's lock is never taken by the playback thread |
 | MV09 | Speed changes keep the pictures bit-identical unless a conformance change is intended and re-proved | Benchmark output checksum (`4f0b0f5e753395a0` for A&E ×3); `real_captures` worst-frame dB unchanged; the same checksums on the PC and the S25 |
 | MV11 (INV-PERF-TAIL) | Bounded playback pressure, owner invariant: the decoder records consecutive over-budget pictures, the most and fewest frames held, and the pressure (decode time beyond the frame interval still owed, carried from picture to picture) with the longest recovery after a burst. This, not every picture under 16.68 ms, is the measure of playback safety under Android scheduling | `android.rs` `Timing` (counters 8, 13, 26–31; logged every 1,800 pictures); S25: longest recovery 1–2 pictures, at least 6 of 8 frames held |
-| MV14 (INV-AUTOTUNE-001 to 011) | Optimisation cannot override correctness: AutoTune may choose only implementations that passed the correctness and safety tests; every switch happens at a picture boundary, keeps reference and buffer ownership, and gives the same pictures under the conformance contract; a setting is preferred only on a repeatable improvement above the measured noise (full list: trier-adaptive-engine.md) | Kit registry (`kit.rs`): only listed kits exist; `every_registered_kit_gives_the_portable_pictures`, `registry_is_consistent`; `set_kit` refuses unsupported CPUs and contract changes; the kit is chosen once per picture. Search, profiles and playback tuning: milestones 2 to 7 |
+| MV14 (INV-AUTOTUNE-001 to 011) | Optimisation cannot override correctness: AutoTune may choose only implementations that passed the correctness and safety tests; every switch happens at a picture boundary, keeps reference and buffer ownership, and gives the same pictures under the conformance contract; a setting is preferred only on a repeatable improvement above the measured noise (full list: [trier-adaptive-engine.md](trier-adaptive-engine.md)) | Kit registry (`kit.rs`): only listed kits exist; `every_registered_kit_gives_the_portable_pictures`, `registry_is_consistent`; `set_kit` refuses unsupported CPUs and contract changes; the kit is chosen once per picture. Search, profiles and playback tuning: milestones 2 to 7 |
 | MV13 | The decoder never takes the whole machine: half the cores at most (at most 4, at least 1), no spare frame buffers below 512 MB available memory, one worker below 192 MB (owner rule: a television also needs cores for sound, drawing, the network and the system) | `Resources`; `resources_leave_room_for_the_rest_of_the_device` |
 | MV12 | Slices decoded on several cores give exactly the pictures one core gives; each worker writes only its own band of rows (exclusive borrows), the references are read-only, and per-slice state starts afresh in every slice | `Band`, `Slicer`, `run_slices`; `two_threads_give_the_same_pictures` (clean and damaged, progressive and interlaced); identical checksums with 1 and 2 threads on all seven broadcasts, PC and S25 |
 | MV10 | Damage is contained: a slice that fails is concealed whole, and macroblock rows no slice reached are concealed, from the newest reference | `slice`, `conceal_missing_rows`; scorecard tests 4 and 5 |
@@ -156,7 +156,7 @@ Tools: `scripts/trier-video/compare.py` (driver) and the lab commands in `script
 ```powershell
 $env:TRIER_LAB_LIBMPEG2 = '<unpacked libmpeg2-0.5.1>'; $env:CC_x86_64_pc_windows_msvc = '<NDK>\bin\clang-cl.exe'
 cargo build --release --offline --manifest-path scripts/trier-video/bench/Cargo.toml
-python -B -X utf8 scripts/trier-video/compare.py --libmpeg2 --lab <trier-video-bench.exe> --captures <captures> --work <work folder> --seeds 3
+python -B -X utf8 scripts/trier-video/compare.py --libmpeg2 --lab <trier-video-bench.exe> --captures <captures> --work <local path> --seeds 3
 ```
 
 Run 20261020T140036Z (PC, Intel i9-14900K, one thread each unless noted):
@@ -283,7 +283,7 @@ FFmpeg's MPEG-2 decoder threads by slices only (`-h decoder=mpeg2video`), as Tri
 
 ### FFmpeg on the S25, matched conditions (October 21, 2026)
 
-FFmpeg 6.1.1, the same version as on the PC, built from the official source (`ffmpeg-6.1.1.tar.xz`, SHA-256 `8684f4b0…f968`, good signature from the FFmpeg release key FCF9 86EA 15E6 E293 A564 4F10 B432 2F04 D676 58D8) for ARM64 with NEON with the NDK's clang 19, configured with only the MPEG-2 decoder, the elementary-stream demuxer and the null muxer; measuring only, kept outside the repository. Conditions identical for all three: the same capture decoded three times, whole process, frames discarded, pinned to the same cores, on battery (94%), 1, 2 and 4 threads; cores used = (user + system time) / wall time. Script `scripts/trier-video/phone-compare.sh` (pushed to `/data/local/tmp` with the lab tool, the FFmpeg build and the capture).
+FFmpeg 6.1.1, the same version as on the PC, built from the official source (`ffmpeg-6.1.1.tar.xz`, SHA-256 `8684f4b0…f968`, good signature from the FFmpeg release key FCF9 86EA 15E6 E293 A564 4F10 B432 2F04 D676 58D8) for ARM64 with NEON with the NDK's clang 19, configured with only the MPEG-2 decoder, the elementary-stream demuxer and the null muxer; measuring only, kept outside the repository (`<local path>`). Conditions identical for all three: the same capture decoded three times, whole process, frames discarded, pinned to the same cores, on battery (94%), 1, 2 and 4 threads; cores used = (user + system time) / wall time. Script `scripts/trier-video/phone-compare.sh` (pushed to `/data/local/tmp` with the lab tool, the FFmpeg build and the capture).
 
 A&E, performance cores (taskset 3f, 6 × 3.53 GHz), pictures/s, two rounds:
 
@@ -346,7 +346,7 @@ All release builds, A&E ×3, one worker, S25 cores 0–5, `simpleperf` user cycl
 | Native CPU build (`target-cpu=oryon-1`) | −0.7% in 2 of 3 rounds, tied in 1; would need run-time dispatch | Rejected (below noise) |
 | Coefficient decoding research (owner brief): H1 negative-offset position counter with a scan-ordered position/weight table, H2 branchless sign and reconstruction, H3 two codes per table read; all 8 combinations, then the pair window (10, 11, 12 bits) | H1+H2+H3, 11-bit window: 6.81 G against 6.97 G cycles (−2.3%), −3.7% instructions, L1 misses +9%; better in all 5 rounds; H1 or H2 alone +0.5% (the compiler made the same code), but each helps with H3 | Kept; 10- and 12-bit windows kept as candidates |
 
-The research round, its search path, interactions and evidence are in the first Performance Discovery Report, trier-discovery-2026-10-21-coefficients.md. Proof for the kept form:
+The research round, its search path, interactions and evidence are in the first Performance Discovery Report, [trier-discovery-2026-10-21-coefficients.md](trier-discovery-2026-10-21-coefficients.md). Proof for the kept form:
 - Pictures: identical checksums on the S25 for all 8 combinations and 3 windows.
 - Recovery: an identical digest on the PC over 84 runs per build (12 clean streams and 30 damaged variants, flip/loss/drop/cut with seed 7, at 1 and 4 workers).
 - Unit tests: `branchless_reconstruction_matches_dequant` (every magnitude, sign and quantiser_scale) and `pair_table_matches_single_codes` (every window, both tables).
@@ -374,7 +374,7 @@ Trier beats libmpeg2 on one core by 1.27–1.29×. FFmpeg stays faster per pictu
 
 ### Adaptive engine, milestone 1: kit registry and capability detection (October 21, 2026)
 
-Owner approval of trier-adaptive-engine.md, milestone 1.
+Owner approval of [trier-adaptive-engine.md](trier-adaptive-engine.md), milestone 1.
 
 **Structure.** The slice decoder is generic over a **kit**: one coefficient decoder, one inverse DCT, one motion compensation and one block add (`kit.rs`). So each kit is compiled whole, and choosing one costs a match per picture (`with_kit!` in `run_slices` and the concealment pass), nothing per block. There is still one slice decoder in the source, with no duplication.
 
@@ -569,7 +569,7 @@ So most PC verdicts are inconclusive, and the harness reports them as such inste
 - Adaptive mode at its fixed 20 KB threshold is 30–156% slower on wall time.
 - The coefficient kits make no difference beside the worker count.
 
-Full report: trier-discovery-2026-10-21-yoyo-s25.md. The app is unchanged: selecting by policy is milestone 4.
+Full report: [trier-discovery-2026-10-21-yoyo-s25.md](trier-discovery-2026-10-21-yoyo-s25.md). The app is unchanged: selecting by policy is milestone 4.
 
 **Tests and checks:** decoder 38 passed; clippy clean for the library and tests, and the bench on x86-64, AArch64 and 32-bit ARM.
 
@@ -584,10 +584,10 @@ Full report: trier-discovery-2026-10-21-yoyo-s25.md. The app is unchanged: selec
   - Performance may select up to the exploration ceiling (owner decision).
 - **Then the objective:** decode time for Performance, CPU work for Balanced and Efficiency (cycles where counted, else CPU time).
 - **Verdicts.** A configuration that meets the constraints beats one that does not; if neither does, p99 decides. Live trials and tests share one decision rule.
-- Differences from the approved table and their reasons are in trier-adaptive-engine.md §5.
+- Differences from the approved table and their reasons are in [trier-adaptive-engine.md](trier-adaptive-engine.md) §5.
 - **Commands:** `trier-video-bench yoyo --policy <p>`, and `trier-video-bench validate`. The latter repeats every search in sessions alternating cool and warm (a heat soak), then compares the winners: repeatable, equivalent (a direct 5-round trial cannot separate them) or unstable.
 
-**Validation on the S25, the Flip 2 and the PC** (3 sessions each, 18 searches per machine; full report trier-discovery-2026-10-21-validation.md):
+**Validation on the S25, the Flip 2 and the PC** (3 sessions each, 18 searches per machine; full report [trier-discovery-2026-10-21-validation.md](trier-discovery-2026-10-21-validation.md)):
 - **Balanced and Efficiency are repeatable on both phones.** The S25 chose 1 worker with the default kit every time, cool or hot (21–31% less CPU than the production default 4). The Flip 2 chose 1 worker with kits equivalent within 0.5%.
 - **Performance is equivalent on 1080i and unstable on SD on all three machines:** wall-time noise on phones and the 40-trial budget. An unstable result is kept as evidence but never applied.
 - **The confirmation step refused every unproven candidate**, including one 18% slower in confirmation than the search's estimate. No search locked anything that later lost to the known-good configuration.
@@ -737,7 +737,7 @@ Owner request: NEON for Trier on 32-bit ARM, which until now had portable code o
 
 ### AutoTune (owner design, planned)
 
-The full design, the Yo-Yo search controller, the three policies (Performance, Balanced, Efficiency), INV-AUTOTUNE-001 to 010 and the migration plan are in trier-adaptive-engine.md (proposal, awaiting the owner's approval). The summary below was the first design.
+The full design, the Yo-Yo search controller, the three policies (Performance, Balanced, Efficiency), INV-AUTOTUNE-001 to 010 and the migration plan are in [trier-adaptive-engine.md](trier-adaptive-engine.md) (proposal, awaiting the owner's approval). The summary below was the first design.
 
 A self-tuning decoder that measures its own verified implementations on each device and keeps the best (in the manner of FFTW and ATLAS), bounded by MV14 (INV-AUTOTUNE-001):
 

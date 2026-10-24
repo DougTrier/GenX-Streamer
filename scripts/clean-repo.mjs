@@ -20,7 +20,7 @@
 // necessary into a new folder with fresh history, so no private leftovers move.
 //
 //   node scripts/clean-repo.mjs list            the files that would be copied
-//   node scripts/clean-repo.mjs scan            privacy scan of exactly those files
+//   node scripts/clean-repo.mjs scan            privacy scan of every tracked file
 //   node scripts/clean-repo.mjs copy <folder>   copy them (the folder must be empty)
 //
 // Only git-tracked files are considered: never build output, caches or local
@@ -195,13 +195,16 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       ),
     );
   } else if (command === 'scan') {
-    const findings = scan(files);
+    // In the public repository every tracked file is scanned, not only the
+    // copy set: new files are covered without editing the lists above.
+    const all = tracked();
+    const findings = scan(all);
     const summary = {};
     for (const finding of findings) {
       const key = `${finding.level}: ${finding.label}`;
       summary[key] = (summary[key] ?? 0) + 1;
     }
-    console.log(JSON.stringify({ scanned: files.length, summary, findings }, null, 1));
+    console.log(JSON.stringify({ scanned: all.length, summary, findings }, null, 1));
     process.exitCode = findings.some((finding) => finding.level === 'block') ? 1 : 0;
   } else if (command === 'copy' && target) {
     const destination = path.resolve(target);

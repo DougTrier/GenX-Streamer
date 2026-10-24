@@ -1,8 +1,10 @@
 # GenX Streamer
 
-A private IPTV player for Windows and Android (TVs, phones and handhelds), built
-with Tauri: a shared TypeScript interface over a Rust native layer, with a
-Kotlin/Media3 Android player for formats the WebView cannot show.
+An IPTV player for Windows and Android (TVs, phones and handhelds), built with
+Tauri: a shared TypeScript interface over a Rust native layer, with a
+Kotlin/Media3 Android player for formats the WebView cannot show. GenX ships no
+channels: it plays playlists and accounts you add, and can search public
+playlist directories when you ask it to.
 
 - Free TV: playlists and discovered sources, scanned and health-checked.
 - Paid TV: provider accounts (Xtream), played through a local relay.
@@ -10,11 +12,13 @@ Kotlin/Media3 Android player for formats the WebView cannot show.
 - Program guide (XMLTV), favourites, voice search, remote/D-pad navigation,
   casting (Chromecast/DLNA) and optional encrypted LAN sharing.
 
-User help: [docs/user-guide.md](docs/user-guide.md).
-Design and requirements: [Engineering Spec.MD](Engineering%20Spec.MD). Its
-companion documents (invariant registers, metrics, the old task ledger) stay in
-the private project archive and are not part of this repository.
-Open work: [TASKS.md](TASKS.md).
+- User help: [docs/user-guide.md](docs/user-guide.md).
+- How the code is organised: [ARCHITECTURE.md](ARCHITECTURE.md).
+- Requirements: [Engineering Spec.MD](Engineering%20Spec.MD); the design notes
+  and invariant registers are in [docs/](docs/), and
+  [docs/codes.md](docs/codes.md) explains codes such as `P09` or `W16` used in
+  comments.
+- Open work: [TASKS.md](TASKS.md).
 
 ## Provenance
 
@@ -67,6 +71,12 @@ builds are debug-signed development APKs; a release APK needs a release key
 (see TASKS.md). Use `-Optimization 2` for anything installed on a device.
 
 ## Test
+
+`npm run verify` runs every development check in order (types, format, lint,
+unit, interface, privacy scan, Rust format and lint, native tests, tooling
+tests) and writes a receipt under `artifacts/development-verification/`. Run
+it from PowerShell 7: some tooling tests exercise the PowerShell build helpers.
+The checks one by one:
 
 ```powershell
 npx vitest run                         # unit and browser-component tests
