@@ -41,8 +41,9 @@ foreach ($tmgDensity in @('mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi')) {
         Copy-Item -LiteralPath (Join-Path $tmgGenerated "android/mipmap-$tmgDensity/$tmgName") -Destination (Join-Path $tmgIcons "android/mipmap-$tmgDensity/$tmgName") -Force
     }
 }
-Set-Content -LiteralPath (Join-Path $tmgIcons 'android/mipmap-anydpi-v26/ic_launcher.xml') -Value $tmgAdaptive -Encoding utf8
-Set-Content -LiteralPath (Join-Path $tmgIcons 'android/values/ic_launcher_background.xml') -Value $tmgColor -Encoding utf8
+# LF line endings and no byte-order mark, matching the repository (.editorconfig).
+[IO.File]::WriteAllText((Join-Path $tmgIcons 'android/mipmap-anydpi-v26/ic_launcher.xml'), $tmgAdaptive + "`n")
+[IO.File]::WriteAllText((Join-Path $tmgIcons 'android/values/ic_launcher_background.xml'), $tmgColor + "`n")
 # Exact resource allowlist: never enumerate arbitrary destination paths or delete stale files.
 $tmgRelativePaths = @('values/ic_launcher_background.xml', 'mipmap-anydpi-v26/ic_launcher.xml')
 foreach ($tmgDensity in @('mdpi', 'hdpi', 'xhdpi', 'xxhdpi', 'xxxhdpi')) {

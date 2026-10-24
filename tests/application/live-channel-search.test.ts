@@ -70,7 +70,8 @@ function fixture() {
     },
   };
   const start = source.indexOf("element('guide-button').addEventListener('click'");
-  const end = source.indexOf('function genxtraNavigation(', start);
+  // The guide and search wiring ends where GenXtra's navigation is created.
+  const end = source.indexOf('const genxtraNavigationOwner = createGenxtraNavigation(', start);
   const inputStart = source.indexOf("element('search-programs').addEventListener('click'");
   const inputEnd = source.indexOf("element('clear-search').addEventListener", inputStart);
   expect(start).toBeGreaterThan(0);
