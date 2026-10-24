@@ -17,7 +17,8 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { build } from 'vite';
 import { chromium, type Browser, type Page } from '@playwright/test';
-import { readFileSync } from 'node:fs';
+
+import { readStylesheetSync } from '../support/stylesheet';
 let browser: Browser;
 let bundle: string;
 beforeAll(async () => {
@@ -43,7 +44,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
 });
-const css = readFileSync('src/ui/scan-screensaver.css', 'utf8');
+const css = readStylesheetSync('src/ui/scan-screensaver.css');
 /** A page with the screensaver on a controlled clock and switchable state. */
 async function fixture(): Promise<Page> {
   const page = await browser.newPage();

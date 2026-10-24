@@ -17,10 +17,11 @@
 import { beforeAll, afterAll, describe, it, expect } from 'vitest';
 import { build } from 'vite';
 import { chromium, type Browser, type Page } from '@playwright/test';
-import { readFile } from 'node:fs/promises';
+
 const captureDirectory = `artifacts/guide-timeline/${new Date().toISOString().replaceAll(':', '-')}-narrow-agenda`;
 import type { TimelineChannel } from '../../src/ui/guide-timeline';
 import type { ProgramQuery } from '../../src/guide/native';
+import { readStylesheet } from '../support/stylesheet';
 let browser: Browser,
   bundle: string,
   listedBridgeBundle: string,
@@ -103,7 +104,7 @@ beforeAll(async () => {
   const shellChunk = shellResult.output.find((item) => item.type === 'chunk');
   if (!shellChunk || shellChunk.type !== 'chunk') throw new Error('Shell entry missing.');
   shellBundle = shellChunk.code;
-  css = await readFile('src/ui/guide-timeline.css', 'utf8');
+  css = await readStylesheet('src/ui/guide-timeline.css');
   fullCss = (
     await Promise.all(
       [
@@ -115,7 +116,7 @@ beforeAll(async () => {
         'in-app-select',
         'modal-viewport',
         'guide-panel',
-      ].map((name) => readFile(`src/ui/${name}.css`, 'utf8')),
+      ].map((name) => readStylesheet(`src/ui/${name}.css`)),
     )
   ).join('\n');
   browser = await chromium.launch({

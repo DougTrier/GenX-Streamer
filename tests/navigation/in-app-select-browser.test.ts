@@ -17,7 +17,8 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { build } from 'vite';
 import { chromium, expect as browserExpect, type Browser, type Page } from '@playwright/test';
-import { readFile } from 'node:fs/promises';
+
+import { readStylesheet } from '../support/stylesheet';
 let browser: Browser, bundle: string, styles: string, fullStyles: string;
 beforeAll(async () => {
   const output = await build({
@@ -34,7 +35,7 @@ beforeAll(async () => {
   const chunk = result.output.find((entry) => entry.type === 'chunk');
   if (!chunk || chunk.type !== 'chunk') throw new Error('Missing entry');
   bundle = chunk.code;
-  styles = await readFile('src/ui/in-app-select.css', 'utf8');
+  styles = await readStylesheet('src/ui/in-app-select.css');
   fullStyles = (
     await Promise.all(
       [
@@ -45,7 +46,7 @@ beforeAll(async () => {
         'responsive',
         'in-app-select',
         'modal-viewport',
-      ].map((name) => readFile(`src/ui/${name}.css`, 'utf8')),
+      ].map((name) => readStylesheet(`src/ui/${name}.css`)),
     )
   ).join('\n');
   browser = await chromium.launch({

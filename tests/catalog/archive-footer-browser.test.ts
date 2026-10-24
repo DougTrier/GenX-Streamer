@@ -19,6 +19,7 @@ import { build } from 'vite';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { chromium, expect as browserExpect, type Browser, type Page } from '@playwright/test';
 import ts from 'typescript';
+import { readStylesheet } from '../support/stylesheet';
 
 let browser: Browser, bundle: string, css: string;
 let nativeBackScript: string, mainBackListener: string;
@@ -79,7 +80,7 @@ beforeAll(async () => {
         'genxtra',
         'media-results',
         'tv-density',
-      ].map((name) => readFile(`src/ui/${name}.css`, 'utf8')),
+      ].map((name) => readStylesheet(`src/ui/${name}.css`)),
     )
   ).join('\n');
   for (const font of [

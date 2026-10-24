@@ -16,9 +16,10 @@
 
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { build } from 'vite';
-import { readFile } from 'node:fs/promises';
+
 import { resolve } from 'node:path';
 import { chromium, type Browser, type Page } from '@playwright/test';
+import { readStylesheet } from '../support/stylesheet';
 
 /** The real shell and stylesheets: nothing GenX paints may cover the native picture. */
 let browser: Browser, code: string, styles: string;
@@ -64,7 +65,7 @@ beforeAll(async () => {
         'account-vod',
         'guide-panel',
         'native-video',
-      ].map((name) => readFile(`src/ui/${name}.css`, 'utf8')),
+      ].map((name) => readStylesheet(`src/ui/${name}.css`)),
     )
   )
     .join('\n')

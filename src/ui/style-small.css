@@ -1,0 +1,242 @@
+/*
+ * Copyright 2026 Doug Trier
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+@media (max-width: 1000px) {
+  .view {
+    padding: 16px 16px 0;
+  }
+  .dock {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .controls {
+    justify-content: flex-start;
+  }
+  .volume-label {
+    display: none;
+  }
+  :root {
+    --sidebar: 260px;
+  }
+}
+@media (max-width: 650px) {
+  #app {
+    position: fixed;
+    top: var(--viewport-top, 0px);
+    width: 100%;
+  }
+  .keyboard-open .view {
+    display: none;
+  }
+  .keyboard-open .browser {
+    height: 100%;
+    flex: 1;
+  }
+  .topbar {
+    padding: 10px 14px;
+  }
+  .brand small {
+    display: block;
+  }
+  .brand img {
+    width: 40px;
+    height: 36px;
+  }
+  .brand .brand-wordmark {
+    width: 180px;
+    height: 44px;
+    object-fit: contain;
+  }
+  .top-actions button {
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    gap: 6px;
+    padding-inline: 10px;
+  }
+  .top-actions .nav-icon {
+    width: 20px;
+    height: 20px;
+    flex: 0 0 20px;
+  }
+  .brand strong {
+    font-size: 16px;
+  }
+  .top-actions button {
+    font-size: 11px;
+    padding: 8px;
+  }
+  .workspace {
+    display: flex;
+    flex-direction: column;
+  }
+  .view {
+    order: 0;
+    height: 47%;
+    min-height: 220px;
+    padding: 12px 12px 0;
+  }
+  .browser {
+    order: 1;
+    height: 53%;
+    padding: 12px;
+  }
+  .watchhead {
+    margin-bottom: 8px;
+  }
+  h2 {
+    font-size: 16px;
+  }
+  .watchhead button {
+    font-size: 11px;
+    padding: 8px;
+  }
+  .dock {
+    min-height: 72px;
+    padding: 8px 0;
+  }
+  .controls {
+    gap: 5px;
+  }
+  .controls button {
+    padding: 8px;
+    font-size: 11px;
+  }
+  .sidehead {
+    margin-bottom: 8px;
+  }
+  .filters {
+    margin: 8px 0;
+  }
+  .sidefoot {
+    padding-top: 5px;
+  }
+  #divider {
+    display: none;
+  }
+  .expanded .view {
+    height: 100%;
+  }
+  .player-overlay img {
+    width: 65px;
+    height: 56px;
+  }
+  .player-overlay h3 {
+    font-size: 17px;
+    margin: 8px 0;
+  }
+  .player-overlay p {
+    font-size: 12px;
+    margin-bottom: 8px;
+  }
+}
+@media (max-height: 480px) and (orientation: landscape) {
+  .workspace {
+    display: grid;
+    grid-template-columns: 220px 5px minmax(0, 1fr);
+  }
+  .workspace .view,
+  .workspace .browser {
+    height: auto;
+    order: initial;
+    min-height: 0;
+  }
+  .workspace #divider {
+    display: block;
+  }
+  .expanded .workspace {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .expanded .workspace .browser,
+  .expanded .workspace #divider {
+    display: none;
+  }
+  .topbar {
+    padding: 5px 12px;
+  }
+  .brand small {
+    display: block;
+  }
+  .brand img {
+    height: 30px;
+  }
+  .browser {
+    padding: 6px 10px;
+  }
+  .browser .sidehead,
+  .browser .filters {
+    margin-bottom: 4px;
+  }
+  .browser .filters {
+    margin-top: 4px;
+  }
+  .view {
+    padding-top: 10px;
+  }
+  .watchhead {
+    margin-bottom: 8px;
+  }
+  .dock {
+    min-height: 60px;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  .volume-label {
+    display: none;
+  }
+  .player-overlay {
+    padding: 8px;
+  }
+  .player-overlay img {
+    width: 48px;
+    height: 40px;
+  }
+  .player-overlay h3 {
+    font-size: 15px;
+    margin: 4px 0;
+  }
+  .player-overlay p {
+    font-size: 11px;
+    margin: 0;
+  }
+}
+
+/* Reserve both compact guide lines so virtual rows retain a uniform height. */
+.channel-copy .channel-guide-current,
+.channel-copy .channel-guide-next {
+  min-height: 1.3em;
+  line-height: 1.3;
+}
+
+.brand-lockup {
+  position: relative;
+  width: 180px;
+  height: 44px;
+  flex: 0 0 180px;
+}
+.brand-lockup .brand-wordmark,
+.brand-lockup .brand-copy {
+  position: absolute;
+  inset: 0;
+}
+.brand-lockup .brand-copy {
+  align-content: center;
+}
+.brand-lockup [hidden] {
+  display: none;
+}

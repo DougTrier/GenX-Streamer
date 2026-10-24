@@ -18,6 +18,7 @@ import { afterAll, beforeAll, expect, it } from 'vitest';
 import { build } from 'vite';
 import { readFile, writeFile } from 'node:fs/promises';
 import { chromium, expect as browserExpect, type Browser, type Page } from '@playwright/test';
+import { readStylesheet } from '../support/stylesheet';
 
 let browser: Browser, bundle: string, css: string;
 beforeAll(async () => {
@@ -63,7 +64,7 @@ beforeAll(async () => {
         'genxtra',
         'media-results',
         'tv-density',
-      ].map((name) => readFile(`src/ui/${name}.css`, 'utf8')),
+      ].map((name) => readStylesheet(`src/ui/${name}.css`)),
     )
   ).join('\n');
   for (const font of [

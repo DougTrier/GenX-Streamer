@@ -15,7 +15,7 @@
  */
 
 import { afterAll, beforeAll, expect, it } from 'vitest';
-import { readFile } from 'node:fs/promises';
+
 import { build } from 'vite';
 import { chromium, type Browser } from '@playwright/test';
 import { createDiagnostics } from '../../src/diagnostics/native';
@@ -24,6 +24,7 @@ import {
   validateDiagnosticInput,
   validateDiagnosticPage,
 } from '../../src/diagnostics/events';
+import { readStylesheet } from '../support/stylesheet';
 const event = {
   id: '1',
   timestampMs: 1000,
@@ -193,7 +194,7 @@ beforeAll(async () => {
   const navChunk = navOutput.output.find((item) => item.type === 'chunk');
   if (!navChunk || navChunk.type !== 'chunk') throw new Error('Missing navigation bundle');
   navBundle = navChunk.code;
-  css = await readFile('src/ui/event-history.css', 'utf8');
+  css = await readStylesheet('src/ui/event-history.css');
   browser = await chromium.launch({
     headless: true,
     executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',

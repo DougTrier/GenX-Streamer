@@ -17,7 +17,8 @@
 import { beforeAll, afterAll, describe, expect, it } from 'vitest';
 import { build } from 'vite';
 import { chromium, type Browser, type Page } from '@playwright/test';
-import { readFile } from 'node:fs/promises';
+
+import { readStylesheet } from '../support/stylesheet';
 let browser: Browser;
 let browserCode: string;
 let controlsCode: string;
@@ -52,7 +53,7 @@ async function fixture(preferredCountry?: string): Promise<Page> {
   await page.setContent(
     '<style>#channel-rows button{display:block;height:72px;width:200px}</style><div id="controls"></div><span id="channel-count"></span><p id="list-empty"></p><div id="list" tabindex="0" style="height:216px;overflow:auto;position:relative"><div id="channel-spacer"></div><div id="channel-rows" style="position:absolute;top:0"></div></div>',
   );
-  await page.addStyleTag({ content: await readFile('src/ui/style.css', 'utf8') });
+  await page.addStyleTag({ content: await readStylesheet('src/ui/style.css') });
   await page.addScriptTag({ content: browserCode });
   await page.addScriptTag({ content: controlsCode });
   await page.addScriptTag({

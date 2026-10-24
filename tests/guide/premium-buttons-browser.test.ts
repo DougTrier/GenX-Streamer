@@ -19,6 +19,7 @@ import { build } from 'vite';
 import { readFile, stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { chromium, type Browser } from '@playwright/test';
+import { readStylesheet } from '../support/stylesheet';
 
 /** The real shell and stylesheets, with and without the premium button sheet. */
 const SHEETS = [
@@ -64,10 +65,10 @@ export {mountLocationDialog} from ${JSON.stringify(resolve('src/ui/settings-navi
   const chunk = output.output.find((entry) => entry.type === 'chunk');
   if (!chunk || chunk.type !== 'chunk') throw new Error('Missing fixture code');
   code = chunk.code;
-  base = (await Promise.all(SHEETS.map((name) => readFile(`src/ui/${name}.css`, 'utf8'))))
+  base = (await Promise.all(SHEETS.map((name) => readStylesheet(`src/ui/${name}.css`))))
     .join('\n')
     .replaceAll("url('../../assets/genx-synthwave.svg')", 'none');
-  premium = await readFile('src/ui/premium-buttons.css', 'utf8');
+  premium = await readStylesheet('src/ui/premium-buttons.css');
   browser = await chromium.launch({
     headless: true,
     executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
@@ -346,7 +347,7 @@ describe('the channel row', () => {
 it('every icon the stylesheets name is bundled with its licence', async () => {
   const css = (
     await Promise.all(
-      ['premium-buttons', 'responsive'].map((name) => readFile(`src/ui/${name}.css`, 'utf8')),
+      ['premium-buttons', 'responsive'].map((name) => readStylesheet(`src/ui/${name}.css`)),
     )
   ).join('\n');
   const names = [...css.matchAll(/assets\/icons\/lucide\/([a-z0-9-]+)\.svg/g)].map((m) => m[1]!);

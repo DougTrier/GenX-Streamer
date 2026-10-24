@@ -16,8 +16,9 @@
 
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { build } from 'vite';
-import { readFile } from 'node:fs/promises';
+
 import { chromium, type Browser, type Page } from '@playwright/test';
+import { readStylesheet } from '../support/stylesheet';
 let browser: Browser;
 let bundle: string;
 beforeAll(async () => {
@@ -48,7 +49,7 @@ async function mount(): Promise<Page> {
   await page.setContent(
     '<div id="channel-count"></div><div id="list-empty" hidden></div><div class="channel-list" id="list" style="height:300px;width:360px"><div id="channel-spacer"></div><div id="channel-rows"></div></div>',
   );
-  await page.addStyleTag({ content: await readFile('src/ui/style.css', 'utf8') });
+  await page.addStyleTag({ content: await readStylesheet('src/ui/style.css') });
   await page.addScriptTag({ content: bundle });
   await page.addScriptTag({
     content: `

@@ -16,10 +16,11 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { build } from 'vite';
-import { readFile } from 'node:fs/promises';
+
 import { resolve } from 'node:path';
 import { chromium, type Browser, type Page } from '@playwright/test';
 import { validateVpnStatus } from '../../src/platform/vpn-status';
+import { readStylesheet } from '../support/stylesheet';
 
 /** The real header and stylesheets with the VPN shield and a controlled status source. */
 const SHEETS = [
@@ -69,7 +70,7 @@ export {mountVpnIndicator} from ${JSON.stringify(resolve('src/ui/vpn-indicator.t
   const chunk = output.output.find((entry) => entry.type === 'chunk');
   if (!chunk || chunk.type !== 'chunk') throw new Error('Missing fixture code');
   code = chunk.code;
-  styles = (await Promise.all(SHEETS.map((name) => readFile(`src/ui/${name}.css`, 'utf8'))))
+  styles = (await Promise.all(SHEETS.map((name) => readStylesheet(`src/ui/${name}.css`))))
     .join('\n')
     .replaceAll("url('../../assets/genx-synthwave.svg')", 'none');
   browser = await chromium.launch({

@@ -16,8 +16,9 @@
 
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { build } from 'vite';
-import { readFile } from 'node:fs/promises';
+
 import { chromium, type Browser, type Page } from '@playwright/test';
+import { readStylesheet } from '../support/stylesheet';
 let browser: Browser;
 let bundle: string;
 beforeAll(async () => {
@@ -58,8 +59,8 @@ async function fixture(
   if (timeline) {
     await page.addStyleTag({
       content:
-        (await readFile('src/ui/guide.css', 'utf8')) +
-        (await readFile('src/ui/guide-timeline.css', 'utf8')),
+        (await readStylesheet('src/ui/guide.css')) +
+        (await readStylesheet('src/ui/guide-timeline.css')),
     });
   }
   await page.addScriptTag({

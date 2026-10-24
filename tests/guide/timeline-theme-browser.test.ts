@@ -17,7 +17,8 @@
 import { beforeAll, afterAll, it, expect } from 'vitest';
 import { build } from 'vite';
 import { chromium, type Browser, type Page } from '@playwright/test';
-import { readFile } from 'node:fs/promises';
+
+import { readStylesheet } from '../support/stylesheet';
 let browser: Browser, bundle: string, css: string, fullCss: string;
 beforeAll(async () => {
   const output = await build({
@@ -34,7 +35,7 @@ beforeAll(async () => {
   const chunk = result.output.find((e) => e.type === 'chunk');
   if (!chunk || chunk.type !== 'chunk') throw new Error('Timeline entry missing.');
   bundle = chunk.code;
-  css = await readFile('src/ui/guide-timeline.css', 'utf8');
+  css = await readStylesheet('src/ui/guide-timeline.css');
   fullCss = (
     await Promise.all(
       [
@@ -45,7 +46,7 @@ beforeAll(async () => {
         'responsive',
         'in-app-select',
         'modal-viewport',
-      ].map((name) => readFile(`src/ui/${name}.css`, 'utf8')),
+      ].map((name) => readStylesheet(`src/ui/${name}.css`)),
     )
   ).join('\n');
   browser = await chromium.launch({

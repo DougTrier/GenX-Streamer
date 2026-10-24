@@ -16,8 +16,9 @@
 
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { build } from 'vite';
-import { readFile } from 'node:fs/promises';
+
 import { chromium, expect as browserExpect, type Browser } from '@playwright/test';
+import { readStylesheet } from '../support/stylesheet';
 
 let browser: Browser, bundle: string, css: string;
 beforeAll(async () => {
@@ -34,7 +35,7 @@ beforeAll(async () => {
   const chunk = output.output.find((entry) => entry.type === 'chunk');
   if (!chunk || chunk.type !== 'chunk') throw new Error('Missing date fixture code');
   bundle = chunk.code;
-  css = await readFile('src/ui/archive-search.css', 'utf8');
+  css = await readStylesheet('src/ui/archive-search.css');
   browser = await chromium.launch({
     headless: true,
     executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',

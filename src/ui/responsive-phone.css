@@ -1,0 +1,295 @@
+/*
+ * Copyright 2026 Doug Trier
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/* Free TV and Paid TV share the header: Settings shows its gear only (its
+   accessible name stays "Open settings") so the header keeps a single row. */
+@media (max-width: 1279px) {
+  /* Must outrank the TV-wide button size rule, which is !important. */
+  body:has(#app) #settings-button,
+  body:has(#app) #cast-button {
+    font-size: 0 !important;
+    gap: 0;
+    padding-inline: 10px !important;
+  }
+  body:has(#app) .top-actions {
+    gap: 4px;
+  }
+  body:has(#app) .top-actions button:not(#settings-button, #cast-button) {
+    padding-inline: 6px !important;
+  }
+}
+@media (max-width: 959px) {
+  /* Narrower surfaces keep one header row: labelled buttons drop their icons. */
+  body:has(#app) .top-actions button:not(#settings-button, #cast-button, #local-button) .nav-icon {
+    display: none;
+  }
+}
+
+/* Phones held upright (owner's choice, October 18, 2026): the picture across the
+   top at 16:9, its controls in one row beneath, then search, filters and the
+   channel list, all on one screen. Favorite and Remove stay on each channel row
+   (star and menu), as on TV. viewport.ts keeps this stacked layout instead of
+   the separate Watch/Channels screens on portrait phones. */
+@media (max-width: 650px) and (orientation: portrait) {
+  #app:not(.compact-content):not(.viewing-fullscreen):not(.expanded) .view {
+    height: auto;
+    min-height: 0;
+    flex: 0 0 auto;
+    padding: 8px 8px 0;
+  }
+  /* 16:9 across the width (the view's 8px gutters), in whole pixels. */
+  #app:not(.compact-content):not(.viewing-fullscreen) .watch-card .screen {
+    flex: none;
+    width: 100%;
+    height: round(down, calc((100vw - 16px) * 9 / 16), 1px);
+    aspect-ratio: auto;
+    min-height: 0;
+  }
+  /* GenXtra playing stretches the picture to its card elsewhere; here the card
+     takes its content's height, so the picture keeps its 16:9 height. */
+  #app:not(.compact-content):not(.viewing-fullscreen)
+    .view:has(#archive-details[data-playback-active='true'])
+    > .watch-card {
+    flex: none;
+  }
+  #app:not(.compact-content):not(.viewing-fullscreen)
+    .view:has(#archive-details[data-playback-active='true'])
+    > .watch-card
+    > .screen {
+    height: round(down, calc((100vw - 16px) * 9 / 16), 1px);
+  }
+  #app:not(.compact-content):not(.viewing-fullscreen) .watch-card > .dock {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 6px;
+    min-height: 0;
+    padding: 4px 0 6px;
+  }
+  #app:not(.compact-content):not(.viewing-fullscreen) .dock #playback-status {
+    flex: 1 0 100%;
+    order: -1;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    line-height: 16px;
+  }
+  /* The play controls keep at least their buttons' width; CC, quality and audio
+     share the row when they fit and wrap beneath when they do not. */
+  #app:not(.compact-content):not(.viewing-fullscreen) .dock .controls {
+    flex: 1 1 0;
+    flex-wrap: nowrap;
+    min-width: min-content;
+  }
+  /* CC and quality join the end of the control row. */
+  #app:not(.compact-content):not(.viewing-fullscreen) .dock .secondary-controls {
+    position: static;
+    inset: auto;
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+    order: 1;
+  }
+  #app:not(.compact-content):not(.viewing-fullscreen) .dock .channel-actions {
+    display: none;
+  }
+  /* On-demand skip back/ahead and position get their own line. */
+  #app:not(.compact-content):not(.viewing-fullscreen) .dock .vod-transport:not([hidden]) {
+    flex: 1 0 100%;
+    order: 0;
+    justify-content: center;
+  }
+  #app:not(.compact-content):not(.viewing-fullscreen):not(.expanded) .browser {
+    height: auto;
+    flex: 1 1 0;
+    min-height: 0;
+    padding: 8px;
+    /* The first-scan tip and the scan panel can push the list down: scroll. */
+    overflow-y: auto;
+  }
+  /* Fills the space left (never its whole virtual height), at least one row:
+     the same row viewport.ts requires before choosing this layout. */
+  #app:not(.compact-content):not(.viewing-fullscreen) .browser > .channel-list {
+    flex: 1 1 0;
+    min-height: 72px;
+  }
+  /* While nothing plays, the scan's progress and buttons float at the top left
+     of the picture panel (owner's idea; placed by scan-overlay.ts), in place of
+     the panel's welcome message. */
+  #app #inline-source-scan[data-floating='true'] {
+    position: absolute;
+    z-index: 3;
+    margin: 0;
+    overflow: auto;
+    background: #061629eb;
+    box-shadow: 0 0 12px #17dcff40;
+  }
+  #app:has(#inline-source-scan[data-floating='true']) #player-overlay > * {
+    visibility: hidden;
+  }
+  /* The category tabs become one dropdown sharing a line with Favs, VOD,
+     Loc & Sort and Guide (the buttons wrap beneath it if they do not fit). */
+  #app:not(.compact-content):not(.viewing-fullscreen) .browser .browse-options {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    margin: 6px 0;
+    flex-shrink: 0;
+  }
+  #app:not(.compact-content):not(.viewing-fullscreen) .browser .browse-options .filters {
+    display: none;
+  }
+  #app:not(.compact-content):not(.viewing-fullscreen) .browser #compact-filter:not([hidden]),
+  #app:not(.compact-content):not(.viewing-fullscreen)
+    .browser
+    .in-app-select[data-native-select-id='compact-filter'] {
+    display: block;
+    flex: 0 0 104px;
+    width: 104px;
+    min-width: 0;
+    min-height: 44px;
+    font: inherit;
+    font-size: 13px;
+    color: inherit;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+  #app:not(.compact-content):not(.viewing-fullscreen) .browser .browse-options .sidehead {
+    flex: 1 1 auto;
+    min-width: min-content;
+    margin: 0;
+  }
+  #app:not(.compact-content):not(.viewing-fullscreen) .browser .sidehead > #channel-count {
+    display: none;
+  }
+}
+
+/* Cast from full screen (phones, handhelds, PCs): the header is hidden there,
+   so the player row carries a Cast button. Not on TVs, nor outside full screen. */
+#dock-cast {
+  --control-icon: url('../../assets/icons/lucide/cast.svg');
+}
+#app:not(.viewing-fullscreen) #dock-cast,
+#app[data-device-kind='tv'] #dock-cast {
+  display: none !important;
+}
+/* Phones (owner request, October 21, 2026): Favorite and Remove live on each
+   channel row (its star and its menu). The window's dock drops them, so the
+   picture gets the space; full screen keeps Favorite, never Remove. */
+@media (max-width: 850px), (max-height: 420px) {
+  #app:not([data-device-kind='tv']):not(.viewing-fullscreen) .dock .channel-actions {
+    display: none !important;
+  }
+  #app.viewing-fullscreen:not([data-device-kind='tv']) .dock #remove-channel {
+    display: none !important;
+  }
+}
+/* Phones in landscape: the status, the playback controls, CC and Quality share
+   one compact row under the picture (the S25 used three rows of 44 px). Live
+   channels only (on-demand videos keep their seek row); larger text may wrap
+   rather than clip. */
+@media (max-height: 420px) {
+  #app:not([data-device-kind='tv']):not([data-play-mode='on-demand']):not(.viewing-fullscreen):not(
+      .keyboard-open
+    )
+    .workspace
+    > .view
+    > .watch-card
+    > .dock {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    min-height: 0;
+    height: auto;
+    padding: 4px 0;
+  }
+  #app:not([data-device-kind='tv']):not([data-play-mode='on-demand']):not(.viewing-fullscreen):not(
+      .keyboard-open
+    )
+    .workspace
+    > .view
+    > .watch-card
+    > .dock
+    > #playback-status {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: start;
+  }
+  #app:not([data-device-kind='tv']):not([data-play-mode='on-demand']):not(.viewing-fullscreen):not(
+      .keyboard-open
+    )
+    .workspace
+    > .view
+    > .watch-card
+    > .dock
+    > .controls,
+  #app:not([data-device-kind='tv']):not([data-play-mode='on-demand']):not(.viewing-fullscreen):not(
+      .keyboard-open
+    )
+    .workspace
+    > .view
+    > .watch-card
+    > .dock
+    > .secondary-controls {
+    display: flex;
+    flex: 0 0 auto;
+    gap: 6px;
+    width: auto;
+    margin: 0;
+  }
+  #app:not([data-device-kind='tv']):not([data-play-mode='on-demand']):not(.viewing-fullscreen):not(
+      .keyboard-open
+    )
+    .workspace
+    > .view
+    > .watch-card
+    > .dock
+    > .controls
+    > button,
+  #app:not([data-device-kind='tv']):not([data-play-mode='on-demand']):not(.viewing-fullscreen):not(
+      .keyboard-open
+    )
+    .workspace
+    > .view
+    > .watch-card
+    > .dock
+    > .secondary-controls
+    button {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  #app:not([data-device-kind='tv']):not([data-play-mode='on-demand']):not(.viewing-fullscreen):not(
+      .keyboard-open
+    )
+    .workspace
+    > .view
+    > .watch-card
+    > .dock
+    > .controls
+    > button {
+    /* Icons only: a fixed 44 px square (text grows on CC and Quality). */
+    width: 44px;
+    height: 44px;
+    max-height: 44px;
+  }
+}

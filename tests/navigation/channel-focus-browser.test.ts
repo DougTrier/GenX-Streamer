@@ -16,8 +16,9 @@
 
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { build } from 'vite';
-import { readFile } from 'node:fs/promises';
+
 import { chromium, type Browser } from '@playwright/test';
+import { readStylesheet } from '../support/stylesheet';
 let browser: Browser, code: string, css: string;
 beforeAll(async () => {
   const output = await build({
@@ -33,7 +34,7 @@ beforeAll(async () => {
   const chunk = result.output.find((item) => item.type === 'chunk');
   if (!chunk || chunk.type !== 'chunk') throw new Error('Missing fixture code');
   code = chunk.code;
-  css = await readFile('src/ui/style.css', 'utf8');
+  css = await readStylesheet('src/ui/style.css');
   browser = await chromium.launch({
     headless: true,
     executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',

@@ -1,0 +1,560 @@
+/*
+ * Copyright 2026 Doug Trier
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/* Reflow main controls and modal forms without reducing the user's text size. */
+.archive-resume-dialog {
+  max-width: min(520px, calc(100vw - 32px));
+  overflow-wrap: anywhere;
+}
+.archive-resume-dialog .dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.archive-resume-dialog button {
+  min-width: 44px;
+  min-height: 44px;
+}
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+}
+#app.keyboard-open {
+  position: fixed;
+  top: var(--viewport-top, 0px);
+  left: 0;
+  width: 100%;
+}
+#app.keyboard-open:not(.viewing-fullscreen) .workspace {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+#app.keyboard-open:not(.viewing-fullscreen) .view,
+#app.keyboard-open #divider,
+#app.keyboard-open .sidehead,
+#app.keyboard-open .browse-options,
+#app.keyboard-open .sidefoot {
+  display: none;
+}
+#app.keyboard-open:not(.viewing-fullscreen) .browser {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex: 1;
+}
+#app.keyboard-open .search-controls {
+  flex-shrink: 0;
+}
+#app.keyboard-open .inline-source-scan {
+  display: none;
+}
+/* Status beside the buttons while it has room; when the buttons would squeeze
+   it into a narrow strip (large TV text, October 23, 2026), they wrap below. */
+.inline-source-scan {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin: 0 10px 8px;
+  padding: 8px;
+  border: 1px solid #17dcff80;
+  border-radius: 8px;
+  background: #061629;
+}
+.inline-source-scan p {
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  line-height: 1.3;
+}
+#inline-scan-status {
+  flex: 1 1 14em;
+}
+#inline-scan-error {
+  flex: 1 1 100%;
+  order: 2;
+  color: #ffb8c9;
+}
+.inline-scan-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  order: 1;
+}
+.inline-scan-actions button {
+  min-width: 44px;
+  min-height: 44px;
+  padding: 4px 8px;
+  font-size: 13px;
+}
+.channel-transfer-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.channel-transfer-controls button {
+  min-height: 44px;
+  flex: 1 1 140px;
+}
+#app.keyboard-open dialog[open] {
+  position: fixed;
+  top: var(--viewport-top, 0px);
+  bottom: auto;
+  margin-top: 8px;
+  max-height: calc(var(--visible-viewport-height) - 16px);
+}
+button {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 650px) and (max-height: 480px) and (orientation: landscape) {
+  /* The panel selector already names Channels; preserve space for its actual list. */
+  .compact-content .sidehead > #channel-count {
+    display: none;
+  }
+}
+.watchhead button {
+  white-space: normal;
+}
+.watchhead .channel-actions {
+  min-width: 0;
+  max-width: 60%;
+}
+.player-overlay > div {
+  max-height: 100%;
+  overflow: auto;
+}
+.top-actions {
+  min-width: 0;
+}
+.top-actions button {
+  min-width: 0;
+}
+.filters {
+  flex-wrap: wrap;
+}
+.filters button {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+#compact-filter {
+  display: none;
+}
+@media (min-width: 651px) and (max-height: 600px) {
+  .browser .browse-options {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+    margin: 8px 0;
+    flex-shrink: 0;
+  }
+  .browser .browse-options .filters {
+    display: none;
+  }
+  .browser #compact-filter {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    font: inherit;
+    color: inherit;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+  }
+  .browser .location-trigger {
+    margin: 0;
+  }
+}
+input[type='file'] {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+dialog input:not([type='checkbox']):not([type='range']),
+dialog select {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+}
+#import-dialog,
+#cast-dialog,
+#settings-dialog,
+.location-dialog {
+  max-height: calc(100dvh - 16px);
+  overflow: hidden;
+}
+.storage-recovery-dialog {
+  width: min(560px, calc(100vw - 16px));
+  max-height: calc(100dvh - 16px);
+  overflow: hidden;
+}
+.storage-recovery-dialog[open] {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.storage-recovery-dialog h2 {
+  flex-shrink: 0;
+  margin-top: 0;
+  overflow-wrap: anywhere;
+}
+.storage-recovery-dialog .dialog-actions {
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+.storage-recovery-dialog .dialog-actions button {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.storage-recovery-dialog label {
+  display: grid;
+  gap: 8px;
+}
+#import-dialog[open],
+#cast-dialog[open],
+#settings-dialog[open],
+.location-dialog[open] {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+#import-dialog,
+#cast-dialog {
+  height: min(660px, calc(100dvh - 16px));
+}
+#import-form {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+}
+.dialog-head {
+  flex-shrink: 0;
+}
+.dialog-head h2 {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.dialog-head button {
+  flex-shrink: 0;
+  min-width: 44px;
+}
+.dialog-body,
+#settings-dialog [data-settings-panel],
+.location-dialog #geography-controls {
+  overflow: auto;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+.dialog-body,
+.location-dialog #geography-controls {
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 8px;
+  scroll-padding: 12px;
+}
+.dialog-body :is(button, input, select, textarea, summary, a),
+.location-dialog #geography-controls :is(button, input, select, textarea, summary, a) {
+  scroll-margin: 6px;
+}
+#settings-dialog {
+  height: min(660px, calc(100dvh - 16px));
+}
+#settings-dialog [data-settings-panel] {
+  box-sizing: border-box;
+  min-width: 0;
+  padding: 8px;
+  scroll-padding: 12px;
+}
+#settings-dialog [data-settings-panel] :is(button, input, select, textarea, summary, a) {
+  scroll-margin: 6px;
+}
+#settings-dialog :is(.channel-transfer-controls, .source-row) {
+  min-width: 0;
+}
+#settings-dialog .source-row {
+  flex-wrap: nowrap;
+}
+#settings-dialog .source-row span {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#settings-dialog .source-row button {
+  flex: 0 0 auto;
+}
+#settings-dialog [data-settings-panel] button {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+#settings-dialog .account-management,
+#settings-dialog .account-management :is(article, form, label) {
+  min-width: 0;
+  max-width: 100%;
+}
+#settings-dialog .account-management h4 {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+#settings-dialog #provider-management ul {
+  padding: 8px;
+  scroll-padding: 12px;
+  list-style: none;
+}
+#settings-dialog #provider-management li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+#settings-dialog #provider-management li span {
+  flex: 1 1 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+#settings-dialog #provider-management li button {
+  flex: 0 0 auto;
+}
+#settings-dialog .settings-selector {
+  flex-shrink: 0;
+  min-width: 0;
+  margin: 10px 0;
+}
+#settings-dialog .storage-note {
+  flex-shrink: 0;
+  margin: 8px 0 0;
+}
+#settings-dialog .settings-footer {
+  flex-shrink: 0;
+  margin: 8px 0 0;
+}
+#settings-dialog .settings-footer button {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 100%;
+  padding-inline: 8px;
+  white-space: normal;
+}
+#settings-dialog .settings-selector button {
+  width: 100%;
+  min-height: 44px;
+  text-align: left;
+}
+#settings-section-choices:not([hidden]) {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+#settings-section-choices button {
+  flex-shrink: 0;
+  min-height: 44px;
+  width: 100%;
+  text-align: left;
+}
+.source-row {
+  flex-wrap: wrap;
+}
+.source-row span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.location-dialog > button,
+.location-dialog > h2 {
+  flex-shrink: 0;
+}
+@media (max-width: 650px) {
+  .compact-content .watchhead:has(.selected-guide:not([hidden])) .eyebrow {
+    display: none;
+  }
+  .compact-content #compact-view {
+    display: block;
+    min-width: 0;
+    width: 90px;
+    min-height: 44px;
+    font: inherit;
+    font-size: 12px;
+    color: inherit;
+    background: var(--panel);
+  }
+  .compact-content .workspace {
+    display: flex;
+    flex-direction: column;
+  }
+  .compact-content #divider {
+    display: none;
+  }
+  .compact-content[data-compact-view='watch'] .browser,
+  .compact-content[data-compact-view='channels'] .view {
+    display: none;
+  }
+  .compact-content[data-compact-view='watch'] .view,
+  .compact-content[data-compact-view='channels'] .browser {
+    height: 100%;
+    min-height: 0;
+    flex: 1;
+  }
+  .compact-content .screen,
+  .compact-content .channel-list {
+    min-height: 0;
+  }
+  .compact-content .watchhead,
+  .compact-content .sidehead,
+  .compact-content .search-controls,
+  .compact-content .filters,
+  .compact-content .location-trigger,
+  .compact-content .sidefoot {
+    flex-shrink: 0;
+  }
+  .compact-content .browse-options {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 8px;
+    margin: 8px 0;
+    flex-shrink: 0;
+  }
+  .compact-content .browse-options .filters {
+    display: none;
+  }
+  .compact-content #compact-filter {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    font: inherit;
+    color: inherit;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    min-height: 44px;
+  }
+  .compact-content .browse-options .location-trigger {
+    min-width: 0;
+    margin: 0;
+  }
+  .topbar {
+    gap: 6px;
+    padding: 8px;
+  }
+  .compact-content .topbar {
+    display: grid;
+    grid-template-columns: repeat(8, minmax(0, 1fr));
+    align-items: stretch;
+    gap: 4px;
+  }
+  .compact-content .top-actions {
+    display: contents;
+  }
+  .compact-content #import-button {
+    grid-column: span 2;
+  }
+  .compact-content #compact-view,
+  .compact-content .topbar > .in-app-select {
+    width: 100%;
+    min-width: 0;
+  }
+  .compact-content .top-actions button {
+    padding: 8px 4px;
+    min-width: 44px;
+  }
+  .compact-content .topbar .in-app-select > button {
+    height: 100%;
+    padding: 8px 4px;
+  }
+  .top-actions {
+    flex: 1;
+    gap: 4px;
+  }
+  .top-actions button {
+    flex: 1;
+  }
+  .brand {
+    display: none;
+  }
+  .filters button {
+    padding: 7px 5px;
+  }
+  #import-dialog,
+  #cast-dialog,
+  #settings-dialog,
+  .location-dialog {
+    padding: 12px;
+    width: calc(100vw - 16px);
+  }
+}
+@media (max-width: 400px) {
+  .compact-content .topbar {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    align-items: stretch;
+    gap: 4px;
+  }
+  .compact-content .top-actions {
+    display: contents;
+  }
+  .compact-content #compact-view {
+    width: 100%;
+  }
+  .compact-content .top-actions button {
+    padding: 8px 4px;
+    min-width: 44px;
+  }
+  .compact-content .topbar .in-app-select > button {
+    height: 100%;
+    padding: 8px 4px;
+  }
+}
+@media (max-width: 650px) and (max-height: 480px) {
+  .compact-content .topbar {
+    padding-block: 4px;
+  }
+  .compact-content .top-actions button,
+  .compact-content .topbar .in-app-select > button {
+    padding-block: 4px;
+    min-height: 44px;
+  }
+  .compact-content .view {
+    padding-top: 8px;
+  }
+  .compact-content .watchhead {
+    margin-bottom: 4px;
+  }
+  .compact-content .dock {
+    padding: 4px 0;
+    gap: 4px;
+  }
+  /* The full update status stays accessible and in the header's title. */
+  .compact-content .selected-guide-freshness {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+  .compact-content .watchhead:has(.selected-guide:not([hidden])) + .screen {
+    min-height: 48px;
+  }
+}

@@ -16,9 +16,10 @@
 
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { build } from 'vite';
-import { readFile } from 'node:fs/promises';
+
 import { resolve } from 'node:path';
 import { chromium, type Browser, type Page } from '@playwright/test';
+import { readStylesheet } from '../support/stylesheet';
 let browser: Browser;
 let bundle: string;
 beforeAll(async () => {
@@ -89,8 +90,8 @@ async function fixture(manualClock = false, timeline = false, tv = false): Promi
   if (timeline) {
     await page.addStyleTag({
       content:
-        (await readFile('src/ui/guide.css', 'utf8')) +
-        (await readFile('src/ui/guide-timeline.css', 'utf8')),
+        (await readStylesheet('src/ui/guide.css')) +
+        (await readStylesheet('src/ui/guide-timeline.css')),
     });
   }
   await page.addScriptTag({
@@ -817,9 +818,9 @@ describe('actual Chromium guide component', () => {
         await page.setViewportSize(viewport);
         await page.addStyleTag({
           content:
-            (await readFile('src/ui/style.css', 'utf8')) +
+            (await readStylesheet('src/ui/style.css')) +
             '\n' +
-            (await readFile('src/ui/guide.css', 'utf8')),
+            (await readStylesheet('src/ui/guide.css')),
         });
         await open(page);
         await page.locator('dialog').evaluate((element) => {
@@ -2257,7 +2258,7 @@ it('1920 TV at 960 CSS pixels keeps held progress and retained failure readable 
             'in-app-select',
             'modal-viewport',
             'guide-panel',
-          ].map((name) => readFile(`src/ui/${name}.css`, 'utf8')),
+          ].map((name) => readStylesheet(`src/ui/${name}.css`)),
         )
       ).join('\n'),
     });
@@ -2521,7 +2522,7 @@ for (const size of [
               'guide-panel',
               // The TV's compact-control rules, which once made cells spill.
               ...(size.deviceKind === 'tv' ? ['tv-density'] : []),
-            ].map((name) => readFile(`src/ui/${name}.css`, 'utf8')),
+            ].map((name) => readStylesheet(`src/ui/${name}.css`)),
           )
         ).join('\n'),
       });

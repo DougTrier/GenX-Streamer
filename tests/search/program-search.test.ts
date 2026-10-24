@@ -15,7 +15,7 @@
  */
 
 import { afterAll, beforeAll, expect, it } from 'vitest';
-import { mkdir, readFile } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import { build } from 'vite';
 import { chromium, type Browser } from '@playwright/test';
 import {
@@ -25,6 +25,7 @@ import {
   type ProgramSearchSnapshot,
 } from '../../src/ui/program-search';
 import type { MappedProgram, SelectedGuideSummary } from '../../src/guide/native';
+import { readStylesheet } from '../support/stylesheet';
 const at = 1_000_000;
 const channel = { id: 'one', sourceId: 'catalog', name: 'Néws—HD', category: 'Local' };
 const mapping = {
@@ -155,7 +156,7 @@ beforeAll(async () => {
         'responsive',
         'in-app-select',
         'modal-viewport',
-      ].map((name) => readFile(`src/ui/${name}.css`, 'utf8')),
+      ].map((name) => readStylesheet(`src/ui/${name}.css`)),
     )
   ).join('\n');
   browser = await chromium.launch({

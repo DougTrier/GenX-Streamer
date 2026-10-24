@@ -16,8 +16,9 @@
 
 import { beforeAll, afterAll, it, expect } from 'vitest';
 import { build } from 'vite';
-import { readFile } from 'node:fs/promises';
+
 import { chromium, expect as browserExpect, type Browser, type Page } from '@playwright/test';
+import { readStylesheet } from '../support/stylesheet';
 let browser: Browser, bundle: string, css: string;
 beforeAll(async () => {
   const result = await build({
@@ -40,7 +41,7 @@ beforeAll(async () => {
   css = (
     await Promise.all(
       ['style', 'archive-search', 'responsive', 'media-results', 'tv-density'].map((n) =>
-        readFile(`src/ui/${n}.css`, 'utf8'),
+        readStylesheet(`src/ui/${n}.css`),
       ),
     )
   ).join('\n');

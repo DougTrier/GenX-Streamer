@@ -17,7 +17,8 @@
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { build } from 'vite';
 import { chromium, type Browser, type Page } from '@playwright/test';
-import { readFile } from 'node:fs/promises';
+
+import { readStylesheet } from '../support/stylesheet';
 let browser: Browser;
 let bundle: string;
 beforeAll(async () => {
@@ -908,9 +909,9 @@ describe('actual Chromium scan review component', () => {
         await page.setViewportSize(viewport);
         await page.addStyleTag({
           content:
-            (await readFile('src/ui/style.css', 'utf8')) +
+            (await readStylesheet('src/ui/style.css')) +
             '\n' +
-            (await readFile('src/ui/guide.css', 'utf8')),
+            (await readStylesheet('src/ui/guide.css')),
         });
         await selectAction(page, 'history');
         await page.getByRole('button', { name: 'Run action' }).click();
@@ -973,9 +974,9 @@ describe('actual Chromium scan review component', () => {
         await page.setViewportSize(viewport);
         await page.addStyleTag({
           content:
-            (await readFile('src/ui/style.css', 'utf8')) +
+            (await readStylesheet('src/ui/style.css')) +
             '\n' +
-            (await readFile('src/ui/guide.css', 'utf8')),
+            (await readStylesheet('src/ui/guide.css')),
         });
         await scan(page);
         await page.locator('dialog').evaluate((root) => {
@@ -1301,9 +1302,7 @@ describe('actual Chromium scan review component', () => {
 
 async function applicationStyles(): Promise<string> {
   const files = ['style', 'management', 'guide', 'responsive', 'in-app-select', 'modal-viewport'];
-  return (await Promise.all(files.map((file) => readFile(`src/ui/${file}.css`, 'utf8')))).join(
-    '\n',
-  );
+  return (await Promise.all(files.map((file) => readStylesheet(`src/ui/${file}.css`)))).join('\n');
 }
 async function assertScanActionsReachable(page: Page, visualHeight: number): Promise<void> {
   for (const label of ['Close scan review', 'Scan configured sources']) {

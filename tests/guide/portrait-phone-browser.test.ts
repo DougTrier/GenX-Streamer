@@ -16,9 +16,10 @@
 
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { build } from 'vite';
-import { readFile } from 'node:fs/promises';
+
 import { resolve } from 'node:path';
 import { chromium, type Browser } from '@playwright/test';
+import { readStylesheet } from '../support/stylesheet';
 
 /** The real shell and stylesheets on upright phones: picture on top, channels below. */
 const SHEETS = [
@@ -64,7 +65,7 @@ beforeAll(async () => {
   const chunk = output.output.find((entry) => entry.type === 'chunk');
   if (!chunk || chunk.type !== 'chunk') throw new Error('Missing fixture code');
   code = chunk.code;
-  styles = (await Promise.all(SHEETS.map((name) => readFile(`src/ui/${name}.css`, 'utf8'))))
+  styles = (await Promise.all(SHEETS.map((name) => readStylesheet(`src/ui/${name}.css`))))
     .join('\n')
     .replaceAll("url('../../assets/genx-synthwave.svg')", 'none');
   browser = await chromium.launch({

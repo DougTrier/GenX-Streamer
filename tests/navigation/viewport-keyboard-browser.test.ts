@@ -17,8 +17,9 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { build } from 'vite';
 import { chromium, type Browser } from '@playwright/test';
-import { readFile } from 'node:fs/promises';
+
 import { resolve } from 'node:path';
+import { readStylesheet } from '../support/stylesheet';
 let browser: Browser, code: string, css: string;
 beforeAll(async () => {
   const result = await build({
@@ -54,7 +55,7 @@ beforeAll(async () => {
         'modal-viewport',
         'genxtra',
         'media-results',
-      ].map((name) => readFile(`src/ui/${name}.css`, 'utf8')),
+      ].map((name) => readStylesheet(`src/ui/${name}.css`)),
     )
   ).join('\n');
   browser = await chromium.launch({

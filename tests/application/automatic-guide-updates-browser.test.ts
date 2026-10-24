@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { readFileSync } from 'node:fs';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { build } from 'vite';
 import { chromium, type Browser, type Page } from '@playwright/test';
+import { readStylesheetSync } from '../support/stylesheet';
 
 let browser: Browser;
 let code: string;
@@ -57,7 +57,7 @@ afterAll(async () => {
 async function fixture(initial?: boolean) {
   const page = await browser.newPage({ viewport: { width: 960, height: 540 } });
   await page.setContent(
-    `<style>${readFileSync('src/ui/style.css', 'utf8')}${readFileSync('src/ui/responsive.css', 'utf8')}</style><div id="app"></div>`,
+    `<style>${readStylesheetSync('src/ui/style.css')}${readStylesheetSync('src/ui/responsive.css')}</style><div id="app"></div>`,
   );
   await page.addScriptTag({ content: code });
   await page.evaluate((value) => {

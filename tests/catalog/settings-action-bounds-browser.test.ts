@@ -19,6 +19,7 @@ import { chromium, expect as browserExpect, type Browser, type Page } from '@pla
 import { build } from 'vite';
 import { readFile, writeFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
+import { readStylesheet } from '../support/stylesheet';
 
 let browser: Browser, bundle: string, css: string;
 beforeAll(async () => {
@@ -70,7 +71,7 @@ beforeAll(async () => {
         'genxtra',
         'media-results',
         'tv-density',
-      ].map((name) => readFile(`src/ui/${name}.css`, 'utf8')),
+      ].map((name) => readStylesheet(`src/ui/${name}.css`)),
     )
   ).join('\n');
   for (const font of [

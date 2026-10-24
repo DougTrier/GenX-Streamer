@@ -1,0 +1,369 @@
+/*
+ * Copyright 2026 Doug Trier
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/* Optional decorative owned span .header-callout; no interaction or new owner. */
+.header-callout {
+  display: none;
+}
+@media (min-width: 1200px) and (min-height: 421px) {
+  #app:not(.viewing-fullscreen) .topbar {
+    position: relative;
+  }
+  #app:not(.viewing-fullscreen) .top-actions {
+    max-width: calc(100% - 180px);
+  }
+  #app:not(.viewing-fullscreen) .header-callout {
+    display: block;
+    position: absolute;
+    right: 20px;
+    top: 18px;
+    width: 160px;
+    color: #ff38bf;
+    font-family: 'Yellowtail', cursive;
+    font-size: clamp(16px, 1.3vw, 22px);
+    line-height: 1.05;
+    text-align: left;
+    transform: rotate(-12deg);
+    transform-origin: center;
+    pointer-events: none;
+    user-select: none;
+  }
+  #app:not(.viewing-fullscreen) .header-callout > span {
+    display: block;
+    white-space: nowrap;
+  }
+  #app:not(.viewing-fullscreen) .header-callout::after {
+    content: '';
+    display: block;
+    height: 2px;
+    margin-top: 5px;
+    background: #ff38bf;
+  }
+}
+@media (min-width: 851px) and (min-height: 421px) {
+  #app:not(.viewing-fullscreen) #import-button {
+    border-color: #17dcff;
+    background: linear-gradient(180deg, #0a2138eb, #061323eb);
+    box-shadow:
+      inset 0 0 8px #10c6f329,
+      0 0 7px #10c6f333;
+  }
+}
+
+@media (min-width: 1200px) and (min-height: 421px) {
+  #app:not(.viewing-fullscreen) .brand {
+    gap: 45px;
+  }
+  #app:not(.viewing-fullscreen) .brand-lockup {
+    max-width: calc(100% - 145px);
+  }
+}
+/* External candidate: wide reference palette and proportions. */
+@media (min-width: 851px) and (min-height: 421px) {
+  #app:not(.viewing-fullscreen):not(.keyboard-open) .browser {
+    background: linear-gradient(180deg, #07121ff5, #040c16f5);
+  }
+  .channel[aria-current='true'] {
+    background: linear-gradient(110deg, #054674, #08213a);
+    box-shadow:
+      inset 0 0 0 1px #16dfff,
+      0 0 8px #16dfff33;
+  }
+  .channel:focus-visible {
+    outline-color: var(--gx-magenta);
+  }
+}
+@media (min-width: 1200px) and (min-height: 421px) {
+  #app:not(.viewing-fullscreen) .header-callout {
+    font-size: 20px;
+    line-height: 1.5;
+  }
+}
+@media (min-width: 1400px) and (min-height: 721px) {
+  #app:not([data-device-kind='tv']):not(.viewing-fullscreen) .app-signoff {
+    min-height: 64px;
+    height: 64px;
+    align-items: center;
+  }
+  #app:not([data-device-kind='tv']):not(.viewing-fullscreen)
+    #selected-guide-status-slot:not(:empty):not(:has(> [hidden])) {
+    min-height: 140px;
+    display: flex;
+    align-items: center;
+  }
+  #app:not([data-device-kind='tv']):not(.viewing-fullscreen) .watch-card {
+    max-height: calc(100% - 152px);
+  }
+  #app:not([data-device-kind='tv']) .selected-guide-status {
+    font-size: 16px;
+  }
+  #app:not([data-device-kind='tv']) .selected-guide-status .selected-guide-freshness {
+    font-size: 16px;
+    line-height: 1.4;
+  }
+  #app:not([data-device-kind='tv']) .browser .sidefoot {
+    display: none;
+  }
+  #app:not([data-device-kind='tv']) .channel {
+    padding: 5px;
+  }
+  #app:not([data-device-kind='tv']) .channel-copy strong {
+    font-size: 20px;
+    line-height: 1.1;
+  }
+  #app:not([data-device-kind='tv']) .channel-copy .channel-guide-current {
+    font-size: 16px;
+    line-height: 1.1;
+    margin-top: 1px;
+  }
+  #app:not([data-device-kind='tv']) .channel .monogram {
+    height: 48px;
+  }
+  /* 62px virtual pitch /58px button must be applied in the ChannelBrowser owner,
+     not CSS alone; default72 and TV48 remain separate native geometry contracts. */
+}
+
+/* Desktop reference controls reserve real label space; enlarged text may grow. */
+@media (min-width: 1400px) and (min-height: 721px) {
+  #app:not([data-device-kind='tv']):not(.viewing-fullscreen) .top-actions {
+    margin-left: 16px;
+    padding-bottom: 9px;
+    gap: 14px;
+    max-width: calc(100% - 196px);
+  }
+  #app:not([data-device-kind='tv']):not(.viewing-fullscreen) .top-actions button {
+    min-height: 54px;
+    font-size: 18px;
+    padding: 8px 12px;
+  }
+  #app:not([data-device-kind='tv']):not(.viewing-fullscreen) #import-button {
+    width: 194px;
+  }
+  #app:not([data-device-kind='tv']):not(.viewing-fullscreen) #cast-button {
+    width: 120px;
+  }
+  #app:not([data-device-kind='tv']):not(.viewing-fullscreen) #settings-button {
+    width: 150px;
+  }
+  #app:not([data-device-kind='tv']) .search-controls #search,
+  #app:not([data-device-kind='tv']) .filters button {
+    font-size: 18px;
+  }
+  #app:not([data-device-kind='tv']) .sidehead > #channel-count {
+    font-size: 16px;
+  }
+  #app:not([data-device-kind='tv']) .sidehead summary,
+  #app:not([data-device-kind='tv']) .sidehead .location-trigger,
+  #app:not([data-device-kind='tv']) .sidehead .row-filter {
+    /* Favs, VOD, Loc & Sort and Guide share one size that keeps them on one
+       line (16 px wrapped Guide at 1920 x 1080). */
+    font-size: 14px;
+  }
+  #app:not([data-device-kind='tv']):not(.viewing-fullscreen) .header-callout > span {
+    min-height: 30px;
+    line-height: 30px;
+  }
+  #app:not([data-device-kind='tv']):not(.viewing-fullscreen) .header-callout > span:last-child {
+    white-space: nowrap;
+  }
+}
+@media (min-width: 851px) and (min-height: 421px) {
+  .browser .channel-program-progress {
+    appearance: none;
+    height: 5px;
+    border: 0;
+    border-radius: 5px;
+    overflow: hidden;
+    background: #465568;
+    accent-color: var(--gx-cyan);
+  }
+  .browser .channel-program-progress::-webkit-progress-bar {
+    background: #465568;
+    border-radius: 5px;
+  }
+  .browser .channel-program-progress::-webkit-progress-value {
+    background: var(--gx-cyan);
+    border-radius: 5px;
+  }
+  .browser .channel-program-progress::-moz-progress-bar {
+    background: var(--gx-cyan);
+    border-radius: 5px;
+  }
+}
+@media (min-width: 1400px) and (min-height: 721px) {
+  #app:not([data-device-kind='tv']) .browser .channel-program-time {
+    font-size: 14px;
+  }
+}
+
+@media (min-width: 1400px) and (min-height: 721px) {
+  #app:not([data-device-kind='tv']):not(.viewing-fullscreen) .topbar {
+    background-position:
+      right 160px top,
+      0 0;
+  }
+}
+
+/* Candidate only: real guide data unchanged; scope TV wide viewing card. */
+@media (min-width: 851px) and (min-height: 421px) {
+  #app[data-device-kind='tv']:not(.viewing-fullscreen):not(.keyboard-open) .watch-details > h2 {
+    font-size: 16px;
+    font-weight: 600;
+    line-height: 1.15;
+    max-height: 2.3em;
+    margin-block: 4px 6px;
+  }
+  #app[data-device-kind='tv']:not(.viewing-fullscreen):not(.keyboard-open) .watch-details .eyebrow {
+    font-size: 10px;
+    line-height: 1.2;
+    margin-block: 0 4px;
+  }
+  #app[data-device-kind='tv']:not(.viewing-fullscreen):not(.keyboard-open)
+    .selected-guide-details
+    > div {
+    gap: 4px;
+    margin-block: 4px 8px;
+  }
+  #app[data-device-kind='tv']:not(.viewing-fullscreen):not(.keyboard-open)
+    .selected-guide-program-title {
+    font-size: 16px;
+    line-height: 1.2;
+    -webkit-line-clamp: 2;
+  }
+  #app[data-device-kind='tv']:not(.viewing-fullscreen):not(.keyboard-open)
+    .selected-guide-program-label {
+    font-size: 10px;
+    line-height: 1.2;
+    letter-spacing: 1.5px;
+  }
+  #app[data-device-kind='tv']:not(.viewing-fullscreen):not(.keyboard-open)
+    .selected-guide-program-time {
+    font-size: 12px;
+    line-height: 1.25;
+  }
+  #app[data-device-kind='tv']:not(.viewing-fullscreen):not(.keyboard-open)
+    .watchhead
+    .channel-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+  }
+  #app[data-device-kind='tv']:not(.viewing-fullscreen):not(.keyboard-open)
+    .watchhead
+    .channel-actions
+    button {
+    min-width: 44px;
+    min-height: 44px;
+    padding: 4px;
+    font-size: 13px;
+    line-height: 1.1;
+    white-space: normal;
+  }
+}
+
+@media (min-width: 851px) and (max-width: 1199px) and (min-height: 421px) {
+  #app[data-device-kind='tv']:not(.viewing-fullscreen):not(.keyboard-open) .topbar {
+    background-position:
+      right 110px top,
+      0 0;
+  }
+  #app[data-device-kind='tv']:not(.viewing-fullscreen):not(.keyboard-open) .topbar {
+    position: relative;
+  }
+  #app[data-device-kind='tv']:not(.viewing-fullscreen):not(.keyboard-open) .top-actions {
+    max-width: calc(100% - 150px);
+  }
+  #app[data-device-kind='tv']:not(.viewing-fullscreen):not(.keyboard-open) .header-callout {
+    display: block;
+    position: absolute;
+    right: 12px;
+    top: 10px;
+    width: 122px;
+    font-family: 'Yellowtail', cursive;
+    color: #ff38bf;
+    font-size: 14px;
+    line-height: 18px;
+    transform: rotate(-12deg) translateY(3px);
+    transform-origin: center;
+    pointer-events: none;
+    user-select: none;
+  }
+  #app[data-device-kind='tv']:not(.viewing-fullscreen):not(.keyboard-open) .header-callout > span {
+    display: block;
+    min-height: 18px;
+    line-height: 18px;
+    white-space: nowrap;
+  }
+  #app[data-device-kind='tv']:not(.viewing-fullscreen):not(.keyboard-open) .header-callout::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -5px;
+    height: 2px;
+    margin: 0;
+    background: #ff38bf;
+  }
+}
+.channel-row {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+}
+.channel-row > .channel {
+  flex: 1;
+  min-width: 0;
+  width: auto;
+}
+.channel-action {
+  flex: 0 0 44px;
+  min-width: 44px;
+  min-height: 44px;
+  padding: 0;
+  margin-bottom: 4px;
+  background: transparent;
+  border-color: transparent;
+  font-size: 24px;
+}
+.channel-favorite[aria-pressed='true'] {
+  color: #ff35bb;
+}
+.channel-row .channel-star {
+  display: none;
+}
+.channel-actions-dialog {
+  width: min(480px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow: auto;
+}
+.channel-actions-dialog h2 {
+  overflow-wrap: anywhere;
+}
+.channel-category-choices {
+  display: grid;
+  gap: 6px;
+  max-height: min(50dvh, 360px);
+  overflow: auto;
+  margin-bottom: 12px;
+}
+.channel-category-choices button {
+  min-height: 44px;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.channel-category-choices [aria-pressed='true'] {
+  border-color: #00d9ff;
+}
