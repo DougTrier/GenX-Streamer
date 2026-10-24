@@ -20,7 +20,7 @@
 use std::collections::HashMap;
 use std::sync::OnceLock;
 
-const COUNTRIES: &str = include_str!("../../src/location/countries.json");
+const COUNTRIES: &str = include_str!("../../../src/location/countries.json");
 /// Spellings providers use that are not the official English name.
 const ALIASES: &[(&str, &str)] = &[
     ("uk", "UK"),

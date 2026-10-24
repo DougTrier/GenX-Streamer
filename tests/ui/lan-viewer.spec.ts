@@ -28,7 +28,7 @@ type FixtureWindow = Window & {
 };
 
 async function setup(page: Page, { mse = true, native = true, pending = false } = {}) {
-  const html = await readFile('src-tauri/src/lan/viewer.html', 'utf8');
+  const html = await readFile('src-tauri/src/sharing/lan/viewer.html', 'utf8');
   await page.setContent(html.replace(/<script[^>]*><\/script>/g, '').replace(/<link[^>]*>/g, ''));
   await page.clock.install();
   await page.addScriptTag({
@@ -44,7 +44,7 @@ async function setup(page: Page, { mse = true, native = true, pending = false } 
     window.show=()=>{Object.defineProperty(document,'hidden',{configurable:true,value:false});document.dispatchEvent(new Event('visibilitychange'))};
   `,
   });
-  await page.addScriptTag({ content: await readFile('src-tauri/src/lan/viewer.js', 'utf8') });
+  await page.addScriptTag({ content: await readFile('src-tauri/src/sharing/lan/viewer.js', 'utf8') });
 }
 async function reply(page: Page, index: number, value: unknown) {
   await page.evaluate(

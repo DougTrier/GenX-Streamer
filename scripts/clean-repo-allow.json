@@ -21,342 +21,6 @@
       "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
     },
     {
-      "file": "src-tauri/src/account_acquisition.rs",
-      "label": "username/password query",
-      "sha256": "ebce80102164cd9bb980f94d4f74ad0968413e8ea801043d11a33d80dd43cac0",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/account_acquisition.rs",
-      "label": "private network address",
-      "sha256": "783345b39d5aedda329a79cde9c5325b2dff9ac34bd71ef4e47bd0920fc5fd60",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/account_acquisition.rs",
-      "label": "address with a password",
-      "sha256": "af425d9b81376f84114c71e9f17e7d6545e606b8e6f28963fc07e0780d27765f",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/account_acquisition.rs",
-      "label": "username/password query",
-      "sha256": "7b9aaeb337e598a10f8a7141125ff27ddfbe4ee21f27ddd06e6829a661e6c322",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/account_acquisition.rs",
-      "label": "username/password query",
-      "sha256": "4ff8478993546546a3e33eec616422b66d6071cc6366f9a4b37aad12c84bff99",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/account_playback_proxy.rs",
-      "label": "address with a password",
-      "sha256": "a908675d7903e61a4c96ef060d9e3459818551f801a5706bc753a8e5a84d310d",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/account_playback_proxy.rs",
-      "label": "private network address",
-      "sha256": "624ebe3b91584311ca7bd523760a8c321048d2004d8274a2630a90eb0e5d5a31",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/account_playback_proxy.rs",
-      "label": "address with a password",
-      "sha256": "12ad556df132e2aee6e966e3b29b9319bec768f194d846b45cf96ccd3b748be6",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/account_vod.rs",
-      "label": "username/password query",
-      "sha256": "223a111f7e0075e3f60d7addb9f13d68f44bdfe40e57247e0e3b7322b1531c0d",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/account_vod.rs",
-      "label": "username/password query",
-      "sha256": "22711e22e9b1c886ae4ae9205fe576593221653c6771586444b925ec4580508d",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/archive_download_transfer.rs",
-      "label": "private network address",
-      "sha256": "97c85c8a60b67232c6dd9de84839668f4466ceab6d9a86510417b8bdc47f7ae9",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/archive_playback_proxy.rs",
-      "label": "address with a password",
-      "sha256": "9c85eb21b68ee900a16a55f719aabbbd34c2db185f548fb8b6c9ce2a8d0a3bd5",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/archive_playback_proxy.rs",
-      "label": "private network address",
-      "sha256": "b42dd992008bad3b4bf7d847bb1e0a832d6ef93f310561605309c33432f1f638",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/archive_playback_proxy.rs",
-      "label": "private network address",
-      "sha256": "460fc4c3d9c8c4635ccf53f62d6e74094ba9636a17e056e2f283e4c227986b6f",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/archive_provider_commons.rs",
-      "label": "address with a password",
-      "sha256": "bd2e2966c29aed32b2151bab7f52f0c4a01e1dc77b7826513988b6f6e18ef762",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/archive_provider_net.rs",
-      "label": "address with a password",
-      "sha256": "dea3b411d5ca60274de20d9c2d264ac670ea19b0215c3d0849dc178e983c51c7",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/archive_provider_net.rs",
-      "label": "address with a password",
-      "sha256": "a611eb3bcaa95d3d81b42c04e107f7ec5e609d8780144c5613044eb992015a4a",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/casting/chromecast.rs",
-      "label": "private network address",
-      "sha256": "e36baa8f0a36ed6a42d361fbf1fd34d10fdea1f7e32e35ea202c26051792543f",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/casting/discovery.rs",
-      "label": "private network address",
-      "sha256": "821f3b038619bc16f7a55595611448a3d3a3a32779c89e1084988ba938d0c91b",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/casting/discovery.rs",
-      "label": "private network address",
-      "sha256": "a16b3ba9ad5c3a584553679e315209b805d4a33a78bb61f4a1655553607ff0bd",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/casting/discovery.rs",
-      "label": "private network address",
-      "sha256": "a7bef9bdb399a51c60850f2508e646f1d9b4caa929e8b829566428bac6cb1535",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/casting/discovery.rs",
-      "label": "private network address",
-      "sha256": "6d8dda2d7035016817201fb612c25d6a8922a7d0aab5ac7de3925460d476ce09",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/casting/discovery.rs",
-      "label": "private network address",
-      "sha256": "e305bc69c039f9be0c8dea213f7d17f32749c0994cd057bf4c189b14727993d9",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/casting/dlna.rs",
-      "label": "private network address",
-      "sha256": "92a915fa2c7b1b7836527fa56a5483cfd3966d9c068b0552d541a7eae04c3e9c",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/casting/dlna.rs",
-      "label": "private network address",
-      "sha256": "7eeaaed51b9274dcc487b45d7d226ad3af2f04c049a00bfffb10a3a5dc919738",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/casting/mod.rs",
-      "label": "address with a password",
-      "sha256": "d99167af4f5a7c9c8a148a59edf363439c20bb972fb6ff3d8bab318c993510cb",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/casting/mod.rs",
-      "label": "private network address",
-      "sha256": "ba266056775ce52a02870bb303411ead4bc3b7e6b4d9236d87486d1e0bf29385",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/casting/mod.rs",
-      "label": "private network address",
-      "sha256": "42c6d43d3118d7a3cf62f8eface323c597d2c5bd5cc5e1c2a83f6bd555238e52",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/casting/mod.rs",
-      "label": "private network address",
-      "sha256": "aebe0e84b66c91cb3adb3a44fb010ec1ea8be3e49fd50f055bda7fda6bbcdf8a",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/casting/network_scope.rs",
-      "label": "private network address",
-      "sha256": "0958a9eb1d035b16f301612b49c6f9001fb042636ac0153496b765fca807d27f",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/casting/network_scope.rs",
-      "label": "private network address",
-      "sha256": "3acc6e337a42c6303e00357c6869d0bbafe93b136caf48b11c94054a97ca102e",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/casting/network_scope.rs",
-      "label": "private network address",
-      "sha256": "7ed96668563236b22aac40c0dc50df3d53521daa433fb48295775f9d667e246b",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/casting/receiver_relay_tests.rs",
-      "label": "private network address",
-      "sha256": "c4bdb0725600ad5180fd83222ed8e11de6c167afaa34c20d49640b32366793d2",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/casting/receiver_relay_tests.rs",
-      "label": "private network address",
-      "sha256": "d84cc3f353bf8b2795f16d3586c85fe5d5934d5b24e5458f7996232dcfdfefeb",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/casting/receiver_relay_tests.rs",
-      "label": "address with a password",
-      "sha256": "4f7691fbf8bc63dc72421dc435454e25cb8415fcbc6c7f63d2976be05d256aa8",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/casting/receiver_relay_tests.rs",
-      "label": "private network address",
-      "sha256": "c42ea2a98c4dc1e8e228525adf0d49d61e4e1619209bb837bead2fe8c7491929",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/casting/receiver_relay_tests.rs",
-      "label": "address with a password",
-      "sha256": "e1019a4ee40478eae8fd7793c97e22772f8c4f0c0b099e19eed4de190b76a503",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/channel_logos.rs",
-      "label": "address with a password",
-      "sha256": "01548d3995d9a80450087a49b25cdbc0d81ab507747b4d55d13b32a45482ce0d",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/discovery_unavailable.rs",
-      "label": "address with a password",
-      "sha256": "99a3d5ef060c9cef6afc6d30065b61c15280d50b9b72b00593b967829d045a2e",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/health_storage_tests.rs",
-      "label": "address with a password",
-      "sha256": "3299727e686834a55a2fda5de4f43e149ebe1f1d04edab992e3e10e1592eb9d6",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/local_favorites.rs",
-      "label": "address with a password",
-      "sha256": "ac76684dd6e4af5540269b5fe56c16ef014e07bebe70f3a4a694e393d12da186",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/local_streams_tests.rs",
-      "label": "address with a password",
-      "sha256": "15d6dc1368fe15530e9d188f968358c255c4da90722779ae8c96819af31251ca",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/native_live.rs",
-      "label": "private network address",
-      "sha256": "aa15d6279067137e6775f70d802da105f08b8d110d94c1e6a3860704b03c025f",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/native_sharing.rs",
-      "label": "private key",
-      "sha256": "e694e8c9deb1f3a1ec775b6012e6777b25e81867e8260ffa520b71bd0850ea1d",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/native_video.rs",
-      "label": "Xtream-style credentials",
-      "sha256": "78dbea1c29b67276bb2dbd0be670478fb15dea4ab1233224331c5466026f73d4",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/native_video.rs",
-      "label": "address with a password",
-      "sha256": "e10f04b09c9403d0a2a32df475aa01ad46723dabbb14c6540f542c2f7c54f71c",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/network.rs",
-      "label": "address with a password",
-      "sha256": "c549f04f8f74481bc95a0a36e5b252d12f1dbeeebf41ee58254ae2ed73b7f069",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/network.rs",
-      "label": "address with a password",
-      "sha256": "9bac810562860a2d75ca87decde84ff9f5b482a64f6a64904108c96a2c2f5988",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/network.rs",
-      "label": "address with a password",
-      "sha256": "cc1bc40e54d66d1311c41ef5e5bfc5e2cf2d81fc5a9b84f8120a8782b7df4eef",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/preference_extensions_tests.rs",
-      "label": "address with a password",
-      "sha256": "d6a510e0e56d8c870012fe13572def774ea5c2a177b19f3339af117df0d48ac4",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/scan_candidate_manifest_tests.rs",
-      "label": "address with a password",
-      "sha256": "485d1517d42b1ab5daf193d855c44840acfabc576b440cf792a04deff0b59599",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/scan_checkpoint_tests.rs",
-      "label": "address with a password",
-      "sha256": "d46c867f7941682b8cb6a4979490cf65a03257f3414ccf0946f10a2363fa200b",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/scan_manifest_origin_directory_tests.rs",
-      "label": "address with a password",
-      "sha256": "172ff8628f89a4555807ccb3fb08e5dc515e068421f57cae40007504ab332aa2",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/sharing_policy.rs",
-      "label": "private network address",
-      "sha256": "0a1612e39175328534d1271aa99029022edce6d07106e80fa03be061acbad8e8",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/sharing_policy.rs",
-      "label": "private network address",
-      "sha256": "6431e5ef1c6e5a4643b76f78f274ec60f88b60447f0f2821e3955be9bdc876c4",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
-      "file": "src-tauri/src/source_directory_tests.rs",
-      "label": "address with a password",
-      "sha256": "29ea5d2098ca9d8012792897c6a1d40acaf364f2ea91901b6a3492e5bf9ea002",
-      "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
-    },
-    {
       "file": "tests/application/account-vod.test.ts",
       "label": "address with a password",
       "sha256": "7a6416c45c0310d12ac34171878f848692edd2a9dbb69021d563f54ff7ebcbb6",
@@ -645,141 +309,351 @@
       "reason": "reviewed 2026-10-23: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
     },
     {
-      "file": "src-tauri/src/account_playback_proxy.rs",
-      "label": "private network address",
-      "sha256": "a5ac6d81ab05b45d8a09b55d250120c4d290847572abef82fdc53735703c4818",
-      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
-    },
-    {
-      "file": "src-tauri/src/account_playback_proxy.rs",
-      "label": "address with a password",
-      "sha256": "79b50e716f585f48338b8028e1223d711aa23ee2f0b04ea4a23263d4e500e66b",
-      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
-    },
-    {
-      "file": "src-tauri/src/archive_download_transfer_tests.rs",
-      "label": "private network address",
-      "sha256": "798746d5eda3a855682fe6dafc7f662d1793662ff7570b737ab99b41cdd0916d",
-      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
-    },
-    {
-      "file": "src-tauri/src/archive_playback_proxy_tests.rs",
-      "label": "address with a password",
-      "sha256": "2076681d63d638fc05b747460cdaa04b96ee719bfc75a303121e122f775ee3de",
-      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
-    },
-    {
-      "file": "src-tauri/src/archive_playback_proxy_tests.rs",
-      "label": "private network address",
-      "sha256": "d3474886b20203a26851f9d903a7482558d68ad776c8ee0897d166a5476ab30f",
-      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
-    },
-    {
-      "file": "src-tauri/src/archive_playback_proxy_tests.rs",
-      "label": "private network address",
-      "sha256": "9cfdccc2b2817a0c7a1ebee6812cc534efd40bbda348342cc11095ad16193a22",
-      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
-    },
-    {
-      "file": "src-tauri/src/casting/tests.rs",
-      "label": "address with a password",
-      "sha256": "05afb5d5b86a4fffb1e743304f68686a8a9af5b23f6aaa8626731502df9f09e9",
-      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
-    },
-    {
-      "file": "src-tauri/src/casting/tests.rs",
-      "label": "private network address",
-      "sha256": "d0f03a2445e4253bd720cae28c5a66c47f4f7c406e8c4f92445eb5c85f6c5a91",
-      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
-    },
-    {
-      "file": "src-tauri/src/casting/tests.rs",
-      "label": "private network address",
-      "sha256": "71227e72400c41ba880a5977bbd2ffd69a3df798bea0d23126320feb49490001",
-      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
-    },
-    {
-      "file": "src-tauri/src/casting/tests.rs",
-      "label": "private network address",
-      "sha256": "8c51b8eaa190c7723cb19c73dff54c907e4fae67d1dbc93bc4c260207acfda44",
-      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
-    },
-    {
-      "file": "src-tauri/src/network_tests.rs",
-      "label": "address with a password",
-      "sha256": "70444d7887b641f2975ab02587190cdb078d858edbfcc008c8d8a29745bd9335",
-      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
-    },
-    {
-      "file": "src-tauri/src/network_tests.rs",
-      "label": "address with a password",
-      "sha256": "82568e2ab58ba95e369bec35ff93e7900df752bdb26166e15189de92685f06e4",
-      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
-    },
-    {
-      "file": "src-tauri/src/network_tests.rs",
-      "label": "address with a password",
-      "sha256": "7a2bd81500c29724e73502227983b6eb7af5c4a70cb21c62ae140bc7003668a5",
-      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
-    },
-    {
-      "file": "src-tauri/src/account_playback_proxy/proxy_tests.rs",
-      "label": "private network address",
-      "sha256": "e3a6029b99ea06f4a409610d4ebe04e0e1e074a510cad4afb0f50f44824351f7",
-      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
-    },
-    {
-      "file": "src-tauri/src/account_playback_proxy/proxy_tests.rs",
-      "label": "address with a password",
-      "sha256": "c5a6831a5a12221b3b8ad7d72a29a66ddfb86a47409690b9133369581ad2f8a4",
-      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
-    },
-    {
-      "file": "src-tauri/src/account_playback_proxy/proxy_tests.rs",
-      "label": "private network address",
-      "sha256": "e1ae22bd3dbd0cd709d1dd0e60c8e75d11c7bc2a97530555a1891e4319adc87c",
-      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
-    },
-    {
-      "file": "src-tauri/src/account_playback_proxy/proxy_tests.rs",
-      "label": "address with a password",
-      "sha256": "1c2f142726550cc899773668b5e1a76cae742b0797b1394c78d5aca4f50048a9",
-      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
-    },
-    {
-      "file": "src-tauri/src/account_acquisition/acquisition_tests.rs",
-      "label": "username/password query",
-      "sha256": "f943c7fd30da66cf038283a7becf7f3811e5b32c96c8a1eef0472a6937a180c8",
-      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
-    },
-    {
-      "file": "src-tauri/src/account_acquisition/acquisition_tests.rs",
-      "label": "private network address",
-      "sha256": "0946a4084092f684b2f783f69423ebc5a2035defd22e77d730e9fb0f7ac6b4a2",
-      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
-    },
-    {
-      "file": "src-tauri/src/account_acquisition/acquisition_tests.rs",
-      "label": "address with a password",
-      "sha256": "a0fa1815b231ab20ceab9c71824504611b2d6dfc25d5f255551d153be524d363",
-      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
-    },
-    {
-      "file": "src-tauri/src/account_acquisition/acquisition_tests.rs",
-      "label": "username/password query",
-      "sha256": "73298095e9bee1c158864ec2f29c872e484deeb74a852b918fd0539357161a3b",
-      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
-    },
-    {
-      "file": "src-tauri/src/account_acquisition/acquisition_tests.rs",
-      "label": "username/password query",
-      "sha256": "7e8b6cb717504df9671281e21992d379db9ea8bb1ed17c72bbdaa79f4c138de9",
-      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
-    },
-    {
       "file": "tests/playback/browser-engine-sources.test.ts",
       "label": "address with a password",
       "sha256": "bfe8319254d6106e50eea75cf049eb25251e2a8206b5c20e14881c63ff27eb7b",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/accounts/account_acquisition/acquisition_tests.rs",
+      "label": "username/password query",
+      "sha256": "704feedf2684d24d1f09fb1a741391665d4244ca180195f419a53828c6092164",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/accounts/account_acquisition/acquisition_tests.rs",
+      "label": "private network address",
+      "sha256": "a9c84d0510498dcefb420136b12ec93b9c4af0bb936e2da44bd84ebc65e62a05",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/accounts/account_acquisition/acquisition_tests.rs",
+      "label": "address with a password",
+      "sha256": "2c75d89b4ed6bedfe572985e563fc38c7fda613ef16ef58ac862720d11fc8ccc",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/accounts/account_acquisition/acquisition_tests.rs",
+      "label": "username/password query",
+      "sha256": "6ee6fa29204e1aea3982acae9e780fe07124ff910af43c8108a00819bed20419",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/accounts/account_acquisition/acquisition_tests.rs",
+      "label": "username/password query",
+      "sha256": "a8a4f9bbabdf1e30ed96b503a1857bbd2179b1bb7b058d308af1cc2c3e39ff06",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/accounts/account_playback_proxy/proxy_tests.rs",
+      "label": "private network address",
+      "sha256": "4af52a33172de23d9655bc0f95a53b40443fa91a6c1b5c4f4de55b68ece1081a",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/accounts/account_playback_proxy/proxy_tests.rs",
+      "label": "address with a password",
+      "sha256": "b980c7ffd65440e021d55d96cfa627774f9dc9d2188617d7e69610eb7213f50e",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/accounts/account_playback_proxy/proxy_tests.rs",
+      "label": "private network address",
+      "sha256": "ed51a470271ae43b51e3a70aad5324b793838c6be640b2617de9ec00bc6e8937",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/accounts/account_playback_proxy/proxy_tests.rs",
+      "label": "address with a password",
+      "sha256": "930141d2801cc45e3c9bda3d9d25b5555c438b9824497a3398c9ff4cec3e62e0",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/accounts/account_vod.rs",
+      "label": "username/password query",
+      "sha256": "9349dc79bcf9d0688e3a064299b6f74b930595be02923c6d65ffe5ae5779a12e",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/accounts/account_vod.rs",
+      "label": "username/password query",
+      "sha256": "fb9c7e5c20e9c3023740376c1ebf2063edcfeb3a678cff6100b2c7ca82b47123",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/catalog/channel_logos.rs",
+      "label": "address with a password",
+      "sha256": "5e36f6d48084155685e86d932b8d4fbbbc420ba2083d9761b69ed013cee14120",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/catalog/local_favorites.rs",
+      "label": "address with a password",
+      "sha256": "01d6985d258c6dba2c5613a70d03b0d0d1c5b34c790a1ef522c7bc0499ff492c",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/database/health_storage_tests.rs",
+      "label": "address with a password",
+      "sha256": "bb26d3867aa1d13f1ca30cb73dbf12851d8c9fe38fd4d297ca7e2c7a0878ffdf",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/database/preference_extensions_tests.rs",
+      "label": "address with a password",
+      "sha256": "f9e7887a738d6cc20bc87f891ba8a142e456afe00da9c9e758295b21e55cf635",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/database/scan_checkpoint_tests.rs",
+      "label": "address with a password",
+      "sha256": "3eac7ef6c4c0995166f1178cd36b39aadea105c4f66c920dd5e7ccc60825f6b6",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/discovery/discovery_unavailable.rs",
+      "label": "address with a password",
+      "sha256": "a11426e79edac10963ff820371e86f97e4c3b9a4413b1ff1b282015141274582",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/discovery/local_streams_tests.rs",
+      "label": "address with a password",
+      "sha256": "08c89949c514fbc75a2cdfe9247bb75feed9be77c474a9715b8b57ac5db7cf6e",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/discovery/network_tests.rs",
+      "label": "address with a password",
+      "sha256": "3a779e3db5f06118a61284224c000e15ed52209290eb4a6aa69b8cccb91a8987",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/discovery/network_tests.rs",
+      "label": "address with a password",
+      "sha256": "5e052d575413d51b71e2f4099c08104481d746cf72b44167b7aa3907d24d2f7e",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/discovery/network_tests.rs",
+      "label": "address with a password",
+      "sha256": "f1f810723b212f3f79ce39bfb73e5c94ce030740a2826aa1003273b6ac4a2c50",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/discovery/scan_candidate_manifest_tests.rs",
+      "label": "address with a password",
+      "sha256": "715e3e5f63eb4d205e95989b85149ef833d154b1c003f06e4dd4b9b42ec219f0",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/discovery/scan_manifest_origin_directory_tests.rs",
+      "label": "address with a password",
+      "sha256": "e524133ff9a30b8efa478e10c392be6895b381a21c699951fd686988a594aeaf",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/discovery/source_directory_tests.rs",
+      "label": "address with a password",
+      "sha256": "100c6a30b133a485d9f99726d314e32c8836ea373d60daaff7baa2b486419c6e",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/genxtra/archive_download_transfer_tests.rs",
+      "label": "private network address",
+      "sha256": "f4e123327aada701d753cb4f162b3d2e6e2d75b504722acc62055bfa90af30b1",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/genxtra/archive_playback_proxy_tests.rs",
+      "label": "address with a password",
+      "sha256": "f2edbcceb9b67750ede4a45d4c9148ff3deee38110d7c633f7e05bf4033480e8",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/genxtra/archive_playback_proxy_tests.rs",
+      "label": "private network address",
+      "sha256": "8164c643910e0269b90fcb2aa81a8335a16ac2152b099a9c666322c8b1f79c6d",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/genxtra/archive_playback_proxy_tests.rs",
+      "label": "private network address",
+      "sha256": "fdd39e7075982a4e34b297dfab2f5b0b9851d10f71f9c8e49f43c442d952c2e6",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/genxtra/archive_provider_commons.rs",
+      "label": "address with a password",
+      "sha256": "bee4b44db2e8bd161086434a89fd376a53e0b5b4ce6f61e078c200068e9bcef6",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/genxtra/archive_provider_net.rs",
+      "label": "address with a password",
+      "sha256": "5f1f1a235de07b8dccccb1e9974ea3e0096b2631d7960bd30275bd4eea4ec730",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/genxtra/archive_provider_net.rs",
+      "label": "address with a password",
+      "sha256": "7dc2fadeab26b5d3b21e83b4e476b1b4e67e9aa45d526655b7a39787501c63d2",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/playback/native_live.rs",
+      "label": "private network address",
+      "sha256": "2a2cc01aae323108b5b1a6ea562ac0c3c69623e1566cc424eb723f263a568698",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/playback/native_video.rs",
+      "label": "Xtream-style credentials",
+      "sha256": "a98ab26464d4453bca9608227f564bb7c148f396974f85801f95d5947ba2d105",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/playback/native_video.rs",
+      "label": "address with a password",
+      "sha256": "ba824d9c72a47fab8b3fc534822103206c4b0f40ca2ac8af8d3b4ef08aa002c2",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/sharing/casting/chromecast.rs",
+      "label": "private network address",
+      "sha256": "c4e4b1da9c96f24c0f104f56f2801a1773174d521188ab60b3d1405cfa5cf393",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/sharing/casting/discovery.rs",
+      "label": "private network address",
+      "sha256": "771a6b30fd64423dacea88d0a29f79bcbd52c2a9b31343afce471bfe4f795a09",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/sharing/casting/discovery.rs",
+      "label": "private network address",
+      "sha256": "ca68ecbccd3a8c3dca6c279107328e2efa40e090b3fca6ec1bc319580f13f828",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/sharing/casting/discovery.rs",
+      "label": "private network address",
+      "sha256": "f471662d3fb4c76223fa2a9b909ea825caa0aae9bde8a728c8646f0e831b8ec9",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/sharing/casting/discovery.rs",
+      "label": "private network address",
+      "sha256": "b96bbec2b3fd8826f4e8e4589293d6cc91448ad399074a50ed14217a9aaa9f38",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/sharing/casting/discovery.rs",
+      "label": "private network address",
+      "sha256": "2d63c90815fa142086bef41624aadbb6db28d94a8d3b50257761065bdbd35e6f",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/sharing/casting/dlna.rs",
+      "label": "private network address",
+      "sha256": "df76728a23aa8a67ae0186052d1a0fba15998f92395991ad8d1fa0f5b7758c1e",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/sharing/casting/dlna.rs",
+      "label": "private network address",
+      "sha256": "84faa9fab383eea3a76f8e9d1ec9270962f71fe05ca9887b7d205acd7afa0c73",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/sharing/casting/network_scope.rs",
+      "label": "private network address",
+      "sha256": "26ff55e5a20f6f52b91594e557abe24ad4ecf8a5103702942b8a79db45f2506b",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/sharing/casting/network_scope.rs",
+      "label": "private network address",
+      "sha256": "277ec21118e75edeab064bb92b3ebeb0c09a7125c9a295509e94ed21b55ec360",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/sharing/casting/network_scope.rs",
+      "label": "private network address",
+      "sha256": "8623f0138b4eea2f0e5c3dd1fc6c04df49cebf17beb2f0b5c5d23012efd99f0b",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/sharing/casting/receiver_relay_tests.rs",
+      "label": "private network address",
+      "sha256": "8c167819c8d2831c897357fb0e2f887b576d318d4ad0cb6deedb7c46965284e2",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/sharing/casting/receiver_relay_tests.rs",
+      "label": "private network address",
+      "sha256": "3ffcb5f82f90f35a20cfeb7f9cda34674f87577ee440fd81c383f465e148441f",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/sharing/casting/receiver_relay_tests.rs",
+      "label": "address with a password",
+      "sha256": "31434026295a5f102194e5c01573dcea530371b9dfa81df432e95c5e01c4720c",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/sharing/casting/receiver_relay_tests.rs",
+      "label": "private network address",
+      "sha256": "4708a999d84d80c11112ff581c3539b8c7e4edce34aa3f064122d74d083e0e47",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/sharing/casting/receiver_relay_tests.rs",
+      "label": "address with a password",
+      "sha256": "78f93b0d1398658aa0d7e287747890983f9824c090e0b9508635f1a6f66426ba",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/sharing/casting/tests.rs",
+      "label": "address with a password",
+      "sha256": "3649b374a92da7d3f28bfc9c95a22c7eaa0be745c4a56963e357dbc3666e8aa4",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/sharing/casting/tests.rs",
+      "label": "private network address",
+      "sha256": "dd57012e04ffdaec5c2983cb8ca16fa828d61ed88818cb4d2a49f2535f48d678",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/sharing/casting/tests.rs",
+      "label": "private network address",
+      "sha256": "7e4cced47312f00b31c157befdab04caf6b51ea5c39e3aa0a2a3d8f8e49d6735",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/sharing/casting/tests.rs",
+      "label": "private network address",
+      "sha256": "3bd8cf17b877a3efd619ca56d3cddfbcca376f90156084bae89732c5ef52a901",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/sharing/native_sharing.rs",
+      "label": "private key",
+      "sha256": "963c6b910a6680e2eec2d0318905845ddff1422e6048108a4623c8f7070ff9b2",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/sharing/sharing_policy.rs",
+      "label": "private network address",
+      "sha256": "02b41d091004ff5b9d5339dbe5074cc343e2a2f86bff4aff629231a8b7894d22",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/sharing/sharing_policy.rs",
+      "label": "private network address",
+      "sha256": "3f1967c3e1b72fbc7133027b8d0be4520b1af272c874c499333463b8d3bb7dad",
       "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
     }
   ]

@@ -25,8 +25,8 @@ fn assets() -> Value {
 #[test]
 fn nasa_actual_apollo_pages_preserve_space_and_unicode_ids() {
     for raw in [
-        include_str!("../../tests/fixtures/native/archive-nasa/apollo-search-page-1.json"),
-        include_str!("../../tests/fixtures/native/archive-nasa/apollo-search-page-2.json"),
+        include_str!("../../../tests/fixtures/native/archive-nasa/apollo-search-page-1.json"),
+        include_str!("../../../tests/fixtures/native/archive-nasa/apollo-search-page-2.json"),
     ] {
         let document: Value = serde_json::from_str(raw).unwrap();
         let page = parse_search(&document).unwrap();
@@ -55,11 +55,11 @@ fn nasa_actual_apollo_pages_preserve_space_and_unicode_ids() {
 #[test]
 fn nasa_actual_space_id_manifest_retains_exact_variants_and_refresh_identity() {
     let search: Value = serde_json::from_str(include_str!(
-        "../../tests/fixtures/native/archive-nasa/apollo-search-page-2.json"
+        "../../../tests/fixtures/native/archive-nasa/apollo-search-page-2.json"
     ))
     .unwrap();
     let assets: Value = serde_json::from_str(include_str!(
-        "../../tests/fixtures/native/archive-nasa/apollo-page-2-first-assets.json"
+        "../../../tests/fixtures/native/archive-nasa/apollo-page-2-first-assets.json"
     ))
     .unwrap();
     let page = parse_search(&search).unwrap();
@@ -167,14 +167,14 @@ fn nasa_expanded_ids_do_not_grant_path_or_authority_injection() {
 #[test]
 fn nasa_observed_official_search_and_manifest_validate_without_master_claims() {
     let search: Value = serde_json::from_str(include_str!(
-        "../../tests/fixtures/archive-providers/nasa-search.json"
+        "../../../tests/fixtures/archive-providers/nasa-search.json"
     ))
     .unwrap();
     let page = parse_search(&search).unwrap();
     assert_eq!(page.hits.len(), 2);
     assert_eq!(page.next_cursor.as_deref(), Some("2"));
     let assets: Value = serde_json::from_str(include_str!(
-        "../../tests/fixtures/archive-providers/nasa-assets.json"
+        "../../../tests/fixtures/archive-providers/nasa-assets.json"
     ))
     .unwrap();
     let item = parse_item(
@@ -270,11 +270,11 @@ fn nasa_invalid_creation_date_is_unknown() {
 #[test]
 fn nasa_actual_vintage_footage_created_in_2021_has_unknown_release() {
     let search: Value = serde_json::from_str(include_str!(
-        "../../tests/fixtures/native/archive-nasa/apollo-search-page-2.json"
+        "../../../tests/fixtures/native/archive-nasa/apollo-search-page-2.json"
     ))
     .unwrap();
     let assets: Value = serde_json::from_str(include_str!(
-        "../../tests/fixtures/native/archive-nasa/apollo-page-2-first-assets.json"
+        "../../../tests/fixtures/native/archive-nasa/apollo-page-2-first-assets.json"
     ))
     .unwrap();
     let hit = &parse_search(&search).unwrap().hits[0];

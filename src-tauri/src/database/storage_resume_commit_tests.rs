@@ -466,8 +466,10 @@ fn stale_revisions_root_policy_and_forged_original_metadata_refuse_without_ack()
 }
 #[test]
 fn actual_ts_oracle_publication_through_sql_core() {
-    let oracle: Value =
-        serde_json::from_str(include_str!("scan_resume_reconcile_oracle.json")).unwrap();
+    let oracle: Value = serde_json::from_str(include_str!(
+        "../discovery/scan_resume_reconcile_oracle.json"
+    ))
+    .unwrap();
     let case = &oracle["cases"][0];
     let candidates = case["selected"]
         .as_array()

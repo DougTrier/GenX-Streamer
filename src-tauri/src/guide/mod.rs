@@ -33,3 +33,6 @@ pub(crate) mod provisional;
 pub(crate) mod retention;
 
 pub(crate) mod mapping_admission;
+
+// The app's guide commands: previews, saving, queries and automatic refresh.
+pub(crate) mod native_guide;

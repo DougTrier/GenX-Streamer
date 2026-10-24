@@ -2,7 +2,7 @@
 
 > Public copy. Evidence paths (`artifacts/...`) and linked internal reports are kept in the project's private archive; the measurements and decisions are summarised here.
 
-October 18, 2026. Local's station pages and Websites tab show arbitrary websites inside GenX on Android TV (`WebPagePlugin.kt`) and Windows (`src-tauri/src/web_page.rs`, a WebView2 child webview). Every page is treated as hostile: it may be written to trap the remote, take over the screen, spam prompts, exhaust memory, phish, or reach GenX itself, and a user may follow links across many such sites in a row. These invariants extend the existing registers (the original playback/catalog/sharing invariants, C01–C08 casting, G01–G08 guide); they do not renumber them.
+October 18, 2026. Local's station pages and Websites tab show arbitrary websites inside GenX on Android TV (`WebPagePlugin.kt`) and Windows (`src-tauri/src/browser/web_page.rs`, a WebView2 child webview). Every page is treated as hostile: it may be written to trap the remote, take over the screen, spam prompts, exhaust memory, phish, or reach GenX itself, and a user may follow links across many such sites in a row. These invariants extend the existing registers (the original playback/catalog/sharing invariants, C01–C08 casting, G01–G08 guide); they do not renumber them.
 
 Status: **Enforced** (implemented and verified as stated), **Partial** (implemented, with a stated residual risk), **Gap** (known, not yet closed).
 

@@ -616,7 +616,7 @@ async fn actual_tls_eight_parallel_bootstrap_clients_get_all_bundled_assets_with
         ("/viewer.js", include_bytes!("viewer.js").as_slice()),
         (
             "/hls.js",
-            include_bytes!("../../../node_modules/hls.js/dist/hls.min.js").as_slice(),
+            include_bytes!("../../../../node_modules/hls.js/dist/hls.min.js").as_slice(),
         ),
     ];
     let mut clients = tokio::task::JoinSet::new();

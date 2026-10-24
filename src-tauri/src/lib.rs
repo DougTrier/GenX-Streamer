@@ -12,127 +12,127 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-mod account_acquisition;
-mod account_catalog_owner;
-mod account_catalog_query;
-mod account_guide;
-mod account_guide_owner;
-mod account_media_store;
-mod account_playback_owner;
-mod account_playback_proxy;
-mod account_preferences;
-mod account_vault;
-mod account_vault_owner;
-mod account_vod;
+// The native layer by component (see ARCHITECTURE.md): each folder's mod.rs
+// says what the component is. Its modules are re-exported below under their
+// old names, so code anywhere in the crate refers to them as crate::<module>.
+mod accounts;
+mod browser;
+mod catalog;
+mod database;
+mod discovery;
+mod genxtra;
+mod platform;
+mod playback;
+mod sharing;
+use accounts::account_acquisition;
+use accounts::account_catalog_owner;
+use accounts::account_catalog_query;
+use accounts::account_guide;
+use accounts::account_guide_owner;
+use accounts::account_media_store;
+use accounts::account_playback_owner;
+use accounts::account_playback_proxy;
+use accounts::account_preferences;
+use accounts::account_vault;
+use accounts::account_vault_owner;
+use accounts::account_vod;
+use catalog::catalog_endpoint_projection;
+use catalog::catalog_group_mutation;
+use catalog::catalog_query;
+use catalog::channel_logos;
+use genxtra::archive_artwork;
+use genxtra::archive_bookmarks;
+use genxtra::archive_catalog;
+use genxtra::archive_date_assessment;
+use genxtra::archive_discovery;
+use genxtra::archive_download_owner;
+use genxtra::archive_download_store;
+use genxtra::archive_download_transfer;
+use genxtra::archive_library_store;
+use genxtra::archive_playback_owner;
+use genxtra::archive_playback_proxy;
+use genxtra::archive_provider_catalog;
+use genxtra::archive_provider_commons;
+use genxtra::archive_provider_contract;
+use genxtra::archive_provider_discovery;
+use genxtra::archive_provider_loc;
+use genxtra::archive_provider_nasa;
+use genxtra::archive_provider_net;
+use genxtra::archive_provider_probe;
+// Its callers are Android-only; the Windows test build compiles it inside platform.
+#[cfg(target_os = "android")]
+use platform::android_manifest_protector;
 #[cfg(any(target_os = "android", test))]
-#[cfg_attr(
-    all(test, not(target_os = "android")),
-    allow(
-        dead_code,
-        reason = "Compile Android envelope tests on the Windows test host; production callers are Android-only."
-    )
-)]
-mod android_manifest_protector;
-#[cfg(any(target_os = "android", test))]
-mod android_task_finish;
-mod archive_artwork;
-mod archive_bookmarks;
-mod archive_catalog;
-mod archive_date_assessment;
-mod archive_discovery;
-mod archive_download_owner;
-mod archive_download_store;
-mod archive_download_transfer;
-mod archive_library_store;
-mod archive_playback_owner;
-mod archive_playback_proxy;
-mod archive_provider_catalog;
-mod archive_provider_commons;
-mod archive_provider_contract;
-mod archive_provider_discovery;
-mod archive_provider_loc;
-mod archive_provider_nasa;
-mod archive_provider_net;
-mod archive_provider_probe;
-pub mod casting;
-mod catalog_endpoint_projection;
-mod catalog_group_mutation;
-mod catalog_query;
-mod channel_logos;
-mod close_owner;
+use platform::android_task_finish;
+use platform::close_owner;
+pub use sharing::casting;
 mod commands;
-mod device_capabilities;
-mod diagnostics;
-mod discovery_input;
-mod discovery_unavailable;
-mod donation;
-mod group_country;
+use accounts::group_country;
+use browser::donation;
+use discovery::discovery_input;
+use discovery::discovery_unavailable;
+use platform::device_capabilities;
+use platform::diagnostics;
 pub mod guide;
-mod health_storage;
-pub mod lan;
+use catalog::health_storage;
+pub use sharing::lan;
 mod lifecycle;
-mod local_favorites;
-mod local_streams;
-mod native_catalog;
-#[cfg(any(target_os = "android", test))]
-mod native_debug_stages;
-mod native_guide;
-mod native_live;
-mod native_sharing;
-mod native_shutdown;
-mod native_speech;
-mod native_video;
-mod network;
-mod network_media_probe;
-pub mod relay;
-#[cfg(test)]
-mod renderer_loss;
-mod renderer_recovery;
-mod requests;
-mod scan_batch;
-mod scan_candidate_manifest;
-mod scan_checkpoint;
-mod scan_checkpoint_summary;
-mod scan_manifest_work;
-mod scan_resume_commit_owner;
-mod scan_resume_owner;
-mod scan_resume_probe;
-mod scan_resume_projection;
-mod scan_resume_reconcile;
-mod scan_resume_registry;
-mod scan_resume_release;
-mod scan_resume_runtime;
-mod scan_resume_take;
-mod scan_window;
-mod series_identity;
-pub mod sharing_policy;
-mod source_directory;
-mod source_snapshot_activation_owner;
-mod startup_milestones;
-mod storage;
-#[allow(
-    dead_code,
-    reason = "Experimental chunk recovery format remains unwired until durability and fault verification."
-)]
-mod storage_backup_chunks;
-mod storage_backup_policy;
-mod storage_budget;
-mod storage_leases;
+use catalog::local_favorites;
+use catalog::native_catalog;
+use catalog::series_identity;
+use discovery::local_streams;
+use discovery::network;
+use discovery::network_media_probe;
+use discovery::scan_batch;
+use discovery::scan_candidate_manifest;
+use discovery::scan_checkpoint;
+use discovery::scan_checkpoint_summary;
+use discovery::scan_manifest_work;
+use discovery::scan_resume_commit_owner;
+use discovery::scan_resume_owner;
+use discovery::scan_resume_probe;
+use discovery::scan_resume_projection;
+use discovery::scan_resume_reconcile;
+use discovery::scan_resume_registry;
+use discovery::scan_resume_release;
+use discovery::scan_resume_runtime;
+use discovery::scan_resume_take;
+use discovery::scan_window;
+use discovery::source_directory;
+use discovery::source_snapshot_activation_owner;
+use guide::native_guide;
+// Its callers are Android-only.
+use database::storage;
+use database::storage_backup_policy;
+use database::storage_budget;
+use database::storage_leases;
 #[cfg(windows)]
-mod storage_recovery;
-mod storage_startup;
-mod storage_timings;
-mod storage_transaction;
+use database::storage_recovery;
+use database::storage_startup;
+use database::storage_timings;
+use database::storage_transaction;
+#[cfg(target_os = "android")]
+use platform::native_debug_stages;
+use platform::native_shutdown;
+use platform::native_speech;
+use platform::renderer_recovery;
+use platform::requests;
+use platform::startup_milestones;
+use playback::native_live;
+use playback::native_video;
+use sharing::native_sharing;
+pub use sharing::relay;
+pub use sharing::sharing_policy;
 pub mod trier_video;
-mod ts_align;
-mod viewing_settings;
-mod viewing_wake;
-mod vpn_status;
-mod web_page;
+use browser::web_page;
+use platform::vpn_status;
 #[cfg(windows)]
-mod windows_manifest_protector;
+use platform::windows_manifest_protector;
 #[cfg(windows)]
-mod windows_speech;
+use platform::windows_speech;
+use playback::ts_align;
+use playback::viewing_settings;
+use playback::viewing_wake;
 
 use serde::Serialize;
 use std::sync::{
@@ -547,4 +547,4 @@ pub fn run() {
         .expect("GenX Streamer could not initialize its native application runtime");
 }
 
-mod refresh_cadence;
+use catalog::refresh_cadence;

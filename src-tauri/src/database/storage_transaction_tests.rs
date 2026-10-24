@@ -641,7 +641,7 @@ fn actual_process_kill_preserves_atomic_revision() {
             std::process::Command::new(std::env::current_exe().unwrap())
                 .args([
                     "--exact",
-                    "storage_transaction::tests::actual_process_kill_preserves_atomic_revision",
+                    "database::storage_transaction::tests::actual_process_kill_preserves_atomic_revision",
                     "--nocapture",
                 ])
                 .env(CHILD_ROOT, root.path())

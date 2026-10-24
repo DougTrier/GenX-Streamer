@@ -621,11 +621,15 @@ async fn playback_invalid_tls_certificate_has_typed_tls_failure_without_trust_by
     .with_no_client_auth()
     .with_single_cert(
         vec![
-            CertificateDer::from(include_bytes!("lan/fixtures/loopback-cert.der").to_vec()),
-            CertificateDer::from(include_bytes!("lan/fixtures/loopback-root.der").to_vec()),
+            CertificateDer::from(
+                include_bytes!("../sharing/lan/fixtures/loopback-cert.der").to_vec(),
+            ),
+            CertificateDer::from(
+                include_bytes!("../sharing/lan/fixtures/loopback-root.der").to_vec(),
+            ),
         ],
         PrivateKeyDer::Pkcs8(PrivatePkcs8KeyDer::from(
-            include_bytes!("lan/fixtures/loopback-key.der").to_vec(),
+            include_bytes!("../sharing/lan/fixtures/loopback-key.der").to_vec(),
         )),
     )
     .unwrap();

@@ -293,7 +293,7 @@ fn archive_handoff_other_process_cannot_recover_while_initialization_locked() {
     let output = std::process::Command::new(std::env::current_exe().unwrap())
         .args([
             "--exact",
-            "storage_transaction::archive_library_tests::archive_handoff_open_child",
+            "database::storage_transaction::archive_library_tests::archive_handoff_open_child",
             "--ignored",
             "--nocapture",
         ])

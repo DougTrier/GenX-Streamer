@@ -110,12 +110,12 @@ mod desktop {
     use tauri::{Manager, PhysicalPosition, PhysicalSize, WebviewUrl};
 
     const LABEL: &str = "station-page";
-    const FRAME_AGENT: &str = include_str!("../page-scripts/frame-agent.js");
-    const SHOW_VIDEO: &str = include_str!("../page-scripts/show-video.js");
-    const SHOW_PAGE: &str = include_str!("../page-scripts/show-page.js");
-    const HIDE_ADS: &str = include_str!("../page-scripts/hide-ads.js");
-    const NO_SITE_FULLSCREEN: &str = include_str!("../page-scripts/no-site-fullscreen.js");
-    const PAGE_GUARD: &str = include_str!("../page-scripts/page-guard.js");
+    const FRAME_AGENT: &str = include_str!("../../page-scripts/frame-agent.js");
+    const SHOW_VIDEO: &str = include_str!("../../page-scripts/show-video.js");
+    const SHOW_PAGE: &str = include_str!("../../page-scripts/show-page.js");
+    const HIDE_ADS: &str = include_str!("../../page-scripts/hide-ads.js");
+    const NO_SITE_FULLSCREEN: &str = include_str!("../../page-scripts/no-site-fullscreen.js");
+    const PAGE_GUARD: &str = include_str!("../../page-scripts/page-guard.js");
 
     /// The remote-command token of the open page.
     static TOKEN: Mutex<String> = Mutex::new(String::new());
@@ -268,7 +268,7 @@ mod desktop {
         }
     }
 
-    const AD_HOSTS: &str = include_str!("../page-scripts/ad-hosts.txt");
+    const AD_HOSTS: &str = include_str!("../../page-scripts/ad-hosts.txt");
 
     /// A host on the ad/tracker list, or a subdomain of one.
     pub(super) fn ad_host(host: &str) -> bool {

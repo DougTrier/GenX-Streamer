@@ -140,7 +140,7 @@ fn backup_verification_large_fixture_reports_owned_handshake_overhead_and_full_c
         let result = std::process::Command::new(std::env::current_exe().unwrap())
             .args([
                 "--exact",
-                "storage_transaction::backup_verification_tests::backup_verification_large_fixture_reports_owned_handshake_overhead_and_full_copy_phases",
+                "database::storage_transaction::backup_verification_tests::backup_verification_large_fixture_reports_owned_handshake_overhead_and_full_copy_phases",
                 "--nocapture",
             ])
             .env(CHILD, "1")

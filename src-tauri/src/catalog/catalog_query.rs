@@ -28,8 +28,8 @@ use std::{
 };
 use unicode_normalization::UnicodeNormalization;
 
-const COUNTRIES: &str = include_str!("../../src/location/countries.json");
-const SUBDIVISIONS: &str = include_str!("../../src/search/subdivisions.json");
+const COUNTRIES: &str = include_str!("../../../src/location/countries.json");
+const SUBDIVISIONS: &str = include_str!("../../../src/search/subdivisions.json");
 const RESPONSE_LIMIT: usize = 1024 * 1024;
 const CURSOR_LIMIT: usize = 256 * 1024;
 pub const QUERY_VERSION: u32 = 1;

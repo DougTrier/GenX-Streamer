@@ -90,7 +90,7 @@ const plain = track(
     response.end();
   }),
 );
-const identity = path.resolve('src-tauri/src/lan/fixtures');
+const identity = path.resolve('src-tauri/src/sharing/lan/fixtures');
 const certBytes = await readFile(path.join(identity, 'loopback-cert.der'));
 const certificate = new X509Certificate(certBytes).toString();
 const key = createPrivateKey({

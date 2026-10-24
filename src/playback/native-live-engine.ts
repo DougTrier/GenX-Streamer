@@ -18,7 +18,7 @@ import { invoke } from '@tauri-apps/api/core';
 import type { ChannelSelection, EngineEvent, PlaybackEngine } from './controller';
 import { createNativeVodEngine, type NativeEngineHost } from './native-vod-engine';
 
-/** GenX's loopback relay for a live channel (src-tauri/src/native_live.rs). */
+/** GenX's loopback relay for a live channel (src-tauri/src/playback/native_live.rs). */
 export interface NativeLiveRelay {
   open(url: string, allowHttp: boolean): Promise<{ session: number; url: string }>;
   renew(session: number): Promise<void>;

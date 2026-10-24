@@ -195,7 +195,8 @@ mod tests {
     }
     #[test]
     fn archive_artwork_observed_jpeg_and_stream_response_bounds_are_actual() {
-        let image = include_bytes!("../../tests/fixtures/archive-artwork/gilligan-item-tile.jpg");
+        let image =
+            include_bytes!("../../../tests/fixtures/archive-artwork/gilligan-item-tile.jpg");
         assert_eq!(validate(image, "image/jpeg").unwrap(), (180, 135));
         assert!(validate(image, "image/png").is_err());
         assert!(response(

@@ -21,7 +21,7 @@ import { chromium } from '@playwright/test';
 import { expect, it } from 'vitest';
 
 it('real TLS fixture accepts its explicit CA but ordinary Chromium refuses untrusted identity', async () => {
-  const path = 'src-tauri/src/lan/fixtures/';
+  const path = 'src-tauri/src/sharing/lan/fixtures/';
   const [cert, key, root] = await Promise.all(
     ['loopback-cert.der', 'loopback-key.der', 'loopback-root.der'].map((name) =>
       readFile(path + name),

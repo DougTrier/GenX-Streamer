@@ -343,9 +343,9 @@ async function attachDiagnostics(viewer, index) {
   });
   /* eslint-enable no-undef */
 }
-const certificate = await readFile('src-tauri/src/lan/fixtures/loopback-cert.der');
-const rootCertificate = await readFile('src-tauri/src/lan/fixtures/loopback-root.der');
-const key = await readFile('src-tauri/src/lan/fixtures/loopback-key.der');
+const certificate = await readFile('src-tauri/src/sharing/lan/fixtures/loopback-cert.der');
+const rootCertificate = await readFile('src-tauri/src/sharing/lan/fixtures/loopback-root.der');
+const key = await readFile('src-tauri/src/sharing/lan/fixtures/loopback-key.der');
 const pem = (label, bytes) =>
   `-----BEGIN ${label}-----\n${bytes
     .toString('base64')

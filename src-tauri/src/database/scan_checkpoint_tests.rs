@@ -581,7 +581,7 @@ fn checkpoint_real_process_kill_never_splits_publication_and_progress() {
         command
             .args([
                 "--exact",
-                "storage_transaction::scan_checkpoint_tests::checkpoint_real_process_kill_never_splits_publication_and_progress",
+                "database::storage_transaction::scan_checkpoint_tests::checkpoint_real_process_kill_never_splits_publication_and_progress",
                 "--nocapture",
             ])
             .env(CHILD, dir.path())

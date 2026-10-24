@@ -19,7 +19,7 @@ use super::*;
 #[test]
 fn archive_relevance_v9_legacy_pet_keeps_saved_records_but_not_incidental_name_results() {
     let observed: serde_json::Value = serde_json::from_str(include_str!(
-            "../../../../tests/fixtures/archive-search-metadata/Humane_Society_of_St._Lucie_County_Adopt-a-Pet_-_Gilligan.json"
+            "../../../../../tests/fixtures/archive-search-metadata/Humane_Society_of_St._Lucie_County_Adopt-a-Pet_-_Gilligan.json"
         ))
         .unwrap();
     let mut legacy = title("legacy-pet", Some(2014), 99);

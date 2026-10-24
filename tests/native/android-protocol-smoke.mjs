@@ -113,8 +113,8 @@ const pem = (kind, bytes) =>
     .join('\n')}\n-----END ${kind}-----\n`;
 const tlsServer = https.createServer(
   {
-    cert: pem('CERTIFICATE', await readFile('src-tauri/src/lan/fixtures/loopback-cert.der')),
-    key: pem('PRIVATE KEY', await readFile('src-tauri/src/lan/fixtures/loopback-key.der')),
+    cert: pem('CERTIFICATE', await readFile('src-tauri/src/sharing/lan/fixtures/loopback-cert.der')),
+    key: pem('PRIVATE KEY', await readFile('src-tauri/src/sharing/lan/fixtures/loopback-key.der')),
   },
   (_request, response) => response.end('#EXTM3U\n'),
 );

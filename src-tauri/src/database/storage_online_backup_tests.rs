@@ -380,7 +380,7 @@ fn process_kill_during_partial_copy_does_not_promote_incomplete_backup() {
         std::process::Command::new(std::env::current_exe().unwrap())
             .args([
                 "--exact",
-                "storage_transaction::online_backup_tests::process_kill_during_partial_copy_does_not_promote_incomplete_backup",
+                "database::storage_transaction::online_backup_tests::process_kill_during_partial_copy_does_not_promote_incomplete_backup",
                 "--nocapture",
             ])
             .env(ENVIRONMENT, root.path())

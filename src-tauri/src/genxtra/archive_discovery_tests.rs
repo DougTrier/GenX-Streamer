@@ -384,7 +384,7 @@ fn archive_discovery_decade_has_one_range_and_authoritative_year_guard() {
 #[test]
 fn archive_observed_h264_ia_is_admitted_by_full_and_fresh_partial_metadata_parser() {
     let value: Value = serde_json::from_str(include_str!(
-        "../../tests/fixtures/archive-search-metadata/thenewadventuresofgilligans1.json"
+        "../../../tests/fixtures/archive-search-metadata/thenewadventuresofgilligans1.json"
     ))
     .unwrap();
     let Metadata::Title(title) =
@@ -456,7 +456,7 @@ fn archive_observed_h264_ia_is_admitted_by_full_and_fresh_partial_metadata_parse
 #[test]
 fn archive_observed_plain_h264_stays_available_and_legacy_containers_are_not_guessed() {
     let data: Value = serde_json::from_str(include_str!(
-        "../../tests/fixtures/archive-search-metadata/The_Beverly_Hillbillies.json"
+        "../../../tests/fixtures/archive-search-metadata/The_Beverly_Hillbillies.json"
     ))
     .unwrap();
     let Metadata::Title(title) = parse_metadata("The_Beverly_Hillbillies", 1, data, None).unwrap()
@@ -465,7 +465,7 @@ fn archive_observed_plain_h264_stays_available_and_legacy_containers_are_not_gue
     };
     assert_eq!(title.files.len(), 3);
     let data: Value = serde_json::from_str(include_str!(
-        "../../tests/fixtures/archive-search-metadata/Popeye_forPresident.json"
+        "../../../tests/fixtures/archive-search-metadata/Popeye_forPresident.json"
     ))
     .unwrap();
     let Metadata::Title(title) = parse_metadata("Popeye_forPresident", 1, data, None).unwrap()
@@ -480,7 +480,7 @@ fn archive_observed_plain_h264_stays_available_and_legacy_containers_are_not_gue
 #[test]
 fn archive_observed_curation_uses_same_tv_claim_as_local_type_and_retains_gilligan_season() {
     let single: Value = serde_json::from_str(include_str!(
-        "../../tests/fixtures/archive-search-metadata/GilligansIsland1.00.json"
+        "../../../tests/fixtures/archive-search-metadata/GilligansIsland1.00.json"
     ))
     .unwrap();
     let Metadata::Title(title) =
@@ -499,7 +499,7 @@ fn archive_observed_curation_uses_same_tv_claim_as_local_type_and_retains_gillig
         "one known TV episode cannot consume program slot"
     );
     let season: Value = serde_json::from_str(include_str!(
-        "../../tests/fixtures/archive-search-metadata/thenewadventuresofgilligans1.json"
+        "../../../tests/fixtures/archive-search-metadata/thenewadventuresofgilligans1.json"
     ))
     .unwrap();
     let Metadata::Title(title) =
@@ -515,8 +515,8 @@ fn archive_observed_curation_uses_same_tv_claim_as_local_type_and_retains_gillig
 #[test]
 fn archive_observed_discovery_reuses_query_contradictions_without_changing_codec_proof() {
     for (id, raw, query) in [
-            ("mmtvnh-Merrimack_Middle_School_Band_-_Cartoon_Symphony_2023", include_str!("../../tests/fixtures/archive-search-metadata/mmtvnh-Merrimack_Middle_School_Band_-_Cartoon_Symphony_2023.json"), "Cartoon"),
-            ("gtv16nm-El_Camino_-_A_Breaking_Bad_Movie_An_Interview_with_Vince_Gilligan_from_the_KiMo_Theatre", include_str!("../../tests/fixtures/archive-search-metadata/gtv16nm-El_Camino_-_A_Breaking_Bad_Movie_An_Interview_with_Vince_Gilligan_from_the_KiMo_Theatre.json"), "Gilligan"),
+            ("mmtvnh-Merrimack_Middle_School_Band_-_Cartoon_Symphony_2023", include_str!("../../../tests/fixtures/archive-search-metadata/mmtvnh-Merrimack_Middle_School_Band_-_Cartoon_Symphony_2023.json"), "Cartoon"),
+            ("gtv16nm-El_Camino_-_A_Breaking_Bad_Movie_An_Interview_with_Vince_Gilligan_from_the_KiMo_Theatre", include_str!("../../../tests/fixtures/archive-search-metadata/gtv16nm-El_Camino_-_A_Breaking_Bad_Movie_An_Interview_with_Vince_Gilligan_from_the_KiMo_Theatre.json"), "Gilligan"),
         ] {
             let Metadata::Title(title) = parse_metadata(id, 1, serde_json::from_str(raw).unwrap(), None).unwrap() else { panic!("actual metadata refused") };
             assert!(!catalog::prepared_matches_query(&title, query).unwrap());
@@ -579,7 +579,7 @@ fn archive_discovery_view_is_optional_strict_and_versioned() {
 #[test]
 fn archive_observed_item_tile_is_listed_not_synthesized_or_a_video_frame() {
     let document: Value = serde_json::from_str(include_str!(
-        "../../tests/fixtures/archive-search-metadata/thenewadventuresofgilligans1.json"
+        "../../../tests/fixtures/archive-search-metadata/thenewadventuresofgilligans1.json"
     ))
     .unwrap();
     let image = listed_artwork(

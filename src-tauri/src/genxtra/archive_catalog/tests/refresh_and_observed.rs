@@ -225,7 +225,7 @@ pub(super) fn observed_search_metadata(raw: &str) -> SearchMetadata {
 #[test]
 fn archive_observed_concert_cartoon_tag_is_not_animation_but_named_browse_remain() {
     let metadata = observed_search_metadata(include_str!(
-            "../../../../tests/fixtures/archive-search-metadata/kdhxmo-Opera_Bell_Band_50_000_000_Live_at_KDHX_7_20_21.json"
+            "../../../../../tests/fixtures/archive-search-metadata/kdhxmo-Opera_Bell_Band_50_000_000_Live_at_KDHX_7_20_21.json"
         ));
     assert!(metadata.subjects.lines().any(|label| label == "cartoon"));
     let aliases = encode_search_metadata(&metadata).unwrap();
@@ -284,7 +284,7 @@ fn archive_observed_concert_cartoon_tag_is_not_animation_but_named_browse_remain
 #[test]
 fn archive_observed_title_keywords_cannot_override_incidental_context() {
     let concert = observed_search_metadata(include_str!(
-            "../../../../tests/fixtures/archive-search-metadata/mmtvnh-Merrimack_Middle_School_Band_-_Cartoon_Symphony_2023.json"
+            "../../../../../tests/fixtures/archive-search-metadata/mmtvnh-Merrimack_Middle_School_Band_-_Cartoon_Symphony_2023.json"
         ));
     let alias = encode_search_metadata(&concert).unwrap();
     assert_eq!(
@@ -310,7 +310,7 @@ fn archive_observed_title_keywords_cannot_override_incidental_context() {
         "explicit context searches remain supported"
     );
     let animated = observed_search_metadata(include_str!(
-        "../../../../tests/fixtures/archive-search-metadata/GrooviesMusicalEvolution.json"
+        "../../../../../tests/fixtures/archive-search-metadata/GrooviesMusicalEvolution.json"
     ));
     assert_eq!(
         match_basis(
@@ -324,9 +324,9 @@ fn archive_observed_title_keywords_cannot_override_incidental_context() {
         "corroborated animation is not excluded merely for music"
     );
     for (raw, specific) in [
-            (include_str!("../../../../tests/fixtures/archive-search-metadata/gtv16nm-El_Camino_-_A_Breaking_Bad_Movie_An_Interview_with_Vince_Gilligan_from_the_KiMo_Theatre.json"), "Vince Gilligan"),
-            (include_str!("../../../../tests/fixtures/archive-search-metadata/Humane_Society_of_St._Lucie_County_Adopt-a-Pet_-_Gilligan.json"), "Adopt a Pet Gilligan"),
-            (include_str!("../../../../tests/fixtures/archive-search-metadata/JamusUnpluggedLiveGilligansBarAndGrillJanuary112019.json"), "Jamus Unplugged"),
+            (include_str!("../../../../../tests/fixtures/archive-search-metadata/gtv16nm-El_Camino_-_A_Breaking_Bad_Movie_An_Interview_with_Vince_Gilligan_from_the_KiMo_Theatre.json"), "Vince Gilligan"),
+            (include_str!("../../../../../tests/fixtures/archive-search-metadata/Humane_Society_of_St._Lucie_County_Adopt-a-Pet_-_Gilligan.json"), "Adopt a Pet Gilligan"),
+            (include_str!("../../../../../tests/fixtures/archive-search-metadata/JamusUnpluggedLiveGilligansBarAndGrillJanuary112019.json"), "Jamus Unplugged"),
         ] {
             let m = observed_search_metadata(raw);
             let alias = encode_search_metadata(&m).unwrap();
@@ -341,20 +341,20 @@ fn archive_observed_title_keywords_cannot_override_incidental_context() {
 fn archive_observed_type_classifier_is_shared_not_a_collection_or_title_guess() {
     for (raw, expected) in [
             (
-                include_str!("../../../../tests/fixtures/archive-search-metadata/GilligansIsland1.00.json"),
+                include_str!("../../../../../tests/fixtures/archive-search-metadata/GilligansIsland1.00.json"),
                 ContentType::Tv,
             ),
             (
-                include_str!("../../../../tests/fixtures/archive-search-metadata/thenewadventuresofgilligans1.json"),
+                include_str!("../../../../../tests/fixtures/archive-search-metadata/thenewadventuresofgilligans1.json"),
                 ContentType::Tv,
             ),
             (
-                include_str!("../../../../tests/fixtures/archive-search-metadata/NightOfTheLivingDead-MPEG.json"),
+                include_str!("../../../../../tests/fixtures/archive-search-metadata/NightOfTheLivingDead-MPEG.json"),
                 ContentType::Movie,
             ),
             (
                 include_str!(
-                    "../../../../tests/fixtures/archive-search-metadata/mmtvnh-Merrimack_Middle_School_Band_-_Cartoon_Symphony_2023.json"
+                    "../../../../../tests/fixtures/archive-search-metadata/mmtvnh-Merrimack_Middle_School_Band_-_Cartoon_Symphony_2023.json"
                 ),
                 ContentType::Unknown,
             ),
@@ -388,16 +388,16 @@ fn archive_observed_type_classifier_is_shared_not_a_collection_or_title_guess() 
 fn archive_observed_animation_taxonomy_and_subjects_are_genre_not_playability_proof() {
     for (raw, expected) in [
         (
-            include_str!("../../../../tests/fixtures/archive-search-metadata/Popeye_forPresident.json"),
+            include_str!("../../../../../tests/fixtures/archive-search-metadata/Popeye_forPresident.json"),
             "subject",
         ),
         (
-            include_str!("../../../../tests/fixtures/archive-search-metadata/BettyBoopCartoons.json"),
+            include_str!("../../../../../tests/fixtures/archive-search-metadata/BettyBoopCartoons.json"),
             "title",
         ),
         (
             include_str!(
-                "../../../../tests/fixtures/archive-search-metadata/BugsBunnyCaseOfTheMissingHare.json"
+                "../../../../../tests/fixtures/archive-search-metadata/BugsBunnyCaseOfTheMissingHare.json"
             ),
             "genre",
         ),

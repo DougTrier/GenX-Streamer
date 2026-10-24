@@ -671,11 +671,11 @@ mod tests {
     #[test]
     fn nasa_incoming_and_legacy_numeric_years_do_not_establish_decade_eligibility() {
         let search: serde_json::Value = serde_json::from_str(include_str!(
-            "../../tests/fixtures/native/archive-nasa/apollo-search-page-2.json"
+            "../../../tests/fixtures/native/archive-nasa/apollo-search-page-2.json"
         ))
         .unwrap();
         let assets: serde_json::Value = serde_json::from_str(include_str!(
-            "../../tests/fixtures/native/archive-nasa/apollo-page-2-first-assets.json"
+            "../../../tests/fixtures/native/archive-nasa/apollo-page-2-first-assets.json"
         ))
         .unwrap();
         let page = crate::archive_provider_nasa::parse_search(&search).unwrap();

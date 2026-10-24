@@ -34,7 +34,7 @@ The owner decided GenX would carry its own decoder rather than port or bundle an
 | Decoder | `src-tauri/gen/android/app/src/main/java/com/tmg/tv/TrierMpegDecoder.kt` | Pure Kotlin with no Android types. Reads the header, bit allocation, scale-factor selection and scale factors; requantizes; runs the synthesis subband filter. One call decodes one frame. |
 | Media3 bridge | `TrierMpegRenderer.kt` (same folder) | `TrierMpegMediaDecoder` wraps the decoder as a Media3 `SimpleDecoder`. `TrierMpegRenderer` is a `DecoderAudioRenderer` for `audio/mpeg-L1` and `audio/mpeg-L2`. `GenXRenderersFactory` puts it ahead of the platform's audio renderers. |
 | Player wiring | `NativeVideoPlugin.kt` | Builds every Media3 player with `GenXRenderersFactory`. Live channels also skip platform Layer I/II decoders. |
-| Timestamp alignment | `src-tauri/src/ts_align.rs`, used by the loopback relay in `src-tauri/src/casting/receiver_relay.rs` | Fixes streams whose audio is stamped far from their video (MA15). |
+| Timestamp alignment | `src-tauri/src/playback/ts_align.rs`, used by the loopback relay in `src-tauri/src/sharing/casting/receiver_relay.rs` | Fixes streams whose audio is stamped far from their video (MA15). |
 
 Decoding steps, as the standard defines them:
 
@@ -70,7 +70,7 @@ Tests are in `src-tauri/gen/android/app/src/test/java/com/tmg/tv/TrierMpegDecode
 | MA12 | A CRC-protected frame decodes exactly like its unprotected twin; the CRC is skipped, not verified (as common decoders do; damage is bounded by MA03/MA10/MA13). | Misaligned side information when the CRC field is present | `crcProtectedFramesDecodeLikeTheirUnprotectedTwins_MA12` |
 | MA13 | Output clamps to 16-bit; it never wraps around. | Loud crackle on hot masters | `scaleFactorsAndCodesScaleExactly_MA07_MA13` |
 | MA14 | Ten seconds of 48 kHz stereo Layer II decode in under two seconds on the build machine's JVM. | Stutter on slow TVs | `tenSecondsDecodeQuickly_MA14` |
-| MA15 | In the Android player's relay, an audio stream stamped more than 10 s away from its video is moved onto the video timeline once per session; ordinary streams are never changed; 33-bit wrap handled. | ACC Network: audio stamped 296 s early, so Media3 never released any sound | `src-tauri/src/ts_align.rs` tests, including a real ACC segment |
+| MA15 | In the Android player's relay, an audio stream stamped more than 10 s away from its video is moved onto the video timeline once per session; ordinary streams are never changed; 33-bit wrap handled. | ACC Network: audio stamped 296 s early, so Media3 never released any sound | `src-tauri/src/playback/ts_align.rs` tests, including a real ACC segment |
 
 ### Research behind the register
 

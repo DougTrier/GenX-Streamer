@@ -27,4 +27,4 @@ Not from GenX. Android does not let one app switch another app's VPN, and NordVP
 
 Below "Streamer", centred between the end of the tagline ("…GETS OLD") and the first library button, sized from the wordmark (13–20 px tall, about a third of its height; the owner asked for a small badge) and kept clear of the "Streamer" script. It is absolutely placed, so the header's layout does not change; where there is no room (phones, where the header has no wordmark, or wrapped buttons) it steps aside. It is not a control and takes no remote focus.
 
-Tests: `src-tauri/src/vpn_status.rs` (adapter rules, names, a real read of the build machine's adapters), `tests/guide/vpn-indicator-browser.test.ts` (placement at TV/PC/large sizes, colours and labels, stale answers, disposal, phones, reply validation).
+Tests: `src-tauri/src/platform/vpn_status.rs` (adapter rules, names, a real read of the build machine's adapters), `tests/guide/vpn-indicator-browser.test.ts` (placement at TV/PC/large sizes, colours and labels, stale answers, disposal, phones, reply validation).

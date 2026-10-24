@@ -75,7 +75,7 @@ pub(super) async fn route_inner(request: Request, shared: Arc<Mutex<State>>) -> 
                 "text/javascript; charset=utf-8",
             )),
             "/hls.js" => Some((
-                include_str!("../../../node_modules/hls.js/dist/hls.min.js").as_bytes(),
+                include_str!("../../../../node_modules/hls.js/dist/hls.min.js").as_bytes(),
                 "text/javascript; charset=utf-8",
             )),
             _ => None,

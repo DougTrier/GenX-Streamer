@@ -521,14 +521,14 @@ mod tests {
     #[test]
     fn loc_observed_official_search_and_classic_inventory() {
         let search: Value = serde_json::from_str(include_str!(
-            "../../tests/fixtures/archive-providers/loc-search.json"
+            "../../../tests/fixtures/archive-providers/loc-search.json"
         ))
         .unwrap();
         let page = parse_search(&search).unwrap();
         assert_eq!(page.next_cursor.as_deref(), Some("2"));
         assert_eq!(page.hits[0].item_id, "00694220");
         let document: Value = serde_json::from_str(include_str!(
-            "../../tests/fixtures/archive-providers/loc-classic.json"
+            "../../../tests/fixtures/archive-providers/loc-classic.json"
         ))
         .unwrap();
         let item = parse_item("00694220", &document).unwrap();
@@ -551,7 +551,7 @@ mod tests {
     #[test]
     fn loc_observed_interview_scopes_date_rights_and_stream_metadata() {
         let document: Value = serde_json::from_str(include_str!(
-            "../../tests/fixtures/archive-providers/loc-interview.json"
+            "../../../tests/fixtures/archive-providers/loc-interview.json"
         ))
         .unwrap();
         let item = parse_item("afc2001001.67577", &document).unwrap();
