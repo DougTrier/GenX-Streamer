@@ -65,6 +65,31 @@ describe('Install on TV', () => {
     expect(frontKind('')).toBe('none');
   });
 
+  it('Play Protect during approval is still approval (the Streamer, October 24, 2026)', () => {
+    // Downloader -> installer -> allow-installs setting -> installer -> Play Protect -> installed.
+    expect(
+      play(sent(HOME, 0), [
+        [DOWNLOADER, 1_000],
+        [INSTALLER, 30_000],
+        [SETTINGS, 37_000],
+        [INSTALLER, 41_000],
+        [STORE, 50_000],
+        [INSTALLER, 52_000],
+        [GENX, 57_000],
+        [GENX, 58_000, 'same'],
+      ]),
+    ).toEqual([
+      ['downloading', null],
+      ['approve', null],
+      ['permission', null],
+      ['approve', null],
+      ['approve', null],
+      ['approve', null],
+      ['checking', 'open-genx'],
+      ['done', null],
+    ]);
+  });
+
   it('a TV with a download app goes from sending to approval to a verified install', () => {
     expect(
       play(sent(HOME, 0), [

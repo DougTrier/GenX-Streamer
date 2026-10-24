@@ -153,13 +153,14 @@ export function observe(
       if (watch.step === 'downloading' && waited >= DOWNLOAD_MS) return go('stalled');
       return stay;
     case 'approve':
-      if (kind === 'installer') return stay;
+      // Google Play Protect's scan prompt belongs to the Play Store (seen on the Streamer).
+      if (kind === 'installer' || kind === 'store') return stay;
       if (kind === 'settings') return go('permission');
       // The installer closed (or GenX was opened from it): ask the TV's GenX to report.
       return go('checking', 'open-genx');
     case 'checking':
       if (checkIn === 'different') return go('older-copy');
-      if (kind === 'installer') return go('approve');
+      if (kind === 'installer' || kind === 'store') return go('approve');
       // GenX opened but did not report: it is there, its version unknown (never "installed").
       if (waited >= CHECK_MS) return go(kind === 'genx' ? 'unconfirmed' : 'not-installed');
       return stay;

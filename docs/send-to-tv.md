@@ -108,9 +108,22 @@ Every network call runs off the interface thread
   Not a usable route on Google TV.
 - Published research found built-in app receivers only on China-market TCL
   and Xiaomi TVs.
-- Still to test with GenX itself: a first install, an update over an older
-  copy (the Sansui has a development copy, which Android refuses to update
-  with the release key), and the Bluetooth route on the Sansui.
+- **First installs with GenX itself, October 24, 2026:** an S25 sending the
+  official release; both verified "Ready! GenX Streamer is installed.", with
+  the installed file's SHA-256 equal to the file sent.
+  - **Sansui Google TV (Realtek, Android 14, 32-bit):** Android's "Open with"
+    list, then the TV's own browser app, then Android's installer.
+  - **Google TV Streamer (Android 14, 32-bit, no browser):** no app took the
+    link, so the download helper's Play Store page opened. Then Downloader,
+    the allow-installs setting, Android's installer and Google Play Protect's
+    scan prompt (treated as part of the approval); Downloader removed its
+    copy of the file afterwards.
+- Three fixes came out of those runs (see git history): the pairing key for
+  TLS 1.3, a hang in the vendored tao when a `genx://` link arrives while GenX
+  runs, and "couldn't be checked" instead of guessing an older copy.
+- A browser that saves the file to Downloads leaves it there; Android 11+
+  lets GenX delete only its own files, so it cannot remove it.
+- Still to test: an update over an older official copy on a TV.
 
 ## Testing
 
