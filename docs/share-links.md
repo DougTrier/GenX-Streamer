@@ -7,9 +7,11 @@ Two ways to pass GenX Streamer on (owner's idea, October 24, 2026):
   sheet. The link opens GenX Streamer where it is installed and plays the
   channel on one tap; elsewhere it opens a small web page that says what was
   shared and how to get GenX Streamer.
-- **Share GenX Streamer.** About GenX Streamer → About the Author → **Share
-  GenX Streamer** sends the download link by text or message, or the installed
-  app itself: the APK phone to phone on Android, GenX Streamer.exe on Windows.
+- **Send app to a friend.** A button in the Settings header (and **Share
+  GenX Streamer** in About) opens one page with every way to pass GenX on:
+  the installed app itself (the APK phone to phone on Android, GenX
+  Streamer.exe on Windows), the download link by text or message, or the link
+  to copy (`src/ui/settings/send-app.ts`).
 
 ## The link
 

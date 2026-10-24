@@ -89,7 +89,7 @@ where to start reading, its rules and its test commands.
 | `playback/` | The Android native players, transport-stream audio alignment, viewing settings, keeping the screen awake. |
 | `sharing/` | `lan/` the LAN viewing server and its viewer page, `casting/` Chromecast and DLNA, `relay.rs` the public-only media relay, `sharing_policy.rs`, `share_links` share links ([design](docs/share-links.md)). |
 | `browser/` | The in-app player for station websites (`web_page.rs`, with `../page-scripts/`) and the fixed support pages. |
-| `platform/` | Close and shutdown owners, device capabilities, speech, VPN status, renderer recovery, diagnostics, start-up milestones, the request registry. |
+| `platform/` | Close and shutdown owners, device capabilities, speech, VPN status, renderer recovery, diagnostics, start-up milestones, the request registry, voluntary updates (`app_update`). |
 | `trier_video/` | Trier MPEG Video, GenX's own MPEG-2 video decoder ([design](docs/trier-mpeg-video.md)). |
 
 A large module keeps its file and puts its parts in a folder of the same name
@@ -114,6 +114,7 @@ GenX's patches listed in its `GENX-PATCHES.md`.
 | `NativeSpeech.kt` | Voice search. |
 | `TelevisionCapability.kt`, `TelevisionShellFocusOwner.kt`, `BackOwnership.kt` | TV detection, remote focus and the Back key. |
 | `SharePlugin.kt` | Share links: links that open GenX, the share sheet, sending the installed APK ([design](docs/share-links.md)). |
+| `AppUpdatePlugin.kt` | Voluntary updates: checks a downloaded update's package and signature, then opens Android's installer ([design](docs/updates.md)). |
 
 ## File size
 

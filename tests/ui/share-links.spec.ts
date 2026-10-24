@@ -90,27 +90,42 @@ test('the share card shows a shared name as text and runs nothing until a choice
   await expect(card.locator('.share-card-message')).toHaveText('Link copied.');
 });
 
-test('About sends the download link and the installed app through the native share sheet', async ({
+/** Mounts the Send app page with its Settings opener, as the app does. */
+async function mountSendApp(page: Page) {
+  await page.evaluate(async () => {
+    const opener = document.createElement('button');
+    opener.id = 'send-app-button';
+    opener.textContent = 'Send app to a friend';
+    document.getElementById('app')!.append(opener);
+    const modulePath = '/src/ui/settings/send-app.ts';
+    const { mountSendApp } = await import(modulePath);
+    Reflect.set(window, '__dispose', mountSendApp(document.getElementById('app')!, [opener]));
+  });
+  await page.getByRole('button', { name: 'Send app to a friend' }).click();
+  return page.getByRole('dialog', { name: 'Send GenX Streamer to a friend' });
+}
+
+test('Send app offers the app file, the download link and a copy, each through the native share', async ({
   page,
 }) => {
-  await fixture(page, 'about-share-fixture');
-  await page.goto('/about-share-fixture');
+  await fixture(page, 'send-app-fixture');
+  await page.goto('/send-app-fixture');
   await nativeRecorder(page, {
     share_text: { shown: true },
     share_app_file: 'reject:share-app-split',
   });
-  await page.evaluate(async () => {
-    const modulePath = '/src/ui/settings/about-share.ts';
-    const { mountAboutShare } = await import(modulePath);
-    Reflect.set(window, '__dispose', mountAboutShare(document.getElementById('app')!));
-  });
-  const app = page.locator('#app');
-  await expect(app).toContainText('Share GenX Streamer');
+  const dialog = await mountSendApp(page);
+  await expect(dialog).toBeVisible();
   // A desktop (Windows) app: the app file goes through Windows' share.
-  await expect(app.locator('.about-share-guidance')).toContainText('unknown publisher');
-  await page.getByRole('button', { name: 'Send the download link' }).click();
-  await page.getByRole('button', { name: 'Send the app file' }).click();
-  await expect(app.locator('.about-share-status')).toContainText('several parts');
+  await expect(dialog.getByRole('heading', { name: 'Send the app file' })).toBeVisible();
+  await expect(dialog).toContainText('unknown publisher');
+  await expect(dialog.getByRole('button', { name: 'Send the app file' })).toBeFocused();
+  await expect(dialog.getByRole('textbox', { name: 'Download link' })).toHaveValue(
+    'https://github.com/DougTrier/GenX-Streamer/releases/latest',
+  );
+  await dialog.getByRole('button', { name: 'Send the download link' }).click();
+  await dialog.getByRole('button', { name: 'Send the app file' }).click();
+  await expect(dialog.locator('.send-app-status')).toContainText('several parts');
   expect(await page.evaluate(() => Reflect.get(window, '__calls'))).toEqual([
     {
       command: 'share_text',
@@ -127,23 +142,24 @@ test('About sends the download link and the installed app through the native sha
       },
     },
   ]);
+  await dialog.getByRole('button', { name: 'Close send app' }).click();
+  await expect(dialog).toBeHidden();
 });
 
 test.describe('on Android', () => {
   test.use({ userAgent: 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 Chrome/140' });
-  test('About offers the app phone to phone with one line for the receiver', async ({ page }) => {
-    await fixture(page, 'about-share-android');
-    await page.goto('/about-share-android');
+  test('Send app sends the app phone to phone with one line for the receiver', async ({ page }) => {
+    await fixture(page, 'send-app-android');
+    await page.goto('/send-app-android');
     await nativeRecorder(page, { share_app_file: { shown: true } });
-    await page.evaluate(async () => {
-      const modulePath = '/src/ui/settings/about-share.ts';
-      const { mountAboutShare } = await import(modulePath);
-      mountAboutShare(document.getElementById('app')!);
-    });
-    await expect(page.locator('.about-share-guidance')).toHaveText(
+    const dialog = await mountSendApp(page);
+    await expect(
+      dialog.getByRole('heading', { name: 'Send the app, phone to phone' }),
+    ).toBeVisible();
+    await expect(dialog.locator('.send-app-guidance')).toHaveText(
       'On their phone: open the received file and, when asked, allow Files or Quick Share to install apps.',
     );
-    await page.getByRole('button', { name: 'Send the app (Quick Share, Bluetooth)' }).click();
+    await dialog.getByRole('button', { name: 'Send the app', exact: true }).click();
     await expect
       .poll(() => page.evaluate(() => Reflect.get(window, '__calls')))
       .toEqual([

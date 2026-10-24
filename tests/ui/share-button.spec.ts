@@ -70,3 +70,51 @@ test('Share sends "Watch <name> on GenX Streamer: <link>" with only the channel 
     .poll(() => page.evaluate(() => Reflect.get(window, '__shared')))
     .toEqual([{ title: 'News 24', text: `Watch News 24 on GenX Streamer: ${link}` }]);
 });
+
+test('Settings offers Send app to a friend in its header, opening every way to send GenX', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await expect(page.locator('#app')).toHaveAttribute('data-ready', 'true');
+  await page.locator('#settings-button').click();
+  const settings = page.locator('#settings-dialog');
+  const send = settings
+    .locator('.dialog-head')
+    .getByRole('button', { name: 'Send app to a friend' });
+  await expect(send).toBeVisible();
+  await send.click();
+  const dialog = page.getByRole('dialog', { name: 'Send GenX Streamer to a friend' });
+  await expect(dialog).toBeVisible();
+  // The browser preview has no app file to send; the link options remain.
+  await expect(dialog.getByRole('button', { name: 'Send the download link' })).toBeVisible();
+  await expect(dialog.getByRole('textbox', { name: 'Download link' })).toHaveValue(
+    'https://github.com/DougTrier/GenX-Streamer/releases/latest',
+  );
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await expect(settings).toBeVisible();
+});
+
+for (const width of [360, 1280])
+  test(`the Settings header keeps its title, Send app and Close on one row at ${width}px`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 720 });
+    await page.goto('/');
+    await expect(page.locator('#app')).toHaveAttribute('data-ready', 'true');
+    await page.locator('#settings-button').click();
+    const head = page.locator('#settings-dialog .dialog-head');
+    const boxes = await Promise.all(
+      [
+        head.locator('h2'),
+        head.locator('#send-app-button'),
+        head.getByRole('button', { name: 'Close settings' }),
+      ].map((locator) => locator.boundingBox()),
+    );
+    const [title, send, close] = boxes.map((box) => box!);
+    expect(send.x).toBeGreaterThanOrEqual(title.x + title.width);
+    expect(close.x).toBeGreaterThanOrEqual(send.x + send.width);
+    expect(Math.abs(send.y + send.height / 2 - (close.y + close.height / 2))).toBeLessThan(8);
+    const headBox = (await head.boundingBox())!;
+    expect(close.x + close.width).toBeLessThanOrEqual(headBox.x + headBox.width + 1);
+  });

@@ -231,6 +231,9 @@ pub(crate) async fn complete_close_attempt(
     emit_close_progress(&app, &ticket);
     match completion {
         Ok(()) => {
+            // The viewer chose Restart after installing an update (docs/updates.md).
+            #[cfg(windows)]
+            crate::app_update::relaunch_after_exit();
             #[cfg(not(target_os = "android"))]
             app.exit(0);
             #[cfg(target_os = "android")]

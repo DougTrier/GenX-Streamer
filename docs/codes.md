@@ -17,6 +17,7 @@ and how it is tested.
 | LX01–LX12, MP01–MP08 | Native lifecycle (exit, background) and the media pipeline | [lifecycle-media-invariants.md](lifecycle-media-invariants.md) |
 | NV01–NV14 | Remote, keyboard and touch navigation | [navigation-invariants.md](navigation-invariants.md) |
 | RP01–RP08 | Instant replay on live TV | [instant-replay.md](instant-replay.md) |
+| UP-001–UP-010 | Voluntary updates: optional, approved, verified, reversible | [updates.md](updates.md) |
 | MV01–MV14 | Trier MPEG Video (MPEG-2 video decoder) | [trier-mpeg-video.md](trier-mpeg-video.md) |
 | MA01–MA15 | Trier MPEG (MPEG audio decoder) | [trier-mpeg.md](trier-mpeg.md) |
 | INV-AUTOTUNE-001–011 | Trier's self-tuning (AutoTune) | [trier-adaptive-engine.md](trier-adaptive-engine.md) |
@@ -24,6 +25,7 @@ and how it is tested.
 | T001–T115 | Tasks in the original project ledger (kept private); the open ones are in [TASKS.md](../TASKS.md) | — |
 
 Other design notes: [about-and-support.md](about-and-support.md),
+[share-links.md](share-links.md),
 [automatic-guide-control.md](automatic-guide-control.md),
 [daily-source-refresh.md](daily-source-refresh.md),
 [event-history.md](event-history.md), [native-vod-player.md](native-vod-player.md),

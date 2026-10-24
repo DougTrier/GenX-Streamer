@@ -41,6 +41,7 @@ const componentSuites = [
   '**/live-replay.spec.ts',
   '**/phone-panel-layout.spec.ts',
   '**/share-links.spec.ts',
+  '**/app-update.spec.ts',
 ];
 // Source-only invocations need no bundled build; default/full runs retain both servers.
 const selectedProjects = process.argv.flatMap((argument, index) =>

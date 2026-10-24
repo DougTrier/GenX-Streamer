@@ -64,6 +64,7 @@ use genxtra::archive_provider_probe;
 use platform::android_manifest_protector;
 #[cfg(any(target_os = "android", test))]
 use platform::android_task_finish;
+use platform::app_update;
 use platform::close_owner;
 pub use sharing::casting;
 mod commands;
@@ -179,10 +180,14 @@ pub fn run() {
     if share_links::forward_to_running_copy() {
         return;
     }
+    // A GenX restarted after an update waits for the previous one to end (docs/updates.md).
+    #[cfg(windows)]
+    app_update::after_update_wait();
     startup_milestones::start();
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(app_update::init())
         .plugin(
             tauri::plugin::Builder::<tauri::Wry, ()>::new("viewing")
                 .setup(|_app, _api| {
@@ -317,6 +322,8 @@ pub fn run() {
             web_page::forget_sites(app.handle());
             #[cfg(windows)]
             share_links::start_windows(app.handle());
+            #[cfg(windows)]
+            app_update::remove_previous();
             startup_milestones::mark(startup_milestones::Event::SetupFinished);
             Ok(())
         })
@@ -511,6 +518,11 @@ pub fn run() {
             share_links::share_text,
             share_links::share_app_file,
             share_links::check_shared_destination,
+            app_update::update_check,
+            app_update::update_download,
+            app_update::update_cancel,
+            app_update::update_install,
+            app_update::update_restart,
             account_vod::account_series_info,
             account_vod::account_vod_details,
             viewing_settings::read_viewing_settings,

@@ -373,19 +373,63 @@
   }
 }
 
-/* Share GenX Streamer (docs/share-links.md): the download link and the app itself. */
+/* Share GenX Streamer (docs/share-links.md): opens the Send app page. */
 #about-dialog .about-share-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 12px;
 }
-#about-dialog .about-share-guidance,
-#about-dialog .about-share-status {
+
+/* Updates (docs/updates.md): checked only when asked; notes are plain text. */
+#about-dialog .about-update-actions,
+#about-dialog .about-update-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+#about-dialog .about-update-promise,
+#about-dialog .about-update-status {
   margin: 8px 0 0;
   font-size: 14px;
   color: var(--gx-muted);
 }
-#about-dialog .about-share-status:empty {
+#about-dialog .about-update-status:empty {
   display: none;
+}
+#about-dialog .about-update-result {
+  margin-top: 12px;
+  padding: 14px 16px;
+  border: 1px solid #34566ecc;
+  border-radius: 14px;
+  background: linear-gradient(160deg, #1b2a4a, #121d36);
+}
+#about-dialog .about-update-result[hidden] {
+  display: none;
+}
+#about-dialog .about-update-heading {
+  margin: 0 0 8px;
+  font-weight: 700;
+  color: var(--gx-text);
+}
+#about-dialog .about-update-versions {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 4px 16px;
+  margin: 0;
+}
+#about-dialog .about-update-versions dd {
+  margin: 0;
+  color: var(--gx-text);
+}
+#about-dialog .about-update-notes-title {
+  margin: 12px 0 4px;
+  font-weight: 700;
+}
+#about-dialog .about-update-notes {
+  max-height: 160px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }

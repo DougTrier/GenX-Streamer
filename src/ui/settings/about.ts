@@ -23,7 +23,8 @@ import wordmarkUrl from '../../../assets/genx-wordmark-v2-display.png?no-inline'
 import robotoLicense from '../../../assets/fonts/roboto-condensed/OFL.txt?raw';
 import yellowtailLicense from '../../../assets/fonts/yellowtail/LICENSE.txt?raw';
 import dependencyNoticesUrl from '../../../assets/licenses/dependency-notices.txt?url&no-inline';
-import { mountAboutShare } from './about-share';
+import { mountSendApp } from './send-app';
+import { mountAboutUpdate } from './about-update';
 
 /** Static destinations belong to the app, never to imported channel metadata. */
 export const authorLink = {
@@ -134,7 +135,10 @@ export function mountAbout(root: HTMLElement, opener: HTMLButtonElement): () => 
             </button>
           </div>
         </div>
-        <section class="about-share"></section>
+        <section class="about-update"></section>
+        <h3 class="about-section-title">Share GenX Streamer</h3>
+        <p>Send the app itself, or a download link, to friends and family.</p>
+        <div class="about-share-actions"><button type="button" class="about-send-app">Send app to a friend</button></div>
         <h3 class="about-section-title">Support GenX Streamer</h3>
         <p>If GenX Streamer has earned a place on your screen, you can support its development. Links open in your browser.</p>
         <div class="about-support"></div>
@@ -222,7 +226,22 @@ export function mountAbout(root: HTMLElement, opener: HTMLButtonElement): () => 
       },
     );
   const removers: (() => void)[] = [];
-  removers.push(mountAboutShare(dialog.querySelector<HTMLElement>('.about-share')!));
+  // The same page Settings' header opens (Send app to a friend).
+  removers.push(
+    mountSendApp(root, [
+      document.querySelector<HTMLButtonElement>('#send-app-button'),
+      dialog.querySelector<HTMLButtonElement>('.about-send-app'),
+    ]),
+  );
+  removers.push(
+    mountAboutUpdate(dialog.querySelector<HTMLElement>('.about-update')!, {
+      // Restart after an update is an ordinary exit (Settings → Exit app).
+      restart: () => {
+        dialog.close();
+        document.getElementById('exit-button')?.click();
+      },
+    }),
+  );
   const listen = (element: HTMLElement, handler: () => void) => {
     element.addEventListener('click', handler);
     removers.push(() => element.removeEventListener('click', handler));

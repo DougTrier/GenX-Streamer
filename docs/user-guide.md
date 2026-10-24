@@ -44,7 +44,11 @@ Choose **Share** beside the playing channel to send it: "Watch News 24 on GenX S
 
 When someone shares a link with you, it opens GenX Streamer with "<name> was shared with you". Choose **Play** to watch or **Add to favorites** to keep it; nothing plays until you choose. GenX checks the channel first and tells you plainly when it has moved, ended, only plays in certain countries, or cannot be reached. Without GenX Streamer, the link opens a web page that says what was shared and where to get the app.
 
-To pass on GenX Streamer itself, open **Settings → About GenX Streamer → Share GenX Streamer**. **Send the download link** shares the download page; on Android, **Send the app (Quick Share, Bluetooth)** sends this installed app phone to phone (the other phone opens the received file and allows Files or Quick Share to install apps when asked); on Windows, **Send the app file** sends GenX Streamer.exe. An app sent from your phone carries your copy's signing: a later official build may need it uninstalled first.
+To pass on GenX Streamer itself, choose **Send app to a friend** at the top of **Settings** (also in **About GenX Streamer**). On Android, **Send the app** sends this installed app phone to phone with Quick Share, Bluetooth or a messaging app (the other phone opens the received file and allows Files or Quick Share to install apps when asked); on Windows, **Send the app file** sends GenX Streamer.exe. **Send the download link** shares the download page by text or message, and **Copy link** copies it. An app sent from your phone carries your copy's signing: a later official build may need it uninstalled first.
+
+## Updates
+
+Updates are always optional; GenX Streamer never updates without your permission and never checks on its own. In **Settings → About GenX Streamer**, choose **Check for updates**. If a newer version is available you see both versions and what's new; **Download update** fetches it and checks it against the official release, and **Install update** installs it: on Windows, choose **Restart now** (or open GenX later) to start the new version; on Android, Android's installer asks you first. Your channels, favorites, accounts and settings stay. **Not now** changes nothing, and without internet GenX keeps working as it is.
 
 ## Cast to a TV
 
