@@ -19,7 +19,7 @@ import {
   timelineCategoryMatches,
   timelineWindowStart,
   type TimelineChannel,
-} from '../../src/ui/guide-timeline';
+} from '../../src/ui/guide-timeline-model';
 const channel: TimelineChannel = {
   id: 'c',
   sourceId: 's',

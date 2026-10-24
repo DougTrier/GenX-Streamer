@@ -25,6 +25,8 @@ import {
 } from '../platform/account-vod';
 import type { AccountVodTitle } from '../application/account-player';
 import { viewingSettings } from '../platform/viewing-settings';
+import { createAccountVodRows } from './account-vod-rows';
+import { createSharedContext } from '../application/shared-context';
 
 /**
  * Video On Demand for a Paid TV account ("GenX Cinema"): the provider's movies
@@ -45,15 +47,11 @@ export interface AccountVodHost {
   /** Re-measure TV menus after a select is shown or refilled. */
   changed?(): void;
 }
-interface Account {
+export interface Account {
   id: string;
   revision: string;
 }
 const PAGE = 60;
-/** Titles shown in a category row before its "See all" card. */
-const ROW_TITLES = 40;
-/** Category rows loading at once (one provider request each). */
-const ROW_LOADS = 2;
 /** Focus must rest this long on a title before its description is requested. */
 const DETAIL_DELAY_MS = 350;
 /** The same explicit adult markers as the channel lists. */
@@ -67,6 +65,49 @@ export function mountAccountVod(
     'list' | 'episodes' | 'details'
   > = createAccountVod(),
 ) {
+  // What the parts of mountAccountVod in other modules share with it: each value
+  // is read when a part uses it; the second list holds the ones parts assign.
+  const shared = createSharedContext(
+    {
+      account: () => account,
+      card: () => card,
+      categories: () => categories,
+      channels: () => channels,
+      client: () => client,
+      feature: () => feature,
+      featured: () => featured,
+      host: () => host,
+      key: () => key,
+      lastPlace: () => lastPlace,
+      lastTitle: () => lastTitle,
+      loadCategory: () => loadCategory,
+      make: () => make,
+      markCategory: () => markCategory,
+      meta: () => meta,
+      mode: () => mode,
+      openSeries: () => openSeries,
+      playMovie: () => playMovie,
+      results: () => results,
+      rowItems: () => rowItems,
+      rowLoads: () => rowLoads,
+      rowObserver: () => rowObserver,
+      rowOwner: () => rowOwner,
+      rowQueue: () => rowQueue,
+      rowsBox: () => rowsBox,
+      rowState: () => rowState,
+      rowWaiters: () => rowWaiters,
+      section: () => section,
+      sectionButtons: () => sectionButtons,
+      setMode: () => setMode,
+      showGallery: () => showGallery,
+    },
+    {
+      rowLoads: (value: typeof rowLoads) => (rowLoads = value),
+      rowObserver: (value: typeof rowObserver) => (rowObserver = value),
+      rowOwner: (value: typeof rowOwner) => (rowOwner = value),
+    },
+  );
+
   const app = () => document.getElementById('app');
   const make = <K extends keyof HTMLElementTagNameMap>(
     tag: K,
@@ -249,202 +290,21 @@ export function mountAccountVod(
       back.textContent = next === 'grid' ? '‹ All categories' : '‹ Back';
     }
   }
-  const rowKey = (id: string) => `${key()}:${id}`;
-  const rowNode = (id: string) =>
-    rowsBox.querySelector<HTMLElement>(`.vod-row[data-category="${CSS.escape(id)}"]`);
-  const rowButtons = (row: Element | null) =>
-    row ? [...row.querySelectorAll<HTMLElement>('.vod-strip > button')] : [];
-  function titleCard(item: AccountVodItem, category: string, inRow: boolean): HTMLElement {
-    const node = card(item.name, meta(item), item.poster, () =>
-      section === 'movies' ? playMovie(item) : void openSeries(item),
-    );
-    node.dataset.vodItem = item.id;
-    node.addEventListener('focus', () => {
-      lastTitle.set(key(), item.id);
-      lastPlace.set(key(), { mode: inRow ? 'rows' : 'grid', category, item: item.id });
-      if (inRow) markCategory(category);
-      if (featured !== item) feature(item);
-    });
-    return node;
-  }
-  function fillRow(id: string, list: AccountVodItem[]): void {
-    const row = rowNode(id);
-    if (!row) return;
-    const strip = row.querySelector<HTMLElement>('.vod-strip')!;
-    const total = row.querySelector<HTMLElement>('small')!;
-    total.textContent = list.length
-      ? `${list.length.toLocaleString()} ${section === 'movies' ? 'movies' : 'series'}`
-      : '';
-    if (!list.length) {
-      strip.replaceChildren(
-        make('p', { className: 'vod-row-note', textContent: 'No titles here.' }),
-      );
-      row.dataset.empty = 'true';
-      return;
-    }
-    delete row.dataset.empty;
-    const nodes = list.slice(0, ROW_TITLES).map((item) => titleCard(item, id, true));
-    if (list.length > ROW_TITLES) {
-      const all = make('button', {
-        type: 'button',
-        className: 'vod-see-all',
-        textContent: `See all (${list.length.toLocaleString()})`,
-      });
-      all.addEventListener('click', () => {
-        const name = categories.querySelector<HTMLElement>(
-          `[data-category="${CSS.escape(id)}"]`,
-        )?.textContent;
-        host.run(loadCategory(id, name ?? ''));
-      });
-      nodes.push(all);
-    }
-    strip.replaceChildren(...nodes);
-  }
-  /** Rows load as they come near; at most ROW_LOADS provider requests at once. */
-  function requestRow(id: string): Promise<void> {
-    const state = rowState.get(rowKey(id));
-    if (state === 'ready') return Promise.resolve();
-    const waiting = new Promise<void>((resolve) => {
-      rowWaiters.set(id, [...(rowWaiters.get(id) ?? []), resolve]);
-    });
-    if (state !== 'loading') {
-      rowState.set(rowKey(id), 'loading');
-      rowQueue.push(id);
-      pumpRows();
-    }
-    return waiting;
-  }
-  function settleRow(id: string): void {
-    for (const resolve of rowWaiters.get(id) ?? []) resolve();
-    rowWaiters.delete(id);
-  }
-  function pumpRows(): void {
-    while (rowLoads < ROW_LOADS && rowQueue.length) {
-      const id = rowQueue.shift()!;
-      const cached = rowItems.get(rowKey(id));
-      if (cached) {
-        rowState.set(rowKey(id), 'ready');
-        fillRow(id, cached);
-        settleRow(id);
-        continue;
-      }
-      rowLoads++;
-      const signal = rowOwner.signal;
-      const current = account!;
-      const wanted = key();
-      void client
-        .list(current, section, id, signal)
-        .then((listing) => {
-          if (signal.aborted || wanted !== key()) return;
-          if (rowItems.size > 60) rowItems.delete(rowItems.keys().next().value!);
-          rowItems.set(rowKey(id), listing.items);
-          rowState.set(rowKey(id), 'ready');
-          fillRow(id, listing.items);
-          if (!featured && rowsBox.querySelector('.vod-title')) {
-            const first = listing.items[0];
-            if (first) feature(first);
-          }
-        })
-        .catch(() => {
-          if (signal.aborted) return;
-          rowState.set(rowKey(id), 'failed');
-          const strip = rowNode(id)?.querySelector('.vod-strip');
-          strip?.replaceChildren(
-            make('p', { className: 'vod-row-note', textContent: 'This row could not load.' }),
-          );
-        })
-        .finally(() => {
-          rowLoads--;
-          settleRow(id);
-          if (!signal.aborted) pumpRows();
-        });
-    }
-  }
-  function buildRows(list: AccountVodCategory[]): void {
-    rowOwner.abort();
-    rowOwner = new AbortController();
-    rowQueue.length = 0;
-    rowLoads = 0;
-    for (const [id] of rowWaiters) settleRow(id);
-    // New row elements: every row fills again (from the cache when loaded before).
-    rowState.clear();
-    rowObserver?.disconnect();
-    rowObserver = new IntersectionObserver(
-      (entries) => {
-        for (const entry of entries)
-          if (entry.isIntersecting)
-            void requestRow((entry.target as HTMLElement).dataset.category!);
-      },
-      { root: rowsBox, rootMargin: '400px 0px' },
-    );
-    rowsBox.replaceChildren(
-      ...list.map((category) => {
-        const row = make('section', { className: 'vod-row' });
-        row.dataset.category = category.id;
-        const title = make('div', { className: 'vod-row-head' });
-        title.append(make('h5', { textContent: category.name }), make('small'));
-        const strip = make('div', { className: 'vod-strip' });
-        strip.setAttribute('role', 'list');
-        strip.setAttribute('aria-label', category.name);
-        strip.append(make('p', { className: 'vod-row-note', textContent: 'Loading…' }));
-        row.append(title, strip);
-        rowObserver!.observe(row);
-        return row;
-      }),
-    );
-    rowsBox.scrollTop = 0;
-  }
-  /** Rail category: go to its row and its first title. */
-  async function jumpToRow(id: string): Promise<void> {
-    if (mode !== 'rows') setMode('rows');
-    showGallery(true);
-    markCategory(id);
-    rowNode(id)?.scrollIntoView({ block: 'start' });
-    await requestRow(id);
-    focusCard(rowButtons(rowNode(id))[0]);
-  }
-  function lastRowCard(): HTMLElement | undefined {
-    const place = lastPlace.get(key());
-    const row = place?.mode === 'rows' ? rowNode(place.category) : null;
-    const buttons = rowButtons(row);
-    return (
-      buttons.find((node) => node.dataset.vodItem === place?.item) ??
-      buttons[0] ??
-      rowsBox.querySelector<HTMLElement>('.vod-strip > button') ??
-      undefined
-    );
-  }
-  const cards = () => [...results.querySelectorAll<HTMLElement>('.vod-title')];
-  /** Posters per row, as laid out (the remote moves by this). */
-  function columns(list = cards()): number {
-    const top = list[0]?.offsetTop;
-    let count = 0;
-    for (const card of list) {
-      if (card.offsetTop !== top) break;
-      count++;
-    }
-    return Math.max(1, count);
-  }
-  function focusCard(card: HTMLElement | undefined): boolean {
-    if (!card) return false;
-    card.focus({ preventScroll: true });
-    card.scrollIntoView({ block: 'nearest', inline: 'nearest' });
-    return true;
-  }
-  function railTarget(): HTMLElement {
-    return (
-      categories.querySelector<HTMLElement>('[aria-pressed="true"]') ??
-      categories.querySelector<HTMLElement>('button') ??
-      sectionButtons.find((node) => node.getAttribute('aria-pressed') === 'true') ??
-      channels
-    );
-  }
-  function lastCard(): HTMLElement | undefined {
-    if (mode === 'rows') return lastRowCard();
-    const id = lastTitle.get(key());
-    const list = cards();
-    return list.find((card) => card.dataset.vodItem === id) ?? list[0];
-  }
+  const categoryRows = createAccountVodRows(shared);
+  const {
+    titleCard,
+    focusCard,
+    cards,
+    lastRowCard,
+    rowButtons,
+    rowNode,
+    jumpToRow,
+    buildRows,
+    requestRow,
+    columns,
+    railTarget,
+    lastCard,
+  } = categoryRows;
   const minutes = (seconds: number) => {
     const total = Math.round(seconds / 60);
     const hours = Math.floor(total / 60);

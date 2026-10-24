@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type { AutomaticScanProgress } from './source-scan';
+import type { AutomaticScanProgress } from './source-scan-model';
 import { createScanPace, timeLeftText } from './scan-pace';
 
 const KIND: Record<NonNullable<AutomaticScanProgress['scanKind']>, string> = {

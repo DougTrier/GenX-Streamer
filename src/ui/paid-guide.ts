@@ -21,7 +21,8 @@ import type {
   AccountGuideStatus,
 } from '../platform/account-guide';
 import type { GuideCursor, MappedProgram } from '../guide/native';
-import { mountGuideTimeline, PANEL_AGENDA_WIDTH, type TimelineChannel } from './guide-timeline';
+import { mountGuideTimeline } from './guide-timeline';
+import { PANEL_AGENDA_WIDTH, type TimelineChannel } from './guide-timeline-model';
 
 /** A stored guide older than this is downloaded again when the guide opens. */
 export const PAID_GUIDE_STALE_MS = 12 * 3_600_000;

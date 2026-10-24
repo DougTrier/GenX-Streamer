@@ -15,7 +15,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { classifyScanFailure } from '../../src/ui/source-scan';
+import { classifyScanFailure } from '../../src/ui/source-scan-model';
 describe('redacted scan failure classification', () => {
   it.each([
     'catalog-revision-stale',

@@ -19,7 +19,7 @@ import { build } from 'vite';
 import { chromium, type Browser, type Page } from '@playwright/test';
 
 const captureDirectory = `artifacts/guide-timeline/${new Date().toISOString().replaceAll(':', '-')}-narrow-agenda`;
-import type { TimelineChannel } from '../../src/ui/guide-timeline';
+import type { TimelineChannel } from '../../src/ui/guide-timeline-model';
 import type { ProgramQuery } from '../../src/guide/native';
 import { readStylesheet } from '../support/stylesheet';
 let browser: Browser,

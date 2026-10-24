@@ -49,17 +49,17 @@ import {
   type ResumedCheckpointFormat,
   type ScanCheckpointCaptureMode,
 } from './scan-checkpoint-mode';
+import { mountSourceScan } from '../ui/source-scan';
 import {
   ScanSourcesChanged,
   SourceScanWindowSizeError,
-  mountSourceScan,
   sourcesChangedRefusal,
   type AutomaticScanCheckpointSnapshot,
   type AutomaticScanProgress,
   type SourceScanHost,
   type SourceScanPublicationChunk,
   type SourceScanSnapshot,
-} from '../ui/source-scan';
+} from '../ui/source-scan-model';
 import { type PreferredRegion } from '../location/region';
 import { allowIncludedHttp, providerScanSources } from './included-sources';
 import {

@@ -399,7 +399,7 @@ it('cleanup join waits actual producer and cancellation settlement before progre
 // while its guide update held the database, but diagnostics only said
 // "unclassified". The native code is now kept as the cause.
 it('a native refusal keeps its code for diagnostics', async () => {
-  const { scanFailureCode } = await import('../../src/ui/source-scan');
+  const { scanFailureCode } = await import('../../src/ui/source-scan-model');
   const activate = createSourceSnapshotActivationTransport({
     idFactory: () => 'request-1',
     invoke: async () => {

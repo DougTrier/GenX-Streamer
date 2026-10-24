@@ -25,7 +25,7 @@ import {
   type ProposedGuidePreview,
 } from '../guide/native';
 import { formatGuideTime } from '../guide/time';
-import type { GuideHost, GuideCatalogChannel } from '../ui/guide';
+import type { GuideHost, GuideCatalogChannel } from '../ui/guide-model';
 import type { GuideCommitAliases } from '../guide/reviewed-aliases';
 import { readListedGuideChannels } from '../guide/listed-channels';
 

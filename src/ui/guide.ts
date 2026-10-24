@@ -14,145 +14,36 @@
  * limitations under the License.
  */
 
-import {
-  mappedGuideResultText,
-  type MappedGuideHydrationResult,
-} from '../application/mapped-guide-schedule';
-import { GUIDE_SOURCE_LIMIT } from '../guide/limits';
-import { describeChannelCoverage } from '../guide/coverage-presentation';
-import { ChannelCoverageCleanupError } from '../guide/native';
-import {
-  validateChannelCoverageReply,
-  type ChannelCoverageRequest,
-  type ChannelCoverageReply,
-} from '../guide/channel-coverage';
 import type {
-  GuideChannelPage,
   GuideChannelCursor,
   GuideCursor,
-  GuideMapping,
   GuidePreview,
   GuideSource,
   MappedProgram,
-  ProgramPage,
-  ProgramQuery,
-  SelectedGuideQuery,
-  SelectedGuideSummary,
 } from '../guide/native';
-import { queryGuide, type GuideProgram } from '../guide/query';
-import { guideCategoryKey, type GuideCategory } from '../guide/categories';
-import {
-  mountGuideTimeline,
-  PANEL_AGENDA_WIDTH,
-  type TimelineChannel,
-  type TimelineHost,
-} from './guide-timeline';
+
+import { mountGuideTimeline } from './guide-timeline';
+import { PANEL_AGENDA_WIDTH, type TimelineChannel } from './guide-timeline-model';
 import {
   createSelectedGuideOwner,
-  type SelectedGuideClock,
   type SelectedGuideSnapshot,
 } from '../application/selected-guide';
-import { channelGuideText } from './channel-guide';
-import { SEARCH_WEEK_MS } from '../search/catalog-search';
-import type {
-  AutomaticGuideBuildProgress,
-  AutomaticGuideBuildResult,
-} from '../guide/automatic-build';
-import type { GuideDiscoveryResult } from '../guide/discovery';
-export interface GuideCatalogChannel {
-  id: string;
-  sourceId: string;
-  providerId?: string;
-  name: string;
-  category?: string;
-  favorite?: boolean;
-}
-export interface GuideCoverage {
-  publishedRevision: number | null;
-  updatedMs: number | null;
-  startMs: number | null;
-  endMs: number | null;
-}
-export interface GuideHost {
-  logos?: TimelineHost['logos'];
-  listedChannels?: TimelineHost['listedChannels'];
-  /** Normal Guide only; mapping and advanced management remain modal. */
-  presentation?: 'page';
-  opened?(): Promise<void>;
-  closed?(): Promise<void>;
-  enableTimeline?: boolean;
-  buildForChannels?(signal: AbortSignal): Promise<AutomaticGuideBuildResult>;
-  discover?(signal: AbortSignal): Promise<GuideDiscoveryResult>;
-  selectedChannel(): GuideCatalogChannel | null;
-  channels?(): readonly GuideCatalogChannel[];
-  now(): number;
-  formatTime(milliseconds: number): string;
-  sources(signal: AbortSignal): Promise<GuideSource[]>;
-  mappings(signal: AbortSignal): Promise<GuideMapping[]>;
-  query(query: ProgramQuery, signal: AbortSignal): Promise<ProgramPage>;
-  guideChannels(
-    query: {
-      guideSourceId: string;
-      search: string;
-      afterId: GuideChannelCursor | null;
-      pageSize: 50;
-    },
-    signal: AbortSignal,
-  ): Promise<GuideChannelPage>;
-  /** New source configuration saves immediately; the schedule remains a reviewed preview. */
-  preview(
-    input:
-      | {
-          name: string;
-          location: string;
-          kind: 'url' | 'file';
-          allowHttp: boolean;
-        }
-      | { sourceId: string },
-    signal: AbortSignal,
-  ): Promise<GuidePreview>;
-  commitPreview(
-    ticket: string,
-    signal: AbortSignal,
-  ): Promise<{ committed: true; matched?: number; unmatched?: number }>;
-  discardPreview(ticket: string): Promise<void>;
-  removeSource(sourceId: string, signal: AbortSignal): Promise<void>;
-  setMapping(mapping: GuideMapping, signal: AbortSignal): Promise<void>;
-  /** Explicit Map only; saved reports the durable mapping before schedule work. */
-  mapAndHydrate?(
-    mapping: GuideMapping,
-    signal: AbortSignal,
-    saved: () => void,
-  ): Promise<MappedGuideHydrationResult>;
-  /** Join after actionWork; failed native cleanup prevents successful close. */
-  settleMappingHydration?(): Promise<void>;
-  coverage?(sourceId: string, signal: AbortSignal): Promise<GuideCoverage>;
-  channelCoverage?(
-    query: ChannelCoverageRequest,
-    signal: AbortSignal,
-  ): Promise<ChannelCoverageReply>;
-  pickFile?(signal: AbortSignal): Promise<{ name: string; location: string } | null>;
-  watch(channel: GuideCatalogChannel, signal: AbortSignal): Promise<void>;
-  summary?(query: SelectedGuideQuery, signal: AbortSignal): Promise<SelectedGuideSummary>;
-  catalogRevision?(): string | null;
-  cancelSummary?(requestId: string): Promise<unknown>;
-  summaryClock?: SelectedGuideClock;
-}
-const identity = (program: {
-  startMs: number;
-  stopMs: number | null;
-  title: string;
-  description?: string | null;
-  categories?: readonly GuideCategory[];
-}) =>
-  JSON.stringify([
-    program.startMs,
-    program.stopMs,
-    program.title,
-    program.description ?? null,
-    guideCategoryKey(program.categories),
-  ]);
-let guideDropdownId = 0;
+
+import type { AutomaticGuideBuildProgress } from '../guide/automatic-build';
+
+import { createGuidePresentation } from './guide-presentation';
+import { createSharedContext } from '../application/shared-context';
+import { createGuideReload } from './guide-reload';
+import { createGuideView } from './guide-view';
+import { createGuideDropdown } from './guide-dropdown';
+import { type GuideHost, type GuideCatalogChannel } from './guide-model';
+import { createGuideSources } from './guide-sources';
+export {
+  type GuideCatalogChannel,
+  type GuideCoverage,
+  type GuideHost,
+  identity,
+} from './guide-model';
 export function mountGuide(
   container: HTMLElement,
   host: GuideHost,
@@ -170,6 +61,216 @@ export function mountGuide(
   suspend(): Promise<void>;
   dispose(): Promise<void>;
 } {
+  // What the parts of mountGuide in other modules share with it: each value
+  // is read when a part uses it; the second list holds the ones parts assign.
+  const shared = createSharedContext(
+    {
+      acceptPreview: () => acceptPreview,
+      actionController: () => actionController,
+      actionWork: () => actionWork,
+      addSourcePanel: () => addSourcePanel,
+      advancedMode: () => advancedMode,
+      afterId: () => afterId,
+      automaticMessage: () => automaticMessage,
+      automaticPending: () => automaticPending,
+      automaticResult: () => automaticResult,
+      automaticStatus: () => automaticStatus,
+      back: () => back,
+      body: () => body,
+      browsed: () => browsed,
+      browsePanel: () => browsePanel,
+      busy: () => busy,
+      button: () => button,
+      cancel: () => cancel,
+      catalogKey: () => catalogKey,
+      catalogSearch: () => catalogSearch,
+      catalogSelect: () => catalogSelect,
+      channelTools: () => channelTools,
+      chosen: () => chosen,
+      close: () => close,
+      closing: () => closing,
+      committing: () => committing,
+      complete: () => complete,
+      container: () => container,
+      controls: () => controls,
+      current: () => current,
+      cursor: () => cursor,
+      day: () => day,
+      dayChoice: () => dayChoice,
+      detail: () => detail,
+      detailState: () => detailState,
+      dialog: () => dialog,
+      discard: () => discard,
+      discardButton: () => discardButton,
+      discardTickets: () => discardTickets,
+      discoveryRows: () => discoveryRows,
+      disposed: () => disposed,
+      eligibleDetail: () => eligibleDetail,
+      error: () => error,
+      explanation: () => explanation,
+      feedback: () => feedback,
+      findEmpty: () => findEmpty,
+      findGuides: () => findGuides,
+      firstPage: () => firstPage,
+      foreground: () => foreground,
+      freshness: () => freshness,
+      grant: () => grant,
+      header: () => header,
+      host: () => host,
+      lastProgramFocus: () => lastProgramFocus,
+      load: () => load,
+      lookup: () => lookup,
+      lookupChannels: () => lookupChannels,
+      lookupController: () => lookupController,
+      lookupEpoch: () => lookupEpoch,
+      lookupNext: () => lookupNext,
+      lookupWork: () => lookupWork,
+      manageAction: () => manageAction,
+      managedSource: () => managedSource,
+      manageSourcePanel: () => manageSourcePanel,
+      manualSource: () => manualSource,
+      mapChannel: () => mapChannel,
+      mapEmpty: () => mapEmpty,
+      mapHeading: () => mapHeading,
+      mappingPanel: () => mappingPanel,
+      mapSave: () => mapSave,
+      mapSearch: () => mapSearch,
+      mapSource: () => mapSource,
+      mapStatus: () => mapStatus,
+      nextCursor: () => nextCursor,
+      nextId: () => nextId,
+      nextPage: () => nextPage,
+      now: () => now,
+      opening: () => opening,
+      pageAnchor: () => pageAnchor,
+      pagePresented: () => pagePresented,
+      pick: () => pick,
+      presentationEpoch: () => presentationEpoch,
+      preview: () => preview,
+      previewPanel: () => previewPanel,
+      previewSummary: () => previewSummary,
+      programAction: () => programAction,
+      programActions: () => programActions,
+      programRun: () => programRun,
+      programSearch: () => programSearch,
+      programsPanel: () => programsPanel,
+      programView: () => programView,
+      reload: () => reload,
+      renderChannels: () => renderChannels,
+      renderComplete: () => renderComplete,
+      renderSources: () => renderSources,
+      returnFocus: () => returnFocus,
+      returnGuide: () => returnGuide,
+      rows: () => rows,
+      run: () => run,
+      save: () => save,
+      searchDetails: () => searchDetails,
+      searchPrograms: () => searchPrograms,
+      searchSource: () => searchSource,
+      selectedFile: () => selectedFile,
+      settings: () => settings,
+      setView: () => setView,
+      showPreview: () => showPreview,
+      sourceAction: () => sourceAction,
+      sourceName: () => sourceName,
+      sourceRows: () => sourceRows,
+      sources: () => sources,
+      sourceSearch: () => sourceSearch,
+      sourceTask: () => sourceTask,
+      sourceUrl: () => sourceUrl,
+      status: () => status,
+      summaryGeneration: () => summaryGeneration,
+      summaryKey: () => summaryKey,
+      summaryOwner: () => summaryOwner,
+      suspending: () => suspending,
+      suspension: () => suspension,
+      syncSummary: () => syncSummary,
+      text: () => text,
+      timeline: () => timeline,
+      timelineChannels: () => timelineChannels,
+      timelinePanel: () => timelinePanel,
+      timingLabel: () => timingLabel,
+      timingRows: () => timingRows,
+      title: () => title,
+      updateDetail: () => updateDetail,
+      view: () => view,
+      viewController: () => viewController,
+      viewEpoch: () => viewEpoch,
+      viewWork: () => viewWork,
+    },
+    {
+      actionController: (value: typeof actionController) => (actionController = value),
+      actionWork: (value: typeof actionWork) => (actionWork = value),
+      advancedMode: (value: typeof advancedMode) => (advancedMode = value),
+      afterId: (value: typeof afterId) => (afterId = value),
+      automaticPending: (value: typeof automaticPending) => (automaticPending = value),
+      browsed: (value: typeof browsed) => (browsed = value),
+      busy: (value: typeof busy) => (busy = value),
+      catalogKey: (value: typeof catalogKey) => (catalogKey = value),
+      closing: (value: typeof closing) => (closing = value),
+      committing: (value: typeof committing) => (committing = value),
+      cursor: (value: typeof cursor) => (cursor = value),
+      detailState: (value: typeof detailState) => (detailState = value),
+      foreground: (value: typeof foreground) => (foreground = value),
+      lastProgramFocus: (value: typeof lastProgramFocus) => (lastProgramFocus = value),
+      lookupController: (value: typeof lookupController) => (lookupController = value),
+      lookupEpoch: (value: typeof lookupEpoch) => (lookupEpoch = value),
+      lookupWork: (value: typeof lookupWork) => (lookupWork = value),
+      nextCursor: (value: typeof nextCursor) => (nextCursor = value),
+      nextId: (value: typeof nextId) => (nextId = value),
+      opening: (value: typeof opening) => (opening = value),
+      pageAnchor: (value: typeof pageAnchor) => (pageAnchor = value),
+      pagePresented: (value: typeof pagePresented) => (pagePresented = value),
+      presentationEpoch: (value: typeof presentationEpoch) => (presentationEpoch = value),
+      preview: (value: typeof preview) => (preview = value),
+      programView: (value: typeof programView) => (programView = value),
+      selectedFile: (value: typeof selectedFile) => (selectedFile = value),
+      sources: (value: typeof sources) => (sources = value),
+      summaryGeneration: (value: typeof summaryGeneration) => (summaryGeneration = value),
+      summaryKey: (value: typeof summaryKey) => (summaryKey = value),
+      suspending: (value: typeof suspending) => (suspending = value),
+      suspension: (value: typeof suspension) => (suspension = value),
+      timelineChannels: (value: typeof timelineChannels) => (timelineChannels = value),
+      viewController: (value: typeof viewController) => (viewController = value),
+      viewEpoch: (value: typeof viewEpoch) => (viewEpoch = value),
+      viewWork: (value: typeof viewWork) => (viewWork = value),
+    },
+  );
+  const guideView = createGuideView(shared);
+  const {
+    chosen,
+    controls,
+    discard,
+    eligibleDetail,
+    renderChannels,
+    renderComplete,
+    renderSources,
+    setView,
+    syncSummary,
+    timingLabel,
+    updateDetail,
+    acceptPreview,
+    showPreview,
+    restoreProgramFocus,
+    summaryChannel,
+    summaryActive,
+    updateTiming,
+    sourceViews,
+    canonicalKey,
+  } = guideView;
+  const guideReload = createGuideReload(shared);
+  const { reload, lookupChannels } = guideReload;
+  const guidePresentation = createGuidePresentation(shared);
+  const {
+    closeGuide,
+    run,
+    automaticMessage,
+    automaticResult,
+    suspend,
+    openPresentation,
+    presentAutomaticProgress,
+  } = guidePresentation;
+
   const button = (label: string, action: () => void) => {
     const result = document.createElement('button');
     result.type = 'button';
@@ -177,105 +278,8 @@ export function mountGuide(
     result.addEventListener('click', action);
     return result;
   };
-  const dropdown = (label: string, choices: readonly (readonly [string, string])[]) => {
-    const wrapper = document.createElement('div') as HTMLDivElement & {
-      value: string;
-      disabled: boolean;
-    };
-    wrapper.className = 'guide-dropdown';
-    const trigger = document.createElement('button');
-    trigger.type = 'button';
-    trigger.setAttribute('aria-label', label);
-    trigger.setAttribute('aria-haspopup', 'listbox');
-    trigger.setAttribute('aria-expanded', 'false');
-    const menu = document.createElement('div');
-    menu.id = `guide-choice-${++guideDropdownId}`;
-    trigger.setAttribute('aria-controls', menu.id);
-    menu.className = 'guide-dropdown-options';
-    menu.setAttribute('role', 'listbox');
-    menu.setAttribute('aria-label', label + ' choices');
-    menu.hidden = true;
-    let value = choices[0]![0];
-    const close = (restore = false) => {
-      menu.hidden = true;
-      trigger.setAttribute('aria-expanded', 'false');
-      if (restore) trigger.focus();
-    };
-    const options = choices.map(([key, name]) => {
-      const option = button(name, () => {
-        wrapper.value = key;
-        close(true);
-        wrapper.dispatchEvent(new Event('change'));
-      });
-      option.setAttribute('role', 'option');
-      option.dataset.value = key;
-      menu.append(option);
-      return option;
-    });
-    const update = () => {
-      trigger.textContent = choices.find(([key]) => key === value)?.[1] ?? label;
-      options.forEach((option) =>
-        option.setAttribute('aria-selected', String(option.dataset.value === value)),
-      );
-    };
-    Object.defineProperties(wrapper, {
-      value: {
-        get: () => value,
-        set: (next: string) => {
-          if (choices.some(([key]) => key === next)) {
-            value = next;
-            close();
-            update();
-          }
-        },
-      },
-      disabled: {
-        get: () => trigger.disabled,
-        set: (disabled: boolean) => {
-          trigger.disabled = disabled;
-          options.forEach((option) => (option.disabled = disabled));
-          if (disabled) close();
-        },
-      },
-    });
-    const open = () => {
-      if (trigger.disabled) return;
-      menu.hidden = false;
-      trigger.setAttribute('aria-expanded', 'true');
-      const available = options.filter((option) => !option.hidden);
-      (available.find((option) => option.dataset.value === value) ?? available[0])?.focus();
-    };
-    trigger.addEventListener('click', () => (menu.hidden ? open() : close()));
-    wrapper.addEventListener('keydown', (event) => {
-      if (event.key === 'Escape' && !menu.hidden) {
-        event.preventDefault();
-        event.stopPropagation();
-        close(true);
-        return;
-      }
-      // Closed selectors are navigation controls. Only explicit OK/click opens choices.
-      if (menu.hidden || !['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key)) return;
-      event.preventDefault();
-      event.stopPropagation();
-      const available = options.filter((option) => !option.hidden);
-      const current = available.indexOf(document.activeElement as HTMLButtonElement);
-      const index =
-        event.key === 'Home'
-          ? 0
-          : event.key === 'End'
-            ? available.length - 1
-            : (current + (event.key === 'ArrowDown' ? 1 : -1) + available.length) %
-              available.length;
-      available[index]?.focus();
-    });
-    wrapper.addEventListener('focusout', (event) => {
-      if (!wrapper.contains(event.relatedTarget as Node | null)) close();
-    });
-    wrapper.addEventListener('guide-dropdown-close', () => close(true));
-    wrapper.append(trigger, menu);
-    update();
-    return wrapper;
-  };
+  const guideDropdown = createGuideDropdown(shared);
+  const { dropdown } = guideDropdown;
   const text = (tag: string, value: string) => {
     const result = document.createElement(tag);
     result.textContent = value;
@@ -484,192 +488,21 @@ export function mountGuide(
   const cancel = button('Cancel guide operation', () => {
     if (!committing) actionController?.abort();
   });
-  const load = button('Save source and preview', () =>
-    run(async (signal) => {
-      if (!sourceName.field.value.trim()) throw new Error('Name required');
-      await discard();
-      const result = await host.preview(
-        {
-          name: sourceName.field.value.trim(),
-          location: selectedFile?.location ?? sourceUrl.field.value.trim(),
-          kind: selectedFile ? 'file' : 'url',
-          allowHttp: grant.field.checked,
-        },
-        signal,
-      );
-      await acceptPreview(result, signal);
-      showPreview();
-      reload();
-    }),
-  );
-  const pick = button('Choose XMLTV file', () =>
-    run(async (signal) => {
-      selectedFile = (await host.pickFile?.(signal)) ?? null;
-      if (selectedFile) {
-        sourceName.field.value = selectedFile.name;
-        sourceUrl.field.value = '';
-        status.textContent = 'Guide file selected. Preview it before saving schedule data.';
-      }
-    }),
-  );
-  pick.hidden = !host.pickFile;
-  const findGuides = button('Find program guides', () =>
-    run(async (signal) => {
-      if (!advancedMode && host.buildForChannels) {
-        automaticMessage('Finding program guides…', true);
-        const result = await host.buildForChannels(signal);
-        signal.throwIfAborted();
-        if (disposed || !foreground) return;
-        automaticResult(result);
-        reload();
-        return;
-      }
-      const result = await host.discover!(signal);
-      signal.throwIfAborted();
-      if (disposed || !foreground) return;
-      if (result.candidates.length > GUIDE_SOURCE_LIMIT || result.outcomes.length > 100)
-        throw new Error('Guide discovery limit');
-      discoveryRows.replaceChildren();
-      for (const candidate of result.candidates) {
-        const row = document.createElement('li');
-        row.append(
-          button(`${candidate.name} · ${candidate.playlistNames.join(', ')}`, () => {
-            if (disposed || busy || !foreground) return;
-            selectedFile = null;
-            sourceName.field.value = candidate.name;
-            sourceUrl.field.value = candidate.location;
-            grant.field.checked = false;
-            manualSource.open = true;
-            status.textContent = candidate.requiresHttpPermission
-              ? 'Guide link selected. This link requires your explicit HTTP permission before preview.'
-              : 'Guide link selected. Preview it, review the counts, then save its programs.';
-            if (!advancedMode && !candidate.requiresHttpPermission) load.click();
-            else {
-              advancedMode = true;
-              setView('sources');
-              sourceName.field.focus();
-            }
-          }),
-        );
-        if (candidate.limitations) row.append(text('p', candidate.limitations));
-        discoveryRows.append(row);
-      }
-      const failed = result.outcomes.filter((outcome) => outcome.status === 'failed').length;
-      status.textContent = result.candidates.length
-        ? `${result.candidates.length} possible program guides found.${failed ? ` ${failed} playlists could not be checked.` : ''} Choose one to preview.`
-        : `Your saved playlists did not include a program-guide link.${failed ? ` ${failed} playlists could not be checked.` : ''} You can add a guide link or file below.`;
-    }),
-  );
-  const findEmpty = button('Find program guides', () => {
-    if (!advancedMode && host.buildForChannels) {
-      findGuides.click();
-      return;
-    }
-    sourceTask.value = 'add';
-    setView('sources');
-    findGuides.click();
-  });
-  findEmpty.hidden = true;
-  const mapEmpty = button('Map guide', () => {
-    browsed = chosen();
-    mapSearch.field.value = browsed?.name.slice(0, 256) ?? '';
-    setView('mapping');
-    reload();
-  });
-  mapEmpty.hidden = true;
-  const returnGuide = button('Go back to Guide', () => {
-    advancedMode = false;
-    setView('channel');
-    reload();
-  });
-  returnGuide.hidden = true;
-  findGuides.hidden = !host.discover && !host.buildForChannels;
-  const save = button('Save reviewed schedule', () =>
-    run(async (signal) => {
-      if (!preview) return;
-      const receipt = await host.commitPreview(preview.ticket, signal);
-      if (receipt.committed !== true) throw new Error('Missing receipt');
-      preview = null;
-      showPreview();
-      status.textContent =
-        receipt.matched !== undefined && receipt.unmatched !== undefined
-          ? `Programs saved. ${receipt.matched} channels connected; ${receipt.unmatched} still need a guide.`
-          : 'Reviewed guide schedule saved.';
-      reload();
-    }, true),
-  );
-  const discardButton = button('Discard schedule preview', () =>
-    run(async () => {
-      await discard();
-      status.textContent = 'Schedule preview discarded. Saved source configuration retained.';
-    }),
-  );
-  const lookup = button('Find guide channels', () => {
-    afterId = null;
-    lookupChannels();
-  });
-  const lookupNext = button('More guide channels', () => {
-    afterId = nextId;
-    lookupChannels();
-  });
-  const mapSave = button('Map selected channel', () =>
-    run(async (signal) => {
-      const channel = browsed ?? host.selectedChannel();
-      if (!channel || !mapSource.value || !mapChannel.value) throw new Error('Mapping missing');
-      const mapping = Object.freeze({
-        catalogSourceId: channel.sourceId,
-        appChannelId: channel.id,
-        guideSourceId: mapSource.value,
-        xmltvChannelId: mapChannel.value,
-      });
-      let mappingSaved = false;
-      try {
-        if (host.mapAndHydrate) {
-          const result = await host.mapAndHydrate(mapping, signal, () => {
-            mappingSaved = true;
-            committing = false;
-            automaticMessage('Guide connection saved. Checking its schedule…', true);
-            if (disposed || suspending || !foreground) actionController?.abort();
-            controls();
-          });
-          if (!disposed && foreground && !signal.aborted)
-            automaticMessage(mappedGuideResultText(result));
-        } else {
-          await host.setMapping(mapping, signal);
-          mappingSaved = true;
-          status.textContent = 'Program guide connected.';
-        }
-      } catch (failure) {
-        if (mappingSaved && !disposed && foreground)
-          automaticMessage(
-            'Guide connection saved. Schedule cleanup could not be confirmed. Retry closing.',
-          );
-        throw failure;
-      } finally {
-        if (mappingSaved) {
-          cursor = null;
-          if (!disposed && foreground && !signal.aborted) {
-            if (!advancedMode) setView('channel');
-            reload();
-          }
-        }
-      }
-    }, true),
-  );
-  const manageAction = button('Run source action', () =>
-    run(async (signal) => {
-      if (!managedSource.value) throw new Error('Source missing');
-      if (sourceAction.value === 'remove') {
-        await host.removeSource(managedSource.value, signal);
-        status.textContent = 'Guide source removed. Catalog channels retained.';
-        reload();
-      } else {
-        await discard();
-        await acceptPreview(await host.preview({ sourceId: managedSource.value }, signal), signal);
-        showPreview();
-      }
-    }, sourceAction.value === 'remove'),
-  );
+  const guideSources = createGuideSources(shared);
+  const {
+    discardButton,
+    findEmpty,
+    findGuides,
+    load,
+    lookup,
+    lookupNext,
+    manageAction,
+    mapEmpty,
+    mapSave,
+    pick,
+    returnGuide,
+    save,
+  } = guideSources;
   const back = button('Back to programs', () => {
     setView(programView);
     restoreProgramFocus();
@@ -866,997 +699,6 @@ export function mountGuide(
     updateTiming();
     updateDetail();
   });
-  function liveScope(): boolean {
-    return day === 0 && programView === 'channel' && cursor === null;
-  }
-  function summaryChannel(): GuideCatalogChannel | null {
-    return !detail.hidden && detailState ? detailState.channel : chosen();
-  }
-  function summaryActive(): boolean {
-    return (!detail.hidden && !!detailState) || (!programsPanel.hidden && liveScope());
-  }
-  function canonicalKey(): string {
-    const channel = chosen();
-    return JSON.stringify([
-      host.catalogRevision?.() ?? null,
-      !!host.summary,
-      channel?.sourceId,
-      channel?.id,
-      host
-        .channels?.()
-        .some((entry) => entry.id === channel?.id && entry.sourceId === channel.sourceId) ?? true,
-    ]);
-  }
-  function scopeKey(): string {
-    const channel = summaryChannel();
-    return JSON.stringify([
-      channel?.sourceId,
-      channel?.id,
-      host.catalogRevision?.() ?? null,
-      !!host.summary,
-    ]);
-  }
-  function syncSummary(force = false): Promise<void> {
-    catalogKey = canonicalKey();
-    const key = summaryActive() && foreground && dialog.open ? scopeKey() : '';
-    if (!force && key === summaryKey) return Promise.resolve();
-    summaryKey = key;
-    ++summaryGeneration;
-    const channel = summaryChannel(),
-      revision = host.catalogRevision?.();
-    current.textContent = '';
-    if (!key || !channel || !revision || !host.summary) {
-      return summaryOwner.setSelection(null).then(() => {
-        renderComplete();
-        updateDetail();
-      });
-    }
-    return summaryOwner.setSelection({
-      catalogSourceId: channel.sourceId,
-      appChannelId: channel.id,
-      catalogRevision: revision,
-      selectionGeneration: summaryGeneration,
-    });
-  }
-  function renderComplete(): void {
-    if (disposed) return;
-    if (!liveScope()) {
-      current.textContent = `Schedule snapshot as of ${host.formatTime(pageAnchor?.instant ?? host.now())}. Current / next is not summarized for this page.`;
-      return;
-    }
-    if (complete.status === 'ready' && complete.summary) {
-      const value = channelGuideText(
-        {
-          catalogSourceId: complete.summary.catalogSourceId,
-          appChannelId: complete.summary.appChannelId,
-          status: 'ready',
-          summary: complete.summary,
-        },
-        host.formatTime,
-      );
-      current.textContent = `${value.current}${value.next ? ' · ' + value.next : ''}`;
-    } else
-      current.textContent =
-        complete.status === 'loading'
-          ? 'Loading current / next listings…'
-          : 'Current / next unavailable. Review the guide source and mapping, or retry Now.';
-  }
-  function timingLabel(
-    program: MappedProgram,
-    channel: GuideCatalogChannel,
-    conflict: boolean,
-    instant: number,
-    live: boolean,
-  ): string {
-    const timing =
-      program.stopMs === null
-        ? 'End unknown'
-        : program.stopMs <= instant
-          ? 'Earlier listing'
-          : program.startMs <= instant
-            ? 'Scheduled now'
-            : 'Upcoming';
-    return `${host.formatTime(program.startMs)} · ${programView === 'search' ? channel.name + ' · ' : ''}${program.title} · ${conflict ? 'Overlap observed on this page · ' : ''}${live ? timing : 'As of ' + host.formatTime(instant) + ' · ' + timing}`;
-  }
-  function updateTiming(): void {
-    if (disposed) return;
-    for (const [control, value] of timingRows)
-      control.textContent = timingLabel(
-        value.program,
-        value.channel,
-        value.conflict,
-        value.live ? host.now() : value.snapshot,
-        value.live,
-      );
-  }
-  function eligibleDetail(): boolean {
-    if (!detailState || !foreground || complete.status !== 'ready' || !complete.summary)
-      return false;
-    const { program, channel } = detailState;
-    const summary = complete.summary,
-      known = summary.current,
-      instant = host.now();
-    return (
-      summary.catalogRevision === host.catalogRevision?.() &&
-      (!host.channels ||
-        host
-          .channels()
-          .some((entry) => entry.id === channel.id && entry.sourceId === channel.sourceId)) &&
-      summary.currentStatus === 'current' &&
-      summary.cacheStatus === 'current' &&
-      !!known &&
-      channel.id === summary.appChannelId &&
-      channel.sourceId === summary.catalogSourceId &&
-      summary.mapping?.guideSourceId === program.guideSourceId &&
-      summary.mapping.xmltvChannelId === program.xmltvChannelId &&
-      known.title === program.title &&
-      known.startMs === program.startMs &&
-      known.stopMs === program.stopMs &&
-      program.stopMs !== null &&
-      program.startMs <= instant &&
-      instant < program.stopMs
-    );
-  }
-  function updateDetail(): void {
-    if (!detailState || disposed) return;
-    const eligible = eligibleDetail(),
-      { action, message, program } = detailState;
-    const instant = host.now();
-    if (eligible) detailState.wasVisible = true;
-    action.hidden = !detailState.wasVisible;
-    action.disabled = !eligible;
-    message.textContent = eligible
-      ? 'Current listing confirmed by the complete cached guide. Watch channel starts the live stream.'
-      : program.stopMs !== null && program.stopMs <= instant
-        ? 'This listing has ended. Return to the current channel guide.'
-        : program.startMs > instant
-          ? 'Scheduled listing only. Future programs cannot play early.'
-          : 'Current listing is unconfirmed or ambiguous. Review the current channel guide.';
-    if (!eligible && document.activeElement === action) back.focus({ preventScroll: true });
-  }
-  function chosen(): GuideCatalogChannel | null {
-    return browsed ?? host.selectedChannel();
-  }
-  function setView(target: string): void {
-    for (const option of view.querySelectorAll<HTMLElement>('[role="option"]'))
-      option.hidden = !advancedMode && ['sources', 'mapping'].includes(option.dataset.value ?? '');
-    const compactPage =
-      host.presentation === 'page' && !!timeline && !advancedMode && target === 'channel';
-    view.hidden = compactPage || (!advancedMode && target === 'sources');
-    sourceTask.hidden = !advancedMode;
-    manualSource.hidden = !advancedMode;
-    findGuides.hidden = advancedMode ? !host.discover : !host.discover && !host.buildForChannels;
-    explanation.hidden = !advancedMode;
-    returnGuide.hidden = !(advancedMode || target === 'sources' || target === 'mapping');
-    findEmpty.hidden =
-      target !== 'mapping' || advancedMode || (!host.discover && !host.buildForChannels);
-    mapEmpty.hidden = true;
-    if (target === 'channel' || target === 'search') programView = target;
-    if (target !== 'detail') view.value = target;
-    timelinePanel.hidden = !timeline || advancedMode || target !== 'channel';
-    programsPanel.hidden = !timelinePanel.hidden || (target !== 'channel' && target !== 'search');
-    dialog.classList.toggle('guide-with-timeline', !timelinePanel.hidden);
-    dialog.classList.toggle('guide-compact-page', compactPage);
-    const timelineToolbar = timelinePanel.querySelector('.gx-timeline-toolbar');
-    if (compactPage && timelineToolbar) {
-      timelineToolbar.append(findEmpty, mapEmpty, cancel, close);
-    } else {
-      header.append(mapEmpty, cancel, close);
-      dialog.insertBefore(feedback, body);
-      dialog.insertBefore(findEmpty, body);
-    }
-    if (timeline && timelinePanel.hidden)
-      void timeline.suspend().catch(() => {
-        if (!disposed)
-          error.textContent = 'Guide timeline cleanup could not finish. Close Guide and retry.';
-      });
-    settings.hidden = target !== 'sources';
-    mappingPanel.hidden = target !== 'mapping';
-    if (target === 'mapping')
-      mapHeading.textContent = `Map guide for ${chosen()?.name ?? 'your channel'}`;
-    browsePanel.hidden = target !== 'choose';
-    detail.hidden = target !== 'detail';
-    channelTools.hidden = target !== 'choose';
-    searchDetails.hidden = programView !== 'search';
-    back.hidden = target !== 'detail';
-    body.dataset.view = target;
-    sourceViews();
-    void syncSummary().catch(() => {
-      if (!disposed)
-        error.textContent = 'Current / next activity could not settle. Retry or close Guide.';
-    });
-  }
-  function restoreProgramFocus(): void {
-    const previous = lastProgramFocus?.isConnected
-      ? lastProgramFocus
-      : [...timingRows.entries()].find(
-          ([, value]) =>
-            detailState &&
-            value.channel.id === detailState.channel.id &&
-            value.channel.sourceId === detailState.channel.sourceId &&
-            identity(value.program) === identity(detailState.program),
-        )?.[0];
-    (previous ?? rows.querySelector<HTMLButtonElement>('button') ?? close).focus({
-      preventScroll: true,
-    });
-  }
-  function sourceViews(): void {
-    addSourcePanel.hidden = sourceTask.value !== 'add';
-    manageSourcePanel.hidden = sourceTask.value !== 'manage';
-    previewPanel.hidden = sourceTask.value !== 'preview';
-  }
-  function showPreview(): void {
-    previewSummary.textContent = preview
-      ? `${preview.channels} guide channels · ${preview.programs} programs. ${preview.firstStartMs === null || preview.lastKnownStopMs === null ? 'Coverage unknown.' : `${host.formatTime(preview.firstStartMs)} – ${host.formatTime(preview.lastKnownStopMs)}.`}`
-      : 'No schedule preview. Choose Add source or Manage sources to prepare one.';
-    if (preview) {
-      sourceTask.value = 'preview';
-      setView('sources');
-    }
-    sourceViews();
-    controls();
-  }
-  function controls(): void {
-    const toolbar = timelinePanel.querySelector('.gx-timeline-toolbar');
-    if (dialog.classList.contains('guide-compact-page') && toolbar) {
-      if (busy || automaticStatus.textContent || error.textContent) toolbar.after(feedback);
-      else toolbar.insertBefore(feedback, findEmpty);
-    }
-    feedback.hidden =
-      !busy &&
-      !error.textContent &&
-      !automaticStatus.textContent &&
-      rows.children.length > 0 &&
-      !programsPanel.hidden;
-    load.disabled = busy;
-    findGuides.disabled = busy;
-    findEmpty.disabled = busy;
-    pick.disabled = busy;
-    save.disabled = busy || !preview;
-    discardButton.disabled = busy || !preview;
-    mapSave.disabled = busy || !mapSource.value || !mapChannel.value || !chosen();
-    cancel.disabled = !busy || committing;
-    close.disabled = committing;
-    cancel.hidden = !busy;
-    dayChoice.disabled = busy;
-    dayChoice.value = String(day);
-    view.disabled = busy;
-    sourceTask.disabled = busy;
-    managedSource.disabled = busy;
-    sourceAction.disabled = busy;
-    manageAction.disabled = busy || !managedSource.value;
-    nextPage.disabled = busy || !nextCursor;
-    firstPage.disabled = busy || !cursor;
-    now.disabled = busy;
-    for (const option of programAction.options)
-      option.disabled = programActions.get(option.value)?.disabled ?? true;
-    programAction.disabled = busy;
-    programRun.disabled = busy || (programActions.get(programAction.value)?.disabled ?? true);
-    lookupNext.disabled = busy || !nextId;
-    lookup.disabled = busy || !mapSource.value;
-    sourceName.field.disabled = busy;
-    sourceUrl.field.disabled = busy;
-    grant.field.disabled = busy;
-    mapSource.disabled = busy;
-    mapSearch.field.disabled = busy;
-    mapChannel.disabled = busy;
-    catalogSelect.disabled = busy;
-    searchPrograms.disabled = busy;
-  }
-  async function discard(): Promise<void> {
-    if (preview) discardTickets.add(preview.ticket);
-    for (const ticket of discardTickets) {
-      try {
-        await host.discardPreview(ticket);
-      } catch {
-        throw new Error('Guide preview cleanup could not be confirmed.');
-      }
-      discardTickets.delete(ticket);
-      if (preview?.ticket === ticket) preview = null;
-    }
-    showPreview();
-  }
-  async function acceptPreview(result: GuidePreview, signal: AbortSignal): Promise<void> {
-    if (disposed || signal.aborted) {
-      discardTickets.add(result.ticket);
-      await host.discardPreview(result.ticket);
-      discardTickets.delete(result.ticket);
-      signal.throwIfAborted();
-      return;
-    }
-    preview = result;
-  }
-  function renderChannels(): void {
-    const selected = chosen();
-    const query = catalogSearch.field.value.trim().toLowerCase();
-    const list = host.channels?.() ?? (selected ? [selected] : []);
-    const options = list
-      .filter((channel) => channel.name.toLowerCase().includes(query))
-      .slice(0, 50);
-    catalogSelect.replaceChildren();
-    const placeholder = document.createElement('option');
-    placeholder.value = '';
-    placeholder.textContent = `Browse channels · up to 50 matches`;
-    catalogSelect.append(placeholder);
-    for (const channel of options) {
-      const option = document.createElement('option');
-      option.value = JSON.stringify([channel.sourceId, channel.id]);
-      option.textContent = channel.name;
-      option.selected = selected?.id === channel.id && selected.sourceId === channel.sourceId;
-      catalogSelect.append(option);
-    }
-  }
-  function renderSources(): void {
-    const searchRemembered = searchSource.value;
-    searchSource.replaceChildren();
-    const all = document.createElement('option');
-    all.value = '';
-    all.textContent = 'All guides';
-    searchSource.append(all);
-    for (const source of sources) {
-      const option = document.createElement('option');
-      option.value = source.id;
-      option.textContent = source.name;
-      option.selected = source.id === searchRemembered;
-      searchSource.append(option);
-    }
-    const remembered = mapSource.value;
-    const managedRemembered = managedSource.value;
-    const matches = sources.filter((source) =>
-      source.name.toLowerCase().includes(sourceSearch.field.value.trim().toLowerCase()),
-    );
-    sourceRows.replaceChildren();
-    managedSource.replaceChildren();
-    mapSource.replaceChildren();
-    const empty = document.createElement('option');
-    empty.value = '';
-    empty.textContent = 'Choose a guide source';
-    mapSource.append(empty);
-    for (const source of matches.slice(0, 50)) {
-      const managedOption = document.createElement('option');
-      managedOption.value = source.id;
-      managedOption.textContent = source.name;
-      managedOption.selected = source.id === managedRemembered;
-      managedSource.append(managedOption);
-    }
-    // Mapping choices must not inherit a hidden Advanced source-management search.
-    for (const source of sources) {
-      const option = document.createElement('option');
-      option.value = source.id;
-      option.textContent = source.name;
-      option.selected = source.id === remembered;
-      mapSource.append(option);
-    }
-    sourceRows.prepend(text('li', `${matches.length} source matches; showing up to 50.`));
-    if (!mappingPanel.hidden && !advancedMode && !mapSource.value && sources.length === 1) {
-      mapSource.value = sources[0].id;
-    }
-    if (!mappingPanel.hidden && !advancedMode && mapSource.value) {
-      afterId = null;
-      lookupChannels();
-    }
-    controls();
-  }
-  function reload(continuation = false): void {
-    if (disposed || suspending || !foreground || !dialog.open) return;
-    if (!continuation) {
-      cursor = null;
-      pageAnchor = null;
-    }
-    void syncSummary(!continuation).catch(() => {
-      if (!disposed)
-        error.textContent = 'Current / next activity could not settle. Retry Now or close Guide.';
-    });
-    const captured = {
-      searching: programView === 'search',
-      channel: structuredClone(chosen()),
-      fallbackChannel: structuredClone(host.channels?.()[0] ?? null),
-      day,
-      search: programSearch.field.value,
-      searchSource: searchSource.value,
-      cursor: structuredClone(cursor),
-      anchor: pageAnchor,
-      instant: host.now(),
-    };
-    const signature = JSON.stringify([
-      captured.searching,
-      captured.channel?.sourceId ?? null,
-      captured.channel?.id ?? null,
-      captured.day,
-      captured.search,
-      captured.searchSource,
-    ]);
-    viewController?.abort();
-    const epoch = ++viewEpoch;
-    const controller = new AbortController();
-    viewController = controller;
-    viewWork = viewWork
-      .catch(() => {})
-      .then(async () => {
-        if (epoch !== viewEpoch || disposed || controller.signal.aborted) return;
-        try {
-          await timeline?.suspend();
-          if (epoch !== viewEpoch || disposed || controller.signal.aborted) return;
-          const fetched = await Promise.allSettled([
-            host.sources(controller.signal),
-            host.mappings(controller.signal),
-          ]);
-          if (fetched[0].status !== 'fulfilled' || fetched[1].status !== 'fulfilled')
-            throw new Error('Guide configuration unavailable');
-          if (epoch !== viewEpoch || disposed || controller.signal.aborted) return;
-          sources = fetched[0].value;
-          const allMappings = fetched[1].value;
-          const selected = chosen();
-          mapEmpty.hidden =
-            advancedMode ||
-            !selected ||
-            !mappingPanel.hidden ||
-            allMappings.some(
-              (mapping) =>
-                mapping.catalogSourceId === selected.sourceId &&
-                mapping.appChannelId === selected.id &&
-                sources.some((source) => source.id === mapping.guideSourceId),
-            );
-          renderSources();
-          renderChannels();
-          if (timeline && !timelinePanel.hidden) {
-            // Links indexed once by channel: filtering every link for each of
-            // ~9,000 channels took about 2 s on the Sansui TV per opening
-            // (October 19, 2026). Same result: exactly one usable link counts.
-            const revisions = new Map(sources.map((source) => [source.id, source.revision]));
-            const links = new Map<string, (typeof allMappings)[number][]>();
-            for (const entry of allMappings) {
-              if (!revisions.has(entry.guideSourceId)) continue;
-              const key = JSON.stringify([entry.catalogSourceId, entry.appChannelId]);
-              const list = links.get(key);
-              if (list) list.push(entry);
-              else links.set(key, [entry]);
-            }
-            timelineChannels = (host.channels?.() ?? []).map((channel) => {
-              const matches = links.get(JSON.stringify([channel.sourceId, channel.id])) ?? [];
-              const mapping = matches.length === 1 ? matches[0] : null;
-              return {
-                ...channel,
-                guideSourceId: mapping?.guideSourceId ?? null,
-                xmltvChannelId: mapping?.xmltvChannelId ?? null,
-                ...(mapping ? { guideRevision: revisions.get(mapping.guideSourceId)! } : {}),
-              };
-            });
-            title.textContent = 'Program guide';
-            const connected = timelineChannels.filter(
-              (channel) => channel.guideSourceId !== null,
-            ).length;
-            const connectionStatus = connected
-              ? `${connected} of ${timelineChannels.length} channels linked to program guides. Links do not confirm available schedules.`
-              : 'No program guide connected yet.';
-            status.textContent = host.listedChannels
-              ? 'Checking saved listings…'
-              : dialog.classList.contains('guide-compact-page')
-                ? `${connected} of ${timelineChannels.length} linked`
-                : connectionStatus;
-            status.title = host.listedChannels ? status.textContent : connectionStatus;
-            status.setAttribute('aria-label', status.title);
-            findEmpty.hidden = !host.discover && !host.buildForChannels;
-            await timeline.setForeground(true);
-            return;
-          }
-          const searching = captured.searching;
-          const channel = captured.channel ?? (searching ? captured.fallbackChannel : null);
-          timingRows.clear();
-          rows.replaceChildren();
-          nextCursor = null;
-          renderComplete();
-          freshness.textContent = '';
-          if (!sources.length) {
-            status.textContent = 'No program guide saved yet.';
-            findEmpty.hidden =
-              (!host.discover && !host.buildForChannels) ||
-              advancedMode ||
-              (programsPanel.hidden && mappingPanel.hidden);
-            return;
-          }
-          if (!channel) {
-            status.textContent = 'Choose a channel to browse its guide.';
-            return;
-          }
-          title.textContent = searching ? 'Program search' : `${channel.name} · Program guide`;
-          const mappings = fetched[1].value.filter(
-            (mapping) =>
-              mapping.catalogSourceId === channel.sourceId && mapping.appChannelId === channel.id,
-          );
-          if (!searching && mappings.length !== 1) {
-            status.textContent = mappings.length
-              ? 'Channel mapping is ambiguous. Review its guide source.'
-              : 'No program guide is connected to this channel yet.';
-            if (advancedMode && !programsPanel.hidden) setView('mapping');
-            else
-              findEmpty.hidden =
-                (!host.discover && !host.buildForChannels) ||
-                (programsPanel.hidden && mappingPanel.hidden);
-            return;
-          }
-          const mapping =
-            mappings[0] ??
-            allMappings.find((entry) =>
-              sources.some((source) => source.id === entry.guideSourceId),
-            );
-          if (!mapping) {
-            status.textContent =
-              'No guide channels mapped. Map a catalog channel before searching programs.';
-            if (advancedMode && !programsPanel.hidden) setView('mapping');
-            else
-              findEmpty.hidden =
-                (!host.discover && !host.buildForChannels) ||
-                (programsPanel.hidden && mappingPanel.hidden);
-            return;
-          }
-          const source = sources.find((source) => source.id === mapping.guideSourceId);
-          if (!source) {
-            status.textContent = 'Mapped guide source is unavailable. Mapping retained.';
-            return;
-          }
-          const mappingKey = JSON.stringify([
-            mapping.catalogSourceId,
-            mapping.appChannelId,
-            mapping.guideSourceId,
-            mapping.xmltvChannelId,
-          ]);
-          if (
-            captured.cursor &&
-            (!captured.anchor ||
-              captured.anchor.signature !== signature ||
-              captured.anchor.mapping !== mappingKey)
-          )
-            throw new Error('Guide query changed. Return to First programs before continuing.');
-          const instant = captured.cursor ? captured.anchor!.instant : captured.instant;
-          const start = captured.cursor
-            ? captured.anchor!.start
-            : instant + captured.day * 24 * 60 * 60 * 1000;
-          const end = captured.cursor
-            ? captured.anchor!.end
-            : searching
-              ? instant + SEARCH_WEEK_MS
-              : Math.min(start + 24 * 60 * 60 * 1000, instant + SEARCH_WEEK_MS);
-          if (!captured.cursor)
-            pageAnchor = {
-              signature,
-              instant,
-              start,
-              end,
-              mapping: mappingKey,
-            };
-          status.textContent = `Schedule: ${host.formatTime(start)} – ${host.formatTime(end)}`;
-          const response = await host.query(
-            {
-              guideSourceId: searching ? captured.searchSource : mapping.guideSourceId,
-              appChannelIds: searching ? [] : [channel.id],
-              windowStartMs: start,
-              windowEndMs: end,
-              ...(!searching && captured.day === 0 && !captured.search.trim()
-                ? { contextAtMs: instant }
-                : {}),
-              search: captured.search,
-              pageSize: 50,
-              cursor: captured.cursor,
-            },
-            controller.signal,
-          );
-          if (
-            response.programs.length > 50 ||
-            response.programs.some(
-              (program) =>
-                !allMappings.some(
-                  (entry) =>
-                    entry.catalogSourceId === program.catalogSourceId &&
-                    entry.appChannelId === program.appChannelId &&
-                    entry.guideSourceId === program.guideSourceId &&
-                    sources.some((source) => source.id === entry.guideSourceId) &&
-                    (!searching ||
-                      !captured.searchSource ||
-                      entry.guideSourceId === captured.searchSource) &&
-                    entry.xmltvChannelId === program.xmltvChannelId &&
-                    (searching ||
-                      (entry.appChannelId === channel.id &&
-                        entry.catalogSourceId === channel.sourceId)),
-                ),
-            )
-          )
-            throw new Error('Guide query ownership mismatch');
-          const coverage =
-            !searching && host.coverage ? await host.coverage(source.id, controller.signal) : null;
-          let channelCoverage: ChannelCoverageReply | null = null;
-          if (!searching && host.channelCoverage) {
-            const coverageQuery: ChannelCoverageRequest = {
-              schemaVersion: 1,
-              sourceId: source.id,
-              xmltvChannelId: mapping.xmltvChannelId,
-              startMs: start,
-              endMs: end,
-              expectedSourceRevision: source.revision,
-              expectedPublishedRevision: source.revision,
-            };
-            try {
-              channelCoverage = validateChannelCoverageReply(
-                await host.channelCoverage(coverageQuery, controller.signal),
-                coverageQuery,
-              );
-            } catch (failure) {
-              if (failure instanceof ChannelCoverageCleanupError) throw failure;
-              // Coverage is observational; unavailable assessment must not hide saved listings.
-            }
-          }
-          if (epoch !== viewEpoch || disposed || controller.signal.aborted) return;
-          nextCursor = response.nextCursor;
-          const updated = coverage?.updatedMs ?? source.updatedMs;
-          const age =
-            coverage && coverage.publishedRevision !== source.revision
-              ? 'Stale guide: source configuration changed'
-              : updated === null || updated > instant
-                ? 'Update time unknown'
-                : instant - updated > 24 * 60 * 60 * 1000
-                  ? 'Stale guide'
-                  : 'Guide updated';
-          const bounds =
-            coverage?.startMs !== null && coverage?.startMs !== undefined && coverage.endMs !== null
-              ? coverage.startMs <= start && coverage.endMs >= end
-                ? 'Feed time range spans this window'
-                : 'Feed time range does not span this window'
-              : 'Feed time range unknown';
-          const channelBounds = channelCoverage
-            ? describeChannelCoverage(channelCoverage, (instant) => host.formatTime(instant))
-            : 'Channel schedule coverage not assessed. Listings do not confirm stream availability.';
-          freshness.textContent = `${age}${updated !== null ? ` · ${host.formatTime(updated)}` : ''} · ${bounds}. ${channelBounds}`;
-          if (searching)
-            freshness.textContent = `${captured.searchSource ? 'Searching the selected guide' : 'Searching all configured guides'}. Feed freshness and time coverage may differ; a seven-day search does not guarantee complete listings or stream availability.`;
-          const programs: GuideProgram[] = response.programs.map((program) => ({
-            guideSourceId: program.guideSourceId,
-            channelId: program.xmltvChannelId,
-            startMs: program.startMs,
-            stopMs: program.stopMs,
-            title: program.title,
-            ...(program.description !== null ? { description: program.description } : {}),
-            ...(program.categories ? { categories: program.categories } : {}),
-          }));
-          const summary = queryGuide(programs, {
-            guideSourceId: source.id,
-            channelId: mapping.xmltvChannelId,
-            nowMs: instant,
-            windowStartMs: start,
-            windowEndMs: end,
-          });
-          const conflicts = new Set(summary.conflicts.map(identity));
-          renderComplete();
-          if (!programs.length) rows.append(text('li', 'No schedule for this period.'));
-          for (const [index, program] of programs.entries()) {
-            const mapped = response.programs[index];
-            const owner = (host.channels?.() ?? [channel]).find(
-              (entry) =>
-                entry.id === mapped.appChannelId && entry.sourceId === mapped.catalogSourceId,
-            );
-            if (!owner) continue;
-            const conflict = searching
-              ? queryGuide(programs, {
-                  guideSourceId: program.guideSourceId,
-                  channelId: program.channelId,
-                  nowMs: instant,
-                  windowStartMs: start,
-                  windowEndMs: end,
-                }).conflicts.some((entry) => identity(entry) === identity(program))
-              : conflicts.has(identity(program));
-            const item = document.createElement('li');
-            const control = button('', () => showDetail(mapped, owner, conflict));
-            timingRows.set(control, {
-              program: mapped,
-              channel: owner,
-              conflict,
-              snapshot: instant,
-              live: !searching && captured.day === 0 && !captured.cursor,
-            });
-            control.textContent = timingLabel(
-              mapped,
-              owner,
-              conflict,
-              instant,
-              !searching && captured.day === 0 && !captured.cursor,
-            );
-            item.append(control);
-            rows.append(item);
-          }
-          error.textContent = '';
-        } catch (failure) {
-          if (failure instanceof ChannelCoverageCleanupError) throw failure;
-          if (!disposed && epoch === viewEpoch && !controller.signal.aborted) {
-            error.textContent =
-              'Guide could not load. Retry Now or review the source and mapping; previous saved data is retained.';
-          }
-        } finally {
-          if (!disposed && epoch === viewEpoch) controls();
-        }
-      });
-    void viewWork.catch(() => {
-      if (!disposed) error.textContent = 'Guide cleanup could not be confirmed. Retry closing.';
-    });
-  }
-  function showDetail(
-    program: MappedProgram,
-    channel: GuideCatalogChannel,
-    _conflict: boolean,
-  ): void {
-    detail.replaceChildren(
-      text('h3', program.title),
-      text('p', program.description ?? 'No description supplied.'),
-      text(
-        'p',
-        `${host.formatTime(program.startMs)} – ${program.stopMs === null ? 'End unknown' : host.formatTime(program.stopMs)}`,
-      ),
-    );
-    const message = text('p', '');
-    const action = button('Watch channel', () => {
-      if (!eligibleDetail()) {
-        updateDetail();
-        return;
-      }
-      run((signal) => {
-        if (!eligibleDetail()) throw new Error('Current listing changed.');
-        return host.watch(channel, signal);
-      });
-    });
-    detailState = { program, channel, action, message, wasVisible: false };
-    detail.append(message, action);
-    updateDetail();
-    lastProgramFocus =
-      document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    setView('detail');
-    back.focus();
-  }
-  function lookupChannels(): void {
-    if (disposed || suspending || !foreground || !mapSource.value) return;
-    lookupController?.abort();
-    const epoch = ++lookupEpoch;
-    const controller = new AbortController();
-    lookupController = controller;
-    const sourceId = mapSource.value;
-    const search = mapSearch.field.value;
-    const after = afterId;
-    lookupWork = lookupWork
-      .catch(() => {})
-      .then(async () => {
-        if (disposed || epoch !== lookupEpoch || controller.signal.aborted) return;
-        try {
-          const page = await host.guideChannels(
-            { guideSourceId: sourceId, search, afterId: after, pageSize: 50 },
-            controller.signal,
-          );
-          if (page.channels.length > 50) throw new Error('Guide channel page limit');
-          if (
-            disposed ||
-            epoch !== lookupEpoch ||
-            controller.signal.aborted ||
-            mapSource.value !== sourceId
-          )
-            return;
-          mapChannel.replaceChildren();
-          for (const channel of page.channels) {
-            const option = document.createElement('option');
-            option.value = channel.id;
-            option.textContent = channel.names.join(' · ') || channel.id;
-            mapChannel.append(option);
-          }
-          nextId = page.nextCursor;
-          mapStatus.textContent = page.channels.length
-            ? `${page.channels.length} guide channels shown${page.nextCursor ? '; more available' : ''}. Match the station and region before saving.`
-            : 'No matching schedule found in this guide. Try the station name or another guide source.';
-        } catch {
-          if (!disposed && !controller.signal.aborted)
-            mapStatus.textContent =
-              'Guide channels unavailable. Refresh this source or choose another.';
-        } finally {
-          controls();
-        }
-      });
-  }
-  function automaticMessage(message: string, pending = false): void {
-    automaticPending = pending;
-    automaticStatus.textContent = message;
-    automaticStatus.hidden = !message;
-    controls();
-  }
-  function automaticResult(result: Readonly<AutomaticGuideBuildResult>): void {
-    const maintenance =
-      result.maintenance === 'reopen-required'
-        ? ' Storage verification failed. Close and reopen the app before continuing.'
-        : result.maintenance === 'failed' || result.maintenance === 'deferred'
-          ? ' Storage optimization is pending; saved guide results remain available.'
-          : '';
-    automaticMessage(
-      `Guide check finished${result.failed ? ` · ${result.failed} could not be checked` : ''}${result.discoveryFailed ? ` · ${result.discoveryFailed} playlists could not be checked` : ''}${result.skipped ? ` · ${result.skipped} skipped` : ''}.${result.failed || result.discoveryFailed || result.skipped ? ' Previous schedules retained; try Find again.' : ' Schedule availability is shown per channel.'}${maintenance}`,
-    );
-  }
-  function presentAutomaticProgress(progress: Readonly<AutomaticGuideBuildProgress>): void {
-    if (disposed || suspending || !foreground) return;
-    if (
-      ![progress.total, progress.attempted].every(
-        (count) => Number.isSafeInteger(count) && count >= 0 && count <= GUIDE_SOURCE_LIMIT,
-      ) ||
-      progress.attempted > progress.total ||
-      ![progress.failed, progress.skipped, progress.discoveryFailed ?? 0].every(
-        (count) => Number.isSafeInteger(count) && count >= 0 && count <= 100_000,
-      )
-    )
-      return;
-    const phases: Record<AutomaticGuideBuildProgress['phase'], string> = {
-      capturing: 'Preparing guide check',
-      'reading-playlists': 'Reading playlist guide links',
-      'checking-cache': 'Checking saved schedules',
-      fetching: 'Fetching schedules',
-      publishing: 'Saving checked schedules',
-      connecting: 'Linking channel guides',
-      optimizing: 'Optimizing saved guides',
-      completed: 'Guide check finished',
-    };
-    if (!phases[progress.phase]) return;
-    if (progress.phase === 'completed') {
-      automaticResult(progress);
-      return;
-    }
-    automaticMessage(
-      `${phases[progress.phase]}${progress.total ? ` · ${progress.attempted} of ${progress.total} feeds settled` : ''}${progress.failed ? ` · ${progress.failed} could not be checked` : ''}${progress.discoveryFailed ? ` · ${progress.discoveryFailed} playlists could not be checked` : ''}${progress.skipped ? ` · ${progress.skipped} skipped` : ''}`,
-      true,
-    );
-  }
-  function run(
-    operation: (signal: AbortSignal) => Promise<void>,
-    commit = false,
-    closeAfter = false,
-  ): void {
-    if (disposed || suspending || !foreground || busy) return;
-    busy = true;
-    committing = commit;
-    error.textContent = '';
-    const controller = new AbortController();
-    actionController = controller;
-    controls();
-    actionWork = (async () => {
-      try {
-        await operation(controller.signal);
-        if (closeAfter && !disposed && !controller.signal.aborted) await closeGuide(true);
-      } catch {
-        if (automaticPending) automaticMessage('');
-        if (!disposed)
-          error.textContent = controller.signal.aborted
-            ? 'Operation canceled. Saved source configuration and previous schedule are retained.'
-            : 'Guide action failed. Previous schedule retained; retry or review the source and mapping.';
-      } finally {
-        busy = false;
-        committing = false;
-        actionController = null;
-        if (!disposed) controls();
-      }
-    })();
-  }
-  function suspend(): Promise<void> {
-    // A second background signal must revoke a foreground intent even while
-    // the first suspension is still joining the same actual operations.
-    foreground = false;
-    if (suspension) return suspension;
-    if (disposed) return Promise.resolve();
-    suspending = true;
-    summaryKey = '';
-    ++summaryGeneration;
-    const summaryDrain = summaryOwner.suspend();
-    const publication = committing;
-    ++viewEpoch;
-    ++lookupEpoch;
-    viewController?.abort();
-    lookupController?.abort();
-    if (!publication) actionController?.abort();
-    // A publication that already crossed its atomic boundary wins cancellation.
-    // Keep the suspension gate until every owned promise settles so its reload
-    // cannot silently restart activity in the background.
-    suspension = Promise.allSettled([
-      viewWork,
-      lookupWork,
-      actionWork,
-      summaryDrain,
-      timeline?.suspend(),
-    ])
-      .then(async (settled) => {
-        await host.settleMappingHydration?.();
-        const failures = settled.filter((result) => result.status === 'rejected');
-        if (failures.length) throw new Error('Guide activity cleanup could not be confirmed.');
-        if (!disposed && !publication && !foreground) {
-          if (automaticPending) automaticMessage('');
-          error.textContent = '';
-          status.textContent = 'Guide activity paused in the background. Retry when ready.';
-          controls();
-        }
-      })
-      .finally(() => {
-        suspending = false;
-        suspension = null;
-      });
-    return suspension;
-  }
-  function closeGuide(skipAction = false): Promise<void> {
-    if (!skipAction && closing) return closing;
-    if (committing) return Promise.reject(new Error('Guide publication is still settling.'));
-    ++presentationEpoch;
-    const attempt = drainAndHide(skipAction);
-    if (!skipAction) {
-      closing = attempt;
-      const settled = () => {
-        if (closing === attempt) closing = null;
-      };
-      void attempt.then(settled, settled);
-    }
-    return attempt;
-  }
-  async function drainAndHide(skipAction: boolean, skipOpening = false): Promise<void> {
-    if (!skipOpening) await opening;
-
-    viewController?.abort();
-    lookupController?.abort();
-    if (!skipAction) actionController?.abort();
-    summaryKey = '';
-    ++summaryGeneration;
-    const settled = await Promise.allSettled([
-      viewWork,
-      lookupWork,
-      skipAction ? Promise.resolve() : actionWork,
-      summaryOwner.setSelection(null),
-      timeline?.suspend(),
-    ]);
-    if (settled.some((result) => result.status === 'rejected'))
-      throw new Error('Guide activity cleanup could not be confirmed.');
-    await host.settleMappingHydration?.();
-    await discard();
-    if (!disposed) {
-      const wasOpen = dialog.open;
-      dialog.close();
-      dialog.removeAttribute('data-primary-page');
-      if (pagePresented) {
-        await host.closed?.();
-        pagePresented = false;
-      }
-      if (wasOpen) returnFocus?.focus();
-    }
-  }
-  function openPresentation(page: boolean, configure: () => void): Promise<void> {
-    if (disposed) return Promise.resolve();
-    const epoch = ++presentationEpoch;
-    const prior = opening;
-    const drain = closing;
-    const attempt = (async () => {
-      if (prior) await prior;
-      if (drain) await drain;
-      if (disposed || epoch !== presentationEpoch) return;
-      if ((dialog.open && pagePresented !== page) || (!dialog.open && pagePresented)) {
-        await drainAndHide(false, true);
-        if (disposed || epoch !== presentationEpoch) return;
-      }
-      configure();
-      if (!dialog.open) {
-        if (page) {
-          container.append(dialog);
-          dialog.dataset.primaryPage = 'guide';
-          dialog.show();
-          pagePresented = true;
-          await host.opened?.();
-        } else {
-          if (host.presentation === 'page') container.ownerDocument.body.append(dialog);
-          dialog.removeAttribute('data-primary-page');
-          dialog.showModal();
-        }
-      }
-      if (!disposed && epoch === presentationEpoch && !closing && dialog.open) reload();
-    })();
-    opening = attempt;
-    const settled = () => {
-      if (opening === attempt) opening = null;
-    };
-    void attempt.then(settled, settled);
-    return attempt;
-  }
   catalogSearch.field.addEventListener('input', renderChannels);
   view.addEventListener('change', () => {
     if (view.value === 'channel') {

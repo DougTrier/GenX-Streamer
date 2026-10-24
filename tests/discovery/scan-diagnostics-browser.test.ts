@@ -17,7 +17,7 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { build } from 'vite';
 import { chromium, type Browser, type Page } from '@playwright/test';
-import type { SourceScanHost } from '../../src/ui/source-scan';
+import type { SourceScanHost } from '../../src/ui/source-scan-model';
 import type { StagedScanSelection } from '../../src/discovery/scan';
 import type { HealthObservation } from '../../src/discovery/health';
 let browser: Browser;
