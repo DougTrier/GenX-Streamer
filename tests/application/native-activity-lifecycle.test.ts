@@ -19,9 +19,13 @@ import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
 import { expect, it } from 'vitest';
 
-/** Actual main listener source, isolated from platform setup; no native/device claim. */
+/**
+ * Actual listener source from the foreground controller, isolated from platform
+ * setup; no native/device claim. `context` stands in for the controller's
+ * environment.
+ */
 function fixture() {
-  const main = readFileSync('src/main.ts', 'utf8');
+  const main = readFileSync('src/application/foreground-controller.ts', 'utf8');
   const start = main.indexOf('let nativeActivityLifecycleSequence = 0;');
   const end = main.indexOf("window.addEventListener('native-back-requested'", start);
   if (start < 0 || end < start) throw new Error('Lifecycle listener boundary missing');
@@ -58,7 +62,12 @@ function fixture() {
     ts.transpileModule(main.slice(start, end), {
       compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
     }).outputText,
-    context,
+    {
+      window: context.window,
+      env: context,
+      suspendForegroundWork: context.suspendForegroundWork,
+      resumeForegroundScan: context.resumeForegroundScan,
+    },
   );
   const emit = (foreground: boolean, sequence: number) =>
     handlers.get(foreground ? 'native-app-foreground' : 'native-app-background')!({

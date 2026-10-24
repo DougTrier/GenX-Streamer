@@ -42,7 +42,7 @@ import { createPaidNowPlaying } from './application/paid-now-playing';
 import { createVpnStatus } from './platform/vpn-status';
 import { mountVpnIndicator } from './ui/vpn-indicator';
 import { mountScanOverlay } from './ui/scan-overlay';
-import { createAccountVault, type AccountMetadata } from './platform/account-vault';
+import { createAccountVault } from './platform/account-vault';
 import { createAccountCatalog } from './platform/account-catalog';
 import {
   createAccountPreferences,
@@ -50,15 +50,10 @@ import {
   type AccountPreferencesReceipt,
 } from './platform/account-preferences';
 import { mountAccountManagement } from './ui/accounts';
-import { createCloseOwner, type CleanupToken } from './application/close-owner';
-import { createCloseFinalizationObserver } from './application/close-finalization';
-import { nativeScanCheckpointSummary } from './platform/scan-checkpoint-summary';
-
-import { createCloseProgressObserver } from './application/close-progress';
 
 import { createActivityWakePolicy } from './application/activity-wake';
 
-import { createStartupObserver, type StartupAttempt } from './application/startup-view';
+import { createStartupObserver } from './application/startup-view';
 import { mountSharingSettings } from './sharing/settings';
 import {
   createRemoteEditMode,
@@ -88,13 +83,12 @@ import { createDiagnostics } from './diagnostics/native';
 import { mountEventHistory } from './ui/event-history';
 import './ui/event-history.css';
 import { mountGuide } from './ui/guide';
-import { mountExit } from './ui/exit';
 
 import { installFullscreenPresentation } from './ui/fullscreen-presentation';
-import { installDoubleTapFullscreen } from './ui/double-tap-fullscreen';
+
 import { installCategoryMenu } from './ui/category-menu';
 import { installCaptions } from './ui/captions';
-import { createFullscreenOwner } from './ui/fullscreen-owner';
+
 import { mountGeographyControls } from './ui/geography-controls';
 import { mountViewingChoices } from './ui/viewing-choices';
 import { mountSettingsNavigation, mountLocationDialog } from './ui/settings-navigation';
@@ -141,12 +135,12 @@ import { type ChannelCheck } from './platform/channel-checks';
 
 import { decodeSavedHealthInWorker } from './application/health-history-read';
 import { invoke, isTauri } from '@tauri-apps/api/core';
-import { listen } from '@tauri-apps/api/event';
+
 import { createShell } from './ui/shell';
 import { mountAbout } from './ui/about';
 import { ChannelBrowser, type ChannelFilter } from './ui/channel-browser';
 import { queryCatalogPage } from './platform/catalog-query';
-import { mutateCatalogGroup, type CatalogGroupAction } from './platform/catalog-group';
+
 import { PlaybackController, type PlaybackSnapshot } from './playback/controller';
 import { startTiming } from './playback/start-timing';
 
@@ -211,6 +205,636 @@ import { createVisibleGuideState } from './application/visible-guide-state';
 import { createVisibleGuideController } from './application/visible-guide-controller';
 import { createLibraryController } from './application/library-controller';
 import { createPageController } from './application/page-controller';
+import { createStartup } from './application/startup';
+import { createCloseController } from './application/close-controller';
+import { createForegroundController } from './application/foreground-controller';
+import { createSettingsController } from './application/settings-controller';
+import { createCatalogView } from './application/catalog-view';
+import { createPlaybackControls } from './application/playback-controls';
+import { createAccountPlaybackSelection } from './application/account-playback-selection';
+import { createChannelEdits } from './application/channel-edits';
+import { createAccountScope } from './application/account-scope';
+
+/**
+ * The application context: everything the area controllers share with the
+ * rest of the application, read when used (getters) and written back through
+ * setters. Each controller declares, in its own environment type, the subset
+ * it uses.
+ */
+const app = {
+  get accountBrowser() {
+    return accountBrowser;
+  },
+  get accountControls() {
+    return accountControls;
+  },
+  get accountPlayer() {
+    return accountPlayer;
+  },
+  get accountPreferenceOwner() {
+    return accountPreferenceOwner;
+  },
+  get accountPreferenceWork() {
+    return accountPreferenceWork;
+  },
+  get accountVodSelected() {
+    return accountVodSelected;
+  },
+  get activeSources() {
+    return activeSources;
+  },
+  get activityWake() {
+    return activityWake;
+  },
+  get addChannelsEntryController() {
+    return addChannelsEntryController;
+  },
+  set addChannelsEntryController(value) {
+    addChannelsEntryController = value;
+  },
+  get addChannelsEntryGeneration() {
+    return addChannelsEntryGeneration;
+  },
+  set addChannelsEntryGeneration(value) {
+    addChannelsEntryGeneration = value;
+  },
+  get addChannelsEntryWork() {
+    return addChannelsEntryWork;
+  },
+  set addChannelsEntryWork(value) {
+    addChannelsEntryWork = value;
+  },
+  get admitForegroundPlayback() {
+    return admitForegroundPlayback;
+  },
+  get adoptIncludedHttp() {
+    return adoptIncludedHttp;
+  },
+  get applicationClosing() {
+    return applicationClosing;
+  },
+  set applicationClosing(value) {
+    applicationClosing = value;
+  },
+  get applySettings() {
+    return applySettings;
+  },
+  get archiveActiveScope() {
+    return archiveActiveScope;
+  },
+  get archiveBackgroundPaused() {
+    return library.archiveBackgroundPaused;
+  },
+  get archiveCatalog() {
+    return archiveCatalog;
+  },
+  get archiveDiscovery() {
+    return archiveDiscovery;
+  },
+  get archiveDownloads() {
+    return archiveDownloads;
+  },
+  get archivePlayer() {
+    return archivePlayer;
+  },
+  get archiveResumeChoice() {
+    return library.archiveResumeChoice;
+  },
+  get archiveRuntimeScope() {
+    return archiveRuntimeScope;
+  },
+  get archiveSearch() {
+    return archiveSearch;
+  },
+  set archiveSearch(value) {
+    archiveSearch = value;
+  },
+  get audioDiagnostics() {
+    return audioDiagnostics;
+  },
+  get automaticGuides() {
+    return automaticGuides;
+  },
+  get automaticGuideUpdates() {
+    return automaticGuideUpdates;
+  },
+  get backgroundLiveChoice() {
+    return backgroundLiveChoice;
+  },
+  set backgroundLiveChoice(value) {
+    backgroundLiveChoice = value;
+  },
+  get backgroundSuspension() {
+    return backgroundSuspension;
+  },
+  set backgroundSuspension(value) {
+    backgroundSuspension = value;
+  },
+  get bootstrapBoundary() {
+    return bootstrapBoundary;
+  },
+  get browser() {
+    return browser;
+  },
+  get cancelOnlineSourceEntry() {
+    return cancelOnlineSourceEntry;
+  },
+  get castButton() {
+    return castButton;
+  },
+  get castingAvailable() {
+    return castingAvailable;
+  },
+  set castingAvailable(value) {
+    castingAvailable = value;
+  },
+  get catalog() {
+    return catalog;
+  },
+  set catalog(value) {
+    catalog = value;
+  },
+  get catalogBrowseReady() {
+    return catalogBrowseReady;
+  },
+  set catalogBrowseReady(value) {
+    catalogBrowseReady = value;
+  },
+  get catalogBrowseViewRevision() {
+    return catalogBrowseViewRevision;
+  },
+  set catalogBrowseViewRevision(value) {
+    catalogBrowseViewRevision = value;
+  },
+  get catalogRevision() {
+    return catalogRevision;
+  },
+  set catalogRevision(value) {
+    catalogRevision = value;
+  },
+  get catalogWrites() {
+    return catalogWrites;
+  },
+  set catalogWrites(value) {
+    catalogWrites = value;
+  },
+  get categoryMenu() {
+    return categoryMenu;
+  },
+  get channelActions() {
+    return channelActions;
+  },
+  get channelCheckMarks() {
+    return channelCheckMarks;
+  },
+  set channelCheckMarks(value) {
+    channelCheckMarks = value;
+  },
+  get channelCheckStore() {
+    return channelCheckStore;
+  },
+  get channelLogos() {
+    return channelLogos;
+  },
+  get chooseCategory() {
+    return chooseCategory;
+  },
+  get clearArchiveResume() {
+    return clearArchiveResume;
+  },
+  get collectionAbort() {
+    return collectionAbort;
+  },
+  set collectionAbort(value) {
+    collectionAbort = value;
+  },
+  get configuredImportEntry() {
+    return configuredImportEntry;
+  },
+  get contentLibrary() {
+    return library.contentLibrary;
+  },
+  get customImportIntent() {
+    return customImportIntent;
+  },
+  set customImportIntent(value) {
+    customImportIntent = value;
+  },
+  get dailyGuideRefresh() {
+    return dailyGuideRefresh;
+  },
+  get dailyRefresh() {
+    return dailyRefresh;
+  },
+  get DEVICE_KIND_KEY() {
+    return DEVICE_KIND_KEY;
+  },
+  get diagnostics() {
+    return diagnostics;
+  },
+  get disposeVODTransport() {
+    return disposeVODTransport;
+  },
+  get editPublicChannelGroup() {
+    return editPublicChannelGroup;
+  },
+  get element() {
+    return element;
+  },
+  get eventHistory() {
+    return eventHistory;
+  },
+  get fileImportTarget() {
+    return fileImportTarget;
+  },
+  get foregroundGeneration() {
+    return foregroundGeneration;
+  },
+  set foregroundGeneration(value) {
+    foregroundGeneration = value;
+  },
+  get friendlyError() {
+    return friendlyError;
+  },
+  get fullscreenOwner() {
+    return fullscreenOwner;
+  },
+  get fullscreenPresentation() {
+    return fullscreenPresentation;
+  },
+  get genxtraNavigation() {
+    return genxtraNavigation;
+  },
+  get geographyControls() {
+    return geographyControls;
+  },
+  get guide() {
+    return guide;
+  },
+  get guideChannelLogos() {
+    return guideChannelLogos;
+  },
+  get guideController() {
+    return guideController;
+  },
+  get importController() {
+    return importController;
+  },
+  get importDialog() {
+    return importDialog;
+  },
+  get importJobs() {
+    return importJobs;
+  },
+  get importRunning() {
+    return importRunning;
+  },
+  get inlineScanPanel() {
+    return inlineScanPanel;
+  },
+  get inspectStreamEvidence() {
+    return inspectStreamEvidence;
+  },
+  get installCloseBridge() {
+    return installCloseBridge;
+  },
+  get joinLibraryPersistence() {
+    return joinLibraryPersistence;
+  },
+  get joinLiveBrowse() {
+    return joinLiveBrowse;
+  },
+  get libraries() {
+    return libraries;
+  },
+  get library() {
+    return library;
+  },
+  get libraryQueries() {
+    return libraryQueries;
+  },
+  get liveBrowseJobs() {
+    return liveBrowseJobs;
+  },
+  get localStreams() {
+    return localStreams;
+  },
+  get nativeViewingForeground() {
+    return nativeViewingForeground;
+  },
+  set nativeViewingForeground(value) {
+    nativeViewingForeground = value;
+  },
+  get notice() {
+    return notice;
+  },
+  get noticeTimer() {
+    return noticeTimer;
+  },
+  set noticeTimer(value) {
+    noticeTimer = value;
+  },
+  get onlineSourceDiscovery() {
+    return onlineSourceDiscovery;
+  },
+  get openAccountSettings() {
+    return openAccountSettings;
+  },
+  get ownImport() {
+    return ownImport;
+  },
+  get pageInput() {
+    return pageInput;
+  },
+  get pageState() {
+    return pageState;
+  },
+  get paidGuide() {
+    return paidGuide;
+  },
+  get pendingAccountPlayback() {
+    return pendingAccountPlayback;
+  },
+  set pendingAccountPlayback(value) {
+    pendingAccountPlayback = value;
+  },
+  get pendingPublicPlayback() {
+    return pendingPublicPlayback;
+  },
+  set pendingPublicPlayback(value) {
+    pendingPublicPlayback = value;
+  },
+  get persistedCatalogRevision() {
+    return persistedCatalogRevision;
+  },
+  set persistedCatalogRevision(value) {
+    persistedCatalogRevision = value;
+  },
+  get playbackAction() {
+    return playbackAction;
+  },
+  get playbackHealth() {
+    return playbackHealth;
+  },
+  get player() {
+    return player;
+  },
+  get playerView() {
+    return playerView;
+  },
+  get preferences() {
+    return preferences;
+  },
+  get prepareInlineScanEntry() {
+    return prepareInlineScanEntry;
+  },
+  get presentLibrary() {
+    return presentLibrary;
+  },
+  get presentNotResponding() {
+    return presentNotResponding;
+  },
+  get presentPrimaryPage() {
+    return presentPrimaryPage;
+  },
+  get presentSound() {
+    return presentSound;
+  },
+  get primaryHost() {
+    return primaryHost;
+  },
+  get primaryPage() {
+    return pageState.primaryPage;
+  },
+  get privatePlayback() {
+    return privatePlayback;
+  },
+  get probeScheduler() {
+    return probeScheduler;
+  },
+  get providerManagement() {
+    return providerManagement;
+  },
+  get publicGroupControllers() {
+    return publicGroupControllers;
+  },
+  get refresh() {
+    return refresh;
+  },
+  get refreshFileImportTargets() {
+    return refreshFileImportTargets;
+  },
+  get refreshFreeTv() {
+    return refreshFreeTv;
+  },
+  get refreshSource() {
+    return refreshSource;
+  },
+  get regionPreference() {
+    return regionPreference;
+  },
+  get remoteEditMode() {
+    return remoteEditMode;
+  },
+  get removeAudioTracks() {
+    return removeAudioTracks;
+  },
+  get removeCaptions() {
+    return removeCaptions;
+  },
+  get removeCasting() {
+    return removeCasting;
+  },
+  get removeDataTransfer() {
+    return removeDataTransfer;
+  },
+  get removeVideoQuality() {
+    return removeVideoQuality;
+  },
+  get renderCatalog() {
+    return renderCatalog;
+  },
+  get renderedSelection() {
+    return renderedSelection;
+  },
+  set renderedSelection(value) {
+    renderedSelection = value;
+  },
+  get rendererRecoveryPolicy() {
+    return rendererRecoveryPolicy;
+  },
+  get renderPlayer() {
+    return renderPlayer;
+  },
+  get renderVODTransport() {
+    return renderVODTransport;
+  },
+  get requestCachedGuideConnection() {
+    return requestCachedGuideConnection;
+  },
+  get savedChannelCheck() {
+    return savedChannelCheck;
+  },
+  get saveSettings() {
+    return saveSettings;
+  },
+  get scanController() {
+    return scanController;
+  },
+  get scanProviderSources() {
+    return scanProviderSources;
+  },
+  get selectAccountPlayback() {
+    return selectAccountPlayback;
+  },
+  get selectionEpisode() {
+    return selectionEpisode;
+  },
+  set selectionEpisode(value) {
+    selectionEpisode = value;
+  },
+  get setImportBusy() {
+    return setImportBusy;
+  },
+  get settings() {
+    return settings;
+  },
+  set settings(value) {
+    settings = value;
+  },
+  get sharingBridge() {
+    return sharingBridge;
+  },
+  get sharingPanel() {
+    return sharingPanel;
+  },
+  set sharingPanel(value) {
+    sharingPanel = value;
+  },
+  get slowChannelIds() {
+    return slowChannelIds;
+  },
+  set slowChannelIds(value) {
+    slowChannelIds = value;
+  },
+  get sourceActivation() {
+    return sourceActivation;
+  },
+  get sourceIndex() {
+    return sourceIndex;
+  },
+  get sourceScan() {
+    return sourceScan;
+  },
+  get speechSearch() {
+    return speechSearch;
+  },
+  get startInlineDiscovery() {
+    return startInlineDiscovery;
+  },
+  get startupJobs() {
+    return startupJobs;
+  },
+  get startupObserver() {
+    return startupObserver;
+  },
+  get storageRecovery() {
+    return storageRecovery;
+  },
+  set storageRecovery(value) {
+    storageRecovery = value;
+  },
+  get supportsBoundedResume() {
+    return supportsBoundedResume;
+  },
+  get switchPrimaryPage() {
+    return switchPrimaryPage;
+  },
+  get televisionSelects() {
+    return televisionSelects;
+  },
+  set televisionSelects(value) {
+    televisionSelects = value;
+  },
+  get transferBusy() {
+    return transferBusy;
+  },
+  set transferBusy(value) {
+    transferBusy = value;
+  },
+  get updateGuideForeground() {
+    return updateGuideForeground;
+  },
+  get updateImportActions() {
+    return updateImportActions;
+  },
+  get updatePreviewControl() {
+    return updatePreviewControl;
+  },
+  get updateVisibleGuide() {
+    return updateVisibleGuide;
+  },
+  get viewingChoices() {
+    return viewingChoices;
+  },
+  get viewingForeground() {
+    return viewingForeground;
+  },
+  get viewingWake() {
+    return viewingWake;
+  },
+  get visibleGuide() {
+    return visibleGuideState.visibleGuide;
+  },
+  get visibleGuideState() {
+    return visibleGuideState;
+  },
+  get vodDock() {
+    return vodDock;
+  },
+  get vodStopControl() {
+    return vodStopControl;
+  },
+  get wakeDailyRefresh() {
+    return wakeDailyRefresh;
+  },
+  get wakeTransportAdmission() {
+    return wakeTransportAdmission;
+  },
+  get websiteDiscovery() {
+    return websiteDiscovery;
+  },
+  get writeAccountPreference() {
+    return writeAccountPreference;
+  },
+};
+
+const accountScope = createAccountScope(app);
+const { selectAccountScope } = accountScope;
+
+const channelEdits = createChannelEdits(app);
+const { editPublicChannelGroup, publicGroupControllers, toggleChannelFavorite } = channelEdits;
+
+const accountPlaybackSelection = createAccountPlaybackSelection(app);
+const { selectAccountPlayback, playAccountVod } = accountPlaybackSelection;
+
+const playbackControls = createPlaybackControls(app);
+const {
+  accountVodSelected,
+  resumeLocalPlayback,
+  pauseLocalPlayback,
+  retryLocalPlayback,
+  stopLocalPlayback,
+} = playbackControls;
+
+const catalogView = createCatalogView(app);
+const { applySettings, friendlyError, notice, renderCatalog } = catalogView;
+
+const settingsController = createSettingsController(app);
+const { saveSettings, changeSound, soundNow, presentSound } = settingsController;
+
+const startup = createStartup(app);
+const { initialize } = startup;
 
 const bootstrapBoundary = createBootstrapBoundary();
 const rendererRecoveryPolicy = createRendererRecoveryPolicy(() =>
@@ -328,6 +952,7 @@ let localStreams: ReturnType<typeof mountLocalStreams> | undefined;
 // eslint-disable-next-line prefer-const
 let vodStopControl: ReturnType<typeof mountVODStop> | undefined;
 let archiveSearch: ReturnType<typeof mountArchiveSearch> | undefined;
+// eslint-disable-next-line prefer-const -- assigned once, below; bootstrap failure callbacks read it before that
 let archiveDownloads: ReturnType<typeof createArchiveDownloads> | undefined;
 // eslint-disable-next-line prefer-const -- assigned once, later; read before that
 let channelLogos: ReturnType<typeof createChannelLogos> | undefined;
@@ -335,7 +960,6 @@ const library = createLibraryState();
 const libraryQueries: Record<ContentLibrary, string> = { live: '', genxtra: '' };
 const archiveCatalog = createArchiveCatalog();
 // Bootstrap failure callbacks need the initialized optional binding above.
-// eslint-disable-next-line prefer-const
 archiveDownloads = createArchiveDownloads({
   readyScope: archiveRuntimeScope,
   beforeRemove: async (downloadRef) => {
@@ -879,371 +1503,6 @@ function mutateCatalog(
   catalogWrites = work.catch(() => undefined);
   return work;
 }
-/**
- * The application context: everything the area controllers share with the
- * rest of the application, read when used (getters) and written back through
- * setters. Each controller declares, in its own environment type, the subset
- * it uses.
- */
-const app = {
-  get accountBrowser() {
-    return accountBrowser;
-  },
-  get accountPlayer() {
-    return accountPlayer;
-  },
-  get accountPreferenceWork() {
-    return accountPreferenceWork;
-  },
-  get accountVodSelected() {
-    return accountVodSelected;
-  },
-  get activityWake() {
-    return activityWake;
-  },
-  get addChannelsEntryController() {
-    return addChannelsEntryController;
-  },
-  set addChannelsEntryController(value) {
-    addChannelsEntryController = value;
-  },
-  get addChannelsEntryGeneration() {
-    return addChannelsEntryGeneration;
-  },
-  set addChannelsEntryGeneration(value) {
-    addChannelsEntryGeneration = value;
-  },
-  get addChannelsEntryWork() {
-    return addChannelsEntryWork;
-  },
-  set addChannelsEntryWork(value) {
-    addChannelsEntryWork = value;
-  },
-  get applicationClosing() {
-    return applicationClosing;
-  },
-  get applySettings() {
-    return applySettings;
-  },
-  get archiveActiveScope() {
-    return archiveActiveScope;
-  },
-  get archiveBackgroundPaused() {
-    return library.archiveBackgroundPaused;
-  },
-  get archiveCatalog() {
-    return archiveCatalog;
-  },
-  get archiveDiscovery() {
-    return archiveDiscovery;
-  },
-  get archiveDownloads() {
-    return archiveDownloads;
-  },
-  get archivePlayer() {
-    return archivePlayer;
-  },
-  get archiveResumeChoice() {
-    return library.archiveResumeChoice;
-  },
-  get archiveRuntimeScope() {
-    return archiveRuntimeScope;
-  },
-  get archiveSearch() {
-    return archiveSearch;
-  },
-  set archiveSearch(value) {
-    archiveSearch = value;
-  },
-  get automaticGuides() {
-    return automaticGuides;
-  },
-  get backgroundLiveChoice() {
-    return backgroundLiveChoice;
-  },
-  get backgroundSuspension() {
-    return backgroundSuspension;
-  },
-  get bootstrapBoundary() {
-    return bootstrapBoundary;
-  },
-  get browser() {
-    return browser;
-  },
-  get cancelOnlineSourceEntry() {
-    return cancelOnlineSourceEntry;
-  },
-  get castButton() {
-    return castButton;
-  },
-  get castingAvailable() {
-    return castingAvailable;
-  },
-  get catalog() {
-    return catalog;
-  },
-  set catalog(value) {
-    catalog = value;
-  },
-  get catalogBrowseViewRevision() {
-    return catalogBrowseViewRevision;
-  },
-  set catalogBrowseViewRevision(value) {
-    catalogBrowseViewRevision = value;
-  },
-  get catalogRevision() {
-    return catalogRevision;
-  },
-  set catalogRevision(value) {
-    catalogRevision = value;
-  },
-  get catalogWrites() {
-    return catalogWrites;
-  },
-  set catalogWrites(value) {
-    catalogWrites = value;
-  },
-  get categoryMenu() {
-    return categoryMenu;
-  },
-  get channelCheckMarks() {
-    return channelCheckMarks;
-  },
-  set channelCheckMarks(value) {
-    channelCheckMarks = value;
-  },
-  get channelCheckStore() {
-    return channelCheckStore;
-  },
-  get channelLogos() {
-    return channelLogos;
-  },
-  get clearArchiveResume() {
-    return clearArchiveResume;
-  },
-  get collectionAbort() {
-    return collectionAbort;
-  },
-  set collectionAbort(value) {
-    collectionAbort = value;
-  },
-  get contentLibrary() {
-    return library.contentLibrary;
-  },
-  get customImportIntent() {
-    return customImportIntent;
-  },
-  set customImportIntent(value) {
-    customImportIntent = value;
-  },
-  get diagnostics() {
-    return diagnostics;
-  },
-  get editPublicChannelGroup() {
-    return editPublicChannelGroup;
-  },
-  get element() {
-    return element;
-  },
-  get fileImportTarget() {
-    return fileImportTarget;
-  },
-  get foregroundGeneration() {
-    return foregroundGeneration;
-  },
-  get friendlyError() {
-    return friendlyError;
-  },
-  get fullscreenOwner() {
-    return fullscreenOwner;
-  },
-  get geographyControls() {
-    return geographyControls;
-  },
-  get guide() {
-    return guide;
-  },
-  get guideController() {
-    return guideController;
-  },
-  get importDialog() {
-    return importDialog;
-  },
-  get importRunning() {
-    return importRunning;
-  },
-  get inlineScanPanel() {
-    return inlineScanPanel;
-  },
-  get inspectStreamEvidence() {
-    return inspectStreamEvidence;
-  },
-  get libraries() {
-    return libraries;
-  },
-  get library() {
-    return library;
-  },
-  get libraryQueries() {
-    return libraryQueries;
-  },
-  get liveBrowseJobs() {
-    return liveBrowseJobs;
-  },
-  get localStreams() {
-    return localStreams;
-  },
-  get nativeViewingForeground() {
-    return nativeViewingForeground;
-  },
-  get notice() {
-    return notice;
-  },
-  get onlineSourceDiscovery() {
-    return onlineSourceDiscovery;
-  },
-  get ownImport() {
-    return ownImport;
-  },
-  get pageState() {
-    return pageState;
-  },
-  get paidGuide() {
-    return paidGuide;
-  },
-  get persistedCatalogRevision() {
-    return persistedCatalogRevision;
-  },
-  set persistedCatalogRevision(value) {
-    persistedCatalogRevision = value;
-  },
-  get playbackAction() {
-    return playbackAction;
-  },
-  get player() {
-    return player;
-  },
-  get preferences() {
-    return preferences;
-  },
-  get prepareInlineScanEntry() {
-    return prepareInlineScanEntry;
-  },
-  get presentPrimaryPage() {
-    return presentPrimaryPage;
-  },
-  get primaryPage() {
-    return pageState.primaryPage;
-  },
-  get privatePlayback() {
-    return privatePlayback;
-  },
-  get refreshFileImportTargets() {
-    return refreshFileImportTargets;
-  },
-  get refreshFreeTv() {
-    return refreshFreeTv;
-  },
-  get refreshSource() {
-    return refreshSource;
-  },
-  get remoteEditMode() {
-    return remoteEditMode;
-  },
-  get renderCatalog() {
-    return renderCatalog;
-  },
-  get renderedSelection() {
-    return renderedSelection;
-  },
-  set renderedSelection(value) {
-    renderedSelection = value;
-  },
-  get rendererRecoveryPolicy() {
-    return rendererRecoveryPolicy;
-  },
-  get savedChannelCheck() {
-    return savedChannelCheck;
-  },
-  get saveSettings() {
-    return saveSettings;
-  },
-  get scanController() {
-    return scanController;
-  },
-  get scanProviderSources() {
-    return scanProviderSources;
-  },
-  get selectionEpisode() {
-    return selectionEpisode;
-  },
-  set selectionEpisode(value) {
-    selectionEpisode = value;
-  },
-  get setImportBusy() {
-    return setImportBusy;
-  },
-  get settings() {
-    return settings;
-  },
-  set settings(value) {
-    settings = value;
-  },
-  get sharingBridge() {
-    return sharingBridge;
-  },
-  get slowChannelIds() {
-    return slowChannelIds;
-  },
-  set slowChannelIds(value) {
-    slowChannelIds = value;
-  },
-  get sourceScan() {
-    return sourceScan;
-  },
-  get startInlineDiscovery() {
-    return startInlineDiscovery;
-  },
-  get supportsBoundedResume() {
-    return supportsBoundedResume;
-  },
-  get televisionSelects() {
-    return televisionSelects;
-  },
-  get transferBusy() {
-    return transferBusy;
-  },
-  set transferBusy(value) {
-    transferBusy = value;
-  },
-  get updateImportActions() {
-    return updateImportActions;
-  },
-  get updatePreviewControl() {
-    return updatePreviewControl;
-  },
-  get updateVisibleGuide() {
-    return updateVisibleGuide;
-  },
-  get visibleGuide() {
-    return visibleGuideState.visibleGuide;
-  },
-  get visibleGuideState() {
-    return visibleGuideState;
-  },
-  get vodDock() {
-    return vodDock;
-  },
-  get vodStopControl() {
-    return vodStopControl;
-  },
-  get wakeDailyRefresh() {
-    return wakeDailyRefresh;
-  },
-  get writeAccountPreference() {
-    return writeAccountPreference;
-  },
-};
 
 const scanController = createScanController(app);
 const {
@@ -1540,87 +1799,7 @@ const providerManagement = mountProviderManagement(element('provider-management'
     );
   },
 });
-const publicGroupControllers = new Set<AbortController>();
-async function editPublicChannelGroup(
-  id: string,
-  action: CatalogGroupAction | (() => CatalogGroupAction),
-  moreIds: readonly string[] = [],
-): Promise<void> {
-  if (applicationClosing || element('app').dataset.ready !== 'true')
-    throw new Error('Channel unavailable.');
-  let acknowledged = false;
-  const work = catalogWrites.then(async () => {
-    const abort = new AbortController();
-    publicGroupControllers.add(abort);
-    try {
-      const settingsAfter = await preferences.mutateExternally(async () => {
-        const page = await queryCatalogPage(
-          {
-            schemaVersion: 1,
-            expectedCatalogRevision: persistedCatalogRevision,
-            query: '',
-            filter: 'all',
-            sort: 'source',
-            pageSize: 1,
-          },
-          abort.signal,
-        );
-        if (applicationClosing || document.hidden || !nativeViewingForeground)
-          throw new Error('Channel editing was interrupted. Try again.');
-        // Resolve toggles inside both write queues, against acknowledged preferences.
-        const resolvedAction = typeof action === 'function' ? action() : action;
-        await mutateCatalogGroup(id, resolvedAction, page, abort.signal, moreIds);
-        acknowledged = true;
-      });
-      settings = settingsAfter;
-      catalogBrowseViewRevision++;
-      if (!applicationClosing) {
-        guide.catalogChanged(true);
-        applySettings();
-        renderCatalog();
-      }
-    } finally {
-      publicGroupControllers.delete(abort);
-    }
-  });
-  catalogWrites = work.catch(() => undefined);
-  try {
-    await work;
-  } catch (error) {
-    if (acknowledged)
-      // Native failure causes can contain private source URLs; publish a fixed symptom.
-      // eslint-disable-next-line preserve-caught-error
-      throw new Error(
-        'Changes were saved, but the channel list needs to reload. Reopen the application.',
-      );
-    throw error;
-  }
-}
-function toggleChannelFavorite(id: string): void {
-  if (applicationClosing || /^archive-[a-f0-9]{64}$/u.test(id)) return;
-  const account = accountBrowser.selectionFor(id);
-  if (account) {
-    playbackAction(
-      writeAccountPreference({ kind: 'favorite', channelId: id, favorite: !account.favorite }),
-    );
-    return;
-  }
-  if (/^account-[a-f0-9]{32}-[a-f0-9]{64}$/u.test(id)) {
-    notice('Reload the account channel list to change this favorite.');
-    return;
-  }
-  if (isTauri()) {
-    void editPublicChannelGroup(id, () => ({
-      kind: 'favorite',
-      value: !preferences.snapshot().favorites.includes(id),
-    })).catch((error) => notice(friendlyError(error)));
-  } else
-    void saveSettings((draft) => {
-      draft.favorites = draft.favorites.includes(id)
-        ? draft.favorites.filter((item) => item !== id)
-        : [...draft.favorites, id];
-    });
-}
+
 // eslint-disable-next-line prefer-const -- assigned after the panel it serves
 let viewingChoices: ReturnType<typeof mountViewingChoices> | undefined;
 const geographyControls = mountGeographyControls(element('geography-controls'), {
@@ -1638,32 +1817,7 @@ viewingChoices = mountViewingChoices({
 });
 const accountVault = createAccountVault();
 const accountCatalog = createAccountCatalog();
-let accountScopeGeneration = 0;
-async function selectAccountScope(
-  account: AccountMetadata | null,
-  signal?: AbortSignal,
-): Promise<void> {
-  signal?.throwIfAborted();
-  const generation = ++accountScopeGeneration;
-  const previous = accountBrowser.selectedAccount;
-  await accountBrowser.select(account);
-  if (generation !== accountScopeGeneration)
-    throw new DOMException('Library selection replaced.', 'AbortError');
-  if (signal?.aborted) {
-    await accountBrowser.select(previous);
-    signal.throwIfAborted();
-  }
-  chooseCategory('all');
-  viewingChoices?.refresh();
-  if (previous?.id !== account?.id) geographyControls.reset();
-  const favoriteFilter = document.querySelector<HTMLButtonElement>('[data-filter="favorites"]');
-  if (favoriteFilter) favoriteFilter.disabled = false;
-  const favoriteOption = element<HTMLSelectElement>(
-    'compact-filter',
-  ).querySelector<HTMLOptionElement>('option[value="favorites"]');
-  if (favoriteOption) favoriteOption.disabled = false;
-  renderCatalog();
-}
+
 libraries = mountLibrarySwitcher(
   {
     list: (signal) => accountVault.list(signal),
@@ -1877,47 +2031,6 @@ element('genxtra-kind-select').addEventListener('change', () =>
     }),
   ),
 );
-async function selectAccountPlayback(
-  channel: Parameters<NonNullable<typeof accountPlayer>['selectAccount']>[0],
-  fence: Parameters<NonNullable<typeof accountPlayer>['selectAccount']>[1],
-): Promise<void> {
-  startTiming.begin('account');
-  admitForegroundPlayback();
-  backgroundLiveChoice = null;
-  pendingPublicPlayback = null;
-  clearArchiveResume();
-  const pending = {
-    choice: { channel: { ...channel }, fence: { ...fence } },
-    sharingGeneration: sharingBridge.host.snapshot().generation,
-  };
-  pendingAccountPlayback = pending;
-  try {
-    await archivePlayer!.handoff(async (signal) => {
-      await sharingBridge.stop();
-      if (pendingAccountPlayback === pending)
-        pending.sharingGeneration = sharingBridge.host.snapshot().generation;
-      signal.throwIfAborted();
-      admitForegroundPlayback();
-      await accountPlayer!.selectAccount(channel, fence, signal);
-    });
-  } finally {
-    if (pendingAccountPlayback === pending) pendingAccountPlayback = null;
-  }
-}
-async function playAccountVod(
-  title: Parameters<NonNullable<typeof accountPlayer>['selectVod']>[0],
-  account: Parameters<NonNullable<typeof accountPlayer>['selectVod']>[1],
-): Promise<void> {
-  admitForegroundPlayback();
-  backgroundLiveChoice = pendingPublicPlayback = null;
-  clearArchiveResume();
-  await archivePlayer!.handoff(async (signal) => {
-    await sharingBridge.stop();
-    signal.throwIfAborted();
-    admitForegroundPlayback();
-    await accountPlayer!.selectVod(title, account, signal);
-  });
-}
 
 element('advanced-guide-button').addEventListener('click', () => {
   element<HTMLDialogElement>('settings-dialog').close();
@@ -2025,218 +2138,7 @@ const removeMediaKeys = installMediaKeys({
   },
   failed: () => notice('The remote command could not finish. Try the on-screen control.'),
 });
-async function pauseLocalPlayback(): Promise<void> {
-  if (backgroundLiveChoice) return;
-  if (archivePlayer?.selection) await player.pause();
-  else await sharingBridge.pause();
-}
-/** A Paid TV movie or episode is the current selection (it has a Stop button). */
-const accountVodSelected = () => !!player.snapshot.selection?.id.startsWith('vod:');
-async function stopLocalPlayback(): Promise<void> {
-  backgroundLiveChoice = null;
-  if (archivePlayer?.selection || library.archiveResumeChoice) {
-    clearArchiveResume();
-    await archivePlayer!.stop();
-  } else if (accountVodSelected()) {
-    // Stop a Paid TV movie and return to the titles, on the same poster.
-    await accountPlayer!.stop();
-    libraries?.showVodTitles();
-  } else await sharingBridge.stop();
-}
-async function resumeLocalPlayback(): Promise<void> {
-  if (backgroundSuspension) await backgroundSuspension;
-  admitForegroundPlayback();
-  if (backgroundLiveChoice) {
-    const choice = backgroundLiveChoice;
-    backgroundLiveChoice = null;
-    if (choice.kind === 'account')
-      await selectAccountPlayback(choice.choice.channel, choice.choice.fence);
-    else await sharingBridge.select(choice.selection);
-    return;
-  }
-  if (archivePlayer?.selection) {
-    await player.resume();
-    return;
-  }
-  if (library.archiveResumeChoice) {
-    const choice = library.archiveResumeChoice;
-    clearArchiveResume();
-    await archivePlayer!.select(choice);
-    return;
-  }
-  const account = accountPlayer?.selection;
-  if (account) {
-    // A paused local capability can expire. User Resume starts a fresh live
-    // session through the same decoder owner instead of replaying a dead URL.
-    await selectAccountPlayback(account.channel, account.fence);
-  } else await sharingBridge.resume();
-}
-async function retryLocalPlayback(): Promise<void> {
-  if (backgroundLiveChoice) return resumeLocalPlayback();
-  const archived = archivePlayer?.selection ?? library.archiveResumeChoice;
-  if (archived) {
-    clearArchiveResume();
-    await archivePlayer!.select(archived);
-    return;
-  }
-  const account = accountPlayer?.selection;
-  if (account) await selectAccountPlayback(account.channel, account.fence);
-  else if (player.snapshot.selection) await sharingBridge.select(player.snapshot.selection);
-}
-function notice(message: string): void {
-  clearTimeout(noticeTimer);
-  element('notice').textContent = message;
-  element('notice').hidden = false;
-  noticeTimer = setTimeout(() => {
-    element('notice').hidden = true;
-  }, 6000);
-}
-// External errors never include provider URLs or raw native payloads in exported diagnostics.
-function friendlyError(error: unknown): string {
-  if (error instanceof Error && !/https?:\/\//i.test(error.message)) return error.message;
-  return 'The operation could not finish. Check the source, connection, or available storage.';
-}
-function renderCatalog(): void {
-  updateVisibleGuide();
-  guide.catalogChanged();
-  const removed = new Set(settings.removedChannels);
-  const category = createChannelCategoryResolver(settings);
-  if (library.contentLibrary === 'live')
-    browser.update(
-      catalog.channels
-        .filter((channel) => !removed.has(channel.id))
-        .map((channel) =>
-          category(channel) === channel.category
-            ? channel
-            : { ...channel, category: category(channel) },
-        ),
-      settings.favorites,
-      player.snapshot.selection?.id ?? null,
-      catalog.sources.length === 0
-        ? 'no-sources'
-        : catalog.channels.length === 0
-          ? 'empty-sources'
-          : 'removed-channels',
-    );
-  geographyControls.update();
-  presentNotResponding();
-  element<HTMLButtonElement>('refresh-button').disabled =
-    importRunning || !catalog.sources.some((source) => source.kind === 'url');
-  element('source-status').textContent =
-    `${catalog.sources.length} ${catalog.sources.length === 1 ? 'playlist' : 'playlists'} saved`;
-  element<HTMLButtonElement>('restore-channels').disabled = accountBrowser.selectedAccount
-    ? !accountBrowser.preferenceScope()
-    : settings.removedChannels.length === 0;
-  const sourceList = element('source-list');
-  const sourceButtons = [...sourceList.querySelectorAll<HTMLButtonElement>('button')];
-  const sourceFocusIndex = sourceButtons.findIndex((button) => button === document.activeElement);
-  const rows = document.createDocumentFragment();
-  for (const source of catalog.sources) {
-    const row = document.createElement('div');
-    row.className = 'source-row';
-    const name = document.createElement('span');
-    name.textContent = source.name;
-    const remove = document.createElement('button');
-    remove.textContent = 'Remove';
-    remove.setAttribute('aria-label', `Remove source ${source.name}`);
-    remove.disabled = importRunning;
-    remove.addEventListener('click', () => {
-      void removeSource(source.id);
-    });
-    row.append(name, remove);
-    rows.append(row);
-  }
-  sourceList.replaceChildren(rows);
-  if (sourceFocusIndex >= 0) {
-    const nextButtons = [...sourceList.querySelectorAll<HTMLButtonElement>('button')];
-    restoreRemoteFocus(
-      nextButtons[Math.min(sourceFocusIndex, nextButtons.length - 1)] ?? null,
-      element('settings-dialog').querySelector<HTMLElement>('[data-close]'),
-    );
-  }
-}
-async function removeSource(id: string): Promise<void> {
-  if (
-    importRunning ||
-    transferBusy ||
-    addChannelsEntryWork ||
-    importController.playlistExportWork
-  ) {
-    notice('Finish or cancel the import before removing a source.');
-    return;
-  }
-  const removedIds = new Set(
-    catalog.channels.filter((channel) => channel.sourceId === id).map((channel) => channel.id),
-  );
-  const source = catalog.sources.find((entry) => entry.id === id);
-  if (!source || applicationClosing) return;
-  transferBusy = true;
-  setImportBusy(true);
-  try {
-    const work = catalogWrites.then(async () => {
-      const next = {
-        ...catalog,
-        sources: catalog.sources.filter((entry) => entry.id !== id),
-        channels: catalog.channels.filter((channel) => channel.sourceId !== id),
-      };
-      const nextPreferences = await preferences.settledSnapshot();
-      nextPreferences.sources = [...next.sources];
-      if (source.kind === 'url') {
-        const location = new URL(source.location).href;
-        nextPreferences.reviewedChannelProviders = (
-          nextPreferences.reviewedChannelProviders ?? []
-        ).filter((provider) => new URL(provider.location).href !== location);
-      }
-      settings = await preferences.replaceAtomically(nextPreferences, async () => {
-        const receipt = await writeRecordPair({
-          catalog: serializeCatalog(next),
-          preferences: exportPreferences(nextPreferences),
-          expectedCatalogRevision: persistedCatalogRevision,
-        });
-        persistedCatalogRevision = receipt.catalogRevision;
-      });
-      catalog = next;
-      catalogRevision++;
-    });
-    catalogWrites = work.catch(() => undefined);
-    await work;
-    if (removedIds.has(player.snapshot.selection?.id ?? '')) await sharingBridge.stop();
-    if (!applicationClosing) {
-      applySettings();
-      notice(
-        'Source removed from saved channels and discovery. Other sources and favorites are preserved.',
-      );
-    }
-  } catch (error) {
-    notice(friendlyError(error));
-  } finally {
-    transferBusy = false;
-    if (!applicationClosing) setImportBusy(false);
-  }
-}
-function applySettings(): void {
-  automaticGuideUpdates.update(settings.automaticGuideUpdates);
-  providerManagement.update();
-  element<HTMLInputElement>('voice-search-consent').checked = settings.voiceSearchConsent === true;
-  regionPreference.update();
-  if (document.activeElement !== element('provider-configuration'))
-    element<HTMLTextAreaElement>('provider-configuration').value = serializeProviderRegistry({
-      schemaVersion: 1,
-      reviewedChannelProviders: settings.reviewedChannelProviders ?? [],
-      reviewedGuideProviders: settings.reviewedGuideProviders ?? [],
-    });
-  element<HTMLSelectElement>('daily-source-refresh').value = migrateRefreshCadence(
-    settings.sourceRefreshCadence,
-    settings.automaticSourceRefresh,
-  );
-  document.documentElement.style.setProperty('--sidebar', `${settings.panelWidth}px`);
-  presentSound();
-  element('divider').setAttribute('aria-valuenow', String(settings.panelWidth));
-  renderCatalog();
-  renderPlayer(player.snapshot);
-  sharingBridge.notifySettings();
-  televisionSelects?.refresh();
-}
+
 element('voice-search-consent').addEventListener('change', () => {
   const accepted = element<HTMLInputElement>('voice-search-consent').checked;
   const canceled = accepted ? Promise.resolve() : speechSearch.revokeConsent();
@@ -2247,89 +2149,7 @@ element('voice-search-consent').addEventListener('change', () => {
     await canceled;
   })().catch(() => notice('Voice search could not finish closing. Try again.'));
 });
-/**
- * Sound changes are heard at once; saving them follows. Waiting for the save
- * delayed Mute by 4.4 s on the Galaxy S25 (owner report, October 19, 2026).
- * Only the newest change of each kind clears its pending value, so quick
- * repeated presses never flicker; a refused or failed save restores the saved
- * sound.
- */
-let pendingSound: { muted?: boolean; volume?: number } = {};
-function soundNow(): { muted: boolean; volume: number } {
-  return {
-    muted: pendingSound.muted ?? settings.muted,
-    volume: pendingSound.volume ?? settings.volume,
-  };
-}
-function presentSound(): void {
-  const { muted, volume } = soundNow();
-  player.setMuted(muted);
-  player.setVolume(volume);
-  element<HTMLInputElement>('volume').value = String(volume);
-  element('mute-button').textContent = muted ? 'Unmute' : 'Mute';
-  element('mute-button').setAttribute('aria-pressed', String(muted));
-}
-async function changeSound(change: { muted?: boolean; volume?: number }): Promise<boolean> {
-  pendingSound = { ...pendingSound, ...change };
-  presentSound();
-  const saved = await saveSettings(
-    (draft) => {
-      if (change.muted !== undefined) draft.muted = change.muted;
-      if (change.volume !== undefined) draft.volume = change.volume;
-    },
-    undefined,
-    true,
-  );
-  if (!saved) pendingSound = {};
-  else {
-    if (change.muted !== undefined && pendingSound.muted === change.muted)
-      delete pendingSound.muted;
-    if (change.volume !== undefined && pendingSound.volume === change.volume)
-      delete pendingSound.volume;
-  }
-  presentSound();
-  return saved;
-}
-async function saveSettings(
-  mutate: (draft: Preferences) => void,
-  guard?: () => Promise<boolean>,
-  allowDuringScan = false,
-): Promise<boolean> {
-  if (
-    (transferBusy && !(allowDuringScan && sourceScan.snapshot().busy)) ||
-    element('app').dataset.ready !== 'true'
-  )
-    return false;
-  try {
-    const previous = settings;
-    settings = await preferences.update(mutate, guard);
-    const sameIds = (left: readonly string[], right: readonly string[]) =>
-      left.length === right.length && left.every((id, index) => id === right[index]);
-    const previousCategories = previous.channelCategoryOverrides ?? [];
-    const nextCategories = settings.channelCategoryOverrides ?? [];
-    if (
-      !sameIds(previous.favorites, settings.favorites) ||
-      !sameIds(previous.removedChannels, settings.removedChannels) ||
-      previousCategories.length !== nextCategories.length ||
-      previousCategories.some(
-        (entry, index) =>
-          entry.channelId !== nextCategories[index]?.channelId ||
-          entry.category !== nextCategories[index]?.category,
-      )
-    ) {
-      catalogBrowseViewRevision++;
-      // Saved viewing metadata is independent of the native catalog revision.
-      // Invalidate open Guide snapshots only after the preference write acknowledges.
-      if (!applicationClosing) guide.catalogChanged(true);
-    }
-    if (!applicationClosing) applySettings();
-    return true;
-  } catch (error) {
-    void diagnostics.emit({ operation: 'storage', level: 'error', code: 'storage-failed' });
-    notice(`Changes weren’t saved. ${friendlyError(error)}`);
-    return false;
-  }
-}
+
 const refresh = new CatalogRefreshService(
   {
     read: async (sourceId) => catalog.channels.filter((channel) => channel.sourceId === sourceId),
@@ -2617,294 +2437,9 @@ element('expand-button').addEventListener('click', () => {
   element('expand-button').textContent = expanded ? 'Show channels' : 'Expand';
   element('expand-button').setAttribute('aria-pressed', String(expanded));
 });
-const fullscreenOwner = createFullscreenOwner({
-  apply: async (enabled) => {
-    if (isTauri()) {
-      await invoke('set_fullscreen', { enabled });
-    } else if (enabled) await document.querySelector('.workspace')!.requestFullscreen();
-    else if (document.fullscreenElement) await document.exitFullscreen();
-  },
-  changed: updateFullscreen,
-});
-element('fullscreen-button').addEventListener('click', async () => {
-  try {
-    await fullscreenOwner.toggle();
-  } catch {
-    notice('Full screen is unavailable in this environment.');
-  }
-});
-// Touch screens: double tap the playing picture for full screen and back.
-installDoubleTapFullscreen(element('screen'), {
-  playing: () => element('app').dataset.playerIdle !== 'true',
-  toggle: () => element('fullscreen-button').click(),
-});
-function updateFullscreen(): void {
-  const active = fullscreenOwner.active || !!document.fullscreenElement;
-  fullscreenPresentation.set(active);
-  updatePreviewControl();
-  element('fullscreen-button').textContent = active ? 'Exit full screen' : 'Full screen';
-  element('fullscreen-button').setAttribute('aria-pressed', String(active));
-}
-document.addEventListener('fullscreenchange', () => {
-  if (!document.fullscreenElement) fullscreenOwner.nativeExited();
-  updateFullscreen();
-});
-window.addEventListener('native-fullscreen-exited', () => {
-  fullscreenOwner.nativeExited();
-});
-function suspendForegroundWork(): Promise<void> {
-  if (backgroundSuspension) return backgroundSuspension;
-  let suspensionConfirmed = false;
-  foregroundGeneration++;
-  library.libraryIntent++;
-  library.liveBrowseSuspended = true;
-  document.querySelector<HTMLElement>('.browser')!.inert = true;
-  playerView.vodSeekGeneration++;
-  renderVODTransport();
-  if (archivePlayer?.selection) {
-    library.archiveResumeChoice = archivePlayer.selection;
-    library.archiveBackgroundPaused = true;
-  }
-  const publicSnapshot = sharingBridge.host.snapshot();
-  const pendingAccount = pendingAccountPlayback;
-  const pendingPublic = pendingPublicPlayback;
-  const publicChoice =
-    pendingPublic &&
-    (publicSnapshot.generation <= pendingPublic.sharingGeneration ||
-      !publicSnapshot.playback.selection)
-      ? pendingPublic.selection
-      : publicSnapshot.playback.selection;
-  const accountChoice =
-    pendingAccount && publicSnapshot.generation <= pendingAccount.sharingGeneration
-      ? pendingAccount.choice
-      : publicChoice
-        ? null
-        : accountPlayer?.selection;
-  if (accountChoice) backgroundLiveChoice = { kind: 'account', choice: accountChoice };
-  else if (
-    publicChoice &&
-    !privatePlayback(publicChoice) &&
-    (publicChoice.id !== player.snapshot.selection?.id || player.snapshot.state === 'idle')
-  )
-    backgroundLiveChoice = { kind: 'public', selection: { ...publicChoice } };
-  if (backgroundLiveChoice) clearArchiveResume();
-  // A held native allocation may have no controller selection to publish yet.
-  // Present its retained intent immediately, while the real cleanup stays joined.
-  renderPlayer(player.snapshot);
-  // Reserve account cancellation before Archive handoff abort callbacks run.
-  // Every queued startup is joined, including allocations without a selection.
-  const accountSuspension = accountPlayer!.suspend();
-  for (const controller of publicGroupControllers) controller.abort();
-  pageState.primaryIntent++;
-  collectionAbort?.abort();
-  addChannelsEntryController?.abort();
-  for (const sourceId of activeSources.keys()) refresh.cancel(sourceId);
-  // Cancel acquisition and join playback/scan/guide suspension. Import
-  // cancellation settles through its existing atomic publication flow.
-  // Explicit LAN sharing keeps its separate service owner.
-  backgroundSuspension = Promise.allSettled([
-    playerView.vodSeekWork,
-    archiveSearch!.suspend(),
-    archiveDiscovery.suspend(),
-    archiveDownloads!.suspend(),
-    archivePlayer!.stop(),
-    joinLiveBrowse(),
-    (async () => {
-      accountPreferenceOwner?.abort();
-      await accountPreferenceWork?.catch(() => undefined);
-    })(),
-    accountControls.suspend(),
-    accountSuspension,
-    cancelOnlineSourceEntry(),
-    pageState.primaryTransitions,
-    joinLibraryPersistence(),
-    dailyRefresh.suspend(),
-    dailyGuideRefresh.suspend(),
-    automaticGuides.suspend(),
-    regionPreference.suspend(),
-    refresh.cancelAll(),
-    sharingBridge.suspend(),
-    sourceScan.suspend(),
-    websiteDiscovery.suspend(),
-    guide.suspend(),
-    eventHistory.suspend(),
-    visibleGuideState.visibleGuide?.suspend(),
-    removeDataTransfer.suspend(),
-    pageInput.cancel(),
-  ])
-    .then((results) => {
-      if (results.some((result) => result.status === 'rejected'))
-        throw new Error('Background activity cleanup could not be confirmed. Retry when ready.');
-      suspensionConfirmed = true;
-      renderPlayer(player.snapshot);
-    })
-    .finally(() => {
-      backgroundSuspension = null;
-      if (suspensionConfirmed) {
-        resumeForegroundScan();
-        queueMicrotask(wakeDailyRefresh);
-      }
-    });
-  return backgroundSuspension;
-}
-let nativeActivityLifecycleSequence = 0;
-function acceptNativeActivityLifecycle(event: Event, foreground: boolean): boolean {
-  const detail = (event as CustomEvent<unknown>).detail;
-  // Legacy desktop/older adapters emit ordinary events without a sequence.
-  if (detail == null) return true;
-  if (typeof detail !== 'object' || Array.isArray(detail)) return false;
-  const fields = Object.getOwnPropertyDescriptors(detail);
-  if (
-    Object.keys(fields).length !== 3 ||
-    ['schemaVersion', 'sequence', 'foreground'].some(
-      (key) => !fields[key] || !('value' in fields[key]),
-    )
-  )
-    return false;
-  const sequence = fields.sequence.value;
-  if (
-    fields.schemaVersion.value !== 1 ||
-    fields.foreground.value !== foreground ||
-    !Number.isSafeInteger(sequence) ||
-    sequence <= nativeActivityLifecycleSequence ||
-    sequence <= 0
-  )
-    return false;
-  nativeActivityLifecycleSequence = sequence;
-  return true;
-}
-window.addEventListener('native-app-background', (event) => {
-  if (!acceptNativeActivityLifecycle(event, false) || !nativeViewingForeground) return;
-  nativeViewingForeground = false;
-  updateGuideForeground();
-  void viewingForeground?.setNativeForeground(false).catch(() => undefined);
-  playbackAction(suspendForegroundWork());
-});
-window.addEventListener('native-app-foreground', (event) => {
-  if (!acceptNativeActivityLifecycle(event, true) || nativeViewingForeground || applicationClosing)
-    return;
-  nativeViewingForeground = true;
-  updateGuideForeground();
-  void viewingForeground?.setNativeForeground(true).catch(() => undefined);
-  resumeForegroundScan();
-  wakeDailyRefresh();
-});
-window.addEventListener('native-back-requested', (event) => {
-  const requestId = (event as CustomEvent<{ requestId?: unknown }>).detail?.requestId;
-  if (isTauri() && typeof requestId === 'string' && /^back-\d{1,20}$/.test(requestId))
-    void invoke('acknowledge_back', { requestId }).catch(() =>
-      notice('The Back request could not be acknowledged.'),
-    );
-  if (!event.defaultPrevented) void handleBack().catch(() => notice('Closing could not finish.'));
-});
-async function handleBack(): Promise<void> {
-  if (remoteEditMode.exit()) return;
-  const audioMenu = document.querySelector('[data-audio-tracks-open="true"]');
-  if (audioMenu) {
-    audioMenu.dispatchEvent(new Event('audio-tracks-close'));
-    return;
-  }
-  const qualityMenu = document.querySelector('[data-video-quality-open="true"]');
-  if (qualityMenu) {
-    qualityMenu.dispatchEvent(new Event('video-quality-close'));
-    return;
-  }
-  // A small list opened from a button (Local's Favorites / APK sites).
-  const popup = document.querySelector('[data-popup-open="true"]');
-  if (popup) {
-    popup.dispatchEvent(new Event('popup-close'));
-    return;
-  }
-  // An instant replay returns to live before Back leaves anything else.
-  if (!document.querySelector('dialog[open]') && playerView.liveReplay?.back()) return;
-  const modal = [
-    ...document.querySelectorAll<HTMLDialogElement>('dialog[open]:not([data-primary-page])'),
-  ].at(-1);
-  // Full screen from the Guide's preview leaves to the Guide, not past it.
-  if (
-    !modal &&
-    pageState.primaryPage === 'guide' &&
-    (fullscreenOwner.active || fullscreenOwner.busy || document.fullscreenElement)
-  ) {
-    await fullscreenOwner.set(false);
-    return;
-  }
-  const dialog = modal ?? primaryHost.querySelector<HTMLDialogElement>('dialog[open]');
-  if (dialog) {
-    // Give the modal owner its cancellation/commit guard before changing visibility.
-    if (dialog.dispatchEvent(new Event('cancel', { cancelable: true }))) dialog.close();
-    return;
-  }
-  if (paidGuide.open) {
-    await switchPrimaryPage('watch');
-    return;
-  }
-  // Video On Demand steps out one level at a time.
-  if (libraries?.vodBack()) return;
-  if (archiveSearch?.dismissFilters()) return;
-  if (fullscreenOwner.active || fullscreenOwner.busy || document.fullscreenElement) {
-    await fullscreenOwner.set(false);
-    return;
-  }
-  if (archiveSearch?.dismissEpisodes()) return;
-  // Back unwinds viewing UI; closing the application requires explicit Exit.
-  // At the main screen there is nothing left to dismiss.
-}
-document.addEventListener('keydown', (event) => {
-  if (
-    event.key === 'Escape' &&
-    pageState.primaryPage !== 'watch' &&
-    !document.querySelector('dialog[open]:not([data-primary-page])')
-  ) {
-    event.preventDefault();
-    void handleBack().catch(() => notice('Closing could not finish.'));
-    return;
-  }
-  if (
-    event.key === 'Escape' &&
-    element('app').dataset.vod === 'open' &&
-    !fullscreenOwner.active &&
-    !document.querySelector('dialog[open]')
-  ) {
-    event.preventDefault();
-    void handleBack().catch(() => notice('Closing could not finish.'));
-    return;
-  }
-  if (
-    event.key === 'Escape' &&
-    (fullscreenOwner.active || fullscreenOwner.busy) &&
-    !document.querySelector('dialog[open]')
-  ) {
-    event.preventDefault();
-    void fullscreenOwner.set(false).catch(() => notice('Leaving full screen could not finish.'));
-  }
-});
-document.addEventListener('visibilitychange', () => {
-  updateGuideForeground();
-  void viewingForeground?.setDocumentVisible(!document.hidden).catch(() => undefined);
-  if (document.hidden) playbackAction(suspendForegroundWork());
-  else {
-    resumeForegroundScan();
-    wakeDailyRefresh();
-  }
-});
-function resumeForegroundScan(): void {
-  if (applicationClosing || document.hidden || !nativeViewingForeground) return;
-  void Promise.resolve(backgroundSuspension)
-    .then(async () => {
-      if (applicationClosing || document.hidden || !nativeViewingForeground) return;
-      document.querySelector<HTMLElement>('.browser')!.inert = false;
-      await archiveDownloads!.resume();
-      if (library.contentLibrary === 'genxtra') {
-        if (pageState.primaryPage === 'watch') await archiveSearch!.resume(libraryQueries.genxtra);
-      } else {
-        library.liveBrowseSuspended = false;
-        renderCatalog();
-        await sourceScan.resume();
-      }
-    })
-    .catch(() => notice('Scan progress could not resume. Use Continue scan to retry.'));
-}
+const foregroundController = createForegroundController(app);
+const { fullscreenOwner, handleBack } = foregroundController;
+
 const divider = element('divider');
 let dragWidth: number | null = null;
 divider.addEventListener('pointerdown', (event) => {
@@ -3046,421 +2581,9 @@ window.addEventListener('pagehide', () => {
   if (sharingPanel) void sharingPanel.dispose().catch(() => undefined);
   void sharingBridge.dispose().catch(() => undefined);
 });
-const closeFinalization = createCloseFinalizationObserver();
-const closeProgress = createCloseProgressObserver();
-let archiveCloseStop: Promise<void> | null = null;
-const closeOwner = createCloseOwner({
-  freeze: () => {
-    // Capture the actual finite position before closing revokes the browsing scope.
-    // Retain this original stop/save owner for the close sequence to join.
-    const capturedStop = archivePlayer!.stop();
-    archiveCloseStop = capturedStop;
-    void capturedStop.catch(() => {
-      // Only a settled failure permits a later close retry to drain again.
-      if (archiveCloseStop === capturedStop) archiveCloseStop = null;
-    });
-    applicationClosing = true;
-    library.libraryIntent++;
-    for (const controller of publicGroupControllers) controller.abort();
-    pageState.primaryIntent++;
-    televisionSelects?.dispose();
-    channelActions.dispose();
-    void fullscreenOwner.close().catch(() => undefined);
-    viewingWake?.freeze();
-    for (const controller of startupJobs.values()) controller.abort();
-    storageRecovery?.dispose();
-    storageRecovery = undefined;
-    playerView.healthCaptureClosing = true;
-    // Startup may have made the shell inert; the close modal must remain reachable.
-    element('app').inert = false;
-    for (const region of document.querySelectorAll<HTMLElement>('.topbar,.workspace,dialog'))
-      if (region.id !== 'close-dialog') region.inert = true;
-    collectionAbort?.abort();
-    importController.playlistExportController?.abort();
-    addChannelsEntryController?.abort();
-  },
-  owners: [
-    () => {
-      document.removeEventListener('keydown', genxtraNavigation, true);
-    },
-    () =>
-      Promise.all([archiveCloseStop ?? archivePlayer!.stop(), disposeVODTransport()]).then(
-        () => undefined,
-      ),
-    () => archiveSearch!.dispose(),
-    () => archiveDiscovery.dispose(),
-    () => archiveDownloads!.dispose(),
-    () => channelLogos?.dispose(),
-    () => guideChannelLogos.dispose(),
-    () => archivePlayer!.dispose(),
-    () => vodStopControl?.dispose(),
-    () => joinLiveBrowse(),
-    async () => {
-      accountPreferenceOwner?.abort();
-      await accountPreferenceWork?.catch(() => undefined);
-    },
-    () => accountControls.dispose(),
-    async () => {
-      libraries?.dispose();
-      element('settings-button').removeEventListener('click', openAccountSettings);
-      await accountBrowser.dispose();
-    },
-    () => accountPlayer!.dispose(),
-    () => automaticGuideUpdates.dispose(),
-    async () => {
-      await cancelOnlineSourceEntry();
-      await onlineSourceDiscovery.dispose();
-      await sourceIndex.dispose();
-    },
-    () => providerManagement.dispose(),
-    async () => {
-      importController.playlistExportController?.abort();
-      await importController.playlistExportWork;
-    },
-    () => browser.dispose(),
-    () => removeVideoQuality(),
-    () => removeAudioTracks(),
-    () => audioDiagnostics.dispose(),
-    () => dailyRefresh.dispose(),
-    () => dailyGuideRefresh.dispose(),
-    () => automaticGuides.dispose(),
-    () => regionPreference.dispose(),
-    () => fullscreenOwner.close(),
-    () => removeCaptions(),
-    () => viewingWake?.close(),
-    async () => {
-      await Promise.allSettled([...startupJobs.keys()]);
-    },
-    () => playbackHealth.dispose(),
-    async () => {
-      await sourceScan.dispose();
-      await sourceActivation.settleProgressCleanup();
-    },
-    async () => {
-      await scanController.checkpointProgressCapture?.dispose();
-      scanController.pendingManifestSeed = undefined;
-    },
-    () => savedChannelCheck.dispose(),
-    () => probeScheduler.dispose(),
-    () => speechSearch.dispose(),
-    () => websiteDiscovery.dispose(),
-    () => pageInput.cancel(),
-    async () => {
-      await pageState.primaryTransitions;
-      await joinLibraryPersistence();
-      await guide.dispose();
-    },
-    () => visibleGuideState.visibleGuide?.dispose(),
-    () => removeDataTransfer(),
-    () => removeCasting(),
-    () => sharingPanel?.dispose(),
-    () => sharingBridge.dispose(),
-    async () => {
-      collectionAbort?.abort();
-      await refresh.dispose();
-      await configuredImportEntry.dispose();
-      const settled = await Promise.allSettled([...importJobs]);
-      if (settled.some((result) => result.status === 'rejected'))
-        throw new Error('Source activity cleanup could not be confirmed.');
-    },
-  ],
-  acknowledge: async (token, result) => {
-    if (result === 'drained') {
-      // All producers have settled before capturing the final serialized queues.
-      await closeFinalization.run('catalog-writes', () => catalogWrites);
-      await closeFinalization.run('preferences', () => preferences.settledSnapshot());
-      await closeFinalization.run('event-history', () => eventHistory.dispose());
-      await closeFinalization.run('diagnostics', () => diagnostics.dispose());
-    }
-    await closeFinalization.run('native-acknowledgment', () =>
-      invoke('acknowledge_cleanup', { ...token, result }),
-    );
-    closeFinalization.complete();
-  },
-});
-Object.defineProperty(window, '__GENX_CLOSE__', {
-  get: () => closeOwner.snapshot(),
-  enumerable: false,
-  configurable: false,
-});
-Object.defineProperty(window, '__GENX_CLOSE_FINALIZATION__', {
-  get: () => closeFinalization.snapshot(),
-  enumerable: false,
-  configurable: false,
-});
-Object.defineProperty(window, '__GENX_ARCHIVE_RELEASE__', {
-  get: () => archivePlayer?.releaseTimings(),
-});
-Object.defineProperty(window, '__GENX_NATIVE_CLOSE__', {
-  get: () => closeProgress.snapshot(),
-  enumerable: false,
-  configurable: false,
-});
-const removeExit = mountExit(element<HTMLButtonElement>('exit-button'), {
-  native: isTauri,
-  request: async () => {
-    await installCloseBridge();
-    await invoke('request_exit');
-  },
-  notice,
-});
-window.addEventListener('pagehide', removeExit, { once: true });
-let closeStartInstalled = false;
-let closeProgressInstalled = false;
-let closeBlockedInstalled = false;
-let closeActionsInstalled = false;
-let closeBridgeWork: Promise<void> | null = null;
-function installCloseBridge(attempt?: StartupAttempt): Promise<void> {
-  if (!isTauri()) return Promise.resolve();
-  if (closeBridgeWork) return closeBridgeWork;
-  const work = (async () => {
-    if (!closeProgressInstalled) {
-      const register = () =>
-        listen<unknown>('native-close-progress', (event) => {
-          closeProgress.receive(event.payload);
-        });
-      await (attempt ? attempt.run('close-progress-listen', register) : register());
-      closeProgressInstalled = true;
-    }
-    if (!closeStartInstalled) {
-      const register = () =>
-        listen<CleanupToken>('native-close-starting', (event) => {
-          playbackAction(closeOwner.begin(event.payload));
-        });
-      await (attempt ? attempt.run('close-start-listen', register) : register());
-      closeStartInstalled = true;
-    }
-    if (!closeBlockedInstalled) {
-      const register = () =>
-        listen('native-close-blocked', () => {
-          const dialog = element<HTMLDialogElement>('close-dialog');
-          if (!dialog.open) dialog.showModal();
-        });
-      await (attempt ? attempt.run('close-blocked-listen', register) : register());
-      closeBlockedInstalled = true;
-    }
-    if (!closeActionsInstalled) {
-      element('close-dialog').addEventListener('cancel', (event) => event.preventDefault());
-      element('close-retry').addEventListener('click', () => {
-        element<HTMLDialogElement>('close-dialog').close();
-        void invoke('request_exit').catch(() => notice('Closing could not finish.'));
-      });
-      element('close-force').addEventListener('click', () => {
-        void invoke('force_exit').catch(() => notice('Force quit could not finish.'));
-      });
-      closeActionsInstalled = true;
-    }
-  })();
-  closeBridgeWork = work;
-  void work
-    .finally(() => {
-      if (closeBridgeWork === work) closeBridgeWork = null;
-    })
-    .catch(() => {});
-  return work;
-}
-function initialize(retryStorage = false): Promise<void> {
-  if (applicationClosing) return Promise.reject(new Error('The application is closing.'));
-  const controller = new AbortController();
-  const attempt = startupObserver.begin();
-  element('storage-status').textContent = 'Loading your channels\u2026';
-  const work = Promise.resolve().then(async () => {
-    await attempt.run('close-bridge', async () => {
-      if (retryStorage) wakeTransportAdmission.retry();
-      try {
-        await installCloseBridge(attempt);
-        // Release even if close has begun: the held disable must actually drain.
-        wakeTransportAdmission.release();
-      } catch (error) {
-        wakeTransportAdmission.fail();
-        throw error;
-      }
-      if (retryStorage && viewingWake?.snapshot().failed) await viewingWake.retry();
-      await viewingForeground?.setDocumentVisible(!document.hidden);
-      await viewingWake?.setActive(false);
-    });
-    controller.signal.throwIfAborted();
-    if (retryStorage) {
-      element('app').dataset.ready = 'false';
-      await Promise.all([
-        archiveSearch!.suspend(),
-        archiveDiscovery.suspend(),
-        archiveDownloads!.suspend(),
-        archivePlayer!.stop(),
-        joinLiveBrowse(),
-        joinLibraryPersistence(),
-      ]);
-    }
-    if (retryStorage && isTauri()) {
-      const receipt = await attempt.run('retry-storage', () =>
-        invoke<{ dataMode: string; retryReady: true }>('retry_storage'),
-      );
-      controller.signal.throwIfAborted();
-      if (receipt?.retryReady !== true || typeof receipt.dataMode !== 'string')
-        throw new Error('Storage retry was not confirmed.');
-    }
-    await initializeSaved(controller.signal, attempt);
-  });
-  startupJobs.set(work, controller);
-  void work.then(
-    () => attempt.finish('completed'),
-    (error: unknown) =>
-      attempt.finish(
-        controller.signal.aborted || (error instanceof Error && error.name === 'AbortError')
-          ? 'cancelled'
-          : 'failed',
-      ),
-  );
-  void work.finally(() => startupJobs.delete(work)).catch(() => {});
-  return work;
-}
-async function initializeSaved(signal: AbortSignal, attempt: StartupAttempt): Promise<void> {
-  await rendererRecoveryPolicy.initialize();
-  signal.throwIfAborted();
-  library.archiveStorageEpoch++;
-  library.archiveIndexRevision = null;
-  clearArchiveResume();
-  // Recovery can replace the canonical storage owner while revisions happen
-  // to agree; a successful cache scope never crosses that re-initialization.
-  guideController.lastCachedGuideConnection = null;
-  let startupPair: Awaited<ReturnType<typeof readRecordPair>>;
-  let startupState: Awaited<ReturnType<typeof decodeSavedHealthInWorker>>;
-  try {
-    startupPair = await attempt.run('read-record-pair', () => readRecordPair());
-    signal.throwIfAborted();
-    persistedCatalogRevision = startupPair.catalogRevision;
-    startupState = await attempt.run('health-decode', () =>
-      decodeSavedHealthInWorker(startupPair, signal),
-    );
-  } catch (error) {
-    signal.throwIfAborted();
-    notice(`Saved data could not open. ${friendlyError(error)}`);
-    element('storage-status').textContent =
-      'Storage could not open. Use the recovery controls to retry or choose an available location.';
-    throw error;
-  }
-  signal.throwIfAborted();
-  try {
-    settings = await attempt.run('preferences', () =>
-      startupPair.preferences === null
-        ? preferences.load()
-        : preferences.replaceAtomically(JSON.parse(startupPair.preferences), async () => undefined),
-    );
-  } catch (error) {
-    notice(`Saved settings need attention. ${friendlyError(error)}`);
-  }
-  signal.throwIfAborted();
-  try {
-    const record = startupPair.catalog;
-    if (record !== null) {
-      catalog = startupState.catalog;
-      catalogRevision++;
-    }
-  } catch (error) {
-    notice(`Saved channels need attention. ${friendlyError(error)}`);
-  }
-  // Select the saved library before applying settings can admit indexed browsing.
-  library.contentLibrary = settings.contentLibrary === 'genxtra' ? 'genxtra' : 'live';
-  library.liveBrowseSuspended = library.contentLibrary !== 'live';
-  // Admit indexed browsing only after the paired catalog and preferences are available.
-  catalogBrowseReady = true;
-  await attempt.run('apply-settings', () => applySettings());
-  if (isTauri()) {
-    try {
-      const capabilities = await attempt.run('capabilities', () =>
-        invoke<{ isTelevision: boolean }>('device_capabilities'),
-      );
-      signal.throwIfAborted();
-      if (typeof capabilities?.isTelevision !== 'boolean')
-        throw new Error('Device capabilities are unavailable.');
-      castingAvailable = !capabilities.isTelevision;
-      element('app').dataset.deviceKind = capabilities.isTelevision ? 'tv' : 'personal';
-      try {
-        localStorage.setItem(DEVICE_KIND_KEY, element('app').dataset.deviceKind!);
-      } catch {
-        // Next launch simply waits for this answer again.
-      }
-      await activityWake.setTelevision(capabilities.isTelevision);
-      televisionSelects?.dispose();
-      televisionSelects = capabilities.isTelevision
-        ? installInAppSelects(document.body)
-        : undefined;
-    } catch {
-      castingAvailable = false;
-      // Unconfirmed: no remembered layout stays applied.
-      delete element('app').dataset.deviceKind;
-    }
-    castButton.hidden = !castingAvailable;
-    castButton.disabled = !castingAvailable;
-    try {
-      const info = await attempt.run('runtime-info', () =>
-        invoke<{ platform: string; dataMode: string }>('runtime_info'),
-      );
-      signal.throwIfAborted();
-      if (!['windows', 'android', 'linux', 'macos', 'ios'].includes(info.platform))
-        throw new Error('The native platform is unavailable.');
-      scanController.healthPlatform = info.platform;
-      element('storage-status').textContent = `${info.platform} · ${info.dataMode} storage`;
-      if (info.platform === 'windows') {
-        sharingPanel = mountSharingSettings(element('sharing-settings'), sharingBridge.host);
-        sharingBridge.bindBeforeSelection(
-          sharingPanel.service.beforeSelection.bind(sharingPanel.service),
-        );
-      }
-    } catch {
-      element('storage-status').textContent = 'Native storage status unavailable.';
-    }
-  } else
-    element('storage-status').textContent = 'Browser development preview · saved on this browser';
-  signal.throwIfAborted();
-  if (isTauri()) {
-    const scanGeneration = sourceScan.snapshot().generation;
-    try {
-      const summary = await attempt.run('scan-checkpoint-summary', () =>
-        nativeScanCheckpointSummary.read(signal),
-      );
-      signal.throwIfAborted();
-      sourceScan.presentSavedSummary(summary, scanGeneration);
-    } catch {
-      signal.throwIfAborted();
-      notice('Saved scan progress could not be read. Your saved channels are retained.');
-    }
-  }
-  await attempt.run('ready', () => {
-    signal.throwIfAborted();
-    if (applicationClosing) throw new DOMException('Startup canceled.', 'AbortError');
-    // Startup has no previous interactive library to close. Joining browse,
-    // guide or scan owners here can wait on this same bootstrap completing.
-    presentPrimaryPage('watch');
-    presentLibrary();
-    element<HTMLInputElement>('search').value = libraryQueries[library.contentLibrary];
-    element('clear-search').hidden = !libraryQueries[library.contentLibrary];
-    document.querySelector<HTMLElement>('.browser')!.inert = false;
-    element('app').inert = false;
-    element('app').dataset.ready = 'true';
-    queueMicrotask(() => {
-      if (archiveRuntimeScope()) playbackAction(archiveDownloads!.resume());
-    });
-    if (library.contentLibrary === 'live') {
-      renderCatalog();
-      browser.search(libraryQueries.live);
-    } else
-      queueMicrotask(() => {
-        if (archiveActiveScope()) playbackAction(archiveSearch!.resume(libraryQueries.genxtra));
-      });
-    queueMicrotask(requestCachedGuideConnection);
-    void libraries?.reload();
-    updateVisibleGuide();
-    storageRecovery?.dispose();
-    storageRecovery = undefined;
-    void adoptIncludedHttp().then(wakeDailyRefresh);
-    if (isTauri() && rendererRecoveryPolicy.allowAutomaticWork()) savedChannelCheck.start();
-    if (!rendererRecoveryPolicy.allowAutomaticWork())
-      notice(
-        'Automatic updates are paused for this session. Use Scan or Refresh when you are ready.',
-      );
-  });
-}
+const closeController = createCloseController(app);
+const { installCloseBridge } = closeController;
+
 bootstrapBoundary.mounted();
 void initialize().catch(() => {
   void diagnostics.emit({ operation: 'storage', level: 'error', code: 'storage-failed' });

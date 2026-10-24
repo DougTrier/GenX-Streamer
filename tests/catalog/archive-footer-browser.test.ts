@@ -26,19 +26,26 @@ const evidence = 'artifacts/archive-footer/2026-10-16';
 const phase = process.env.GENX_FOOTER_PHASE ?? 'current';
 if (!/^[a-z0-9-]+$/.test(phase)) throw new Error('Invalid footer fixture phase');
 beforeAll(async () => {
-  const [main, android] = await Promise.all([
+  const [main, foreground, android] = await Promise.all([
     readFile('src/main.ts', 'utf8'),
+    readFile('src/application/foreground-controller.ts', 'utf8'),
     readFile('src-tauri/gen/android/app/src/main/java/com/tmg/tv/ViewingPlugin.kt', 'utf8'),
   ]);
-  const listenerStart = main.indexOf("window.addEventListener('native-back-requested'");
-  const listenerEnd = main.indexOf('async function handleBack()', listenerStart);
+  // The Back listener is registered while main.ts loads (when it creates the
+  // foreground controller), before initialize() and before any GenXtra
+  // control can mount.
+  const listenerStart = foreground.indexOf("window.addEventListener('native-back-requested'");
+  const listenerEnd = foreground.indexOf('async function handleBack()', listenerStart);
+  const created = main.indexOf('createForegroundController(app)');
   if (
     listenerStart < 0 ||
     listenerEnd < listenerStart ||
-    main.indexOf('archiveSearch = mountArchiveSearch(') > listenerStart
+    created < 0 ||
+    created > main.indexOf('void initialize()') ||
+    main.includes('mountArchiveSearch(')
   )
     throw new Error('Production Archive/Back listener registration order changed');
-  mainBackListener = ts.transpileModule(main.slice(listenerStart, listenerEnd), {
+  mainBackListener = ts.transpileModule(foreground.slice(listenerStart, listenerEnd), {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.None },
   }).outputText;
   nativeBackScript =
@@ -106,8 +113,10 @@ async function mount(width = 960, height = 540): Promise<Page> {
     Reflect.set(window, 'invoke', async (command: unknown, args: unknown) => {
       calls.push({ command, args });
     });
-    Reflect.set(window, 'notice', (message: unknown) => {
-      calls.push({ notice: message });
+    Reflect.set(window, 'env', {
+      notice: (message: unknown) => {
+        calls.push({ notice: message });
+      },
     });
     Reflect.set(window, 'handleBack', async () => {
       calls.push('unexpected-main-navigation');
