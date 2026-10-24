@@ -721,6 +721,30 @@
       "label": "address with a password",
       "sha256": "7a2bd81500c29724e73502227983b6eb7af5c4a70cb21c62ae140bc7003668a5",
       "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/account_playback_proxy/proxy_tests.rs",
+      "label": "private network address",
+      "sha256": "e3a6029b99ea06f4a409610d4ebe04e0e1e074a510cad4afb0f50f44824351f7",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/account_playback_proxy/proxy_tests.rs",
+      "label": "address with a password",
+      "sha256": "c5a6831a5a12221b3b8ad7d72a29a66ddfb86a47409690b9133369581ad2f8a4",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/account_playback_proxy/proxy_tests.rs",
+      "label": "private network address",
+      "sha256": "e1ae22bd3dbd0cd709d1dd0e60c8e75d11c7bc2a97530555a1891e4319adc87c",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/account_playback_proxy/proxy_tests.rs",
+      "label": "address with a password",
+      "sha256": "1c2f142726550cc899773668b5e1a76cae742b0797b1394c78d5aca4f50048a9",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
     }
   ]
 }
