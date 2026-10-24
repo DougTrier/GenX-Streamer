@@ -45,10 +45,11 @@ signed by anyone else over an installed copy.
 Only an official release copy sends its own APK (Send the app, Share with
 everyone nearby). Development copies, which are debug-signed, offer the link
 and the QR code instead. The release certificate's fingerprint is one constant,
-`RELEASE_CERTIFICATE_SHA256` in `src-tauri/src/platform/app_identity.rs`. It
-is empty until the owner creates the release key and fills it in
-([release-signing.md](release-signing.md)); while it is
-empty, no copy counts as official and APK sending stays off.
+`RELEASE_CERTIFICATE_SHA256` in `src-tauri/src/platform/app_identity.rs`:
+`464c42785a80bb27022527d7e5b703c4ecf2d62f433a0f9f6b162ee95b7872ff`, the
+owner's release key, created October 24, 2026
+([release-signing.md](release-signing.md)). An official copy's About → This
+copy shows it as `46:4C:42:78:…:72:FF`.
 
 ## Windows: unsigned by decision
 

@@ -125,7 +125,7 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Release APK signature verification failed' }
         $tmgSigners = @($tmgCerts | Where-Object { $_ -match 'certificate SHA-256 digest: ([0-9a-f]{64})' } | ForEach-Object { $Matches[1] })
         $tmgIdentity = Get-Content -Raw -LiteralPath (Join-Path $tmgRepo 'src-tauri/src/platform/app_identity.rs')
-        if ($tmgIdentity -notmatch 'RELEASE_CERTIFICATE_SHA256: &str = "([0-9a-f]*)"') { throw 'Release certificate constant not found' }
+        if ($tmgIdentity -notmatch 'RELEASE_CERTIFICATE_SHA256: &str\s*=\s*"([0-9a-f]*)"') { throw 'Release certificate constant not found' }
         $tmgOfficial = $Matches[1]
         $tmgIsOfficial = $tmgSigners.Count -eq 1 -and $tmgOfficial.Length -eq 64 -and $tmgSigners[0] -eq $tmgOfficial
         if (!$tmgIsOfficial -and !$PipelineTest) {

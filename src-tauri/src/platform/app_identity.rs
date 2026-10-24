@@ -23,12 +23,14 @@
 use serde::Serialize;
 
 /// SHA-256 fingerprint of the owner's Android release signing certificate:
-/// 64 lowercase hex characters, no colons. EMPTY until the owner provides it
-/// (the release key is owner-held and does not exist yet). Empty means no copy
-/// is an official release, so sending the APK stays off. Never invent a value.
+/// 64 lowercase hex characters, no colons. The owner created the key on
+/// October 24, 2026 (src-tauri/scripts/new-release-key.ps1) and provided this
+/// public fingerprint; the key itself stays with the owner. Never change it
+/// without a new key: installed copies are checked against it.
 // Read on Android (and by the tests); Windows has no signature to compare.
 #[cfg_attr(not(target_os = "android"), allow(dead_code))]
-pub(crate) const RELEASE_CERTIFICATE_SHA256: &str = "";
+pub(crate) const RELEASE_CERTIFICATE_SHA256: &str =
+    "464c42785a80bb27022527d7e5b703c4ecf2d62f433a0f9f6b162ee95b7872ff";
 
 /// Official only when the release fingerprint is known and this copy is
 /// signed by that certificate alone.
@@ -152,8 +154,12 @@ mod tests {
     const RELEASE: &str = "9f2c4e1a7b3d5c8e0f6a2b4c6d8e0f1a3b5c7d9e1f2a4b6c8d0e2f4a6b8c0d2e";
 
     #[test]
-    fn no_copy_is_official_until_the_owner_provides_the_fingerprint() {
-        assert_eq!(RELEASE_CERTIFICATE_SHA256, "");
+    fn the_owners_certificate_is_official_and_an_empty_one_matches_nothing() {
+        assert_eq!(RELEASE_CERTIFICATE_SHA256.len(), 64);
+        assert!(official(
+            RELEASE_CERTIFICATE_SHA256,
+            &[RELEASE_CERTIFICATE_SHA256.to_string()]
+        ));
         assert!(!official(
             RELEASE_CERTIFICATE_SHA256,
             &[RELEASE.to_string()]

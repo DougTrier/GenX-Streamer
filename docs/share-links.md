@@ -141,8 +141,8 @@ A shown share sheet is not proof that anything was sent.
 Only an official release copy sends its own app file (owner-approved,
 October 24, 2026): on Android the installed copy must be signed with the
 owner's release certificate (`RELEASE_CERTIFICATE_SHA256` in
-`src-tauri/src/platform/app_identity.rs`, empty until the owner provides it,
-so APK sending is off for now) and installed as one APK. Development copies
+`src-tauri/src/platform/app_identity.rs`, the owner's key since October 24,
+2026) and installed as one APK. Development copies
 offer the download link and its QR code instead. Windows is unsigned by
 decision, so its exe can be sent; the checksum is its check
 ([verify-a-download.md](verify-a-download.md)). The native layer enforces this

@@ -73,11 +73,11 @@ fn each_platform_and_architecture_has_its_own_release_file() {
     );
     assert_eq!(
         asset_name(v("1.1.0"), "android", "aarch64").as_deref(),
-        Some("GenX-Streamer-1.1.0-Android-arm64.apk")
+        Some("GenX-Streamer-1.1.0-Android.apk")
     );
     assert_eq!(
         asset_name(v("1.1.0"), "android", "arm").as_deref(),
-        Some("GenX-Streamer-1.1.0-Android-armv7.apk")
+        Some("GenX-Streamer-1.1.0-Android.apk")
     );
     assert_eq!(asset_name(v("1.1.0"), "windows", "aarch64"), None);
     assert_eq!(asset_name(v("1.1.0"), "linux", "x86_64"), None);
@@ -89,8 +89,7 @@ fn a_newer_release_offers_this_builds_file_with_its_published_digest() {
     let release = release(
         tag,
         serde_json::json!([
-            asset(tag, "GenX-Streamer-1.1.0-Android-arm64.apk"),
-            asset(tag, "GenX-Streamer-1.1.0-Android-armv7.apk"),
+            asset(tag, "GenX-Streamer-1.1.0-Android.apk"),
             asset(tag, "GenX-Streamer-1.1.0-Windows-x64.exe"),
         ]),
     );
@@ -107,12 +106,12 @@ fn a_newer_release_offers_this_builds_file_with_its_published_digest() {
         Some("https://github.com/DougTrier/GenX-Streamer/releases/tag/v1.1.0")
     );
     let candidate = candidate.unwrap();
-    assert_eq!(candidate.asset, "GenX-Streamer-1.1.0-Android-armv7.apk");
+    assert_eq!(candidate.asset, "GenX-Streamer-1.1.0-Android.apk");
     assert_eq!(candidate.sha256, DIGEST);
     assert_eq!(candidate.bytes, 48_000_000);
     assert_eq!(
         candidate.url,
-        "https://github.com/DougTrier/GenX-Streamer/releases/download/v1.1.0/GenX-Streamer-1.1.0-Android-armv7.apk"
+        "https://github.com/DougTrier/GenX-Streamer/releases/download/v1.1.0/GenX-Streamer-1.1.0-Android.apk"
     );
 }
 
@@ -142,7 +141,7 @@ fn only_official_published_files_with_a_digest_are_accepted() {
     assert_eq!(
         refused(serde_json::json!([asset(
             tag,
-            "GenX-Streamer-1.1.0-Android-arm64.apk"
+            "GenX-Streamer-1.1.0-Android.apk"
         )])),
         "update-asset-missing"
     );

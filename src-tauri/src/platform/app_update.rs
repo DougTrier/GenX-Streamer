@@ -88,8 +88,8 @@ impl std::fmt::Display for Version {
 pub(crate) fn asset_name(version: Version, os: &str, arch: &str) -> Option<String> {
     let platform = match (os, arch) {
         ("windows", "x86_64") => "Windows-x64.exe",
-        ("android", "aarch64") => "Android-arm64.apk",
-        ("android", "arm") => "Android-armv7.apk",
+        // One universal APK for every ARM device (docs/share-links.md SH-010).
+        ("android", "aarch64" | "arm") => "Android.apk",
         _ => return None,
     };
     Some(format!("GenX-Streamer-{version}-{platform}"))
