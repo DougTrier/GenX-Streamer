@@ -329,6 +329,7 @@ let localStreams: ReturnType<typeof mountLocalStreams> | undefined;
 let vodStopControl: ReturnType<typeof mountVODStop> | undefined;
 let archiveSearch: ReturnType<typeof mountArchiveSearch> | undefined;
 let archiveDownloads: ReturnType<typeof createArchiveDownloads> | undefined;
+// eslint-disable-next-line prefer-const -- assigned once, later; read before that
 let channelLogos: ReturnType<typeof createChannelLogos> | undefined;
 const library = createLibraryState();
 const libraryQueries: Record<ContentLibrary, string> = { live: '', genxtra: '' };
@@ -878,36 +879,117 @@ function mutateCatalog(
   catalogWrites = work.catch(() => undefined);
   return work;
 }
-const scanController = createScanController({
+/**
+ * The application context: everything the area controllers share with the
+ * rest of the application, read when used (getters) and written back through
+ * setters. Each controller declares, in its own environment type, the subset
+ * it uses.
+ */
+const app = {
+  get accountBrowser() {
+    return accountBrowser;
+  },
+  get accountPlayer() {
+    return accountPlayer;
+  },
+  get accountPreferenceWork() {
+    return accountPreferenceWork;
+  },
+  get accountVodSelected() {
+    return accountVodSelected;
+  },
+  get activityWake() {
+    return activityWake;
+  },
+  get addChannelsEntryController() {
+    return addChannelsEntryController;
+  },
+  set addChannelsEntryController(value) {
+    addChannelsEntryController = value;
+  },
+  get addChannelsEntryGeneration() {
+    return addChannelsEntryGeneration;
+  },
+  set addChannelsEntryGeneration(value) {
+    addChannelsEntryGeneration = value;
+  },
+  get addChannelsEntryWork() {
+    return addChannelsEntryWork;
+  },
+  set addChannelsEntryWork(value) {
+    addChannelsEntryWork = value;
+  },
+  get applicationClosing() {
+    return applicationClosing;
+  },
+  get applySettings() {
+    return applySettings;
+  },
+  get archiveActiveScope() {
+    return archiveActiveScope;
+  },
+  get archiveBackgroundPaused() {
+    return library.archiveBackgroundPaused;
+  },
+  get archiveCatalog() {
+    return archiveCatalog;
+  },
+  get archiveDiscovery() {
+    return archiveDiscovery;
+  },
+  get archiveDownloads() {
+    return archiveDownloads;
+  },
+  get archivePlayer() {
+    return archivePlayer;
+  },
+  get archiveResumeChoice() {
+    return library.archiveResumeChoice;
+  },
+  get archiveRuntimeScope() {
+    return archiveRuntimeScope;
+  },
+  get archiveSearch() {
+    return archiveSearch;
+  },
+  set archiveSearch(value) {
+    archiveSearch = value;
+  },
+  get automaticGuides() {
+    return automaticGuides;
+  },
+  get backgroundLiveChoice() {
+    return backgroundLiveChoice;
+  },
+  get backgroundSuspension() {
+    return backgroundSuspension;
+  },
+  get bootstrapBoundary() {
+    return bootstrapBoundary;
+  },
+  get browser() {
+    return browser;
+  },
+  get cancelOnlineSourceEntry() {
+    return cancelOnlineSourceEntry;
+  },
+  get castButton() {
+    return castButton;
+  },
+  get castingAvailable() {
+    return castingAvailable;
+  },
   get catalog() {
     return catalog;
   },
   set catalog(value) {
     catalog = value;
   },
-  get settings() {
-    return settings;
+  get catalogBrowseViewRevision() {
+    return catalogBrowseViewRevision;
   },
-  set settings(value) {
-    settings = value;
-  },
-  get catalogWrites() {
-    return catalogWrites;
-  },
-  set catalogWrites(value) {
-    catalogWrites = value;
-  },
-  get preferences() {
-    return preferences;
-  },
-  get applicationClosing() {
-    return applicationClosing;
-  },
-  get persistedCatalogRevision() {
-    return persistedCatalogRevision;
-  },
-  set persistedCatalogRevision(value) {
-    persistedCatalogRevision = value;
+  set catalogBrowseViewRevision(value) {
+    catalogBrowseViewRevision = value;
   },
   get catalogRevision() {
     return catalogRevision;
@@ -915,56 +997,182 @@ const scanController = createScanController({
   set catalogRevision(value) {
     catalogRevision = value;
   },
-  get applySettings() {
-    return applySettings;
+  get catalogWrites() {
+    return catalogWrites;
   },
-  get automaticGuides() {
-    return automaticGuides;
+  set catalogWrites(value) {
+    catalogWrites = value;
   },
-  get diagnostics() {
-    return diagnostics;
+  get categoryMenu() {
+    return categoryMenu;
   },
-  get element() {
-    return element;
+  get channelCheckMarks() {
+    return channelCheckMarks;
   },
-  get browser() {
-    return browser;
-  },
-  get guide() {
-    return guide;
-  },
-  get geographyControls() {
-    return geographyControls;
-  },
-  get updateVisibleGuide() {
-    return updateVisibleGuide;
+  set channelCheckMarks(value) {
+    channelCheckMarks = value;
   },
   get channelCheckStore() {
     return channelCheckStore;
   },
-  get savedChannelCheck() {
-    return savedChannelCheck;
+  get channelLogos() {
+    return channelLogos;
   },
-  get player() {
-    return player;
+  get clearArchiveResume() {
+    return clearArchiveResume;
   },
-  get nativeViewingForeground() {
-    return nativeViewingForeground;
+  get collectionAbort() {
+    return collectionAbort;
+  },
+  set collectionAbort(value) {
+    collectionAbort = value;
   },
   get contentLibrary() {
     return library.contentLibrary;
   },
-  get addChannelsEntryWork() {
-    return addChannelsEntryWork;
+  get customImportIntent() {
+    return customImportIntent;
+  },
+  set customImportIntent(value) {
+    customImportIntent = value;
+  },
+  get diagnostics() {
+    return diagnostics;
+  },
+  get editPublicChannelGroup() {
+    return editPublicChannelGroup;
+  },
+  get element() {
+    return element;
+  },
+  get fileImportTarget() {
+    return fileImportTarget;
+  },
+  get foregroundGeneration() {
+    return foregroundGeneration;
+  },
+  get friendlyError() {
+    return friendlyError;
+  },
+  get fullscreenOwner() {
+    return fullscreenOwner;
+  },
+  get geographyControls() {
+    return geographyControls;
+  },
+  get guide() {
+    return guide;
+  },
+  get guideController() {
+    return guideController;
+  },
+  get importDialog() {
+    return importDialog;
   },
   get importRunning() {
     return importRunning;
   },
-  get transferBusy() {
-    return transferBusy;
+  get inlineScanPanel() {
+    return inlineScanPanel;
   },
-  set transferBusy(value) {
-    transferBusy = value;
+  get inspectStreamEvidence() {
+    return inspectStreamEvidence;
+  },
+  get libraries() {
+    return libraries;
+  },
+  get library() {
+    return library;
+  },
+  get libraryQueries() {
+    return libraryQueries;
+  },
+  get liveBrowseJobs() {
+    return liveBrowseJobs;
+  },
+  get localStreams() {
+    return localStreams;
+  },
+  get nativeViewingForeground() {
+    return nativeViewingForeground;
+  },
+  get notice() {
+    return notice;
+  },
+  get onlineSourceDiscovery() {
+    return onlineSourceDiscovery;
+  },
+  get ownImport() {
+    return ownImport;
+  },
+  get pageState() {
+    return pageState;
+  },
+  get paidGuide() {
+    return paidGuide;
+  },
+  get persistedCatalogRevision() {
+    return persistedCatalogRevision;
+  },
+  set persistedCatalogRevision(value) {
+    persistedCatalogRevision = value;
+  },
+  get playbackAction() {
+    return playbackAction;
+  },
+  get player() {
+    return player;
+  },
+  get preferences() {
+    return preferences;
+  },
+  get prepareInlineScanEntry() {
+    return prepareInlineScanEntry;
+  },
+  get presentPrimaryPage() {
+    return presentPrimaryPage;
+  },
+  get primaryPage() {
+    return pageState.primaryPage;
+  },
+  get privatePlayback() {
+    return privatePlayback;
+  },
+  get refreshFileImportTargets() {
+    return refreshFileImportTargets;
+  },
+  get refreshFreeTv() {
+    return refreshFreeTv;
+  },
+  get refreshSource() {
+    return refreshSource;
+  },
+  get remoteEditMode() {
+    return remoteEditMode;
+  },
+  get renderCatalog() {
+    return renderCatalog;
+  },
+  get renderedSelection() {
+    return renderedSelection;
+  },
+  set renderedSelection(value) {
+    renderedSelection = value;
+  },
+  get rendererRecoveryPolicy() {
+    return rendererRecoveryPolicy;
+  },
+  get savedChannelCheck() {
+    return savedChannelCheck;
+  },
+  get saveSettings() {
+    return saveSettings;
+  },
+  get scanController() {
+    return scanController;
+  },
+  get scanProviderSources() {
+    return scanProviderSources;
   },
   get selectionEpisode() {
     return selectionEpisode;
@@ -975,31 +1183,69 @@ const scanController = createScanController({
   get setImportBusy() {
     return setImportBusy;
   },
+  get settings() {
+    return settings;
+  },
+  set settings(value) {
+    settings = value;
+  },
   get sharingBridge() {
     return sharingBridge;
   },
-  get notice() {
-    return notice;
+  get slowChannelIds() {
+    return slowChannelIds;
   },
-  get catalogBrowseViewRevision() {
-    return catalogBrowseViewRevision;
+  set slowChannelIds(value) {
+    slowChannelIds = value;
   },
-  set catalogBrowseViewRevision(value) {
-    catalogBrowseViewRevision = value;
+  get sourceScan() {
+    return sourceScan;
   },
-  get renderCatalog() {
-    return renderCatalog;
+  get startInlineDiscovery() {
+    return startInlineDiscovery;
+  },
+  get supportsBoundedResume() {
+    return supportsBoundedResume;
+  },
+  get televisionSelects() {
+    return televisionSelects;
+  },
+  get transferBusy() {
+    return transferBusy;
+  },
+  set transferBusy(value) {
+    transferBusy = value;
   },
   get updateImportActions() {
     return updateImportActions;
   },
-  get activityWake() {
-    return activityWake;
+  get updatePreviewControl() {
+    return updatePreviewControl;
   },
-  get foregroundGeneration() {
-    return foregroundGeneration;
+  get updateVisibleGuide() {
+    return updateVisibleGuide;
   },
-});
+  get visibleGuide() {
+    return visibleGuideState.visibleGuide;
+  },
+  get visibleGuideState() {
+    return visibleGuideState;
+  },
+  get vodDock() {
+    return vodDock;
+  },
+  get vodStopControl() {
+    return vodStopControl;
+  },
+  get wakeDailyRefresh() {
+    return wakeDailyRefresh;
+  },
+  get writeAccountPreference() {
+    return writeAccountPreference;
+  },
+};
+
+const scanController = createScanController(app);
 const {
   sourceScan,
   scanProviderSources,
@@ -1013,6 +1259,7 @@ const {
 } = scanController;
 
 // Assigned once below; presentPrimaryPage may run before the switcher mounts.
+// eslint-disable-next-line prefer-const -- read earlier by presentPrimaryPage
 let libraries: ReturnType<typeof mountLibrarySwitcher> | undefined;
 const pageInput = createPageInput(
   isTauri()
@@ -1123,7 +1370,6 @@ function writeAccountPreference(
   renderPlayer(player.snapshot);
   return work;
 }
-// eslint-disable-next-line prefer-const
 channelLogos = createChannelLogos({
   readyScope: () =>
     isTauri() &&
@@ -1418,7 +1664,6 @@ async function selectAccountScope(
   if (favoriteOption) favoriteOption.disabled = false;
   renderCatalog();
 }
-// eslint-disable-next-line prefer-const -- read earlier by presentPrimaryPage
 libraries = mountLibrarySwitcher(
   {
     list: (signal) => accountVault.list(signal),
@@ -1510,99 +1755,10 @@ const speechSearch = mountSpeechSearch(
     },
   },
 );
-const guideController = createGuideController({
-  get settings() {
-    return settings;
-  },
-  get catalog() {
-    return catalog;
-  },
-  get visibleGuide() {
-    return visibleGuideState.visibleGuide;
-  },
-  get guide() {
-    return guide;
-  },
-  get wakeDailyRefresh() {
-    return wakeDailyRefresh;
-  },
-  get element() {
-    return element;
-  },
-  get applicationClosing() {
-    return applicationClosing;
-  },
-  get persistedCatalogRevision() {
-    return persistedCatalogRevision;
-  },
-  get player() {
-    return player;
-  },
-  get sharingBridge() {
-    return sharingBridge;
-  },
-  get catalogWrites() {
-    return catalogWrites;
-  },
-  get preferences() {
-    return preferences;
-  },
-  get diagnostics() {
-    return diagnostics;
-  },
-  get rendererRecoveryPolicy() {
-    return rendererRecoveryPolicy;
-  },
-  get nativeViewingForeground() {
-    return nativeViewingForeground;
-  },
-  get scanController() {
-    return scanController;
-  },
-  get sourceScan() {
-    return sourceScan;
-  },
-});
+const guideController = createGuideController(app);
 const { automaticGuides, guideHost } = guideController;
 const pageState = createPageState();
-const pageController = createPageController({
-  get pageState() {
-    return pageState;
-  },
-  get element() {
-    return element;
-  },
-  get libraries() {
-    return libraries;
-  },
-  get library() {
-    return library;
-  },
-  get applicationClosing() {
-    return applicationClosing;
-  },
-  get guide() {
-    return guide;
-  },
-  get paidGuide() {
-    return paidGuide;
-  },
-  get archiveSearch() {
-    return archiveSearch;
-  },
-  get archiveDiscovery() {
-    return archiveDiscovery;
-  },
-  get nativeViewingForeground() {
-    return nativeViewingForeground;
-  },
-  get accountBrowser() {
-    return accountBrowser;
-  },
-  get libraryQueries() {
-    return libraryQueries;
-  },
-});
+const pageController = createPageController(app);
 const { primaryHost, switchPrimaryPage, presentPrimaryPage, updatePreviewControl } = pageController;
 
 const guideChannelLogos = createChannelLogos({
@@ -1690,107 +1846,7 @@ const guide = mountGuide(primaryHost, {
     });
   },
 });
-const libraryController = createLibraryController({
-  get archiveRuntimeScope() {
-    return archiveRuntimeScope;
-  },
-  get library() {
-    return library;
-  },
-  get element() {
-    return element;
-  },
-  get archiveSearch() {
-    return archiveSearch;
-  },
-  set archiveSearch(value) {
-    archiveSearch = value;
-  },
-  get archiveCatalog() {
-    return archiveCatalog;
-  },
-  get diagnostics() {
-    return diagnostics;
-  },
-  get archiveDownloads() {
-    return archiveDownloads;
-  },
-  get clearArchiveResume() {
-    return clearArchiveResume;
-  },
-  get archivePlayer() {
-    return archivePlayer;
-  },
-  get player() {
-    return player;
-  },
-  get archiveActiveScope() {
-    return archiveActiveScope;
-  },
-  get playbackAction() {
-    return playbackAction;
-  },
-  get libraryQueries() {
-    return libraryQueries;
-  },
-  get vodDock() {
-    return vodDock;
-  },
-  get categoryMenu() {
-    return categoryMenu;
-  },
-  get televisionSelects() {
-    return televisionSelects;
-  },
-  get presentPrimaryPage() {
-    return presentPrimaryPage;
-  },
-  get pageState() {
-    return pageState;
-  },
-  get liveBrowseJobs() {
-    return liveBrowseJobs;
-  },
-  get channelLogos() {
-    return channelLogos;
-  },
-  get applicationClosing() {
-    return applicationClosing;
-  },
-  get nativeViewingForeground() {
-    return nativeViewingForeground;
-  },
-  get backgroundSuspension() {
-    return backgroundSuspension;
-  },
-  get renderCatalog() {
-    return renderCatalog;
-  },
-  get browser() {
-    return browser;
-  },
-  get preferences() {
-    return preferences;
-  },
-  get transferBusy() {
-    return transferBusy;
-  },
-  get settings() {
-    return settings;
-  },
-  set settings(value) {
-    settings = value;
-  },
-  get notice() {
-    return notice;
-  },
-  get guide() {
-    return guide;
-  },
-  get sourceScan() {
-    return sourceScan;
-  },
-});
+const libraryController = createLibraryController(app);
 const {
   recordArchiveRevision,
   switchLibrary,
@@ -1889,35 +1945,7 @@ Object.defineProperty(window, '__GENX_PRIMARY_TRANSITION__', {
       closing: applicationClosing,
     }),
 });
-visibleGuideController = createVisibleGuideController({
-  get nativeViewingForeground() {
-    return nativeViewingForeground;
-  },
-  get applicationClosing() {
-    return applicationClosing;
-  },
-  get browser() {
-    return browser;
-  },
-  get guide() {
-    return guide;
-  },
-  get visibleGuideState() {
-    return visibleGuideState;
-  },
-  get element() {
-    return element;
-  },
-  get persistedCatalogRevision() {
-    return persistedCatalogRevision;
-  },
-  get catalog() {
-    return catalog;
-  },
-  get settings() {
-    return settings;
-  },
-});
+visibleGuideController = createVisibleGuideController(app);
 
 updateGuideForeground();
 updateVisibleGuide();
@@ -1947,23 +1975,7 @@ element('search').addEventListener(
   },
   { capture: true },
 );
-const genxtraNavigationOwner = createGenxtraNavigation({
-  get contentLibrary() {
-    return library.contentLibrary;
-  },
-  get primaryPage() {
-    return pageState.primaryPage;
-  },
-  get fullscreenOwner() {
-    return fullscreenOwner;
-  },
-  get remoteEditMode() {
-    return remoteEditMode;
-  },
-  get element() {
-    return element;
-  },
-});
+const genxtraNavigationOwner = createGenxtraNavigation(app);
 const { genxtraNavigation } = genxtraNavigationOwner;
 
 document.addEventListener('keydown', genxtraNavigation, true);
@@ -2384,122 +2396,7 @@ async function refreshSource(source: Source, text?: string, signal?: AbortSignal
     if (activeSources.get(source.id) === source) activeSources.delete(source.id);
   }
 }
-const playerView = createPlayerView({
-  get player() {
-    return player;
-  },
-  get vodDock() {
-    return vodDock;
-  },
-  get contentLibrary() {
-    return library.contentLibrary;
-  },
-  get applicationClosing() {
-    return applicationClosing;
-  },
-  get nativeViewingForeground() {
-    return nativeViewingForeground;
-  },
-  get archivePlayer() {
-    return archivePlayer;
-  },
-  get element() {
-    return element;
-  },
-  get backgroundSuspension() {
-    return backgroundSuspension;
-  },
-  get primaryPage() {
-    return pageState.primaryPage;
-  },
-  get notice() {
-    return notice;
-  },
-  get playbackAction() {
-    return playbackAction;
-  },
-  get archiveSearch() {
-    return archiveSearch;
-  },
-  get diagnostics() {
-    return diagnostics;
-  },
-  get accountPlayer() {
-    return accountPlayer;
-  },
-  get activityWake() {
-    return activityWake;
-  },
-  get backgroundLiveChoice() {
-    return backgroundLiveChoice;
-  },
-  get archiveBackgroundPaused() {
-    return library.archiveBackgroundPaused;
-  },
-  get archiveResumeChoice() {
-    return library.archiveResumeChoice;
-  },
-  get updatePreviewControl() {
-    return updatePreviewControl;
-  },
-  get localStreams() {
-    return localStreams;
-  },
-  get vodStopControl() {
-    return vodStopControl;
-  },
-  get accountVodSelected() {
-    return accountVodSelected;
-  },
-  get accountBrowser() {
-    return accountBrowser;
-  },
-  get accountPreferenceWork() {
-    return accountPreferenceWork;
-  },
-  get settings() {
-    return settings;
-  },
-  get castButton() {
-    return castButton;
-  },
-  get castingAvailable() {
-    return castingAvailable;
-  },
-  get privatePlayback() {
-    return privatePlayback;
-  },
-  get renderedSelection() {
-    return renderedSelection;
-  },
-  set renderedSelection(value) {
-    renderedSelection = value;
-  },
-  get guide() {
-    return guide;
-  },
-  get browser() {
-    return browser;
-  },
-  get catalog() {
-    return catalog;
-  },
-  get persistedCatalogRevision() {
-    return persistedCatalogRevision;
-  },
-  get scanController() {
-    return scanController;
-  },
-  get sharingBridge() {
-    return sharingBridge;
-  },
-  get catalogWrites() {
-    return catalogWrites;
-  },
-  set catalogWrites(value) {
-    catalogWrites = value;
-  },
-});
+const playerView = createPlayerView(app);
 const { renderPlayer, vodRewind, renderVODTransport, disposeVODTransport, playbackHealth } =
   playerView;
 
@@ -2598,167 +2495,7 @@ function refreshFileImportTargets(): void {
   fileImportTarget.value = '';
   fileImportTargetLabel.hidden = files.length === 0;
 }
-const importController = createImportController({
-  get fileImportTarget() {
-    return fileImportTarget;
-  },
-  get catalog() {
-    return catalog;
-  },
-  get element() {
-    return element;
-  },
-  get importDialog() {
-    return importDialog;
-  },
-  get addChannelsEntryGeneration() {
-    return addChannelsEntryGeneration;
-  },
-  set addChannelsEntryGeneration(value) {
-    addChannelsEntryGeneration = value;
-  },
-  get applicationClosing() {
-    return applicationClosing;
-  },
-  get importRunning() {
-    return importRunning;
-  },
-  get transferBusy() {
-    return transferBusy;
-  },
-  get scanController() {
-    return scanController;
-  },
-  get addChannelsEntryWork() {
-    return addChannelsEntryWork;
-  },
-  set addChannelsEntryWork(value) {
-    addChannelsEntryWork = value;
-  },
-  get backgroundSuspension() {
-    return backgroundSuspension;
-  },
-  get nativeViewingForeground() {
-    return nativeViewingForeground;
-  },
-  get foregroundGeneration() {
-    return foregroundGeneration;
-  },
-  get scanProviderSources() {
-    return scanProviderSources;
-  },
-  get supportsBoundedResume() {
-    return supportsBoundedResume;
-  },
-  get ownImport() {
-    return ownImport;
-  },
-  get playbackAction() {
-    return playbackAction;
-  },
-  get refreshFileImportTargets() {
-    return refreshFileImportTargets;
-  },
-  get rendererRecoveryPolicy() {
-    return rendererRecoveryPolicy;
-  },
-  get sourceScan() {
-    return sourceScan;
-  },
-  get contentLibrary() {
-    return library.contentLibrary;
-  },
-  get primaryPage() {
-    return pageState.primaryPage;
-  },
-  get addChannelsEntryController() {
-    return addChannelsEntryController;
-  },
-  set addChannelsEntryController(value) {
-    addChannelsEntryController = value;
-  },
-  get settings() {
-    return settings;
-  },
-  set settings(value) {
-    settings = value;
-  },
-  get prepareInlineScanEntry() {
-    return prepareInlineScanEntry;
-  },
-  get inlineScanPanel() {
-    return inlineScanPanel;
-  },
-  get onlineSourceDiscovery() {
-    return onlineSourceDiscovery;
-  },
-  get notice() {
-    return notice;
-  },
-  get saveSettings() {
-    return saveSettings;
-  },
-  get updateImportActions() {
-    return updateImportActions;
-  },
-  get cancelOnlineSourceEntry() {
-    return cancelOnlineSourceEntry;
-  },
-  get refreshFreeTv() {
-    return refreshFreeTv;
-  },
-  get catalogWrites() {
-    return catalogWrites;
-  },
-  get customImportIntent() {
-    return customImportIntent;
-  },
-  set customImportIntent(value) {
-    customImportIntent = value;
-  },
-  get friendlyError() {
-    return friendlyError;
-  },
-  get collectionAbort() {
-    return collectionAbort;
-  },
-  set collectionAbort(value) {
-    collectionAbort = value;
-  },
-  get setImportBusy() {
-    return setImportBusy;
-  },
-  get refreshSource() {
-    return refreshSource;
-  },
-  get preferences() {
-    return preferences;
-  },
-  get applySettings() {
-    return applySettings;
-  },
-  get renderCatalog() {
-    return renderCatalog;
-  },
-  get guideController() {
-    return guideController;
-  },
-  get visibleGuide() {
-    return visibleGuideState.visibleGuide;
-  },
-  get guide() {
-    return guide;
-  },
-  get bootstrapBoundary() {
-    return bootstrapBoundary;
-  },
-  get automaticGuides() {
-    return automaticGuides;
-  },
-  get diagnostics() {
-    return diagnostics;
-  },
-});
+const importController = createImportController(app);
 const {
   withPausedGuideUpdates,
   wakeDailyRefresh,
@@ -2846,92 +2583,7 @@ element('favorite-button').addEventListener('click', () => {
   if (!id) return;
   toggleChannelFavorite(id);
 });
-const channelHealth = createChannelHealthController({
-  get applicationClosing() {
-    return applicationClosing;
-  },
-  get writeAccountPreference() {
-    return writeAccountPreference;
-  },
-  get player() {
-    return player;
-  },
-  get accountPlayer() {
-    return accountPlayer;
-  },
-  get notice() {
-    return notice;
-  },
-  get editPublicChannelGroup() {
-    return editPublicChannelGroup;
-  },
-  get settings() {
-    return settings;
-  },
-  get sharingBridge() {
-    return sharingBridge;
-  },
-  get saveSettings() {
-    return saveSettings;
-  },
-  get renderCatalog() {
-    return renderCatalog;
-  },
-  get catalog() {
-    return catalog;
-  },
-  get element() {
-    return element;
-  },
-  get nativeViewingForeground() {
-    return nativeViewingForeground;
-  },
-  get scanController() {
-    return scanController;
-  },
-  get sourceScan() {
-    return sourceScan;
-  },
-  get inspectStreamEvidence() {
-    return inspectStreamEvidence;
-  },
-  get channelCheckMarks() {
-    return channelCheckMarks;
-  },
-  set channelCheckMarks(value) {
-    channelCheckMarks = value;
-  },
-  get slowChannelIds() {
-    return slowChannelIds;
-  },
-  set slowChannelIds(value) {
-    slowChannelIds = value;
-  },
-  get browser() {
-    return browser;
-  },
-  get catalogBrowseViewRevision() {
-    return catalogBrowseViewRevision;
-  },
-  set catalogBrowseViewRevision(value) {
-    catalogBrowseViewRevision = value;
-  },
-  get contentLibrary() {
-    return library.contentLibrary;
-  },
-  get accountBrowser() {
-    return accountBrowser;
-  },
-  get addChannelsEntryWork() {
-    return addChannelsEntryWork;
-  },
-  get startInlineDiscovery() {
-    return startInlineDiscovery;
-  },
-  get playbackAction() {
-    return playbackAction;
-  },
-});
+const channelHealth = createChannelHealthController(app);
 const {
   channelCheckStore,
   savedChannelCheck,
