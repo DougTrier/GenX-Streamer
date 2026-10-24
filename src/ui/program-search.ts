@@ -164,7 +164,8 @@ export function searchProgramWatchable(
 export function mountProgramSearch(container: HTMLElement, host: ProgramSearchHost) {
   const doc = container.ownerDocument;
   const inline = host.presentation === 'inline';
-  if (inline && !host.input) throw new Error('Inline program search requires the shared search input.');
+  if (inline && !host.input)
+    throw new Error('Inline program search requires the shared search input.');
   const modal = inline ? null : doc.createElement('dialog');
   const dialog = modal ?? doc.createElement('section');
   dialog.className = 'gx-program-search';
@@ -173,7 +174,10 @@ export function mountProgramSearch(container: HTMLElement, host: ProgramSearchHo
     dialog.hidden = true;
   }
   if (host.presentation === 'page') dialog.dataset.primaryPage = 'search';
-  dialog.setAttribute('aria-label', inline ? 'Matching cached programs' : 'Search channels and programs');
+  dialog.setAttribute(
+    'aria-label',
+    inline ? 'Matching cached programs' : 'Search channels and programs',
+  );
   const header = doc.createElement('header'),
     heading = doc.createElement('h2');
   heading.textContent = 'Search';
@@ -281,7 +285,10 @@ export function mountProgramSearch(container: HTMLElement, host: ProgramSearchHo
     detail = null;
     details.hidden = true;
     details.replaceChildren();
-    if (inline && resultScroll !== null) { body.scrollTop = resultScroll; resultScroll = null; }
+    if (inline && resultScroll !== null) {
+      body.scrollTop = resultScroll;
+      resultScroll = null;
+    }
     if (previous.isConnected) previous.focus({ preventScroll: true });
     return true;
   }
@@ -391,18 +398,18 @@ export function mountProgramSearch(container: HTMLElement, host: ProgramSearchHo
         channels.append(control);
       }
       if (channelMatches.length > 50) {
-      const previous = button('Previous channels', () => {
-        channelOffset = Math.max(0, channelOffset - 50);
-        closeDetails();
-        render();
-      });
-      previous.disabled = channelOffset === 0;
-      const next = button('More channels', () => {
-        channelOffset += 50;
-        closeDetails();
-        render();
-      });
-      next.disabled = channelOffset + 50 >= channelMatches.length;
+        const previous = button('Previous channels', () => {
+          channelOffset = Math.max(0, channelOffset - 50);
+          closeDetails();
+          render();
+        });
+        previous.disabled = channelOffset === 0;
+        const next = button('More channels', () => {
+          channelOffset += 50;
+          closeDetails();
+          render();
+        });
+        next.disabled = channelOffset + 50 >= channelMatches.length;
         channels.append(previous, next);
       }
     }
@@ -458,7 +465,11 @@ export function mountProgramSearch(container: HTMLElement, host: ProgramSearchHo
     }
     if (!more) {
       results.replaceChildren();
-      if (inline) { if (text !== renderedQuery) expanded = true; entries = []; dialog.hidden = true; }
+      if (inline) {
+        if (text !== renderedQuery) expanded = true;
+        entries = [];
+        dialog.hidden = true;
+      }
       channelOffset = 0;
       pageRevision = null;
       anchor = host.now();
@@ -484,7 +495,8 @@ export function mountProgramSearch(container: HTMLElement, host: ProgramSearchHo
       if (more && page.databaseRevision !== pageRevision) throw new Error('Search cache changed');
       const grouped = groupSearchPrograms(page.programs, captured, instant);
       snapshot = captured;
-      channelMatches = host.includeChannelResults === false ? [] : matchedSearchChannels(captured.channels, text);
+      channelMatches =
+        host.includeChannelResults === false ? [] : matchedSearchChannels(captured.channels, text);
       entries = grouped;
       cursor = savedCursor;
       nextCursor = page.nextCursor;
@@ -512,7 +524,10 @@ export function mountProgramSearch(container: HTMLElement, host: ProgramSearchHo
     if (inline) {
       dialog.hidden = true;
       if (foreground && !disposed && !disposing && !closing && input.value.trim())
-        inputTimer = setTimeout(() => { inputTimer = null; request(false); }, 250);
+        inputTimer = setTimeout(() => {
+          inputTimer = null;
+          request(false);
+        }, 250);
     }
     clear.hidden = !input.value;
     status.textContent = 'Press Search to find saved channels and programs.';
@@ -522,7 +537,8 @@ export function mountProgramSearch(container: HTMLElement, host: ProgramSearchHo
   input.addEventListener('speech-search-final', speechFinal);
   const inlineFocus = (event: FocusEvent) => {
     if (!inline || !(event.target instanceof HTMLElement) || !body.contains(event.target)) return;
-    const visible = body.getBoundingClientRect(), focused = event.target.getBoundingClientRect();
+    const visible = body.getBoundingClientRect(),
+      focused = event.target.getBoundingClientRect();
     if (focused.bottom > visible.bottom) body.scrollTop += focused.bottom - visible.bottom;
     else if (focused.top < visible.top) body.scrollTop -= visible.top - focused.top;
   };
@@ -587,7 +603,10 @@ export function mountProgramSearch(container: HTMLElement, host: ProgramSearchHo
       await acknowledgeClosed();
       closeDetails();
       if (inline) dialog.hidden = true;
-      else { modal!.close(); restoreFocus(); }
+      else {
+        modal!.close();
+        restoreFocus();
+      }
     })().finally(() => {
       closing = null;
     });

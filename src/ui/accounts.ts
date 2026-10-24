@@ -487,7 +487,8 @@ export function mountAccountManagement(container: HTMLElement, host: AccountMana
           const leftOut = skipped
             ? ` ${skipped.toLocaleString()} unusable ${skipped === 1 ? 'entry was' : 'entries were'} left out.`
             : '';
-          if (dialog && !dialog.open) host.notice?.(`${account.name}: channels imported.${leftOut}`);
+          if (dialog && !dialog.open)
+            host.notice?.(`${account.name}: channels imported.${leftOut}`);
           if (live(owned))
             status.textContent = `Channel refresh finished.${leftOut} Review its results in your channel library.`;
         },

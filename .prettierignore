@@ -2,7 +2,7 @@ node_modules/
 dist/
 artifacts/
 src-tauri/
-tests/fixtures/media/
+tests/fixtures/
 assets/
 layout-preview.png
 layout-qa.cjs

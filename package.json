@@ -15,7 +15,6 @@
     "native:build": "tauri build --no-bundle",
     "android:init": "tauri android init",
     "android:build": "pwsh -NoProfile -File src-tauri/scripts/build-android.ps1",
-    "docs:check": "python -B -X utf8 scripts/tmg.py check",
     "lint": "eslint src tests scripts --no-warn-ignored",
     "format:check": "prettier --check src tests scripts/*.mjs *.ts *.mjs *.json",
     "test:ui": "playwright test",

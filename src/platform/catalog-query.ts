@@ -134,7 +134,11 @@ function integer(value: unknown, max: number): value is number {
   return Number.isSafeInteger(value) && Number(value) >= 0 && Number(value) <= max;
 }
 function geography(value: unknown, nullable: boolean, code: CatalogQueryError['code']) {
-  const v = object(value, nullable ? ['country', 'region', 'state', 'countries'] : ['country', 'region', 'state'], code);
+  const v = object(
+    value,
+    nullable ? ['country', 'region', 'state', 'countries'] : ['country', 'region', 'state'],
+    code,
+  );
   if ('countries' in v) {
     const list = v.countries;
     if (

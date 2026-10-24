@@ -22,7 +22,9 @@ import {
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
-  const promise = new Promise<T>((done) => { resolve = done; });
+  const promise = new Promise<T>((done) => {
+    resolve = done;
+  });
   return { promise, resolve };
 }
 const receipt = () => ({ catalogRevision: '7', matched: 1, unmatched: 9 });
@@ -33,15 +35,23 @@ function fixture() {
     canRequest: () => enabled,
     isCurrent: () => true,
     capture: vi.fn(async () => ({
-      catalogRevision: '7', channelCount: 10,
-      providers: [{ name: 'Fixture guide', location: 'https://fixture.invalid/guide', allowHttp: false }],
+      catalogRevision: '7',
+      channelCount: 10,
+      providers: [
+        { name: 'Fixture guide', location: 'https://fixture.invalid/guide', allowHttp: false },
+      ],
     })),
     preview: vi.fn(async () => ({ ticket: 'fixture-ticket', sourceRevision: 1 })),
     commitMatched: vi.fn(async () => ({ committed: true, matched: 1, unmatched: 9 })),
     discard: vi.fn(async () => {}),
     connectCacheOnly: vi.fn(async () => receipt()),
   };
-  return { host, enable: (value: boolean) => { enabled = value; } };
+  return {
+    host,
+    enable: (value: boolean) => {
+      enabled = value;
+    },
+  };
 }
 
 describe('cache-only automatic guide owner', () => {
@@ -53,22 +63,35 @@ describe('cache-only automatic guide owner', () => {
     const owner = createAutomaticGuideBuilder(f.host);
     await owner.requestCached();
     expect(f.host.connectCacheOnly).toHaveBeenCalledOnce();
-    for (const hook of [f.host.capture, f.host.preview, f.host.commitMatched,
-      f.host.publishCache, f.host.cacheReady, f.host.connectScopeLatest])
+    for (const hook of [
+      f.host.capture,
+      f.host.preview,
+      f.host.commitMatched,
+      f.host.publishCache,
+      f.host.cacheReady,
+      f.host.connectScopeLatest,
+    ])
       expect(hook).not.toHaveBeenCalled();
     await owner.dispose();
   });
 
   it('coalesces changes during held work into one latest cache pass', async () => {
-    const f = fixture(), started = deferred<void>(), release = deferred<void>();
-    let calls = 0, revision = 7;
+    const f = fixture(),
+      started = deferred<void>(),
+      release = deferred<void>();
+    let calls = 0,
+      revision = 7;
     const seen: number[] = [];
     f.host.connectCacheOnly = async () => {
       seen.push(revision);
-      if (++calls === 1) { started.resolve(); await release.promise; }
+      if (++calls === 1) {
+        started.resolve();
+        await release.promise;
+      }
       return { ...receipt(), catalogRevision: String(revision) };
     };
-    const owner = createAutomaticGuideBuilder(f.host), work = owner.requestCached();
+    const owner = createAutomaticGuideBuilder(f.host),
+      work = owner.requestCached();
     await started.promise;
     for (let n = 0; n < 500; n++) {
       revision++;
@@ -82,15 +105,22 @@ describe('cache-only automatic guide owner', () => {
   });
 
   it('respects Off and drops queued automatic passes while joining an active callback', async () => {
-    const f = fixture(), started = deferred<void>(), release = deferred<void>();
+    const f = fixture(),
+      started = deferred<void>(),
+      release = deferred<void>();
     f.enable(false);
     const owner = createAutomaticGuideBuilder(f.host);
     await owner.requestCached();
     expect(f.host.connectCacheOnly).not.toHaveBeenCalled();
-    let signal!: AbortSignal, calls = 0;
+    let signal!: AbortSignal,
+      calls = 0;
     f.host.connectCacheOnly = async (owned) => {
-      calls++; signal = owned; started.resolve(); await release.promise;
-      owned.throwIfAborted(); return receipt();
+      calls++;
+      signal = owned;
+      started.resolve();
+      await release.promise;
+      owned.throwIfAborted();
+      return receipt();
     };
     f.enable(true);
     const work = owner.requestCached();
@@ -98,21 +128,31 @@ describe('cache-only automatic guide owner', () => {
     void owner.requestCached();
     f.enable(false);
     let joined = false;
-    const cleanup = owner.suspend().then(() => { joined = true; });
+    const cleanup = owner.suspend().then(() => {
+      joined = true;
+    });
     await Promise.resolve();
     expect(signal.aborted).toBe(true);
     expect(joined).toBe(false);
     release.resolve();
-    await cleanup; await work;
+    await cleanup;
+    await work;
     await owner.requestCached();
     expect(calls).toBe(1);
     await owner.dispose();
   });
 
   it('queues an explicit full Find behind a held cache pass instead of treating it as a full run', async () => {
-    const f = fixture(), started = deferred<void>(), release = deferred<void>();
-    f.host.connectCacheOnly = async () => { started.resolve(); await release.promise; return receipt(); };
-    const owner = createAutomaticGuideBuilder(f.host), cached = owner.requestCached();
+    const f = fixture(),
+      started = deferred<void>(),
+      release = deferred<void>();
+    f.host.connectCacheOnly = async () => {
+      started.resolve();
+      await release.promise;
+      return receipt();
+    };
+    const owner = createAutomaticGuideBuilder(f.host),
+      cached = owner.requestCached();
     await started.promise;
     const manual = owner.run();
     expect(f.host.capture).not.toHaveBeenCalled();
@@ -126,20 +166,30 @@ describe('cache-only automatic guide owner', () => {
   });
 
   it('joins and cancels a queued manual continuation on suspension', async () => {
-    const f = fixture(), started = deferred<void>(), release = deferred<void>();
+    const f = fixture(),
+      started = deferred<void>(),
+      release = deferred<void>();
     f.host.connectCacheOnly = async (signal) => {
-      started.resolve(); await release.promise; signal.throwIfAborted(); return receipt();
+      started.resolve();
+      await release.promise;
+      signal.throwIfAborted();
+      return receipt();
     };
-    const owner = createAutomaticGuideBuilder(f.host), cached = owner.requestCached();
+    const owner = createAutomaticGuideBuilder(f.host),
+      cached = owner.requestCached();
     await started.promise;
     const manual = owner.run();
     const manualStopped = expect(manual).rejects.toMatchObject({ name: 'AbortError' });
     let joined = false;
-    const cleanup = owner.suspend().then(() => { joined = true; });
+    const cleanup = owner.suspend().then(() => {
+      joined = true;
+    });
     await Promise.resolve();
     expect(joined).toBe(false);
     release.resolve();
-    await cleanup; await cached; await manualStopped;
+    await cleanup;
+    await cached;
+    await manualStopped;
     expect(f.host.capture).not.toHaveBeenCalled();
     await owner.dispose();
   });

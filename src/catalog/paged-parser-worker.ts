@@ -18,10 +18,14 @@ import { MAX_PLAYLIST_BYTES, parseM3u, PlaylistError, type ChannelCandidate } fr
 import { validateCatalog, validateSource } from './codec';
 import { boundedJsonUtf8Bytes } from '../data-transfer/json-byte-admission';
 import {
-  createProviderGeographyIndex, enrichProviderGeography, prepareProviderGeographyDocuments,
+  createProviderGeographyIndex,
+  enrichProviderGeography,
+  prepareProviderGeographyDocuments,
 } from './provider-geography';
 import {
-  PAGED_SOURCE_PAGE_BYTES, type PagedParserRequest, type PagedParserResponse,
+  PAGED_SOURCE_PAGE_BYTES,
+  type PagedParserRequest,
+  type PagedParserResponse,
 } from './paged-parser-protocol';
 import type { SourceSnapshotEntry } from '../discovery/incremental-refresh';
 
@@ -33,7 +37,11 @@ export function createPagedParserOwner() {
   return (request: PagedParserRequest): PagedParserResponse => {
     const envelope = { schemaVersion: 1 as const, requestId: request.requestId };
     try {
-      if (request.schemaVersion !== 1 || !Number.isSafeInteger(request.requestId) || request.requestId < 1)
+      if (
+        request.schemaVersion !== 1 ||
+        !Number.isSafeInteger(request.requestId) ||
+        request.requestId < 1
+      )
         throw new Error('protocol');
       if (request.kind === 'close') {
         channels = undefined;
@@ -48,22 +56,31 @@ export function createPagedParserOwner() {
         let index: ReturnType<typeof createProviderGeographyIndex> | undefined;
         if (request.input.geography) {
           const { documents, rawCities } = request.input.geography;
-          index = createProviderGeographyIndex(prepareProviderGeographyDocuments(documents, rawCities));
+          index = createProviderGeographyIndex(
+            prepareProviderGeographyDocuments(documents, rawCities),
+          );
         }
         let retainedBytes = 0;
         for (let i = 0; i < parsed.channels.length; i++) {
           let channel = parsed.channels[i]!;
-          if (index) channel = enrichProviderGeography(channel, source, index, {
-            allowedSourceLocations: [source.location],
-          }).channel;
+          if (index)
+            channel = enrichProviderGeography(channel, source, index, {
+              allowedSourceLocations: [source.location],
+            }).channel;
           // Admit metadata using the existing schema. HTTP syntax does not confer permission.
-          const valid = validateCatalog({ schemaVersion: 1, sources: [{ ...source, allowHttp: true }],
-            channels: [{ ...channel, id: 'staging-admission' }] }).channels[0]!;
+          const valid = validateCatalog({
+            schemaVersion: 1,
+            sources: [{ ...source, allowHttp: true }],
+            channels: [{ ...channel, id: 'staging-admission' }],
+          }).channels[0]!;
           const { id, ...candidate } = valid;
           void id;
           retainedBytes += boundedJsonUtf8Bytes(candidate, MAX_PLAYLIST_BYTES) + 1;
           if (retainedBytes > MAX_PLAYLIST_BYTES)
-            throw new PlaylistError('size', 'Parsed source metadata exceeds the 20 MiB capture limit.');
+            throw new PlaylistError(
+              'size',
+              'Parsed source metadata exceeds the 20 MiB capture limit.',
+            );
           parsed.channels[i] = candidate;
         }
         channels = parsed.channels;
@@ -76,9 +93,15 @@ export function createPagedParserOwner() {
           preview.push(warning);
           warningBytes += cost + 1;
         }
-        return { ...envelope, kind: 'ready', summary: {
-          entryCount: channels.length, warningCount: warnings.length, warnings: preview,
-        } };
+        return {
+          ...envelope,
+          kind: 'ready',
+          summary: {
+            entryCount: channels.length,
+            warningCount: warnings.length,
+            warnings: preview,
+          },
+        };
       }
       if (request.kind !== 'next' || !channels || request.expectedIndex !== cursor)
         throw new Error('cursor');
@@ -94,13 +117,24 @@ export function createPagedParserOwner() {
       }
       const startIndex = cursor - entries.length;
       if (!entries.length && cursor < channels.length) throw new Error('page-size');
-      return { ...envelope, kind: 'page', startIndex, entries, exhausted: cursor === channels.length };
+      return {
+        ...envelope,
+        kind: 'page',
+        startIndex,
+        entries,
+        exhausted: cursor === channels.length,
+      };
     } catch (error) {
       channels = undefined;
       closed = true;
-      return { ...envelope, kind: 'error',
+      return {
+        ...envelope,
+        kind: 'error',
         code: error instanceof PlaylistError ? error.code : 'admission',
-        message: error instanceof PlaylistError ? error.message : 'The source could not be parsed safely. Saved channels were retained.',
+        message:
+          error instanceof PlaylistError
+            ? error.message
+            : 'The source could not be parsed safely. Saved channels were retained.',
       };
     }
   };

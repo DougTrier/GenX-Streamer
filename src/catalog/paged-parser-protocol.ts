@@ -37,7 +37,13 @@ export type PagedParserRequest =
   | { schemaVersion: 1; requestId: number; kind: 'close' };
 export type PagedParserResponse =
   | { schemaVersion: 1; requestId: number; kind: 'ready'; summary: PagedParserSummary }
-  | { schemaVersion: 1; requestId: number; kind: 'page'; startIndex: number;
-      entries: readonly SourceSnapshotEntry[]; exhausted: boolean }
+  | {
+      schemaVersion: 1;
+      requestId: number;
+      kind: 'page';
+      startIndex: number;
+      entries: readonly SourceSnapshotEntry[];
+      exhausted: boolean;
+    }
   | { schemaVersion: 1; requestId: number; kind: 'closed' }
   | { schemaVersion: 1; requestId: number; kind: 'error'; code: string; message: string };

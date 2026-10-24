@@ -172,7 +172,10 @@ test('W02: a player that rewrites its own position cannot push the picture off s
 test('Full screen asks a YouTube player for the quality the screen shows, then gives it back', async ({
   page,
 }) => {
-  await hostile(page, '<div id="movie_player"><video id="v" width="364" height="205"></video></div>');
+  await hostile(
+    page,
+    '<div id="movie_player"><video id="v" width="364" height="205"></video></div>',
+  );
   await page.evaluate(() => {
     const calls: string[] = [];
     Reflect.set(window, 'qualityCalls', calls);
@@ -202,7 +205,10 @@ test('Full screen asks a YouTube player for the quality the screen shows, then g
 });
 
 test('a site player that throws cannot break Full screen', async ({ page }) => {
-  await hostile(page, '<div id="movie_player"><video id="v" width="364" height="205"></video></div>');
+  await hostile(
+    page,
+    '<div id="movie_player"><video id="v" width="364" height="205"></video></div>',
+  );
   await page.evaluate(() =>
     Object.assign(document.getElementById('movie_player')!, {
       getAvailableQualityLevels: () => {
@@ -240,9 +246,17 @@ test('low-memory TVs: sites are offered H.264 only', async ({ page }) => {
       decodeH264: await decode('video/mp4; codecs="avc1.640028"'),
     };
   });
-  expect(result).toMatchObject({ vp9: false, vp09: false, av1: false, canPlayVp9: '', decodeAv1: false });
+  expect(result).toMatchObject({
+    vp9: false,
+    vp09: false,
+    av1: false,
+    canPlayVp9: '',
+    decodeAv1: false,
+  });
   // Whatever H.264 support the browser has is left exactly as it was.
-  const plain = await page.evaluate(() => MediaSource.isTypeSupported.toString().includes('native'));
+  const plain = await page.evaluate(() =>
+    MediaSource.isTypeSupported.toString().includes('native'),
+  );
   expect(plain).toBe(false);
   expect(typeof result.h264).toBe('boolean');
 });

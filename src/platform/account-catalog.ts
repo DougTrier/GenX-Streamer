@@ -116,8 +116,7 @@ export function validateAccountCatalogRefreshReceipt(
   accountRevision: string,
 ): AccountCatalogRefreshReceipt {
   if (!opaque(accountId) || !revision(accountRevision)) throw invalid();
-  const counted =
-    !!value && typeof value === 'object' && Object.hasOwn(value as object, 'skipped');
+  const counted = !!value && typeof value === 'object' && Object.hasOwn(value as object, 'skipped');
   const row = record(value, [
     'schemaVersion',
     'committed',

@@ -58,7 +58,9 @@ function harness(alternates: boolean[]) {
 
 it('the receipt may say another stored format exists, and nothing else', () => {
   const base = { schemaVersion: 1, sessionGeneration: '1', mediaUrl, mediaHint: 'mpegts' };
-  expect(validateAccountPlaybackReceipt({ ...base, alternateAvailable: true }).alternateAvailable).toBe(true);
+  expect(
+    validateAccountPlaybackReceipt({ ...base, alternateAvailable: true }).alternateAvailable,
+  ).toBe(true);
   expect(validateAccountPlaybackReceipt(base).alternateAvailable).toBeUndefined();
   expect(() => validateAccountPlaybackReceipt({ ...base, alternateAvailable: false })).toThrow();
   expect(() => validateAccountPlaybackReceipt({ ...base, alternateAvailable: 'yes' })).toThrow();

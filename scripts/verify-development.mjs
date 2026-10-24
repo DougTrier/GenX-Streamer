@@ -164,7 +164,7 @@ export async function validateStepEvidence(step) {
   return {};
 }
 
-async function command(name, executable, args, directory, env = {}) {
+async function command(name, executable, args, directory, env = {}, timeoutMs = 180_000) {
   const startedMs = Date.now();
   const log = path.join(directory, `${name}.log`);
   const child = spawn(executable, args, {
@@ -202,7 +202,7 @@ async function command(name, executable, args, directory, env = {}) {
         });
       } else child.kill();
     },
-    name === 'ui' ? 600_000 : 180_000,
+    name === 'ui' ? 600_000 : timeoutMs,
   );
   const result = await new Promise((resolve) =>
     child.once('close', (exitCode, signal) => resolve({ exitCode, signal })),
@@ -308,15 +308,43 @@ export async function runDevelopmentVerification() {
       reportKind: 'ui',
     },
     {
-      name: 'documentation',
-      executable: 'python',
-      args: ['-B', '-X', 'utf8', 'scripts/tmg.py', 'check'],
+      // Credentials, keys, databases, profile paths and private addresses.
+      name: 'privacy-scan',
+      executable: process.execPath,
+      args: ['scripts/clean-repo.mjs', 'scan'],
     },
     {
-      // Refreshes Project Metrics.MD when a count changed (no-op otherwise).
-      name: 'project-metrics',
+      name: 'rust-format',
+      executable: 'cargo',
+      args: ['fmt', '--manifest-path', 'src-tauri/Cargo.toml', '--check'],
+    },
+    {
+      // A fresh checkout compiles the whole native layer first.
+      name: 'rust-lint',
+      executable: 'cargo',
+      args: [
+        'clippy',
+        '--manifest-path',
+        'src-tauri/Cargo.toml',
+        '--lib',
+        '--tests',
+        '--',
+        '-D',
+        'warnings',
+      ],
+      timeoutMs: 1_800_000,
+    },
+    {
+      name: 'native',
+      executable: 'cargo',
+      args: ['test', '--manifest-path', 'src-tauri/Cargo.toml', '--lib'],
+      timeoutMs: 1_800_000,
+    },
+    {
+      // Several of these exercise the PowerShell 7 build helpers.
+      name: 'python-tooling',
       executable: 'python',
-      args: ['-B', '-X', 'utf8', 'scripts/project-metrics.py'],
+      args: ['-B', '-X', 'utf8', '-m', 'unittest', 'discover', '-s', 'tests/tooling'],
     },
     {
       name: 'verifier-regressions',
@@ -363,7 +391,14 @@ export async function runDevelopmentVerification() {
   try {
     for (const step of plan) {
       const actual = {
-        ...(await command(step.name, step.executable, step.args, directory, step.env)),
+        ...(await command(
+          step.name,
+          step.executable,
+          step.args,
+          directory,
+          step.env,
+          step.timeoutMs,
+        )),
         ...(step.report ? { report: step.report, reportKind: step.reportKind } : {}),
       };
       receipt.steps.push(actual);

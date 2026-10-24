@@ -17,11 +17,7 @@
 import { expect, it } from 'vitest';
 import countries from '../../src/location/countries.json';
 import population from '../../src/location/country-population.json';
-import {
-  compareCountryCodes,
-  englishTier,
-  orderCountries,
-} from '../../src/location/country-order';
+import { compareCountryCodes, englishTier, orderCountries } from '../../src/location/country-order';
 it('puts English-speaking countries first, then orders the rest by descending published population', () => {
   const ordered = orderCountries(countries);
   // Owner request: the majority English-speaking countries first, US first.

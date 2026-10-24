@@ -51,7 +51,8 @@
 .gx-program-search.gx-program-search-inline .gx-program-search-collapse::after {
   content: ' ▾';
 }
-.gx-program-search.gx-program-search-inline .gx-program-search-collapse[aria-expanded='false']::after {
+.gx-program-search.gx-program-search-inline
+  .gx-program-search-collapse[aria-expanded='false']::after {
   content: ' ▸';
 }
 .gx-program-search.gx-program-search-inline [role='status'] {

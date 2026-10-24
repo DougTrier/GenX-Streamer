@@ -1,0 +1,21 @@
+# Editor settings shared by every contributor.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+indent_style = space
+indent_size = 2
+
+[*.{rs,py}]
+indent_size = 4
+
+[*.{bat,cmd}]
+end_of_line = crlf
+
+# Test fixtures are byte-exact recordings; editors must not touch them.
+[tests/fixtures/**]
+end_of_line = unset
+insert_final_newline = unset
+charset = unset

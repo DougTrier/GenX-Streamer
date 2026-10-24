@@ -1856,9 +1856,7 @@ test('legacy result cards expose unknown language and an explicit video choice',
   await mount(page);
   await expect(page.locator('.gx-archive-results .gx-archive-context')).toHaveCount(0);
   await expect(page.locator('.gx-archive-result-name').first()).toHaveText('Title 1');
-  await expect(page.locator('.gx-archive-result-subtitle').first()).toHaveText(
-    'TV show · 1 video',
-  );
+  await expect(page.locator('.gx-archive-result-subtitle').first()).toHaveText('TV show · 1 video');
   await page.locator('.gx-archive-title-button').first().click();
   await expect(page.getByRole('button', { name: 'Play Video 1' })).toBeFocused();
   await page.getByText('More info', { exact: true }).click();

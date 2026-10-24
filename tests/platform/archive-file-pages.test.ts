@@ -89,5 +89,7 @@ it('pending progress admits metadata only and refuses executable destinations', 
     validateArchiveFileProgress({ ...progress, mediaUrl: 'https://fixture.invalid/video.mp4' }),
   ).toThrow();
   expect(() => validateArchiveFileProgress({ ...progress, titleRef: '../file.mp4' })).toThrow();
-  expect(() => validateArchiveFileProgress({ ...progress, nextOffset: 1024, complete: false })).toThrow();
+  expect(() =>
+    validateArchiveFileProgress({ ...progress, nextOffset: 1024, complete: false }),
+  ).toThrow();
 });
