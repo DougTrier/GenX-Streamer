@@ -655,6 +655,132 @@
       "label": "private network address",
       "sha256": "3f1967c3e1b72fbc7133027b8d0be4520b1af272c874c499333463b8d3bb7dad",
       "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/sharing/nearby_download_tests.rs",
+      "label": "private network address",
+      "sha256": "ae8e1d376c25bb2ddd7b6794a360a6bb76663d1d31f7a5503ad02accad8d2d27",
+      "reason": "reviewed 2026-10-24: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+    },
+    {
+      "file": "src-tauri/src/sharing/nearby_download_tests.rs",
+      "label": "private network address",
+      "sha256": "855b8594d312736ab1f56556d4b185bb248ab4c30c0c45e74585c5ab4f8d0701",
+      "reason": "reviewed 2026-10-24: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+    },
+    {
+      "file": "src-tauri/src/sharing/nearby_download_tests.rs",
+      "label": "private network address",
+      "sha256": "39b34faad5c886be112e9afaabe6ff30e739d074fde9c7ad64a322f2bcda6edb",
+      "reason": "reviewed 2026-10-24: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+    },
+    {
+      "file": "src-tauri/src/sharing/nearby_download_tests.rs",
+      "label": "private network address",
+      "sha256": "799530f37b29d66a921ec3a4709e629e7a1724e3a334923eede2179d686eab28",
+      "reason": "reviewed 2026-10-24: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+    },
+    {
+      "file": "src-tauri/src/sharing/share_links_tests.rs",
+      "label": "address with a password",
+      "sha256": "527b6936a47543b94190a1353a06ee334fc8b1e665571facbc839e64bc46163d",
+      "reason": "reviewed 2026-10-24: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+    },
+    {
+      "file": "src-tauri/src/sharing/share_links_tests.rs",
+      "label": "private network address",
+      "sha256": "25649e0dd6541956457d09cf1d3695f31c24aed015acc40e47d2a438a86a4f76",
+      "reason": "reviewed 2026-10-24: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+    },
+    {
+      "file": "src-tauri/src/sharing/share_links_tests.rs",
+      "label": "private network address",
+      "sha256": "4e06dce9aca912558c1b9ba73cfc2083e58946fd43ed231fcab905a41c5b14ef",
+      "reason": "reviewed 2026-10-24: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+    },
+    {
+      "file": "tests/sharing/share-link.test.ts",
+      "label": "Xtream-style credentials",
+      "sha256": "bcf2a190241774db2839d681c5b9d1bbf4732b0c08c42d9a9ff537d36ba7d1bf",
+      "reason": "reviewed 2026-10-24: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+    },
+    {
+      "file": "tests/sharing/share-link.test.ts",
+      "label": "Xtream-style credentials",
+      "sha256": "f95921926f6fb12319fe8ec7739e0c2b7e74af1f3a3f7037ba805dcdcd3aebee",
+      "reason": "reviewed 2026-10-24: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+    },
+    {
+      "file": "tests/sharing/share-link.test.ts",
+      "label": "Xtream-style credentials",
+      "sha256": "7d62ee5bfe151eedd2b0d64e10c795a02cf76436f842db4ea8f0a0a84a69db1c",
+      "reason": "reviewed 2026-10-24: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+    },
+    {
+      "file": "tests/sharing/share-link.test.ts",
+      "label": "address with a password",
+      "sha256": "5262325c8693abe24018e527c134c21ff98de417289a363a05be30ccfb38390f",
+      "reason": "reviewed 2026-10-24: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+    },
+    {
+      "file": "tests/sharing/share-link.test.ts",
+      "label": "username/password query",
+      "sha256": "68282d867be8ac128073ecba7ab5bd5dc8999a417c86e67d98d865b82bc7bbf9",
+      "reason": "reviewed 2026-10-24: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+    },
+    {
+      "file": "tests/sharing/share-link.test.ts",
+      "label": "private network address",
+      "sha256": "61320fa54971f55c0d1d6ad6a9839c5915194a95e71b2323d20221039e444a63",
+      "reason": "reviewed 2026-10-24: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+    },
+    {
+      "file": "tests/sharing/share-link.test.ts",
+      "label": "private network address",
+      "sha256": "36a9ec54f78bc138bc8a12f788e9238827d6dbef4995c9eef9f2152d716c0479",
+      "reason": "reviewed 2026-10-24: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+    },
+    {
+      "file": "tests/sharing/share-link.test.ts",
+      "label": "private network address",
+      "sha256": "255dd1a9e937f186076c702f5159af1b0e06d98dfeaf27a212e0f53dd386dfe4",
+      "reason": "reviewed 2026-10-24: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+    },
+    {
+      "file": "tests/sharing/share-link.test.ts",
+      "label": "private network address",
+      "sha256": "c3bef06573d1fbca43645fd22ed2fac9dcc8aeb202329c6988cff3239760422d",
+      "reason": "reviewed 2026-10-24: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+    },
+    {
+      "file": "tests/sharing/share-link.test.ts",
+      "label": "private network address",
+      "sha256": "0fedc39875737a1d1c3b2635f7e62ef3acf774b4e046b502565424f7aab8eb4b",
+      "reason": "reviewed 2026-10-24: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+    },
+    {
+      "file": "tests/sharing/share-link.test.ts",
+      "label": "address with a password",
+      "sha256": "1743995345b504634f1a1f8d7684b9d1ff36eaa6df54c4951788bc43553cd194",
+      "reason": "reviewed 2026-10-24: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+    },
+    {
+      "file": "tests/tooling/test_qr_code.py",
+      "label": "private network address",
+      "sha256": "949e08a5b672d0102806931ead22c851ba33793f79493273b0b968af7b66ee34",
+      "reason": "reviewed 2026-10-24: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+    },
+    {
+      "file": "tests/tooling/test_qr_code.py",
+      "label": "private network address",
+      "sha256": "23076e5f6f0054b227f06b50a22b4d6a65e721314a31c168d2d2c5db6ec1727b",
+      "reason": "reviewed 2026-10-24: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+    },
+    {
+      "file": "tests/ui/share-links.spec.ts",
+      "label": "private network address",
+      "sha256": "1d91afa92d5416421dd39243f489ead7f0b9b12c098b137730bfd7cb68bb9678",
+      "reason": "reviewed 2026-10-24: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
     }
   ]
 }
