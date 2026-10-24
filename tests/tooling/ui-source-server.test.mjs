@@ -95,11 +95,11 @@ test('owned source discovery includes every real worker query variant', async ()
   const urls = await sourceModuleUrls(process.cwd());
   for (const worker of [
     'catalog/parser-worker.ts',
-    'application/health-history-worker.ts',
+    'application/health/health-history-worker.ts',
     'data-transfer/transfer-worker.ts',
     'discovery/selection-worker.ts',
     'discovery/page-worker.ts',
-    'application/decoded-health-worker.ts',
+    'application/health/decoded-health-worker.ts',
     'platform/record-transaction.ts',
   ])
     assert.ok(urls.includes('/src/' + worker + '?worker_file&type=module'), worker);
