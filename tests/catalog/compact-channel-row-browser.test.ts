@@ -27,7 +27,7 @@ beforeAll(async () => {
     logLevel: 'silent',
     build: {
       write: false,
-      lib: { entry: 'src/ui/channel-browser.ts', name: 'LiveRows', formats: ['iife'] },
+      lib: { entry: 'src/ui/channels/channel-browser.ts', name: 'LiveRows', formats: ['iife'] },
     },
   });
   const output = Array.isArray(result) ? result[0] : result;

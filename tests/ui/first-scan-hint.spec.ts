@@ -26,7 +26,7 @@ async function mount(page: Page): Promise<void> {
   );
   await page.goto('/first-scan-fixture');
   await page.evaluate(async () => {
-    const path = '/src/ui/first-scan-hint.ts';
+    const path = '/src/ui/scan/first-scan-hint.ts';
     const { mountFirstScanHint } = await import(path);
     Reflect.set(window, 'count', 0);
     mountFirstScanHint(

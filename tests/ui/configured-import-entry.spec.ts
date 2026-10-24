@@ -36,8 +36,8 @@ async function mount(page: Page) {
         link.onerror = reject;
       });
     }
-    const shellPath = '/src/ui/shell.ts',
-      ownerPath = '/src/ui/import-entry.ts';
+    const shellPath = '/src/ui/shell/shell.ts',
+      ownerPath = '/src/ui/scan/import-entry.ts';
     const { createShell } = await import(shellPath);
     const { installConfiguredImportEntry } = await import(ownerPath);
     createShell(document.querySelector('#app')!);
@@ -95,7 +95,7 @@ async function mount(page: Page) {
         state.starts++;
       },
     });
-    const navigationPath = '/src/ui/remote-navigation.ts';
+    const navigationPath = '/src/ui/shell/remote-navigation.ts';
     const { installRemoteNavigation, createRemoteEditMode } = await import(navigationPath);
     const removeNavigation = installRemoteNavigation({ editMode: createRemoteEditMode() });
     Reflect.set(window, 'importFixture', { state, owner, jobs, resolve, reject, removeNavigation });

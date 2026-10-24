@@ -15,5 +15,5 @@
  */
 
 export { createArchiveDownloads } from '../../../src/application/genxtra/archive-downloads';
-export { mountArchiveDownloads } from '../../../src/ui/archive-downloads';
-export { mountArchiveSearch } from '../../../src/ui/archive-search';
+export { mountArchiveDownloads } from '../../../src/ui/genxtra/archive-downloads';
+export { mountArchiveSearch } from '../../../src/ui/genxtra/archive-search';

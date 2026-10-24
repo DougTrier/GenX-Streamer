@@ -20,25 +20,25 @@
  * shared state it owns through the environment.
  */
 import { createArchiveDiscovery, type ArchiveDiscoverySnapshot } from './archive-discovery';
-import { archiveDiscoveryStatus } from '../../ui/archive-discovery-status';
-import { mountArchiveSearch } from '../../ui/archive-search';
+import { archiveDiscoveryStatus } from '../../ui/genxtra/archive-discovery-status';
+import { mountArchiveSearch } from '../../ui/genxtra/archive-search';
 import { lookupSeriesIdentity } from '../../platform/series-identity';
 import { type ArchiveSelection, type createArchiveCatalog } from '../../platform/archive-catalog';
 import { ArchiveFileRemovedError, type createArchivePlayer } from './archive-player';
 import { type ContentLibrary } from './content-library';
 import { type createLibraryState } from './library-state';
 import { type createDiagnostics } from '../../diagnostics/native';
-import { type installVODDock } from '../../ui/vod-dock';
-import { type installCategoryMenu } from '../../ui/category-menu';
+import { type installVODDock } from '../../ui/player/vod-dock';
+import { type installCategoryMenu } from '../../ui/channels/category-menu';
 import { type createPageState } from '../shell/page-state';
-import { type mountGuide } from '../../ui/guide';
+import { type mountGuide } from '../../ui/guide/guide';
 import { type createScanController } from '../discovery/scan-controller';
 import { type createArchiveDownloads } from './archive-downloads';
 import { type PlaybackController } from '../../playback/controller';
-import { type installInAppSelects } from '../../ui/in-app-select';
+import { type installInAppSelects } from '../../ui/shell/in-app-select';
 import { type PrimaryPage } from '../shell/primary-page';
 import { type createChannelLogos } from '../catalog/channel-logos';
-import { type ChannelBrowser } from '../../ui/channel-browser';
+import { type ChannelBrowser } from '../../ui/channels/channel-browser';
 import { type Preferences, type SerializedPreferencesStore } from '../../preferences';
 
 const libraryOperationNames = [

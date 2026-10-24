@@ -26,10 +26,10 @@ async function mount(page: Page, mode: Mode = 'windows') {
   );
   await page.goto('/storage-recovery-fixture');
   await page.evaluate(async (kind) => {
-    const modulePath = '/src/ui/storage-recovery.ts';
+    const modulePath = '/src/ui/settings/storage-recovery.ts';
     const { mountStorageRecovery } = (await import(
       modulePath
-    )) as typeof import('../../src/ui/storage-recovery');
+    )) as typeof import('../../src/ui/settings/storage-recovery');
     const fixture = {
       choices: [] as string[],
       retries: 0,
@@ -47,7 +47,7 @@ async function mount(page: Page, mode: Mode = 'windows') {
           ? ({
               platform: 'windows',
               available: 'yes',
-            } as unknown as import('../../src/ui/storage-recovery').StorageRecoveryStatus)
+            } as unknown as import('../../src/ui/settings/storage-recovery').StorageRecoveryStatus)
           : {
               platform: kind === 'environment' || kind === 'busy' ? 'windows' : kind,
               available: kind === 'windows' || kind === 'busy',

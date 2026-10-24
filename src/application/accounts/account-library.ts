@@ -28,7 +28,7 @@ import {
   type AccountChannel,
   type AccountChannelPageRequest,
 } from '../../platform/account-catalog';
-import type { BrowserChannel } from '../../ui/channel-browser';
+import type { BrowserChannel } from '../../ui/channels/channel-browser';
 
 const PAGE = 64;
 const ANCHORS = 64;

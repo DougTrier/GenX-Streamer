@@ -19,19 +19,19 @@
  */
 import { createAccountVault } from '../../platform/account-vault';
 import { createAccountCatalog } from '../../platform/account-catalog';
-import { mountLibrarySwitcher } from '../../ui/library-switcher';
+import { mountLibrarySwitcher } from '../../ui/genxtra/library-switcher';
 import { isTauri } from '@tauri-apps/api/core';
-import { mountLocalStreams } from '../../ui/local-streams';
-import { mountAccountManagement } from '../../ui/accounts';
+import { mountLocalStreams } from '../../ui/scan/local-streams';
+import { mountAccountManagement } from '../../ui/accounts/accounts';
 import { type createAccountBrowser } from './account-browser';
 import { type createAccountScope } from './account-scope';
 import { type createLibraryController } from '../genxtra/library-controller';
 import { type createAccountPlaybackSelection } from './account-playback-selection';
 import { type createSharingHost } from '../sharing/sharing-host';
-import { type mountSpeechSearch } from '../../ui/speech-search';
+import { type mountSpeechSearch } from '../../ui/channels/speech-search';
 import { type createCatalogView } from '../catalog/catalog-view';
 import { type createAccountPlayer } from './account-player';
-import { type installInAppSelects } from '../../ui/in-app-select';
+import { type installInAppSelects } from '../../ui/shell/in-app-select';
 
 /** What this area reads from, and writes back to, the rest of the application. */
 export interface AccountSetupEnvironment {

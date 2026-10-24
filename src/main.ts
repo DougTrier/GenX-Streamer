@@ -35,25 +35,25 @@ import {
   type ArchiveDecade,
   type ArchiveContentType,
 } from './platform/archive-catalog';
-import { mountArchiveSearch } from './ui/archive-search';
+import { mountArchiveSearch } from './ui/genxtra/archive-search';
 
 import { createAccountBrowser } from './application/accounts/account-browser';
 
 import { createVpnStatus } from './platform/vpn-status';
-import { mountVpnIndicator } from './ui/vpn-indicator';
-import { mountScanOverlay } from './ui/scan-overlay';
+import { mountVpnIndicator } from './ui/shell/vpn-indicator';
+import { mountScanOverlay } from './ui/scan/scan-overlay';
 
 import { createStartupObserver } from './application/shell/startup-view';
 
-import { mountLibrarySwitcher } from './ui/library-switcher';
+import { mountLibrarySwitcher } from './ui/genxtra/library-switcher';
 
 import './ui/event-history.css';
 
-import { mountVODStop } from './ui/vod-stop';
+import { mountVODStop } from './ui/player/vod-stop';
 
 import { NativeSpeech } from './search/native-speech';
-import { mountSpeechSearch } from './ui/speech-search';
-import { mountStorageRecovery } from './ui/storage-recovery';
+import { mountSpeechSearch } from './ui/channels/speech-search';
+import { mountStorageRecovery } from './ui/settings/storage-recovery';
 import './ui/guide.css';
 import './ui/guide-timeline.css';
 import './ui/responsive.css';
@@ -79,19 +79,19 @@ import { type ChannelCheck } from './platform/channel-checks';
 
 import { invoke, isTauri } from '@tauri-apps/api/core';
 
-import { createShell } from './ui/shell';
+import { createShell } from './ui/shell/shell';
 
-import { type ChannelFilter } from './ui/channel-browser';
+import { type ChannelFilter } from './ui/channels/channel-browser';
 
 import { type PlaybackSnapshot } from './playback/controller';
 
 import { createNativeVideoBridge, nativeVideoAvailable } from './platform/native-video';
 
-import { createNativePictureHost } from './ui/native-picture';
+import { createNativePictureHost } from './ui/player/native-picture';
 
 import { emptyCatalog, type CatalogRecord, type Source } from './catalog';
 
-import { mountLocalStreams } from './ui/local-streams';
+import { mountLocalStreams } from './ui/scan/local-streams';
 
 // Last stylesheet: the shared pop-up look sits over every component sheet.
 import './ui/dialog-polish.css';

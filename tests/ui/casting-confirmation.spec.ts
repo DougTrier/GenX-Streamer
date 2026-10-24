@@ -57,11 +57,13 @@ async function mount(page: Page, unverified = false) {
   );
   await page.goto('/casting-fixture');
   await page.evaluate(async (unknown) => {
-    const shellPath = '/src/ui/shell.ts';
-    const castingPath = '/src/ui/casting.ts';
+    const shellPath = '/src/ui/shell/shell.ts';
+    const castingPath = '/src/ui/player/casting.ts';
     const receiverPath = '/src/casting/confirmed-receiver.ts';
-    const { createShell } = (await import(shellPath)) as typeof import('../../src/ui/shell');
-    const { installCasting } = (await import(castingPath)) as typeof import('../../src/ui/casting');
+    const { createShell } = (await import(shellPath)) as typeof import('../../src/ui/shell/shell');
+    const { installCasting } = (await import(
+      castingPath
+    )) as typeof import('../../src/ui/player/casting');
     const { createConfirmedReceiver } = (await import(
       receiverPath
     )) as typeof import('../../src/casting/confirmed-receiver');

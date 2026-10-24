@@ -18,8 +18,8 @@
  * how the arrow keys move between the search row, filters and title posters.
  * Moved out of main.ts.
  */
-import { type createFullscreenOwner } from '../../ui/fullscreen-owner';
-import { type createRemoteEditMode } from '../../ui/remote-navigation';
+import { type createFullscreenOwner } from '../../ui/player/fullscreen-owner';
+import { type createRemoteEditMode } from '../../ui/shell/remote-navigation';
 import { type ContentLibrary } from './content-library';
 import { type PrimaryPage } from '../shell/primary-page';
 

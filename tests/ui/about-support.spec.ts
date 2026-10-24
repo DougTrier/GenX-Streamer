@@ -38,7 +38,7 @@ test('Native About uses platform version, refuses repeated pending clicks, and r
         return new Promise((_resolve, reject) => Reflect.set(window, '__rejectSupport', reject));
       },
     });
-    const modulePath = '/src/ui/about.ts';
+    const modulePath = '/src/ui/settings/about.ts';
     const { mountAbout } = await import(modulePath);
     Reflect.set(
       window,

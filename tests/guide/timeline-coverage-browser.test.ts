@@ -18,7 +18,7 @@
  * Timeline guide in a real browser: widths, week coverage and long titles.
  */
 import { describe, expect, it } from 'vitest';
-import { type TimelineChannel } from '../../src/ui/guide-timeline-model';
+import { type TimelineChannel } from '../../src/ui/guide/guide-timeline-model';
 import {
   useTimelineBrowser,
   emptyFixture,

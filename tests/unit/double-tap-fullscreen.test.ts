@@ -19,7 +19,7 @@ import {
   createDoubleTap,
   DOUBLE_TAP_MS,
   DOUBLE_TAP_SLOP,
-} from '../../src/ui/double-tap-fullscreen';
+} from '../../src/ui/player/double-tap-fullscreen';
 
 describe('double tap on the picture', () => {
   it('two quick taps in one place are a double tap', () => {

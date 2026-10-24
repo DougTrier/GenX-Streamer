@@ -21,7 +21,7 @@ async function mount(page: Page) {
   await expect(page.locator('#app')).toHaveAttribute('data-ready', 'true');
   await page.evaluate(async () => {
     const inputPath = '/src/discovery/page-input.ts';
-    const uiPath = '/src/ui/website-discovery.ts';
+    const uiPath = '/src/ui/scan/website-discovery.ts';
     const { createPageInput } = await import(inputPath);
     const { mountWebsiteDiscovery } = await import(uiPath);
     const input = createPageInput();

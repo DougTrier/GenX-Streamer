@@ -31,7 +31,7 @@ async function mount(
   await page.evaluate(async (options) => {
     await import('/src/ui/guide-timeline.css' as string);
     await import('/src/ui/guide-panel.css' as string);
-    const { mountPaidGuide } = await import('/src/ui/paid-guide.ts' as string);
+    const { mountPaidGuide } = await import('/src/ui/guide/paid-guide.ts' as string);
     const hour = 3_600_000;
     const now = Math.floor(Date.now() / (30 * 60_000)) * 30 * 60_000;
     const accountId = 'a'.repeat(32);

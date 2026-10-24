@@ -50,7 +50,7 @@ beforeAll(async () => {
         },
         load(id) {
           if (id === '\0shell')
-            return `export {createShell} from ${JSON.stringify(resolve('src/ui/shell.ts'))};`;
+            return `export {createShell} from ${JSON.stringify(resolve('src/ui/shell/shell.ts'))};`;
         },
       },
     ],

@@ -38,7 +38,7 @@ async function mount(page: Page): Promise<void> {
   );
   await page.goto('/transfer-cleanup-fixture');
   await page.evaluate(async () => {
-    const ui = '/src/ui/data-transfer.ts',
+    const ui = '/src/ui/settings/data-transfer.ts',
       data = '/src/data-transfer/index.ts',
       prefs = '/src/preferences/index.ts';
     const { installDataTransfer } = await import(ui);

@@ -15,7 +15,7 @@
  */
 
 import { expect, it } from 'vitest';
-import { channelGuideText, type ChannelGuideRow } from '../../src/ui/channel-guide';
+import { channelGuideText, type ChannelGuideRow } from '../../src/ui/guide/channel-guide';
 import type { SelectedGuideSummary } from '../../src/guide/native';
 import { formatLocalGuideTime } from '../../src/guide/time';
 const summary = (changes: Partial<SelectedGuideSummary> = {}): SelectedGuideSummary => ({

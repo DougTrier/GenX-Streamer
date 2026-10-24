@@ -14,6 +14,6 @@
  * limitations under the License.
  */
 
-export { mountArchiveSearch } from '../../../src/ui/archive-search';
-export { createShell } from '../../../src/ui/shell';
-export { installRemoteNavigation } from '../../../src/ui/remote-navigation';
+export { mountArchiveSearch } from '../../../src/ui/genxtra/archive-search';
+export { createShell } from '../../../src/ui/shell/shell';
+export { installRemoteNavigation } from '../../../src/ui/shell/remote-navigation';

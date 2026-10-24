@@ -28,7 +28,7 @@ beforeAll(async () => {
     build: {
       write: false,
       minify: false,
-      lib: { entry: 'src/ui/scan-screensaver.ts', formats: ['iife'], name: 'Saver' },
+      lib: { entry: 'src/ui/scan/scan-screensaver.ts', formats: ['iife'], name: 'Saver' },
     },
   });
   const result = Array.isArray(output) ? output[0] : output;

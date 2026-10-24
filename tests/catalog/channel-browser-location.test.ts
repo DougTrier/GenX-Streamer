@@ -15,7 +15,7 @@
  */
 
 import { afterEach, expect, it, vi } from 'vitest';
-import { ChannelBrowser, type BrowserChannel } from '../../src/ui/channel-browser';
+import { ChannelBrowser, type BrowserChannel } from '../../src/ui/channels/channel-browser';
 import { createGeographyRegistry } from '../../src/catalog/geography';
 import { locationSearchText } from '../../src/search/location-labels';
 import subdivisionLabels from '../../src/search/subdivisions.json';

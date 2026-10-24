@@ -56,8 +56,8 @@ async function mount(page: Page, size: (typeof SIZES)[number]): Promise<void> {
   );
   await page.goto('/phone-panel-fixture');
   await page.evaluate(async ({ tv, sidebar }) => {
-    const shell = '/src/ui/shell.ts',
-      viewport = '/src/ui/viewport.ts';
+    const shell = '/src/ui/shell/shell.ts',
+      viewport = '/src/ui/shell/viewport.ts';
     const { createShell } = await import(shell);
     const { installViewport } = await import(viewport);
     const app = document.getElementById('app')!;

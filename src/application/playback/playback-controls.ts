@@ -23,7 +23,7 @@ import { type createLibraryState } from '../genxtra/library-state';
 import { type PlaybackController, type PlaybackSnapshot } from '../../playback/controller';
 import { type AccountPlaybackChoice, type createAccountPlayer } from '../accounts/account-player';
 import { type createArchivePlayer } from '../genxtra/archive-player';
-import { type mountLibrarySwitcher } from '../../ui/library-switcher';
+import { type mountLibrarySwitcher } from '../../ui/genxtra/library-switcher';
 
 /** What this area reads from, and writes back to, the rest of the application. */
 export interface PlaybackControlsEnvironment {

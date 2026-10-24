@@ -25,10 +25,10 @@ async function mount(page: Page, television: boolean): Promise<void> {
   );
   await page.goto('/vod-dock-fixture');
   await page.evaluate(async (television) => {
-    const shellPath = '/src/ui/shell.ts',
-      dockPath = '/src/ui/vod-dock.ts',
-      viewportPath = '/src/ui/viewport.ts',
-      stopPath = '/src/ui/vod-stop.ts';
+    const shellPath = '/src/ui/shell/shell.ts',
+      dockPath = '/src/ui/player/vod-dock.ts',
+      viewportPath = '/src/ui/shell/viewport.ts',
+      stopPath = '/src/ui/player/vod-stop.ts';
     const { createShell } = await import(shellPath);
     const { installVODDock } = await import(dockPath);
     const { installViewport } = await import(viewportPath);
@@ -477,7 +477,7 @@ test('GenXtra keeps result count and Filters in one toolbar without a second Sea
   await page.setViewportSize({ width: 960, height: 540 });
   await mount(page, true);
   await page.evaluate(async () => {
-    const archivePath = '/src/ui/archive-search.ts';
+    const archivePath = '/src/ui/genxtra/archive-search.ts';
     const { mountArchiveSearch } = await import(archivePath);
     const container = document.querySelector<HTMLElement>('#genxtra-library')!;
     container.hidden = false;

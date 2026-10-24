@@ -20,7 +20,7 @@ import {
   type SourceSnapshotActivationRequest,
 } from '../../src/platform/source-snapshot-activation';
 import { validateSourceSnapshotPreparationProgress } from '../../src/platform/source-snapshot-progress';
-import { sourcePreparationStatus } from '../../src/ui/source-preparation-status';
+import { sourcePreparationStatus } from '../../src/ui/scan/source-preparation-status';
 function deferred<T>() {
   let resolve!: (v: T) => void, reject!: (v: unknown) => void;
   const promise = new Promise<T>((a, b) => {
@@ -399,7 +399,7 @@ it('cleanup join waits actual producer and cancellation settlement before progre
 // while its guide update held the database, but diagnostics only said
 // "unclassified". The native code is now kept as the cause.
 it('a native refusal keeps its code for diagnostics', async () => {
-  const { scanFailureCode } = await import('../../src/ui/source-scan-model');
+  const { scanFailureCode } = await import('../../src/ui/scan/source-scan-model');
   const activate = createSourceSnapshotActivationTransport({
     idFactory: () => 'request-1',
     invoke: async () => {

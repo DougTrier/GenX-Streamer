@@ -297,7 +297,7 @@ export function useScanUiBrowser(): void {
       build: {
         write: false,
         minify: false,
-        lib: { entry: 'src/ui/source-scan.ts', formats: ['iife'], name: 'ScanUI' },
+        lib: { entry: 'src/ui/scan/source-scan.ts', formats: ['iife'], name: 'ScanUI' },
       },
     });
     const result = Array.isArray(output) ? output[0] : output;

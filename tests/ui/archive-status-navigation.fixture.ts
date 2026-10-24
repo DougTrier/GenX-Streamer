@@ -44,7 +44,7 @@ export async function mount(
   await page.goto('/archive-navigation-fixture');
   await page.evaluate(
     async ({ count, hold, artworkMode }) => {
-      const modulePath = '/src/ui/archive-search.ts';
+      const modulePath = '/src/ui/genxtra/archive-search.ts';
       const { mountArchiveSearch } = await import(modulePath);
       const stylesheetPath = '/src/ui/media-results.css';
       const genxtraStylesheetPath = '/src/ui/genxtra.css';
@@ -309,7 +309,7 @@ export async function mount(
             fixture.selectionError === 'resume-cancel' ||
             fixture.selectionError === 'resume-watchagain'
           ) {
-            const resumePath = '/src/ui/archive-resume.ts';
+            const resumePath = '/src/ui/genxtra/archive-resume.ts';
             const { chooseArchiveResume } = await import(resumePath);
             const choice = await chooseArchiveResume(
               selection.title,
@@ -401,7 +401,7 @@ export async function watchAgainWithRemote(page: Page, hold: boolean, count = 1)
     live.id = 'live-tv-button';
     live.textContent = 'Live TV';
     document.body.prepend(live);
-    const path = '/src/ui/remote-navigation.ts';
+    const path = '/src/ui/shell/remote-navigation.ts';
     const { installRemoteNavigation } = await import(path);
     Reflect.set(window, 'resumeRemoteDispose', installRemoteNavigation());
     const originalAdd = document.addEventListener.bind(document),
@@ -451,7 +451,7 @@ export async function holdQueryAtCancel(page: Page, matches = 2): Promise<void> 
     .poll(() => page.evaluate(() => Reflect.get(window, 'archiveFixture').releases.length))
     .toBe(1);
   await page.evaluate(async () => {
-    const path = '/src/ui/remote-navigation.ts';
+    const path = '/src/ui/shell/remote-navigation.ts';
     const { installRemoteNavigation, createRemoteEditMode } = await import(path);
     const editMode = createRemoteEditMode();
     Reflect.set(window, 'queryFocusRemoteDispose', installRemoteNavigation({ editMode }));

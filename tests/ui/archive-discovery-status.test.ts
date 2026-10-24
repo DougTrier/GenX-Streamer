@@ -16,7 +16,7 @@
 
 import { describe, expect, it } from 'vitest';
 import type { ArchiveDiscoverySnapshot } from '../../src/application/genxtra/archive-discovery';
-import { archiveDiscoveryStatus } from '../../src/ui/archive-discovery-status';
+import { archiveDiscoveryStatus } from '../../src/ui/genxtra/archive-discovery-status';
 
 const nowEpochMs = 100_000;
 function snapshot(change: Partial<ArchiveDiscoverySnapshot> = {}): ArchiveDiscoverySnapshot {

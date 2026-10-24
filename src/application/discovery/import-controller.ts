@@ -20,12 +20,12 @@
  * refresh. Moved out of main.ts; main.ts passes the shared state it owns
  * through the environment.
  */
-import { installConfiguredImportEntry } from '../../ui/import-entry';
-import { emptyOnlineDiscoveryText } from '../../ui/online-discovery-text';
+import { installConfiguredImportEntry } from '../../ui/scan/import-entry';
+import { emptyOnlineDiscoveryText } from '../../ui/scan/online-discovery-text';
 import { readUnavailableSources } from '../../discovery/unavailable-sources';
 import { prepareDiscoveredSources } from './discovered-source-configuration';
 import { BoundedScanEntryRefusal, type createScanController } from './scan-controller';
-import { installGuideGrabberExport } from '../../ui/guide-grabber-settings';
+import { installGuideGrabberExport } from '../../ui/guide/guide-grabber-settings';
 import { exportPlaylistInWorker } from '../../catalog/playlist-export-service';
 import { savePlaylistExport } from '../../platform/playlist-file';
 import { type ScanSource } from '../../discovery/scan';
@@ -40,13 +40,13 @@ import { migrateRefreshCadence } from '../../catalog/refresh-cadence';
 import { createDailyGuideRefresh } from '../../guide/daily-refresh';
 import { isTauri } from '@tauri-apps/api/core';
 import { readDailyGuidePlan, refreshDailyGuide } from '../../guide/native';
-import { mountAutomaticGuideUpdates } from '../../ui/automatic-guide-updates';
+import { mountAutomaticGuideUpdates } from '../../ui/guide/automatic-guide-updates';
 import { joinGuideWork } from '../guide/join-guide-work';
 import { type createRendererRecoveryPolicy } from '../shell/renderer-recovery-policy';
 import { type createOnlineSourceScan } from '../../discovery/online-source-scan';
 import { type createChannelHealthController } from '../health/channel-health-controller';
 import { type createGuideController } from '../guide/guide-controller';
-import { type mountGuide } from '../../ui/guide';
+import { type mountGuide } from '../../ui/guide/guide';
 import { type createBootstrapBoundary } from '../shell/bootstrap-boundary';
 import { type createDiagnostics } from '../../diagnostics/native';
 import { type ContentLibrary } from '../genxtra/content-library';

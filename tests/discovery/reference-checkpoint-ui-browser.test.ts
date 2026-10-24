@@ -31,7 +31,7 @@ beforeAll(async () => {
   const source = (p: string) => JSON.stringify(resolve(p).replaceAll('\\', '/'));
   await writeFile(
     entry,
-    `export {mountSourceScan} from ${source('src/ui/source-scan.ts')}; export {scanConfiguredSources} from ${source('src/discovery/scan.ts')}; export {parseStoredCapture,restoreReferencedCapture} from ${source('src/application/discovery/scan-checkpoint-capture-service.ts')}; export {readIndexedDbScanCheckpoint,writeIndexedDbRecordPair} from ${source('src/platform/record-transaction.ts')};`,
+    `export {mountSourceScan} from ${source('src/ui/scan/source-scan.ts')}; export {scanConfiguredSources} from ${source('src/discovery/scan.ts')}; export {parseStoredCapture,restoreReferencedCapture} from ${source('src/application/discovery/scan-checkpoint-capture-service.ts')}; export {readIndexedDbScanCheckpoint,writeIndexedDbRecordPair} from ${source('src/platform/record-transaction.ts')};`,
   );
   await build({
     configFile: false,

@@ -26,7 +26,7 @@ beforeAll(async () => {
     build: {
       write: false,
       minify: false,
-      lib: { entry: 'src/ui/inline-scan-panel.ts', formats: ['iife'], name: 'Panel' },
+      lib: { entry: 'src/ui/scan/inline-scan-panel.ts', formats: ['iife'], name: 'Panel' },
     },
   });
   const result = Array.isArray(output) ? output[0] : output;
@@ -42,7 +42,7 @@ beforeAll(async () => {
 afterAll(async () => {
   await browser?.close();
 });
-// The panel markup exactly as src/ui/shell.ts renders it.
+// The panel markup exactly as src/ui/shell/shell.ts renders it.
 const markup =
   '<section id="inline-source-scan" class="inline-source-scan" aria-label="Channel discovery" hidden><p id="inline-scan-status" role="status"></p><p id="inline-scan-error" role="alert" hidden></p><div class="inline-scan-actions"><button id="inline-scan-stop" type="button" hidden>Stop</button><button id="inline-scan-continue" type="button" hidden>Continue</button><button id="inline-scan-refresh" type="button" hidden>Refresh</button><button id="inline-scan-rescan" type="button" hidden>Rescan</button></div></section>';
 const base = {

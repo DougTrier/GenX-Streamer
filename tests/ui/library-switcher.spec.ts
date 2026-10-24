@@ -26,7 +26,7 @@ async function mount(page: Page, accounts: unknown[]): Promise<void> {
   );
   await page.goto('/library-switcher-fixture');
   await page.evaluate(async (rows) => {
-    const path = '/src/ui/library-switcher.ts';
+    const path = '/src/ui/genxtra/library-switcher.ts';
     const { mountLibrarySwitcher } = await import(path);
     const log: string[] = [];
     let selected: { id: string } | null = null;
@@ -151,7 +151,7 @@ test('Paid TV in the top bar leaves VOD and returns to the channel list', async 
   );
   await page.goto('/library-switcher-vod-fixture');
   await page.evaluate(async () => {
-    const { mountLibrarySwitcher } = await import('/src/ui/library-switcher.ts' as string);
+    const { mountLibrarySwitcher } = await import('/src/ui/genxtra/library-switcher.ts' as string);
     let selected: { id: string; revision: string } | null = null;
     const account = {
       schemaVersion: 1,

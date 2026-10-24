@@ -24,13 +24,13 @@ import { readStylesheet } from '../support/stylesheet';
 let browser: Browser, bundle: string, css: string;
 beforeAll(async () => {
   const modules = [
-    'shell',
-    'settings-navigation',
-    'viewport',
-    'about',
-    'event-history',
-    'provider-management',
-    'geography-controls',
+    'shell/shell',
+    'settings/settings-navigation',
+    'shell/viewport',
+    'settings/about',
+    'settings/event-history',
+    'channels/provider-management',
+    'channels/geography-controls',
   ];
   const built = await build({
     configFile: false,

@@ -15,7 +15,7 @@
  */
 
 import { expect, it } from 'vitest';
-import { mountSelectedGuide } from '../../src/ui/selected-guide';
+import { mountSelectedGuide } from '../../src/ui/guide/selected-guide';
 import type { SelectedGuideSummary } from '../../src/guide/native';
 class Element {
   children: Element[] = [];

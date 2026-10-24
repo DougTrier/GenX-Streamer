@@ -15,7 +15,7 @@
  */
 
 import { expect, it } from 'vitest';
-import { archiveFavoriteEmptyState } from '../../src/ui/archive-empty-state';
+import { archiveFavoriteEmptyState } from '../../src/ui/genxtra/archive-empty-state';
 const blank = {
   favoritesOnly: true,
   query: '',

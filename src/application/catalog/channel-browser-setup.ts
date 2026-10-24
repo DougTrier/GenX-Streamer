@@ -21,7 +21,7 @@
 import { createChannelLogos } from './channel-logos';
 import { isTauri } from '@tauri-apps/api/core';
 import { createPaidNowPlaying } from '../accounts/paid-now-playing';
-import { ChannelBrowser } from '../../ui/channel-browser';
+import { ChannelBrowser } from '../../ui/channels/channel-browser';
 import { createOwnedAbortSignals } from '../../platform/abort';
 import { queryCatalogPage } from '../../platform/catalog-query';
 import { createAccountGuide } from '../../platform/account-guide';

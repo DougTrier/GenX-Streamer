@@ -33,7 +33,7 @@ beforeAll(async () => {
         },
         load(id) {
           if (id === '\0fullscreen')
-            return `export {createShell} from ${JSON.stringify(resolve('src/ui/shell.ts'))}; export {installFullscreenPresentation} from ${JSON.stringify(resolve('src/ui/fullscreen-presentation.ts'))}; export {installRemoteNavigation,createRemoteEditMode} from ${JSON.stringify(resolve('src/ui/remote-navigation.ts'))};`;
+            return `export {createShell} from ${JSON.stringify(resolve('src/ui/shell/shell.ts'))}; export {installFullscreenPresentation} from ${JSON.stringify(resolve('src/ui/player/fullscreen-presentation.ts'))}; export {installRemoteNavigation,createRemoteEditMode} from ${JSON.stringify(resolve('src/ui/shell/remote-navigation.ts'))};`;
         },
       },
     ],

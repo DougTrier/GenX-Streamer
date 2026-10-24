@@ -327,7 +327,7 @@ it('pre-aborted action and malformed query start no directory request', async ()
   expect(host.repository).not.toHaveBeenCalled();
 });
 it('reports quota refusals separately from unavailable directories, with the published reset', async () => {
-  const { emptyOnlineDiscoveryText } = await import('../../src/ui/online-discovery-text');
+  const { emptyOnlineDiscoveryText } = await import('../../src/ui/scan/online-discovery-text');
   const limited = JSON.stringify({ code: 'http-rate-limited', rateLimitReset: '1760000000' });
   const failing: OnlineSourceIndex = {
     repository: vi.fn(async (id: number) => {

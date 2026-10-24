@@ -18,12 +18,12 @@
  * region and viewing choices. Moved out of main.ts; main.ts passes the shared
  * application context.
  */
-import { mountChannelActions } from '../../ui/channel-actions';
+import { mountChannelActions } from '../../ui/channels/channel-actions';
 import { createChannelCategoryResolver, type Preferences } from '../../preferences';
 import { isTauri } from '@tauri-apps/api/core';
-import { mountProviderManagement } from '../../ui/provider-management';
-import { mountViewingChoices } from '../../ui/viewing-choices';
-import { mountGeographyControls } from '../../ui/geography-controls';
+import { mountProviderManagement } from '../../ui/channels/provider-management';
+import { mountViewingChoices } from '../../ui/channels/viewing-choices';
+import { mountGeographyControls } from '../../ui/channels/geography-controls';
 import { type createAccountBrowser } from '../accounts/account-browser';
 import { type createChannelEdits } from './channel-edits';
 import { type createSettingsController } from '../shell/settings-controller';
@@ -35,7 +35,7 @@ import {
   type AccountPreferencesMutation,
   type AccountPreferencesReceipt,
 } from '../../platform/account-preferences';
-import { type ChannelBrowser } from '../../ui/channel-browser';
+import { type ChannelBrowser } from '../../ui/channels/channel-browser';
 
 /** What this area reads from, and writes back to, the rest of the application. */
 export interface ChannelListControlsEnvironment {

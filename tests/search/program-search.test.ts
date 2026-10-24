@@ -23,7 +23,7 @@ import {
   matchedSearchChannels,
   searchProgramWatchable,
   type ProgramSearchSnapshot,
-} from '../../src/ui/program-search';
+} from '../../src/ui/guide/program-search';
 import type { MappedProgram, SelectedGuideSummary } from '../../src/guide/native';
 import { readStylesheet } from '../support/stylesheet';
 const at = 1_000_000;
@@ -137,7 +137,7 @@ beforeAll(async () => {
     build: {
       write: false,
       minify: false,
-      lib: { entry: 'src/ui/program-search.ts', formats: ['iife'], name: 'SearchUI' },
+      lib: { entry: 'src/ui/guide/program-search.ts', formats: ['iife'], name: 'SearchUI' },
     },
   });
   const result = Array.isArray(output) ? output[0] : output;
@@ -188,8 +188,8 @@ async function fixture(
   await page.evaluate(
     ({ snapshot, program, at, held, presentation, heldWatch, autoOpen }) => {
       const scope = window as unknown as {
-        SearchUI: typeof import('../../src/ui/program-search');
-        owner: ReturnType<typeof import('../../src/ui/program-search').mountProgramSearch>;
+        SearchUI: typeof import('../../src/ui/guide/program-search');
+        owner: ReturnType<typeof import('../../src/ui/guide/program-search').mountProgramSearch>;
         queries: number;
         activeQueries: number;
         peak: number;

@@ -19,7 +19,7 @@
  * membership.
  */
 import { describe, expect, it } from 'vitest';
-import { type TimelineChannel } from '../../src/ui/guide-timeline-model';
+import { type TimelineChannel } from '../../src/ui/guide/guide-timeline-model';
 import { type ProgramQuery } from '../../src/guide/native';
 import {
   useTimelineBrowser,

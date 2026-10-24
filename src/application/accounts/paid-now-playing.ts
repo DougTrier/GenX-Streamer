@@ -16,7 +16,7 @@
 
 import type { AccountGuide } from '../../platform/account-guide';
 import type { AccountMetadata } from '../../platform/account-vault';
-import type { VisibleGuideChannel } from '../../ui/channel-guide';
+import type { VisibleGuideChannel } from '../../ui/guide/channel-guide';
 
 /** What a Paid TV channel row on screen is showing now, from the stored provider guide. */
 export interface NowPlayingRow extends VisibleGuideChannel {

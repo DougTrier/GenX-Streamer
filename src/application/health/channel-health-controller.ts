@@ -36,7 +36,7 @@ import {
 import { type createAccountPlayer } from '../accounts/account-player';
 import { type Preferences } from '../../preferences';
 import { type CatalogRecord } from '../../catalog';
-import { type ChannelBrowser } from '../../ui/channel-browser';
+import { type ChannelBrowser } from '../../ui/channels/channel-browser';
 import { type ContentLibrary } from '../genxtra/content-library';
 
 /** What this area reads from, and writes back to, the rest of the application. */

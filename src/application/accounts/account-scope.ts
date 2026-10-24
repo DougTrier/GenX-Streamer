@@ -19,10 +19,10 @@
  */
 import { type AccountMetadata } from '../../platform/account-vault';
 import { type createAccountBrowser } from './account-browser';
-import { type mountGeographyControls } from '../../ui/geography-controls';
+import { type mountGeographyControls } from '../../ui/channels/geography-controls';
 import { type createCatalogView } from '../catalog/catalog-view';
-import { type ChannelFilter } from '../../ui/channel-browser';
-import { type mountViewingChoices } from '../../ui/viewing-choices';
+import { type ChannelFilter } from '../../ui/channels/channel-browser';
+import { type mountViewingChoices } from '../../ui/channels/viewing-choices';
 
 /** What this area reads from, and writes back to, the rest of the application. */
 export interface AccountScopeEnvironment {

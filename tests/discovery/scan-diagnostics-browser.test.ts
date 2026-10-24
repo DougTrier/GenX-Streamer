@@ -17,7 +17,7 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { build } from 'vite';
 import { chromium, type Browser, type Page } from '@playwright/test';
-import type { SourceScanHost } from '../../src/ui/source-scan-model';
+import type { SourceScanHost } from '../../src/ui/scan/source-scan-model';
 import type { StagedScanSelection } from '../../src/discovery/scan';
 import type { HealthObservation } from '../../src/discovery/health';
 let browser: Browser;
@@ -29,7 +29,7 @@ beforeAll(async () => {
     build: {
       write: false,
       minify: false,
-      lib: { entry: 'src/ui/source-scan.ts', formats: ['iife'], name: 'ScanUI' },
+      lib: { entry: 'src/ui/scan/source-scan.ts', formats: ['iife'], name: 'ScanUI' },
     },
   });
   const result = Array.isArray(output) ? output[0] : output;

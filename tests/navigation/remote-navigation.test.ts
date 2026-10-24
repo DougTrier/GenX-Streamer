@@ -19,7 +19,7 @@ import {
   createRemoteEditMode,
   createRemoteInputOrigin,
   directionalIndex,
-} from '../../src/ui/remote-navigation';
+} from '../../src/ui/shell/remote-navigation';
 
 describe('remote activation autofocus provenance', () => {
   it('marks a new modal field only after directional navigation and OK', () => {

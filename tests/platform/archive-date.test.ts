@@ -19,7 +19,7 @@ import {
   archiveCompactYearLabel,
   archiveItemDateFacts,
   archiveTitleYearLabel,
-} from '../../src/ui/archive-date';
+} from '../../src/ui/genxtra/archive-date';
 
 it('labels both old and assessed IA years as source claims with original year unknown', () => {
   const legacy = { releaseYear: 2020 };

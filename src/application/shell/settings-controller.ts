@@ -19,7 +19,7 @@
  */
 import { type Preferences, type SerializedPreferencesStore } from '../../preferences';
 import { type createScanController } from '../discovery/scan-controller';
-import { type mountGuide } from '../../ui/guide';
+import { type mountGuide } from '../../ui/guide/guide';
 import { type createDiagnostics } from '../../diagnostics/native';
 import { type PlaybackController } from '../../playback/controller';
 

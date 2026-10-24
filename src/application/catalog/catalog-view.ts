@@ -24,25 +24,25 @@ import {
   type Preferences,
   type SerializedPreferencesStore,
 } from '../../preferences';
-import { restoreRemoteFocus } from '../../ui/remote-navigation';
+import { restoreRemoteFocus } from '../../ui/shell/remote-navigation';
 import { writeRecordPair } from '../../platform/records';
 import { serializeCatalog, type CatalogRecord } from '../../catalog';
 import { serializeProviderRegistry } from '../../discovery/provider-registry';
 import { migrateRefreshCadence } from '../../catalog/refresh-cadence';
-import { type mountGuide } from '../../ui/guide';
+import { type mountGuide } from '../../ui/guide/guide';
 import { type createLibraryState } from '../genxtra/library-state';
-import { type mountGeographyControls } from '../../ui/geography-controls';
+import { type mountGeographyControls } from '../../ui/channels/geography-controls';
 import { type createChannelHealthController } from '../health/channel-health-controller';
 import { type createAccountBrowser } from '../accounts/account-browser';
 import { type createImportController } from '../discovery/import-controller';
 import { type createSharingHost } from '../sharing/sharing-host';
-import { type mountProviderManagement } from '../../ui/provider-management';
-import { type mountRegionPreference } from '../../ui/region-preference';
+import { type mountProviderManagement } from '../../ui/channels/provider-management';
+import { type mountRegionPreference } from '../../ui/channels/region-preference';
 import { type createSettingsController } from '../shell/settings-controller';
 import { type createPlayerView } from '../playback/player-view';
-import { type ChannelBrowser } from '../../ui/channel-browser';
+import { type ChannelBrowser } from '../../ui/channels/channel-browser';
 import { type PlaybackController } from '../../playback/controller';
-import { type installInAppSelects } from '../../ui/in-app-select';
+import { type installInAppSelects } from '../../ui/shell/in-app-select';
 
 /** What this area reads from, and writes back to, the rest of the application. */
 export interface CatalogViewEnvironment {

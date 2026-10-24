@@ -25,7 +25,11 @@ beforeAll(async () => {
     logLevel: 'silent',
     build: {
       write: false,
-      lib: { entry: 'src/ui/provider-management.ts', name: 'Providers', formats: ['iife'] },
+      lib: {
+        entry: 'src/ui/channels/provider-management.ts',
+        name: 'Providers',
+        formats: ['iife'],
+      },
     },
   });
   const result = Array.isArray(built) ? built[0] : built;

@@ -24,12 +24,12 @@ import {
 } from './page-state';
 import { type PrimaryPage } from './primary-page';
 import { type createLibraryState } from '../genxtra/library-state';
-import { type mountGuide } from '../../ui/guide';
-import { type mountPaidGuide } from '../../ui/paid-guide';
+import { type mountGuide } from '../../ui/guide/guide';
+import { type mountPaidGuide } from '../../ui/guide/paid-guide';
 import { type createLibraryController } from '../genxtra/library-controller';
 import { type createAccountBrowser } from '../accounts/account-browser';
-import { type mountLibrarySwitcher } from '../../ui/library-switcher';
-import { type mountArchiveSearch } from '../../ui/archive-search';
+import { type mountLibrarySwitcher } from '../../ui/genxtra/library-switcher';
+import { type mountArchiveSearch } from '../../ui/genxtra/archive-search';
 import { type ContentLibrary } from '../genxtra/content-library';
 
 /** What this area reads from, and writes back to, the rest of the application. */

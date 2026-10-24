@@ -17,7 +17,7 @@
  * Remote and keyboard media keys: play, pause, stop, channel up/down. Moved out of main.ts; main.ts passes the shared
  * application context.
  */
-import { installMediaKeys } from '../../ui/media-keys';
+import { installMediaKeys } from '../../ui/player/media-keys';
 import { type createPlayerView } from './player-view';
 import { type createLibraryState } from '../genxtra/library-state';
 import { type createPlaybackControls } from './playback-controls';
@@ -26,7 +26,7 @@ import { type createForegroundController } from '../shell/foreground-controller'
 import { type createCatalogView } from '../catalog/catalog-view';
 import { type PlaybackController, type PlaybackSnapshot } from '../../playback/controller';
 import { type AccountPlaybackChoice } from '../accounts/account-player';
-import { type ChannelBrowser } from '../../ui/channel-browser';
+import { type ChannelBrowser } from '../../ui/channels/channel-browser';
 
 /** What this area reads from, and writes back to, the rest of the application. */
 export interface MediaKeysEnvironment {

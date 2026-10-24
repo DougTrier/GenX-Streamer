@@ -27,7 +27,7 @@ beforeAll(async () => {
     build: {
       write: false,
       minify: false,
-      lib: { entry: 'src/ui/guide-timeline.ts', formats: ['iife'], name: 'Timeline' },
+      lib: { entry: 'src/ui/guide/guide-timeline.ts', formats: ['iife'], name: 'Timeline' },
     },
   });
   const result = Array.isArray(output) ? output[0] : output;

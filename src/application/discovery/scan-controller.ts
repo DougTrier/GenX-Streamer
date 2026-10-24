@@ -46,7 +46,7 @@ import {
   type AutomaticScanCheckpointSnapshot,
   type AutomaticScanProgress,
   type SourceScanSnapshot,
-} from '../../ui/source-scan-model';
+} from '../../ui/scan/source-scan-model';
 import { type PreferredRegion } from '../../location/region';
 import { allowIncludedHttp, providerScanSources } from './included-sources';
 import { inspectSource, writeRecordPair } from '../../platform/records';
@@ -61,9 +61,9 @@ import {
   mediaPreflightDiagnosticsSnapshot,
 } from '../../sources/media-preflight';
 import { type EventCode } from '../../diagnostics/events';
-import { mountInlineScanPanel } from '../../ui/inline-scan-panel';
-import { mountScanScreensaver } from '../../ui/scan-screensaver';
-import { mountFirstScanHint } from '../../ui/first-scan-hint';
+import { mountInlineScanPanel } from '../../ui/scan/inline-scan-panel';
+import { mountScanScreensaver } from '../../ui/scan/scan-screensaver';
+import { mountFirstScanHint } from '../../ui/scan/first-scan-hint';
 import { createIndexFreshness } from '../../discovery/index-freshness';
 import { createScanSourceCollector } from './scan-source-collection';
 import { parseInWorker } from '../../catalog/service';
@@ -91,9 +91,9 @@ import type { CatalogRecord } from '../../catalog';
 import type { Preferences, SerializedPreferencesStore } from '../../preferences';
 import type { createAutomaticGuideBuilder } from '../../guide/automatic-build';
 import type { createDiagnostics } from '../../diagnostics/native';
-import type { ChannelBrowser } from '../../ui/channel-browser';
-import type { mountGuide } from '../../ui/guide';
-import type { mountGeographyControls } from '../../ui/geography-controls';
+import type { ChannelBrowser } from '../../ui/channels/channel-browser';
+import type { mountGuide } from '../../ui/guide/guide';
+import type { mountGeographyControls } from '../../ui/channels/geography-controls';
 import type { createChannelCheckStore } from '../../platform/channel-checks';
 import type { createSavedChannelCheck } from '../health/saved-channel-check';
 import type { PlaybackController } from '../../playback/controller';

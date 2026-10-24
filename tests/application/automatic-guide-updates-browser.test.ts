@@ -31,7 +31,7 @@ beforeAll(async () => {
         resolveId: (id) => (id.endsWith('virtual:settings-fixture') ? '\0settings-fixture' : null),
         load: (id) =>
           id === '\0settings-fixture'
-            ? `export {createShell} from '${process.cwd().replaceAll('\\', '/')}/src/ui/shell.ts'; export {mountSettingsNavigation} from '${process.cwd().replaceAll('\\', '/')}/src/ui/settings-navigation.ts'; export {mountAutomaticGuideUpdates} from '${process.cwd().replaceAll('\\', '/')}/src/ui/automatic-guide-updates.ts';`
+            ? `export {createShell} from '${process.cwd().replaceAll('\\', '/')}/src/ui/shell/shell.ts'; export {mountSettingsNavigation} from '${process.cwd().replaceAll('\\', '/')}/src/ui/settings/settings-navigation.ts'; export {mountAutomaticGuideUpdates} from '${process.cwd().replaceAll('\\', '/')}/src/ui/guide/automatic-guide-updates.ts';`
             : null,
       },
     ],

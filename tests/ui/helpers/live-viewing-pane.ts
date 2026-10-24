@@ -47,9 +47,9 @@ export async function mountLiveViewingPane(
   await page.goto('/live-viewing-pane-fixture');
   await page.evaluate(
     async ({ tv, scale }) => {
-      const shell = '/src/ui/shell.ts',
-        viewport = '/src/ui/viewport.ts',
-        channelBrowser = '/src/ui/channel-browser.ts';
+      const shell = '/src/ui/shell/shell.ts',
+        viewport = '/src/ui/shell/viewport.ts',
+        channelBrowser = '/src/ui/channels/channel-browser.ts';
       const { createShell } = await import(shell),
         { installViewport } = await import(viewport),
         { ChannelBrowser } = await import(channelBrowser);

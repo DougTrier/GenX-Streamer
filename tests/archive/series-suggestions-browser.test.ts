@@ -28,7 +28,11 @@ beforeAll(async () => {
     build: {
       write: false,
       minify: false,
-      lib: { entry: 'src/ui/archive-series-suggestions.ts', formats: ['iife'], name: 'SeriesUI' },
+      lib: {
+        entry: 'src/ui/genxtra/archive-series-suggestions.ts',
+        formats: ['iife'],
+        name: 'SeriesUI',
+      },
     },
   });
   const result = Array.isArray(output) ? output[0] : output;

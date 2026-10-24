@@ -26,7 +26,7 @@ async function mount(page: Page, completed = false, failModal = false) {
   await page.goto('/resume-fixture');
   await page.evaluate(
     async ({ completed, failModal }) => {
-      const path = '/src/ui/archive-resume.ts';
+      const path = '/src/ui/genxtra/archive-resume.ts';
       const { chooseArchiveResume } = await import(path);
       const controller = new AbortController();
       const state = { controller, result: null as string | null };

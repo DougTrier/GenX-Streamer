@@ -69,7 +69,7 @@ type ViewingMode = 'GenXtra idle' | 'GenXtra playing' | 'Live';
 async function viewingMode(page: Page, mode: ViewingMode): Promise<void> {
   await page.evaluate(async (mode) => {
     const app = document.getElementById('app')!;
-    const dockPath = '/src/ui/vod-dock.ts';
+    const dockPath = '/src/ui/player/vod-dock.ts';
     const { installVODDock } = await import(dockPath);
     const previous = Reflect.get(window, 'paneDockFixture');
     previous?.dispose();

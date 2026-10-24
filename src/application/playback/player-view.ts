@@ -19,32 +19,32 @@
  * Cast button and playback health records. Moved out of main.ts; main.ts
  * passes the shared state it owns through the environment.
  */
-import { restoreRemoteFocus } from '../../ui/remote-navigation';
-import { type LiveReplayControls } from '../../ui/live-replay';
+import { restoreRemoteFocus } from '../../ui/shell/remote-navigation';
+import { type LiveReplayControls } from '../../ui/player/live-replay';
 import { type PlaybackController, type PlaybackSnapshot } from '../../playback/controller';
 import { playbackFailureGuidance } from '../../playback/failure-guidance';
-import { PICTURE_ART } from '../../ui/shell';
+import { PICTURE_ART } from '../../ui/shell/shell';
 import { createChannelCategoryResolver, type Preferences } from '../../preferences';
 import { createPlaybackHealthCapture } from './playback-health';
 import { DECODER_HEALTH_PROFILE } from '../health/health-profile';
 import { isRecordRevisionConflict, readRecordPair, writeHealth } from '../../platform/records';
-import { type installVODDock } from '../../ui/vod-dock';
+import { type installVODDock } from '../../ui/player/vod-dock';
 import { type createDiagnostics } from '../../diagnostics/native';
 import { type createActivityWakePolicy } from './activity-wake';
 import { type createAccountBrowser } from '../accounts/account-browser';
-import { type mountGuide } from '../../ui/guide';
+import { type mountGuide } from '../../ui/guide/guide';
 import { type createScanController } from '../discovery/scan-controller';
 import { type createSharingHost } from '../sharing/sharing-host';
 import { type ContentLibrary } from '../genxtra/content-library';
 import { type createArchivePlayer } from '../genxtra/archive-player';
 import { type PrimaryPage } from '../shell/primary-page';
-import { type mountArchiveSearch } from '../../ui/archive-search';
+import { type mountArchiveSearch } from '../../ui/genxtra/archive-search';
 import type { AccountPlaybackChoice, createAccountPlayer } from '../accounts/account-player';
 import { type ArchiveSelection } from '../../platform/archive-catalog';
-import { type mountLocalStreams } from '../../ui/local-streams';
-import { type mountVODStop } from '../../ui/vod-stop';
+import { type mountLocalStreams } from '../../ui/scan/local-streams';
+import { type mountVODStop } from '../../ui/player/vod-stop';
 import { type AccountPreferencesReceipt } from '../../platform/account-preferences';
-import { type ChannelBrowser } from '../../ui/channel-browser';
+import { type ChannelBrowser } from '../../ui/channels/channel-browser';
 import { type CatalogRecord } from '../../catalog';
 
 /** What this area reads from, and writes back to, the rest of the application. */

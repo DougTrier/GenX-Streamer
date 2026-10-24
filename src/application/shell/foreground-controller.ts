@@ -19,37 +19,37 @@
  * key. Moved out of main.ts. main.ts passes the shared
  * application context.
  */
-import { createFullscreenOwner } from '../../ui/fullscreen-owner';
+import { createFullscreenOwner } from '../../ui/player/fullscreen-owner';
 import { invoke, isTauri } from '@tauri-apps/api/core';
-import { installDoubleTapFullscreen } from '../../ui/double-tap-fullscreen';
-import { type installFullscreenPresentation } from '../../ui/fullscreen-presentation';
+import { installDoubleTapFullscreen } from '../../ui/player/double-tap-fullscreen';
+import { type installFullscreenPresentation } from '../../ui/player/fullscreen-presentation';
 import { type createPageController } from './page-controller';
 import { type createLibraryState } from '../genxtra/library-state';
 import { type createPlayerView } from '../playback/player-view';
 import { type createSharingHost } from '../sharing/sharing-host';
 import { type createPageState } from './page-state';
 import { type createLibraryController } from '../genxtra/library-controller';
-import { type mountAccountManagement } from '../../ui/accounts';
+import { type mountAccountManagement } from '../../ui/accounts/accounts';
 import { type createImportController } from '../discovery/import-controller';
 import { type createGuideController } from '../guide/guide-controller';
-import { type mountRegionPreference } from '../../ui/region-preference';
+import { type mountRegionPreference } from '../../ui/channels/region-preference';
 import { type createScanController } from '../discovery/scan-controller';
-import { type mountWebsiteDiscovery } from '../../ui/website-discovery';
-import { type mountGuide } from '../../ui/guide';
-import { type mountEventHistory } from '../../ui/event-history';
+import { type mountWebsiteDiscovery } from '../../ui/scan/website-discovery';
+import { type mountGuide } from '../../ui/guide/guide';
+import { type mountEventHistory } from '../../ui/settings/event-history';
 import { type createVisibleGuideState } from '../guide/visible-guide-state';
-import { type installDataTransfer } from '../../ui/data-transfer';
+import { type installDataTransfer } from '../../ui/settings/data-transfer';
 import { type createPageInput } from '../../discovery/page-input';
-import { type createRemoteEditMode } from '../../ui/remote-navigation';
-import { type mountPaidGuide } from '../../ui/paid-guide';
+import { type createRemoteEditMode } from '../../ui/shell/remote-navigation';
+import { type mountPaidGuide } from '../../ui/guide/paid-guide';
 import { type createArchivePlayer } from '../genxtra/archive-player';
 import { type AccountPlaybackChoice, type createAccountPlayer } from '../accounts/account-player';
 import { type PlaybackController, type PlaybackSnapshot } from '../../playback/controller';
 import { type CatalogRefreshService, type Source } from '../../catalog';
-import { type mountArchiveSearch } from '../../ui/archive-search';
+import { type mountArchiveSearch } from '../../ui/genxtra/archive-search';
 import { type createArchiveDownloads } from '../genxtra/archive-downloads';
 import { type AccountPreferencesReceipt } from '../../platform/account-preferences';
-import { type mountLibrarySwitcher } from '../../ui/library-switcher';
+import { type mountLibrarySwitcher } from '../../ui/genxtra/library-switcher';
 import { type ContentLibrary } from '../genxtra/content-library';
 
 /** What this area reads from, and writes back to, the rest of the application. */

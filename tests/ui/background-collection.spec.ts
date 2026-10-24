@@ -53,7 +53,7 @@ async function mount(page: Page, kind: 'source' | 'website'): Promise<void> {
         });
     };
     if (kind === 'source') {
-      const path = '/src/ui/source-scan.ts';
+      const path = '/src/ui/scan/source-scan.ts';
       const { mountSourceScan } = await import(path);
       const source = {
         id: 'fixture',
@@ -84,7 +84,7 @@ async function mount(page: Page, kind: 'source' | 'website'): Promise<void> {
         },
       });
     } else {
-      const path = '/src/ui/website-discovery.ts';
+      const path = '/src/ui/scan/website-discovery.ts';
       const { mountWebsiteDiscovery } = await import(path);
       fixture.mounted = mountWebsiteDiscovery(container, {
         inspect: async (_url: string, _allow: boolean, signal: AbortSignal) => {

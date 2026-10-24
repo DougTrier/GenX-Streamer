@@ -15,7 +15,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { createFullscreenOwner } from '../../src/ui/fullscreen-owner';
+import { createFullscreenOwner } from '../../src/ui/player/fullscreen-owner';
 const deferred = () => {
   let resolve!: () => void;
   let reject!: (error: Error) => void;

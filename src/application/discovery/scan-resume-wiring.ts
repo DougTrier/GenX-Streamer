@@ -27,7 +27,7 @@ import {
   type BoundedScanServiceDiagnostic,
 } from './bounded-scan-resume-service';
 import { nativeScanCheckpointSummary } from '../../platform/scan-checkpoint-summary';
-import { ScanSourcesChanged, sourcesChangedRefusal } from '../../ui/source-scan-model';
+import { ScanSourcesChanged, sourcesChangedRefusal } from '../../ui/scan/source-scan-model';
 import { type mountApplicationScanScreen } from './scan-screen';
 import { type createSlowPassGate } from './slow-pass-gate';
 import { type createPlaybackProbeGate } from '../health/playback-probe-gate';

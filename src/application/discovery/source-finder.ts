@@ -19,7 +19,7 @@
  */
 import { createPageInput } from '../../discovery/page-input';
 import { invoke, isTauri } from '@tauri-apps/api/core';
-import { mountWebsiteDiscovery } from '../../ui/website-discovery';
+import { mountWebsiteDiscovery } from '../../ui/scan/website-discovery';
 import { validateSource, type CatalogRecord } from '../../catalog';
 import { type createScanController } from './scan-controller';
 

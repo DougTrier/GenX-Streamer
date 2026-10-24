@@ -27,7 +27,7 @@ beforeAll(async () => {
     build: {
       write: false,
       minify: false,
-      lib: { entry: 'src/ui/in-app-select.ts', formats: ['iife'], name: 'Choices' },
+      lib: { entry: 'src/ui/shell/in-app-select.ts', formats: ['iife'], name: 'Choices' },
     },
   });
   const result = Array.isArray(output) ? output[0] : output;

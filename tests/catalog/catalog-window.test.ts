@@ -15,7 +15,7 @@
  */
 
 import { expect, test } from 'vitest';
-import { CatalogWindow, type CatalogWindowHost } from '../../src/ui/catalog-window';
+import { CatalogWindow, type CatalogWindowHost } from '../../src/ui/channels/catalog-window';
 import type { CatalogPage, CatalogQueryInput } from '../../src/platform/catalog-query';
 const query = { query: '', filter: 'all' as const, geography: {}, sort: 'source' as const };
 const row = (i: number) => ({

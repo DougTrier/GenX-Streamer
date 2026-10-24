@@ -15,7 +15,7 @@
  */
 
 import { createStartupObserver as observe, type StartupAttempt } from './startup-observer';
-import { createStartupStatus, type StartupStatusView } from '../../ui/startup-status';
+import { createStartupStatus, type StartupStatusView } from '../../ui/shell/startup-status';
 export type { StartupAttempt } from './startup-observer';
 
 interface StartupViewOptions {

@@ -22,9 +22,9 @@ import { isTauri } from '@tauri-apps/api/core';
 import { type mountSharingSettings } from '../../sharing/settings';
 import { createArchivePlayer } from '../genxtra/archive-player';
 import { createArchiveBookmarks } from '../../platform/archive-bookmarks';
-import { chooseArchiveResume } from '../../ui/archive-resume';
-import { type installInAppSelects } from '../../ui/in-app-select';
-import { installCasting } from '../../ui/casting';
+import { chooseArchiveResume } from '../../ui/genxtra/archive-resume';
+import { type installInAppSelects } from '../../ui/shell/in-app-select';
+import { installCasting } from '../../ui/player/casting';
 import { type createBootstrapBoundary } from '../shell/bootstrap-boundary';
 import { type createSettingsController } from '../shell/settings-controller';
 import { type createCatalogView } from '../catalog/catalog-view';
@@ -33,9 +33,9 @@ import { type createLibraryController } from '../genxtra/library-controller';
 import { type PlaybackController, type PlaybackSnapshot } from '../../playback/controller';
 import { type AccountPlaybackChoice, type createAccountPlayer } from '../accounts/account-player';
 import { type CatalogRecord } from '../../catalog';
-import { type mountLocalStreams } from '../../ui/local-streams';
+import { type mountLocalStreams } from '../../ui/scan/local-streams';
 import { type Preferences } from '../../preferences';
-import { type mountArchiveSearch } from '../../ui/archive-search';
+import { type mountArchiveSearch } from '../../ui/genxtra/archive-search';
 import { type ContentLibrary } from '../genxtra/content-library';
 
 /** What this area reads from, and writes back to, the rest of the application. */

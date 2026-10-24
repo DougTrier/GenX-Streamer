@@ -33,7 +33,7 @@ beforeAll(async () => {
         },
         load(id) {
           if (id === '\0viewport')
-            return `export {createShell} from ${JSON.stringify(resolve('src/ui/shell.ts'))};export {installViewport} from ${JSON.stringify(resolve('src/ui/viewport.ts'))};`;
+            return `export {createShell} from ${JSON.stringify(resolve('src/ui/shell/shell.ts'))};export {installViewport} from ${JSON.stringify(resolve('src/ui/shell/viewport.ts'))};`;
         },
       },
     ],

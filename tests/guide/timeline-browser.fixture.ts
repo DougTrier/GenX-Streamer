@@ -23,7 +23,7 @@ import { chromium, type Browser, type Page } from '@playwright/test';
 import { afterAll, beforeAll, expect } from 'vitest';
 import { build } from 'vite';
 import { readStylesheet } from '../support/stylesheet';
-import { type TimelineChannel } from '../../src/ui/guide-timeline-model';
+import { type TimelineChannel } from '../../src/ui/guide/guide-timeline-model';
 
 export const captureDirectory = `artifacts/guide-timeline/${new Date().toISOString().replaceAll(':', '-')}-narrow-agenda`;
 
@@ -213,7 +213,7 @@ export function useTimelineBrowser(): void {
       build: {
         write: false,
         minify: false,
-        lib: { entry: 'src/ui/guide-timeline.ts', formats: ['iife'], name: 'Timeline' },
+        lib: { entry: 'src/ui/guide/guide-timeline.ts', formats: ['iife'], name: 'Timeline' },
       },
     });
     const result = Array.isArray(output) ? output[0] : output;
@@ -242,7 +242,11 @@ export function useTimelineBrowser(): void {
       build: {
         write: false,
         minify: false,
-        lib: { entry: 'src/ui/remote-navigation.ts', formats: ['iife'], name: 'Remote' },
+        lib: {
+          entry: 'src/ui/shell/remote-navigation.ts',
+          formats: ['iife'],
+          name: 'Remote',
+        },
       },
     });
     const remoteResult = Array.isArray(remoteOutput) ? remoteOutput[0] : remoteOutput;
@@ -256,7 +260,11 @@ export function useTimelineBrowser(): void {
       build: {
         write: false,
         minify: false,
-        lib: { entry: 'src/ui/archive-search.ts', formats: ['iife'], name: 'ArchiveFixture' },
+        lib: {
+          entry: 'src/ui/genxtra/archive-search.ts',
+          formats: ['iife'],
+          name: 'ArchiveFixture',
+        },
       },
     });
     const archiveResult = Array.isArray(archiveOutput) ? archiveOutput[0] : archiveOutput;
@@ -273,7 +281,7 @@ export function useTimelineBrowser(): void {
       build: {
         write: false,
         minify: false,
-        lib: { entry: 'src/ui/shell.ts', formats: ['iife'], name: 'Shell' },
+        lib: { entry: 'src/ui/shell/shell.ts', formats: ['iife'], name: 'Shell' },
       },
     });
     const shellResult = Array.isArray(shellOutput) ? shellOutput[0] : shellOutput;

@@ -36,8 +36,8 @@ async function bundle(entry: string, name: string): Promise<string> {
 }
 beforeAll(async () => {
   [browserCode, controlsCode] = await Promise.all([
-    bundle('src/ui/channel-browser.ts', 'ChannelUI'),
-    bundle('src/ui/geography-controls.ts', 'GeographyUI'),
+    bundle('src/ui/channels/channel-browser.ts', 'ChannelUI'),
+    bundle('src/ui/channels/geography-controls.ts', 'GeographyUI'),
   ]);
   browser = await chromium.launch({
     headless: true,

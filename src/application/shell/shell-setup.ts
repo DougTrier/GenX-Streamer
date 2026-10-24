@@ -21,18 +21,21 @@
  */
 import { createDiagnostics } from '../../diagnostics/native';
 import { installAudioDiagnostics } from '../playback/audio-diagnostics';
-import { mountEventHistory } from '../../ui/event-history';
-import { installFullscreenPresentation } from '../../ui/fullscreen-presentation';
-import { installCaptions } from '../../ui/captions';
-import { installVideoQuality } from '../../ui/video-quality';
-import { installAudioTracks } from '../../ui/audio-tracks';
-import { installVODDock } from '../../ui/vod-dock';
-import { mountLocationDialog, mountSettingsNavigation } from '../../ui/settings-navigation';
-import { mountAbout } from '../../ui/about';
-import { installCategoryMenu } from '../../ui/category-menu';
-import { type mountStorageRecovery } from '../../ui/storage-recovery';
-import { installViewport } from '../../ui/viewport';
-import { createRemoteEditMode, installRemoteNavigation } from '../../ui/remote-navigation';
+import { mountEventHistory } from '../../ui/settings/event-history';
+import { installFullscreenPresentation } from '../../ui/player/fullscreen-presentation';
+import { installCaptions } from '../../ui/player/captions';
+import { installVideoQuality } from '../../ui/player/video-quality';
+import { installAudioTracks } from '../../ui/player/audio-tracks';
+import { installVODDock } from '../../ui/player/vod-dock';
+import {
+  mountLocationDialog,
+  mountSettingsNavigation,
+} from '../../ui/settings/settings-navigation';
+import { mountAbout } from '../../ui/settings/about';
+import { installCategoryMenu } from '../../ui/channels/category-menu';
+import { type mountStorageRecovery } from '../../ui/settings/storage-recovery';
+import { installViewport } from '../../ui/shell/viewport';
+import { createRemoteEditMode, installRemoteNavigation } from '../../ui/shell/remote-navigation';
 import { type createBootstrapBoundary } from './bootstrap-boundary';
 
 /** What this area reads from, and writes back to, the rest of the application. */

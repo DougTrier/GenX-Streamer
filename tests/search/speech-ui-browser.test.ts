@@ -26,7 +26,7 @@ beforeAll(async () => {
     build: {
       write: false,
       minify: false,
-      lib: { entry: 'src/ui/speech-search.ts', formats: ['iife'], name: 'SpeechUI' },
+      lib: { entry: 'src/ui/channels/speech-search.ts', formats: ['iife'], name: 'SpeechUI' },
     },
   });
   const result = Array.isArray(output) ? output[0] : output;

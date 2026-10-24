@@ -20,9 +20,9 @@
  */
 import { createChannelLogos } from '../catalog/channel-logos';
 import { isTauri } from '@tauri-apps/api/core';
-import { mountPaidGuide } from '../../ui/paid-guide';
+import { mountPaidGuide } from '../../ui/guide/paid-guide';
 import { createAccountGuide } from '../../platform/account-guide';
-import { mountGuide } from '../../ui/guide';
+import { mountGuide } from '../../ui/guide/guide';
 import { type createPageState } from '../shell/page-state';
 import { type createAccountBrowser } from '../accounts/account-browser';
 import { type createLibraryState } from '../genxtra/library-state';

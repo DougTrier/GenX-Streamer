@@ -15,7 +15,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { archiveLanguageName, archiveLanguageSummary } from '../../src/ui/archive-language';
+import { archiveLanguageName, archiveLanguageSummary } from '../../src/ui/genxtra/archive-language';
 describe('Archive language presentation', () => {
   it('expands provider codes into readable names', () => {
     expect(['eng', 'spa', 'jpn', 'dut', 'ita', 'rus'].map(archiveLanguageName)).toEqual([

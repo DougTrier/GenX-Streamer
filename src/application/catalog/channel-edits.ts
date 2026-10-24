@@ -20,7 +20,7 @@
 import { mutateCatalogGroup, type CatalogGroupAction } from '../../platform/catalog-group';
 import { queryCatalogPage } from '../../platform/catalog-query';
 import { isTauri } from '@tauri-apps/api/core';
-import { type mountGuide } from '../../ui/guide';
+import { type mountGuide } from '../../ui/guide/guide';
 import { type createCatalogView } from './catalog-view';
 import { type createAccountBrowser } from '../accounts/account-browser';
 import { type createSettingsController } from '../shell/settings-controller';

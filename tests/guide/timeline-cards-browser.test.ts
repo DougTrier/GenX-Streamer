@@ -20,7 +20,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { type ProgramQuery } from '../../src/guide/native';
-import { type TimelineChannel } from '../../src/ui/guide-timeline-model';
+import { type TimelineChannel } from '../../src/ui/guide/guide-timeline-model';
 import { useTimelineBrowser, fixture, listedBridgeBundle } from './timeline-browser.fixture';
 
 useTimelineBrowser();

@@ -49,8 +49,8 @@ async function mount(page: Page): Promise<void> {
         link.onerror = () => reject(new Error(sheet));
       });
     }
-    const shellPath = '/src/ui/shell.ts',
-      viewportPath = '/src/ui/viewport.ts';
+    const shellPath = '/src/ui/shell/shell.ts',
+      viewportPath = '/src/ui/shell/viewport.ts';
     const { createShell } = await import(shellPath);
     const { installViewport } = await import(viewportPath);
     const app = document.querySelector<HTMLElement>('#app')!;
@@ -139,8 +139,8 @@ test('quality and bounded provider audio menus remain inside the TV viewport and
 }, info) => {
   await mount(page);
   await page.evaluate(async () => {
-    const qualityPath = '/src/ui/video-quality.ts',
-      audioPath = '/src/ui/audio-tracks.ts',
+    const qualityPath = '/src/ui/player/video-quality.ts',
+      audioPath = '/src/ui/player/audio-tracks.ts',
       tracksPath = '/src/platform/browser-audio-tracks.ts',
       ownersPath = '/src/playback/resource-owners.ts';
     const { installVideoQuality } = await import(qualityPath),
@@ -245,7 +245,7 @@ test('fullscreen live dock retains visible nonoverlapping controls with audio an
       container.hidden = false;
       container.append(button);
     }
-    const path = '/src/ui/fullscreen-presentation.ts';
+    const path = '/src/ui/player/fullscreen-presentation.ts';
     const { installFullscreenPresentation } = await import(path);
     const presentation = installFullscreenPresentation(document.querySelector('#app')!);
     presentation.set(true);
@@ -280,7 +280,7 @@ test('paused inline scan retains readable actions and channel browsing space', a
   await mount(page);
   await page.evaluate(async () => {
     // The real panel: Finish scan, Rescan and Close for a paused scan.
-    const panelPath = '/src/ui/inline-scan-panel.ts';
+    const panelPath = '/src/ui/scan/inline-scan-panel.ts';
     const { mountInlineScanPanel } = await import(panelPath);
     mountInlineScanPanel(document, () => false).render({
       schemaVersion: 1,
@@ -327,7 +327,7 @@ test('resume choice wraps a maximum supplied title and keeps all actions reachab
 }, info) => {
   await mount(page);
   await page.evaluate(async () => {
-    const path = '/src/ui/archive-resume.ts';
+    const path = '/src/ui/genxtra/archive-resume.ts';
     const { chooseArchiveResume } = await import(path);
     const controller = new AbortController();
     Reflect.set(window, 'auditResumeController', controller);
@@ -354,8 +354,8 @@ test('account long-name removal and sign-in form fit the actual Sources panel wi
 }, info) => {
   await mount(page);
   await page.evaluate(async () => {
-    const navPath = '/src/ui/settings-navigation.ts',
-      accountsPath = '/src/ui/accounts.ts';
+    const navPath = '/src/ui/settings/settings-navigation.ts',
+      accountsPath = '/src/ui/accounts/accounts.ts';
     const { mountSettingsNavigation } = await import(navPath),
       { mountAccountManagement } = await import(accountsPath);
     const dialog = document.querySelector<HTMLDialogElement>('#settings-dialog')!;
@@ -420,7 +420,7 @@ test('inline video removal confirmation stays in the list and keeps focus withou
 }, info) => {
   await mount(page);
   await page.evaluate(async () => {
-    const path = '/src/ui/archive-search.ts';
+    const path = '/src/ui/genxtra/archive-search.ts';
     const { mountArchiveSearch } = await import(path);
     const app = document.querySelector<HTMLElement>('#app')!;
     app.dataset.contentLibrary = 'genxtra';
@@ -521,7 +521,7 @@ test('Back collapse fully reveals the selected title and its focus outline after
 }, info) => {
   await mount(page);
   await page.evaluate(async () => {
-    const path = '/src/ui/archive-search.ts';
+    const path = '/src/ui/genxtra/archive-search.ts';
     const { mountArchiveSearch } = await import(path);
     document.querySelector<HTMLElement>('#app')!.dataset.contentLibrary = 'genxtra';
     document.querySelector<HTMLElement>('.browse-options')!.hidden = true;
@@ -677,7 +677,7 @@ test('switching the account type keeps what was typed, and a playlist save sends
 }) => {
   await mount(page);
   await page.evaluate(async () => {
-    const accountsPath = '/src/ui/accounts.ts';
+    const accountsPath = '/src/ui/accounts/accounts.ts';
     const { mountAccountManagement } = await import(accountsPath);
     const container = document.createElement('div');
     document.querySelector('#settings-dialog')!.append(container);
@@ -734,7 +734,7 @@ test('a channel import keeps running after Settings closes and reports when done
 }) => {
   await mount(page);
   await page.evaluate(async () => {
-    const accountsPath = '/src/ui/accounts.ts';
+    const accountsPath = '/src/ui/accounts/accounts.ts';
     const { mountAccountManagement } = await import(accountsPath);
     const dialog = document.querySelector<HTMLDialogElement>('#settings-dialog')!;
     const container = document.createElement('div');
@@ -793,7 +793,7 @@ test('Paid TV second row keeps every label inside its button, with VOD explained
 }) => {
   await mount(page);
   await page.evaluate(async () => {
-    const vodPath = '/src/ui/account-vod.ts';
+    const vodPath = '/src/ui/accounts/account-vod.ts';
     const { mountAccountVod } = await import(vodPath);
     const row = document.querySelector<HTMLElement>('.sidehead')!;
     const vod = mountAccountVod(

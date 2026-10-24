@@ -15,7 +15,7 @@
  */
 
 import { expect, it } from 'vitest';
-import { ScanSourcesChanged, sourcesChangedRefusal } from '../../src/ui/source-scan-model';
+import { ScanSourcesChanged, sourcesChangedRefusal } from '../../src/ui/scan/source-scan-model';
 
 it('explains a native Continue refusal caused by changed sources or grants', () => {
   const original = new Error('Native command could not finish.');

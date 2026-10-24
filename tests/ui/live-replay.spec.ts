@@ -75,10 +75,10 @@ async function mountReplay(page: Page): Promise<void> {
   );
   await page.goto('/live-replay-fixture');
   await page.evaluate(async () => {
-    const shell = '/src/ui/shell.ts',
+    const shell = '/src/ui/shell/shell.ts',
       controller = '/src/playback/controller.ts',
       engine = '/src/platform/browser-engine.ts',
-      replay = '/src/ui/live-replay.ts';
+      replay = '/src/ui/player/live-replay.ts';
     const { createShell } = await import(shell);
     const { PlaybackController } = await import(controller);
     const { createBrowserEngineFactory } = await import(engine);
@@ -366,8 +366,8 @@ for (const layout of LAYOUTS)
         await page.goto('/live-replay-layout');
         await page.evaluate(
           async ({ tv, running, fullscreen, phone }) => {
-            const shell = '/src/ui/shell.ts',
-              viewport = '/src/ui/viewport.ts';
+            const shell = '/src/ui/shell/shell.ts',
+              viewport = '/src/ui/shell/viewport.ts';
             const { createShell } = await import(shell);
             const { installViewport } = await import(viewport);
             const app = document.getElementById('app')!;

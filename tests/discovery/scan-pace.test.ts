@@ -15,7 +15,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { createScanPace, timeLeftText } from '../../src/ui/scan-pace';
+import { createScanPace, timeLeftText } from '../../src/ui/scan/scan-pace';
 
 describe('scan pace', () => {
   it('needs 30 seconds of progress, then gives checks a minute and time left', () => {

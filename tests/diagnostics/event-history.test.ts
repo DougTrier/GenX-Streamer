@@ -173,7 +173,7 @@ beforeAll(async () => {
     logLevel: 'silent',
     build: {
       write: false,
-      lib: { entry: 'src/ui/event-history.ts', formats: ['iife'], name: 'HistoryUI' },
+      lib: { entry: 'src/ui/settings/event-history.ts', formats: ['iife'], name: 'HistoryUI' },
     },
   });
   const output = Array.isArray(result) ? result[0] : result;
@@ -186,7 +186,7 @@ beforeAll(async () => {
     logLevel: 'silent',
     build: {
       write: false,
-      lib: { entry: 'src/ui/remote-navigation.ts', formats: ['iife'], name: 'NavUI' },
+      lib: { entry: 'src/ui/shell/remote-navigation.ts', formats: ['iife'], name: 'NavUI' },
     },
   });
   const navOutput = Array.isArray(nav) ? nav[0] : nav;

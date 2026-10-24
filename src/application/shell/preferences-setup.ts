@@ -24,7 +24,7 @@ import {
   type Preferences,
 } from '../../preferences';
 import { readRecord, writeRecord } from '../../platform/records';
-import { mountRegionPreference } from '../../ui/region-preference';
+import { mountRegionPreference } from '../../ui/channels/region-preference';
 import { fetchAuxiliaryText } from '../../location/fetch';
 import {
   defaultProviderRegistry,

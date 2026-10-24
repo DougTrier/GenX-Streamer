@@ -42,7 +42,7 @@ import { readPackSuggestions } from '../../guide/pack-suggestions';
 import { prioritizeGuideProviders } from '../../guide/provider-order';
 import { createGuideAcquisitionAllowed, createGuideCacheReady } from './guide-cache';
 import { createGuideMaintenance } from './guide-maintenance';
-import { type mountGuide } from '../../ui/guide';
+import { type mountGuide } from '../../ui/guide/guide';
 import { type createSharingHost } from '../sharing/sharing-host';
 import { type createDiagnostics } from '../../diagnostics/native';
 import { type createRendererRecoveryPolicy } from '../shell/renderer-recovery-policy';

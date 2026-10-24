@@ -15,7 +15,7 @@
  */
 
 import { expect, it } from 'vitest';
-import { guideSearchMatches } from '../../src/ui/guide-timeline-model';
+import { guideSearchMatches } from '../../src/ui/guide/guide-timeline-model';
 
 it('matches every search word at the start of a word, like the native Guide search', () => {
   expect(guideSearchMatches('nfl', 'NFL RedZone')).toBe(true);

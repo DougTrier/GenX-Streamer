@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { mountSourceScan } from '../../ui/source-scan';
+import { mountSourceScan } from '../../ui/scan/source-scan';
 import { nativeScanCheckpointSummary } from '../../platform/scan-checkpoint-summary';
 import { validateSource, type Source } from '../../catalog';
 import { createSourceSnapshotTransport } from '../../platform/source-snapshot';
@@ -26,7 +26,7 @@ import {
 } from '../../platform/source-snapshot-activation';
 import { createIncrementalRefreshCoordinator } from '../../discovery/incremental-refresh';
 import { recordUnavailableSources } from '../../discovery/unavailable-sources';
-import { sourcePreparationStatus } from '../../ui/source-preparation-status';
+import { sourcePreparationStatus } from '../../ui/scan/source-preparation-status';
 import { DECODER_HEALTH_PROFILE, reachabilityHealthProfile } from '../health/health-profile';
 import { type createScanCheckpointProgressCapture } from './scan-checkpoint-capture-service';
 import { fingerprintScanSource } from '../../discovery/scan-checkpoint';
@@ -51,7 +51,7 @@ import {
   type SourceScanHost,
   type SourceScanPublicationChunk,
   type SourceScanSnapshot,
-} from '../../ui/source-scan-model';
+} from '../../ui/scan/source-scan-model';
 import {
   type ResumedCheckpointFormat,
   type ScanCheckpointCaptureMode,
@@ -202,7 +202,7 @@ export interface ScanScreenShared {
     jobId: string;
     createdAtMs: number;
     review: ScanReview;
-    budgetMs: import('../../ui/source-scan-model').HealthCheckBudgetMs;
+    budgetMs: import('../../ui/scan/source-scan-model').HealthCheckBudgetMs;
     platform: string;
     observerProfile: string;
     observations: import('../../discovery/health').HealthObservation[];

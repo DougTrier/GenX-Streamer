@@ -28,7 +28,7 @@ beforeAll(async () => {
     build: {
       write: false,
       minify: false,
-      lib: { entry: 'src/ui/channel-browser.ts', formats: ['iife'], name: 'ChannelUI' },
+      lib: { entry: 'src/ui/channels/channel-browser.ts', formats: ['iife'], name: 'ChannelUI' },
     },
   });
   const output = Array.isArray(result) ? result[0] : result;

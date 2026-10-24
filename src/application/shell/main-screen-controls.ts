@@ -19,9 +19,9 @@
  * application context.
  */
 import { migrateRefreshCadence, validateRefreshCadence } from '../../catalog/refresh-cadence';
-import { mountVODStop } from '../../ui/vod-stop';
-import { restoreRemoteFocus } from '../../ui/remote-navigation';
-import { installLiveReplay } from '../../ui/live-replay';
+import { mountVODStop } from '../../ui/player/vod-stop';
+import { restoreRemoteFocus } from '../../ui/shell/remote-navigation';
+import { installLiveReplay } from '../../ui/player/live-replay';
 import { type createImportController } from '../discovery/import-controller';
 import { type createSettingsController } from './settings-controller';
 import { type createRendererRecoveryPolicy } from './renderer-recovery-policy';

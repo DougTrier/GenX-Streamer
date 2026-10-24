@@ -26,7 +26,11 @@ beforeAll(async () => {
     build: {
       write: false,
       minify: false,
-      lib: { entry: 'src/ui/remote-navigation.ts', formats: ['iife'], name: 'RemoteUI' },
+      lib: {
+        entry: 'src/ui/shell/remote-navigation.ts',
+        formats: ['iife'],
+        name: 'RemoteUI',
+      },
     },
   });
   const output = Array.isArray(result) ? result[0] : result;

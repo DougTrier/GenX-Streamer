@@ -205,15 +205,15 @@ export function useGenxtraBannerBrowser(): void {
   beforeAll(async () => {
     bundle = '';
     for (const [file, name] of [
-      ['shell', 'GenxtraShell'],
-      ['archive-search', 'GenxtraLayout'],
-      ['in-app-select', 'GenxtraSelects'],
-      ['selected-guide', 'GenxtraGuide'],
-      ['speech-search', 'GenxtraSpeech'],
-      ['channel-browser', 'LiveRows'],
-      ['fullscreen-presentation', 'LayoutFullscreen'],
-      ['vod-dock', 'LayoutVODDock'],
-      ['video-quality', 'LayoutQuality'],
+      ['shell/shell', 'GenxtraShell'],
+      ['genxtra/archive-search', 'GenxtraLayout'],
+      ['shell/in-app-select', 'GenxtraSelects'],
+      ['guide/selected-guide', 'GenxtraGuide'],
+      ['channels/speech-search', 'GenxtraSpeech'],
+      ['channels/channel-browser', 'LiveRows'],
+      ['player/fullscreen-presentation', 'LayoutFullscreen'],
+      ['player/vod-dock', 'LayoutVODDock'],
+      ['player/video-quality', 'LayoutQuality'],
       ['../../tests/catalog/fixtures/tv-dock-audio', 'LayoutAudio'],
     ]) {
       const result = await build({

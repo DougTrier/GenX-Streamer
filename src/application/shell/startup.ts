@@ -23,7 +23,7 @@ import { invoke, isTauri } from '@tauri-apps/api/core';
 import { type StartupAttempt, type createStartupObserver } from './startup-view';
 import { readRecordPair } from '../../platform/records';
 import { decodeSavedHealthInWorker } from '../health/health-history-read';
-import { installInAppSelects } from '../../ui/in-app-select';
+import { installInAppSelects } from '../../ui/shell/in-app-select';
 import { mountSharingSettings } from '../../sharing/settings';
 import { nativeScanCheckpointSummary } from '../../platform/scan-checkpoint-summary';
 import { type createWakeTransportAdmission } from '../../playback/viewing-wake-startup';
@@ -37,15 +37,15 @@ import { type createSharingHost } from '../sharing/sharing-host';
 import { type createPageController } from './page-controller';
 import { type createImportController } from '../discovery/import-controller';
 import { type createChannelHealthController } from '../health/channel-health-controller';
-import { type mountArchiveSearch } from '../../ui/archive-search';
+import { type mountArchiveSearch } from '../../ui/genxtra/archive-search';
 import { type createArchiveDownloads } from '../genxtra/archive-downloads';
 import { type createArchivePlayer } from '../genxtra/archive-player';
 import { type Preferences, type SerializedPreferencesStore } from '../../preferences';
 import { type CatalogRecord } from '../../catalog';
 import { type ContentLibrary } from '../genxtra/content-library';
-import { type ChannelBrowser } from '../../ui/channel-browser';
-import { type mountLibrarySwitcher } from '../../ui/library-switcher';
-import { type mountStorageRecovery } from '../../ui/storage-recovery';
+import { type ChannelBrowser } from '../../ui/channels/channel-browser';
+import { type mountLibrarySwitcher } from '../../ui/genxtra/library-switcher';
+import { type mountStorageRecovery } from '../../ui/settings/storage-recovery';
 
 /** What this area reads from, and writes back to, the rest of the application. */
 export interface StartupEnvironment {

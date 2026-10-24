@@ -21,9 +21,9 @@
 import { createVisibleGuideOwner, type VisibleGuideScope } from './visible-guide';
 import { readVisibleGuide } from '../../guide/visible-native';
 import { invoke, isTauri } from '@tauri-apps/api/core';
-import { type mountGuide } from '../../ui/guide';
+import { type mountGuide } from '../../ui/guide/guide';
 import { type createVisibleGuideState } from './visible-guide-state';
-import { type ChannelBrowser } from '../../ui/channel-browser';
+import { type ChannelBrowser } from '../../ui/channels/channel-browser';
 import { type CatalogRecord } from '../../catalog';
 import { type Preferences } from '../../preferences';
 

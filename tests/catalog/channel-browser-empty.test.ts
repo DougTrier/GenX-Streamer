@@ -15,7 +15,7 @@
  */
 
 import { afterEach, expect, it, vi } from 'vitest';
-import { ChannelBrowser } from '../../src/ui/channel-browser';
+import { ChannelBrowser } from '../../src/ui/channels/channel-browser';
 
 afterEach(() => vi.unstubAllGlobals());
 

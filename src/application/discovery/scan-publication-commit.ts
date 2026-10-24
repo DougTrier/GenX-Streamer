@@ -18,7 +18,7 @@ import {
   SourceScanWindowSizeError,
   type SourceScanHost,
   type SourceScanPublicationChunk,
-} from '../../ui/source-scan-model';
+} from '../../ui/scan/source-scan-model';
 import { type SelectionSessionAck } from '../../discovery/selection-session';
 import { readScanCheckpoint, readScanHealth, writeRecordPair } from '../../platform/records';
 import { nativeScanBatchCommit } from '../../platform/scan-batch-commit';

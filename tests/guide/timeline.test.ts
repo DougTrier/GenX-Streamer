@@ -16,7 +16,11 @@
 
 import { describe, expect, it } from 'vitest';
 import type { MappedProgram } from '../../src/guide/native';
-import { cellBounds, clusterListings, timelineProgramKey } from '../../src/ui/guide-timeline-model';
+import {
+  cellBounds,
+  clusterListings,
+  timelineProgramKey,
+} from '../../src/ui/guide/guide-timeline-model';
 const p = (startMs: number, stopMs: number | null, ordinal = 0): MappedProgram => ({
   catalogSourceId: 's',
   appChannelId: 'c',

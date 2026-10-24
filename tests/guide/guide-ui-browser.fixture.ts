@@ -146,7 +146,7 @@ export function useGuideUiBrowser(): void {
           },
           load(id) {
             if (id === '\0guide-remote')
-              return `export * from ${JSON.stringify(resolve('src/ui/guide.ts'))}; export {ChannelCoverageCleanupError} from ${JSON.stringify(resolve('src/guide/native.ts'))}; export {createShell} from ${JSON.stringify(resolve('src/ui/shell.ts'))}; export {installRemoteNavigation, createRemoteEditMode} from ${JSON.stringify(resolve('src/ui/remote-navigation.ts'))};`;
+              return `export * from ${JSON.stringify(resolve('src/ui/guide/guide.ts'))}; export {ChannelCoverageCleanupError} from ${JSON.stringify(resolve('src/guide/native.ts'))}; export {createShell} from ${JSON.stringify(resolve('src/ui/shell/shell.ts'))}; export {installRemoteNavigation, createRemoteEditMode} from ${JSON.stringify(resolve('src/ui/shell/remote-navigation.ts'))};`;
           },
         },
       ],

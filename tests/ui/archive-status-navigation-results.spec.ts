@@ -314,7 +314,7 @@ test('actual main TV dropdown routing reaches both selectors and toolbar while o
   await page.locator('#search').fill('Q');
   await page.evaluate(async () => {
     document.querySelector<HTMLElement>('#app')!.dataset.deviceKind = 'tv';
-    const modulePath = '/src/ui/in-app-select.ts';
+    const modulePath = '/src/ui/shell/in-app-select.ts';
     const { installInAppSelects } = await import(modulePath);
     Reflect.set(window, 'tvSelectFixtureOwner', installInAppSelects(document.body));
     document.querySelector<HTMLButtonElement>('#genxtra-button')!.focus();

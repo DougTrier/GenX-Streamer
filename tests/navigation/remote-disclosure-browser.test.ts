@@ -25,7 +25,11 @@ it('never restores remote focus inside closed details, but permits the summary a
     build: {
       write: false,
       minify: false,
-      lib: { entry: 'src/ui/remote-navigation.ts', formats: ['iife'], name: 'RemoteUI' },
+      lib: {
+        entry: 'src/ui/shell/remote-navigation.ts',
+        formats: ['iife'],
+        name: 'RemoteUI',
+      },
     },
   });
   const result = Array.isArray(output) ? output[0] : output;

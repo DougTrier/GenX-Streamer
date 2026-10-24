@@ -54,8 +54,8 @@ beforeAll(async () => {
         },
         load(id) {
           if (id === '\0shell')
-            return `export {createShell} from ${JSON.stringify(resolve('src/ui/shell.ts'))};
-export {mountVpnIndicator} from ${JSON.stringify(resolve('src/ui/vpn-indicator.ts'))};`;
+            return `export {createShell} from ${JSON.stringify(resolve('src/ui/shell/shell.ts'))};
+export {mountVpnIndicator} from ${JSON.stringify(resolve('src/ui/shell/vpn-indicator.ts'))};`;
         },
       },
     ],

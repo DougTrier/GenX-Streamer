@@ -17,7 +17,7 @@
  * Moving saved data between devices, and writing catalog changes. Moved out of main.ts; main.ts passes the shared
  * application context.
  */
-import { installDataTransfer } from '../../ui/data-transfer';
+import { installDataTransfer } from '../../ui/settings/data-transfer';
 import { readRecordPair, writeRecord, writeRecordPair } from '../../platform/records';
 import { decodeSavedHealthInWorker } from '../health/health-history-read';
 import { serializeCatalog, type CatalogRecord } from '../../catalog';

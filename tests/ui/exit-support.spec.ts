@@ -28,7 +28,7 @@ test('Exit joins the native request, suppresses duplicates, and permits retry af
   await page.goto('/exit-fixture');
   await page.evaluate(async () => {
     Reflect.set(window, '__exitCalls', 0);
-    const modulePath = '/src/ui/exit.ts';
+    const modulePath = '/src/ui/settings/exit.ts';
     const { mountExit } = await import(modulePath);
     mountExit(document.querySelector('button')!, {
       native: () => true,

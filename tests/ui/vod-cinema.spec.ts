@@ -47,9 +47,11 @@ async function mount(page: Page): Promise<void> {
         link.onerror = () => reject(new Error(sheet));
       });
     }
-    const { createShell } = await import('/src/ui/shell.ts' as string);
-    const { installRemoteNavigation } = await import('/src/ui/remote-navigation.ts' as string);
-    const { mountAccountVod } = await import('/src/ui/account-vod.ts' as string);
+    const { createShell } = await import('/src/ui/shell/shell.ts' as string);
+    const { installRemoteNavigation } = await import(
+      '/src/ui/shell/remote-navigation.ts' as string
+    );
+    const { mountAccountVod } = await import('/src/ui/accounts/account-vod.ts' as string);
     const app = document.querySelector<HTMLElement>('#app')!;
     createShell(app);
     app.dataset.deviceKind = 'tv';

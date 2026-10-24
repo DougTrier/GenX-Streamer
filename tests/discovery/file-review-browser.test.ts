@@ -27,7 +27,7 @@ beforeAll(async () => {
     build: {
       write: false,
       minify: false,
-      lib: { entry: 'src/ui/source-scan.ts', formats: ['iife'], name: 'ScanUI' },
+      lib: { entry: 'src/ui/scan/source-scan.ts', formats: ['iife'], name: 'ScanUI' },
     },
   });
   const result = Array.isArray(output) ? output[0] : output;
@@ -53,8 +53,8 @@ async function fixture(page: Page, mode = 'normal', count = 2) {
   await page.evaluate(
     ({ mode, count }) => {
       const scope = window as unknown as {
-        ScanUI: typeof import('../../src/ui/source-scan');
-        owner: ReturnType<typeof import('../../src/ui/source-scan').mountSourceScan>;
+        ScanUI: typeof import('../../src/ui/scan/source-scan');
+        owner: ReturnType<typeof import('../../src/ui/scan/source-scan').mountSourceScan>;
         pending: Promise<void>;
         released: boolean;
         release(): void;
@@ -211,7 +211,7 @@ it.each(['suspend', 'dispose'] as const)(
       await fixture(page, 'held');
       await page.evaluate((operation) => {
         const scope = window as unknown as {
-          owner: ReturnType<typeof import('../../src/ui/source-scan').mountSourceScan>;
+          owner: ReturnType<typeof import('../../src/ui/scan/source-scan').mountSourceScan>;
           cleanupSettled: boolean;
           cleanup: Promise<void>;
         };
@@ -287,7 +287,7 @@ it('oversized files refuse reading and oversized parsed catalogs refuse publicat
     await page.evaluate(() =>
       (
         window as unknown as {
-          owner: ReturnType<typeof import('../../src/ui/source-scan').mountSourceScan>;
+          owner: ReturnType<typeof import('../../src/ui/scan/source-scan').mountSourceScan>;
         }
       ).owner.dispose(),
     );

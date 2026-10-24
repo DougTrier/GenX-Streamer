@@ -38,8 +38,8 @@ import { reachabilityHealthProfile } from '../health/health-profile';
 import { isTauri } from '@tauri-apps/api/core';
 import { scanConfiguredSources } from '../../discovery/scan';
 import { reorderScanCandidates } from '../../discovery/scan-priority';
-import { type SourceScanCheckpointHost } from '../../ui/source-scan-model';
-import { type mountSourceScan } from '../../ui/source-scan';
+import { type SourceScanCheckpointHost } from '../../ui/scan/source-scan-model';
+import { type mountSourceScan } from '../../ui/scan/source-scan';
 import { type ScanEnvironment } from './scan-controller';
 import { type ScanScreenShared } from './scan-screen';
 

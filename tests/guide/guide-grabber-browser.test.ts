@@ -57,7 +57,11 @@ beforeAll(async () => {
     build: {
       write: false,
       minify: false,
-      lib: { entry: 'src/ui/guide-grabber-settings.ts', formats: ['iife'], name: 'GrabberUI' },
+      lib: {
+        entry: 'src/ui/guide/guide-grabber-settings.ts',
+        formats: ['iife'],
+        name: 'GrabberUI',
+      },
     },
   });
   const result = Array.isArray(output) ? output[0] : output;

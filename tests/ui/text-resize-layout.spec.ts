@@ -95,7 +95,7 @@ async function populate(page: Page, sourceFixture: boolean): Promise<void> {
 async function guideFixture(page: Page, screen: Screen): Promise<Locator> {
   // Real UI/styles with injected deterministic guide records, not native SQL/device proof.
   await page.evaluate(async () => {
-    const path = '/src/ui/guide.ts';
+    const path = '/src/ui/guide/guide.ts';
     const { mountGuide } = await import(path);
     const container = document.createElement('section');
     document.body.append(container);
@@ -290,7 +290,7 @@ async function openScreen(page: Page, screen: Screen): Promise<Locator> {
     );
     await page.evaluate(async () => {
       const inputPath = '/src/discovery/page-input.ts';
-      const uiPath = '/src/ui/website-discovery.ts';
+      const uiPath = '/src/ui/scan/website-discovery.ts';
       const { createPageInput } = await import(inputPath);
       const { mountWebsiteDiscovery } = await import(uiPath);
       const input = createPageInput();

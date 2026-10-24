@@ -102,7 +102,7 @@ async function mount(page: Page, stored: unknown, native = false): Promise<void>
       }
       if (stored) localStorage.setItem('genx-local-streams-v1', JSON.stringify(stored));
       else localStorage.removeItem('genx-local-streams-v1');
-      const path = '/src/ui/local-streams.ts';
+      const path = '/src/ui/scan/local-streams.ts';
       const { mountLocalStreams } = await import(path);
       const log: string[] = [];
       const pending: Promise<void>[] = [];
