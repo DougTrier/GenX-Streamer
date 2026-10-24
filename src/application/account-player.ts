@@ -481,3 +481,8 @@ export function createAccountPlayer(host: AccountPlayerHost) {
     },
   };
 }
+
+/** The channel or title an account player is currently playing. */
+export type AccountPlaybackChoice = NonNullable<
+  ReturnType<typeof createAccountPlayer>['selection']
+>;

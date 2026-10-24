@@ -21,9 +21,9 @@ import { createChannelLogos } from './application/channel-logos';
 import { installAudioDiagnostics } from './application/audio-diagnostics';
 import { createBootstrapBoundary } from './application/bootstrap-boundary';
 import { createRendererRecoveryPolicy } from './application/renderer-recovery-policy';
-import { createFileImportSource } from './application/file-import-identity';
+
 import { createSharingHost } from './application/sharing-host';
-import { createAccountPlayer } from './application/account-player';
+import { createAccountPlayer, type AccountPlaybackChoice } from './application/account-player';
 import { createArchivePlayer, ArchiveFileRemovedError } from './application/archive-player';
 import { createArchiveBookmarks } from './platform/archive-bookmarks';
 import { createArchiveDownloads } from './application/archive-downloads';
@@ -76,11 +76,9 @@ import { mountRegionPreference } from './ui/region-preference';
 import { fetchAuxiliaryText } from './location/fetch';
 
 import { mountLibrarySwitcher } from './ui/library-switcher';
-import { readUnavailableSources } from './discovery/unavailable-sources';
-import { emptyOnlineDiscoveryText } from './ui/online-discovery-text';
 
 import { lookupSeriesIdentity } from './platform/series-identity';
-import { installGuideGrabberExport } from './ui/guide-grabber-settings';
+
 import {
   defaultProviderRegistry,
   parseProviderRegistry,
@@ -97,8 +95,7 @@ import { mountEventHistory } from './ui/event-history';
 import './ui/event-history.css';
 import { mountGuide } from './ui/guide';
 import { mountExit } from './ui/exit';
-import { mountAutomaticGuideUpdates } from './ui/automatic-guide-updates';
-import { joinGuideWork } from './application/join-guide-work';
+
 import { installFullscreenPresentation } from './ui/fullscreen-presentation';
 import { installDoubleTapFullscreen } from './ui/double-tap-fullscreen';
 import { installCategoryMenu } from './ui/category-menu';
@@ -108,10 +105,7 @@ import { mountGeographyControls } from './ui/geography-controls';
 import { mountViewingChoices } from './ui/viewing-choices';
 import { mountSettingsNavigation, mountLocationDialog } from './ui/settings-navigation';
 
-import { readDailyGuidePlan, refreshDailyGuide } from './guide/native';
-
 import { mountVODStop } from './ui/vod-stop';
-import { createDailyGuideRefresh } from './guide/daily-refresh';
 
 import { readVisibleGuide, type VisibleGuideChannel } from './guide/visible-native';
 import { createVisibleGuideOwner, type VisibleGuideScope } from './application/visible-guide';
@@ -120,11 +114,9 @@ import { createPageInput } from './discovery/page-input';
 import { createSourceIndexService } from './discovery/source-index-service';
 import { createOnlineSourceScan } from './discovery/online-source-scan';
 import knownSourceDirectories from './discovery/known-directory-ids.json';
-import { prepareDiscoveredSources } from './application/discovered-source-configuration';
+
 import { readDirectoryJson } from './platform/source-directory';
 
-import { createPlaybackHealthCapture } from './application/playback-health';
-import { DECODER_HEALTH_PROFILE } from './application/health-profile';
 import { mountWebsiteDiscovery } from './ui/website-discovery';
 import { NativeSpeech } from './search/native-speech';
 import { mountSpeechSearch } from './ui/speech-search';
@@ -132,7 +124,7 @@ import { mountStorageRecovery } from './ui/storage-recovery';
 import './ui/guide.css';
 import './ui/guide-timeline.css';
 import './ui/responsive.css';
-import { installConfiguredImportEntry } from './ui/import-entry';
+
 import './ui/in-app-select.css';
 import './ui/scan-screensaver.css';
 
@@ -150,33 +142,23 @@ import './ui/header-art.css';
 import { createAccountGuide } from './platform/account-guide';
 import { mountPaidGuide } from './ui/paid-guide';
 import { installVODDock } from './ui/vod-dock';
-import { installLiveReplay, type LiveReplayControls } from './ui/live-replay';
-
-import { exportPlaylistInWorker } from './catalog/playlist-export-service';
-import { savePlaylistExport } from './platform/playlist-file';
+import { installLiveReplay } from './ui/live-replay';
 
 import { createSelectionSession } from './discovery/selection-session';
 
-import { type ScanSource } from './discovery/scan';
-import { healthVerdict } from './discovery/health';
-import { createChannelCheckStore, type ChannelCheck } from './platform/channel-checks';
-import { createSavedChannelCheck } from './application/saved-channel-check';
+import { type ChannelCheck } from './platform/channel-checks';
 
 import { decodeSavedHealthInWorker } from './application/health-history-read';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { createShell, PICTURE_ART } from './ui/shell';
+import { createShell } from './ui/shell';
 import { mountAbout } from './ui/about';
 import { ChannelBrowser, type ChannelFilter } from './ui/channel-browser';
 import { queryCatalogPage } from './platform/catalog-query';
-import {
-  CATALOG_GROUP_BATCH_LIMIT,
-  mutateCatalogGroup,
-  type CatalogGroupAction,
-} from './platform/catalog-group';
+import { mutateCatalogGroup, type CatalogGroupAction } from './platform/catalog-group';
 import { PlaybackController, type PlaybackSnapshot } from './playback/controller';
 import { startTiming } from './playback/start-timing';
-import { playbackFailureGuidance } from './playback/failure-guidance';
+
 import { mountChannelActions } from './ui/channel-actions';
 import { mountProviderManagement } from './ui/provider-management';
 
@@ -199,8 +181,6 @@ import {
   readRecordPair,
   writeRecord,
   writeRecordPair,
-  writeHealth,
-  isRecordRevisionConflict,
   inspectSource,
 } from './platform/records';
 import {
@@ -212,11 +192,9 @@ import {
   type CatalogRecord,
   type Source,
 } from './catalog';
-import { collectSources } from './catalog/collector';
 
 import { mountLocalStreams } from './ui/local-streams';
 
-import { createDailyRefresh, DailyRefreshAttemptNotStartedError } from './catalog/daily-refresh';
 import { migrateRefreshCadence, validateRefreshCadence } from './catalog/refresh-cadence';
 import {
   SerializedPreferencesStore,
@@ -228,9 +206,13 @@ import {
 } from './preferences';
 // Last stylesheet: the shared pop-up look sits over every component sheet.
 import './ui/dialog-polish.css';
-import { BoundedScanEntryRefusal, createScanController } from './application/scan-controller';
+import { createScanController } from './application/scan-controller';
 import type { ContentLibrary } from './application/content-library';
+import type { PrimaryPage } from './application/primary-page';
 import { createGuideController } from './application/guide-controller';
+import { createChannelHealthController } from './application/channel-health-controller';
+import { createImportController } from './application/import-controller';
+import { createPlayerView } from './application/player-view';
 
 const bootstrapBoundary = createBootstrapBoundary();
 const rendererRecoveryPolicy = createRendererRecoveryPolicy(() =>
@@ -649,7 +631,6 @@ let persistedCatalogRevision = '0';
 let catalogBrowseViewRevision = 0;
 // Channels carrying the Slow badge, as last read (see adoptSlowChannels).
 let slowChannelIds: ReadonlySet<string> = new Set();
-type AccountPlaybackChoice = NonNullable<ReturnType<typeof createAccountPlayer>['selection']>;
 let pendingAccountPlayback: {
   choice: AccountPlaybackChoice;
   sharingGeneration: number;
@@ -1593,7 +1574,6 @@ const guideController = createGuideController({
 });
 const { automaticGuides, guideHost } = guideController;
 
-type PrimaryPage = 'watch' | 'guide';
 let primaryPage: PrimaryPage = 'watch';
 let primaryIntent = 0;
 let primaryTransitions: Promise<void> = Promise.resolve();
@@ -2649,20 +2629,20 @@ function genxtraNavigation(event: KeyboardEvent): void {
 document.addEventListener('keydown', genxtraNavigation, true);
 const removeMediaKeys = installMediaKeys({
   togglePause: () => {
-    if (liveReplay?.active()) return liveReplay.togglePause();
+    if (playerView.liveReplay?.active()) return playerView.liveReplay.togglePause();
     if (player.snapshot.state === 'paused' || archiveBackgroundPaused || backgroundLiveChoice)
       return resumeLocalPlayback();
     playbackAction(pauseLocalPlayback());
   },
   play: () => {
-    if (liveReplay?.active()) return liveReplay.setPaused(false);
+    if (playerView.liveReplay?.active()) return playerView.liveReplay.setPaused(false);
     if (player.snapshot.state === 'paused' || archiveBackgroundPaused || backgroundLiveChoice)
       return resumeLocalPlayback();
     if (player.snapshot.selection && ['failed', 'idle'].includes(player.snapshot.state))
       return retryLocalPlayback();
   },
   pause: () => {
-    if (liveReplay?.active()) return liveReplay.setPaused(true);
+    if (playerView.liveReplay?.active()) return playerView.liveReplay.setPaused(true);
     playbackAction(pauseLocalPlayback());
   },
   stop: () => stopLocalPlayback(),
@@ -2681,7 +2661,7 @@ const removeMediaKeys = installMediaKeys({
   // On-demand videos go back 10 s; live channels start an instant replay.
   rewind: () => {
     if (player.snapshot.selection?.playMode === 'on-demand') return vodRewind();
-    if (liveReplay) playbackAction(liveReplay.rewind());
+    if (playerView.liveReplay) playbackAction(playerView.liveReplay.rewind());
   },
   failed: () => notice('The remote command could not finish. Try the on-screen control.'),
 });
@@ -2816,7 +2796,12 @@ function renderCatalog(): void {
   }
 }
 async function removeSource(id: string): Promise<void> {
-  if (importRunning || transferBusy || addChannelsEntryWork || playlistExportWork) {
+  if (
+    importRunning ||
+    transferBusy ||
+    addChannelsEntryWork ||
+    importController.playlistExportWork
+  ) {
     notice('Finish or cancel the import before removing a source.');
     return;
   }
@@ -3051,359 +3036,125 @@ async function refreshSource(source: Source, text?: string, signal?: AbortSignal
     if (activeSources.get(source.id) === source) activeSources.delete(source.id);
   }
 }
-const finitePlayback = player;
-let vodSeekWork: Promise<void> | null = null;
-let vodSeekGeneration = 0;
-const vodPositionEvents = [
-  'timeupdate',
-  'loadedmetadata',
-  'seeked',
-  'durationchange',
-  'emptied',
-  'playing',
-  'pause',
-] as const;
-function renderVODTransport(): void {
-  vodDock.render(
-    player.snapshot.selection
-      ? player.snapshot.selection.playMode === 'on-demand'
-      : contentLibrary === 'genxtra',
-  );
-  const active =
-    !applicationClosing &&
-    !document.hidden &&
-    nativeViewingForeground &&
-    !!archivePlayer?.selection &&
-    player.snapshot.selection?.playMode === 'on-demand' &&
-    ['playing', 'paused', 'buffering'].includes(player.snapshot.state);
-  // Written only when changed: this runs several times a second while playing.
-  const root = element('vod-transport');
-  if (root.hidden !== !active) root.hidden = !active;
-  const position = active ? (finitePlayback.currentVODposition?.() ?? null) : null;
-  const valid =
-    position !== null && Number.isFinite(position) && position >= 0 && position <= 604800;
-  const shown = element('vod-position');
-  const text = valid
-    ? `${Math.floor(position / 60)}:${String(Math.floor(position % 60)).padStart(2, '0')}`
-    : '—:—';
-  if (shown.textContent !== text) shown.textContent = text;
-  const label = valid ? 'Current playback position' : 'Playback position unavailable';
-  if (shown.getAttribute('aria-label') !== label) shown.setAttribute('aria-label', label);
-  const rewind = element<HTMLButtonElement>('vod-rewind');
-  const forward = element<HTMLButtonElement>('vod-forward');
-  const rewindDisabled = !valid || position <= 0 || !!vodSeekWork;
-  const forwardDisabled = !valid || !!vodSeekWork;
-  const focused = document.activeElement;
-  if (
-    active &&
-    !backgroundSuspension &&
-    primaryPage === 'watch' &&
-    !document.querySelector('dialog[open]') &&
-    !root.closest('[hidden],[inert]') &&
-    root.checkVisibility({ visibilityProperty: true }) &&
-    ((focused === rewind && rewindDisabled) || (focused === forward && forwardDisabled))
-  ) {
-    // Native disabled controls may lose focus before the next key. Keep this
-    // handoff local and synchronous; seek completion never restores old focus.
-    restoreRemoteFocus(element('pause-button'), element('mute-button'));
-  }
-  if (rewind.disabled !== rewindDisabled) rewind.disabled = rewindDisabled;
-  if (forward.disabled !== forwardDisabled) forward.disabled = forwardDisabled;
-}
-async function seekVODRelative(distance: number): Promise<void> {
-  if (
-    vodSeekWork ||
-    applicationClosing ||
-    document.hidden ||
-    !nativeViewingForeground ||
-    !archivePlayer?.selection ||
-    !finitePlayback.seek
-  )
-    return;
-  const position = finitePlayback.currentVODposition?.();
-  if (position == null) return;
-  const generation = vodSeekGeneration;
-  const work = (async () => {
-    const result = await finitePlayback.seek!(Math.max(0, position + distance));
-    if (generation !== vodSeekGeneration || applicationClosing) return;
-    if (!result.ok && result.reason !== 'superseded')
-      notice(
-        result.reason === 'out-of-range'
-          ? 'That position is not available in this video yet.'
-          : 'Seeking is not available for this video right now.',
-      );
-  })();
-  vodSeekWork = work;
-  renderVODTransport();
-  try {
-    await work;
-  } finally {
-    if (vodSeekWork === work) vodSeekWork = null;
-    renderVODTransport();
-  }
-}
-const vodRewind = () => playbackAction(seekVODRelative(-10));
-const vodForward = () => playbackAction(seekVODRelative(10));
-for (const event of vodPositionEvents) element('video').addEventListener(event, renderVODTransport);
-element('vod-rewind').addEventListener('click', vodRewind);
-element('vod-forward').addEventListener('click', vodForward);
-/** Instant replay on live TV (docs/instant-replay.md); installed with the dock's handlers. */
-let liveReplay: LiveReplayControls | null = null;
-async function disposeVODTransport(): Promise<void> {
-  liveReplay?.dispose();
-  vodDock.dispose();
-  vodSeekGeneration++;
-  for (const event of vodPositionEvents)
-    element('video').removeEventListener(event, renderVODTransport);
-  element('vod-rewind').removeEventListener('click', vodRewind);
-  element('vod-forward').removeEventListener('click', vodForward);
-  await vodSeekWork;
-}
-let playbackFailureLogged = false;
-let alternateRetry: Promise<boolean> | null = null;
-function renderPlayer(snapshot: PlaybackSnapshot): void {
-  archiveSearch?.syncDetails();
-  // The sound-only note belongs to the channel that raised it.
-  const pictureNote = element('picture-note');
-  if (
-    !pictureNote.hidden &&
-    (pictureNote.dataset.channel !== snapshot.selection?.id ||
-      ['idle', 'failed', 'disposed'].includes(snapshot.state))
-  )
-    pictureNote.hidden = true;
-  if (contentLibrary !== 'genxtra') element('archive-details').hidden = true;
-  if (snapshot.state === 'connecting' || snapshot.state === 'disposed') vodSeekGeneration++;
-  renderVODTransport();
-  if (snapshot.state === 'failed' && !playbackFailureLogged)
-    void diagnostics.emit({ operation: 'playback', level: 'error', code: 'playback-failed' });
-  playbackFailureLogged = snapshot.state === 'failed';
-  // Paid TV only: a start that delivered no video tries the provider's other
-  // stored format once (never a guessed address; Free TV never reaches this).
-  if (snapshot.state === 'failed' && accountPlayer?.alternateAvailable && !alternateRetry) {
-    alternateRetry = accountPlayer
-      .retryAlternate()
-      .catch(() => false)
-      .finally(() => {
-        alternateRetry = null;
-      });
-  }
-  const focusedControl = document.activeElement;
-  const viewingActive =
-    !document.hidden &&
-    !backgroundSuspension &&
-    !applicationClosing &&
-    (snapshot.state === 'playing' || snapshot.state === 'buffering');
-  void activityWake.setPlayback(viewingActive).catch(() => undefined);
-  const resumeChoice = ['failed', 'disposed'].includes(snapshot.state)
-    ? null
-    : backgroundLiveChoice;
-  const selection = resumeChoice?.kind === 'public' ? resumeChoice.selection : snapshot.selection;
-  const archived = selection?.playMode === 'on-demand';
-  const failureGuidance =
-    snapshot.state === 'failed'
-      ? playbackFailureGuidance(snapshot.failure, { playMode: archived ? 'on-demand' : 'live' })
-      : null;
-  element('watch-title').textContent =
-    selection?.name ??
-    (resumeChoice?.kind === 'account' ? resumeChoice.choice.channel.name : undefined) ??
-    (archiveBackgroundPaused ? archiveResumeChoice?.fileTitle : undefined) ??
-    'Make yourself comfortable.';
-  element('playback-status').textContent = resumeChoice
-    ? 'Paused'
-    : {
-        idle: 'Ready when you are',
-        connecting: 'Connecting…',
-        playing: 'Playing',
-        buffering: 'Buffering…',
-        paused: 'Paused',
-        reconnecting: 'Reconnecting…',
-        failed: 'Unable to play',
-        disposed: 'Player closed',
-      }[snapshot.state];
-  const overlay = element('player-overlay');
-  const backgroundPaused =
-    resumeChoice !== null ||
-    (snapshot.state === 'paused' && snapshot.pauseReason === 'background') ||
-    (archiveBackgroundPaused && snapshot.state === 'idle');
-  // The picture's states, each with the owner's artwork (October 19, 2026):
-  // nothing playing → play screen; opening, buffering or reconnecting → the
-  // buffering screen; failed → could not connect, whose painted TRY AGAIN is
-  // the real Retry button. A stall during playback shows only after a moment
-  // (CSS delay on data-wait), so brief hiccups never flash it.
-  const busy =
-    !!selection &&
-    !backgroundPaused &&
-    ['idle', 'connecting', 'buffering', 'reconnecting'].includes(snapshot.state);
-  const art =
-    backgroundPaused || snapshot.state === 'paused'
-      ? 'paused'
-      : snapshot.state === 'failed'
-        ? 'failed'
-        : busy
-          ? 'buffering'
-          : !selection && snapshot.state === 'idle'
-            ? 'play'
-            : 'none';
-  overlay.hidden = !backgroundPaused && snapshot.state === 'playing';
-  // Paused: the painted PRESS PLAY TO RESUME is a real Resume; the artwork says
-  // PAUSED, so words show only when GenX paused in the background.
-  element('picture-resume').hidden = art !== 'paused';
-  overlay.toggleAttribute('data-quiet', art === 'paused' && !backgroundPaused);
-  if (overlay.dataset.art !== art) {
-    overlay.dataset.art = art;
-    const image = overlay.querySelector<HTMLImageElement>('.picture-image');
-    if (image && art !== 'none') image.src = PICTURE_ART[art];
-  }
-  overlay.toggleAttribute('data-wait', snapshot.state === 'buffering');
-  // Nothing chosen to play: the right-panel Guide does not keep an empty picture box.
-  element('app').dataset.playerIdle = String(!selection && snapshot.state === 'idle');
-  updatePreviewControl();
-  element('welcome-icon').hidden = !!selection || art !== 'none';
-  element('overlay-title').textContent = backgroundPaused
-    ? 'Playback paused'
-    : snapshot.state === 'failed'
-      ? failureGuidance!.title
-      : selection
-        ? snapshot.state === 'buffering'
-          ? 'Buffering…'
-          : snapshot.state === 'reconnecting'
-            ? 'Reconnecting…'
-            : archived
-              ? 'Opening your video…'
-              : 'Opening your channel…'
-        : contentLibrary === 'genxtra'
-          ? 'Your next favorite show.'
-          : 'Your next favorite channel.';
-  element('overlay-message').textContent = backgroundPaused
-    ? archiveBackgroundPaused
-      ? 'Playback stopped in the background. Resume opens this file from the beginning.'
-      : 'Playback paused in the background. Resume reconnects to this channel.'
-    : (failureGuidance?.explanation ??
-      snapshot.error ??
-      (selection
-        ? 'Waiting for the stream to begin.'
-        : contentLibrary === 'genxtra'
-          ? 'Browse a decade, or search for shows and movies.'
-          : 'Choose a channel, or use channel search to discover more.'));
-  element('retry-button').hidden = snapshot.state !== 'failed';
-  const pause = element<HTMLButtonElement>('pause-button');
-  pause.disabled =
-    !resumeChoice &&
-    !archiveBackgroundPaused &&
-    !localStreams?.pageOpen &&
-    !['playing', 'paused', 'buffering'].includes(snapshot.state) &&
-    // Resuming passes through Connecting: disabling Pause there moved the
-    // remote's focus to Mute (Sansui, October 19, 2026). The player pauses a
-    // connecting channel safely, so Pause stays usable while a channel is chosen.
-    !(selection && ['connecting', 'reconnecting'].includes(snapshot.state));
-  pause.textContent =
-    snapshot.state === 'paused' || archiveBackgroundPaused || resumeChoice ? 'Resume' : 'Pause';
-  pause.dataset.icon = pause.textContent === 'Resume' ? 'play' : 'pause';
-  vodStopControl?.render(
-    contentLibrary === 'genxtra' || accountVodSelected(),
-    !!archivePlayer?.selection || accountVodSelected(),
-  );
-  const favorite = element<HTMLButtonElement>('favorite-button');
-  const accountRow = selection ? accountBrowser.selectionFor(selection.id) : undefined;
-  favorite.disabled =
-    backgroundLiveChoice !== null ||
-    archived ||
-    !selection ||
-    (!!accountPlayer?.selection && (!accountRow || !!accountPreferenceWork));
-  const isFavorite = accountRow
-    ? accountRow.favorite
-    : !!selection && settings.favorites.includes(selection.id);
-  favorite.textContent = isFavorite ? '★ Favorited' : '☆ Favorite';
-  favorite.setAttribute('aria-pressed', String(isFavorite));
-  element<HTMLButtonElement>('remove-channel').disabled =
-    backgroundLiveChoice !== null ||
-    archived ||
-    !selection ||
-    (!!accountPlayer?.selection && (!accountRow || !!accountPreferenceWork));
-  element<HTMLButtonElement>('restore-channels').disabled = accountBrowser.selectedAccount
-    ? !accountBrowser.preferenceScope() || !!accountPreferenceWork
-    : settings.removedChannels.length === 0;
-  castButton.disabled = !!backgroundLiveChoice || !castingAvailable || privatePlayback(selection);
-  if (
-    focusedControl instanceof HTMLButtonElement &&
-    focusedControl.disabled &&
-    focusedControl.closest('.view')
-  )
-    restoreRemoteFocus(null, element('mute-button'));
-  const selectedId = selection?.id ?? null;
-  if (selectedId !== renderedSelection) {
-    renderedSelection = selectedId;
-    guide.selectedChannelChanged();
-    const removed = new Set(settings.removedChannels);
-    const category = createChannelCategoryResolver(settings);
-    if (contentLibrary === 'live')
-      browser.update(
-        catalog.channels
-          .filter((channel) => !removed.has(channel.id))
-          .map((channel) =>
-            category(channel) === channel.category
-              ? channel
-              : { ...channel, category: category(channel) },
-          ),
-        settings.favorites,
-        selectedId,
-      );
-  }
-}
-player.subscribe(renderPlayer);
-
-let healthCaptureClosing = false;
-const playbackHealth = createPlaybackHealthCapture({
-  player,
-  resolve: (selection) => {
-    if (healthCaptureClosing || element('app').dataset.ready !== 'true') return null;
-    const channel = catalog.channels.find((entry) => entry.id === selection.id);
-    if (!channel || !channel.urls.includes(selection.url)) return null;
-    const source = catalog.sources.find((entry) => entry.id === channel.sourceId);
-    if (!source) return null;
-    return {
-      channel: structuredClone(channel),
-      source: structuredClone(source),
-      catalogRevision: persistedCatalogRevision,
-    };
+const playerView = createPlayerView({
+  get player() {
+    return player;
   },
-  context: () =>
-    scanController.healthPlatform === null || healthCaptureClosing || document.hidden
-      ? null
-      : {
-          platform: scanController.healthPlatform,
-          observerProfile: DECODER_HEALTH_PROFILE,
-          scope: String(sharingBridge.host.snapshot().generation),
-        },
-  isContextCurrent: (context) =>
-    !healthCaptureClosing &&
-    !document.hidden &&
-    element('app').dataset.ready === 'true' &&
-    context.platform === scanController.healthPlatform &&
-    context.observerProfile === DECODER_HEALTH_PROFILE &&
-    context.scope === String(sharingBridge.host.snapshot().generation),
-  readRecordPair: async (signal) => {
-    signal.throwIfAborted();
-    const saved = await readRecordPair();
-    signal.throwIfAborted();
-    return saved;
+  get vodDock() {
+    return vodDock;
   },
-  writeHealth: (request, signal) =>
-    writeHealth(
-      request.health,
-      request.expectedCatalogRevision,
-      request.expectedHealthRevision,
-      signal,
-    ),
-  isRevisionConflict: isRecordRevisionConflict,
-  enqueue: (action) => {
-    const work = catalogWrites.then(action);
-    catalogWrites = work.catch(() => undefined);
-    return work;
+  get contentLibrary() {
+    return contentLibrary;
   },
-  now: () => Date.now(),
-  notice,
+  get applicationClosing() {
+    return applicationClosing;
+  },
+  get nativeViewingForeground() {
+    return nativeViewingForeground;
+  },
+  get archivePlayer() {
+    return archivePlayer;
+  },
+  get element() {
+    return element;
+  },
+  get backgroundSuspension() {
+    return backgroundSuspension;
+  },
+  get primaryPage() {
+    return primaryPage;
+  },
+  get notice() {
+    return notice;
+  },
+  get playbackAction() {
+    return playbackAction;
+  },
+  get archiveSearch() {
+    return archiveSearch;
+  },
+  get diagnostics() {
+    return diagnostics;
+  },
+  get accountPlayer() {
+    return accountPlayer;
+  },
+  get activityWake() {
+    return activityWake;
+  },
+  get backgroundLiveChoice() {
+    return backgroundLiveChoice;
+  },
+  get archiveBackgroundPaused() {
+    return archiveBackgroundPaused;
+  },
+  get archiveResumeChoice() {
+    return archiveResumeChoice;
+  },
+  get updatePreviewControl() {
+    return updatePreviewControl;
+  },
+  get localStreams() {
+    return localStreams;
+  },
+  get vodStopControl() {
+    return vodStopControl;
+  },
+  get accountVodSelected() {
+    return accountVodSelected;
+  },
+  get accountBrowser() {
+    return accountBrowser;
+  },
+  get accountPreferenceWork() {
+    return accountPreferenceWork;
+  },
+  get settings() {
+    return settings;
+  },
+  get castButton() {
+    return castButton;
+  },
+  get castingAvailable() {
+    return castingAvailable;
+  },
+  get privatePlayback() {
+    return privatePlayback;
+  },
+  get renderedSelection() {
+    return renderedSelection;
+  },
+  set renderedSelection(value) {
+    renderedSelection = value;
+  },
+  get guide() {
+    return guide;
+  },
+  get browser() {
+    return browser;
+  },
+  get catalog() {
+    return catalog;
+  },
+  get persistedCatalogRevision() {
+    return persistedCatalogRevision;
+  },
+  get scanController() {
+    return scanController;
+  },
+  get sharingBridge() {
+    return sharingBridge;
+  },
+  get catalogWrites() {
+    return catalogWrites;
+  },
+  set catalogWrites(value) {
+    catalogWrites = value;
+  },
 });
+const { renderPlayer, vodRewind, renderVODTransport, disposeVODTransport, playbackHealth } =
+  playerView;
+
 element('genxtra-button').addEventListener('click', () => playbackAction(switchLibrary('genxtra')));
 element('search-programs').addEventListener('click', () => {
   if (contentLibrary === 'genxtra') playbackAction(archiveSearch!.searchOnline());
@@ -3497,604 +3248,179 @@ function refreshFileImportTargets(): void {
   fileImportTarget.value = '';
   fileImportTargetLabel.hidden = files.length === 0;
 }
-fileImportTarget.addEventListener('change', () => {
-  const selected = catalog.sources.find(
-    (source) => source.id === fileImportTarget.value && source.kind === 'file',
-  );
-  element<HTMLInputElement>('allow-http').checked = selected?.allowHttp === true;
-});
-importDialog.addEventListener('close', () => {
-  addChannelsEntryGeneration++;
-});
-const configuredImportEntry = installConfiguredImportEntry({
-  root: document,
-  allowed: () =>
-    !applicationClosing &&
-    !importRunning &&
-    !transferBusy &&
-    !scanController.automaticScanActive &&
-    !addChannelsEntryWork &&
-    !backgroundSuspension &&
-    nativeViewingForeground,
-  foreground: () => foregroundGeneration,
-  configured: () => scanController.indexedFreshAvailable && !!scanProviderSources().length,
-  capability: () => supportsBoundedResume(new AbortController().signal),
-  own: ownImport,
-  run: playbackAction,
-  refreshFiles: refreshFileImportTargets,
-  start: () => {
-    rendererRecoveryPolicy.authorize('scan');
-    sourceScan.startAutomatic(undefined, {
-      presentation:
-        contentLibrary === 'live' &&
-        primaryPage === 'watch' &&
-        !element('app').classList.contains('keyboard-open') &&
-        element('channel-list').getClientRects().length > 0
-          ? 'inline'
-          : 'dialog',
-    });
+const importController = createImportController({
+  get fileImportTarget() {
+    return fileImportTarget;
+  },
+  get catalog() {
+    return catalog;
+  },
+  get element() {
+    return element;
+  },
+  get importDialog() {
+    return importDialog;
+  },
+  get addChannelsEntryGeneration() {
+    return addChannelsEntryGeneration;
+  },
+  set addChannelsEntryGeneration(value) {
+    addChannelsEntryGeneration = value;
+  },
+  get applicationClosing() {
+    return applicationClosing;
+  },
+  get importRunning() {
+    return importRunning;
+  },
+  get transferBusy() {
+    return transferBusy;
+  },
+  get scanController() {
+    return scanController;
+  },
+  get addChannelsEntryWork() {
+    return addChannelsEntryWork;
+  },
+  set addChannelsEntryWork(value) {
+    addChannelsEntryWork = value;
+  },
+  get backgroundSuspension() {
+    return backgroundSuspension;
+  },
+  get nativeViewingForeground() {
+    return nativeViewingForeground;
+  },
+  get foregroundGeneration() {
+    return foregroundGeneration;
+  },
+  get scanProviderSources() {
+    return scanProviderSources;
+  },
+  get supportsBoundedResume() {
+    return supportsBoundedResume;
+  },
+  get ownImport() {
+    return ownImport;
+  },
+  get playbackAction() {
+    return playbackAction;
+  },
+  get refreshFileImportTargets() {
+    return refreshFileImportTargets;
+  },
+  get rendererRecoveryPolicy() {
+    return rendererRecoveryPolicy;
+  },
+  get sourceScan() {
+    return sourceScan;
+  },
+  get contentLibrary() {
+    return contentLibrary;
+  },
+  get primaryPage() {
+    return primaryPage;
+  },
+  get addChannelsEntryController() {
+    return addChannelsEntryController;
+  },
+  set addChannelsEntryController(value) {
+    addChannelsEntryController = value;
+  },
+  get settings() {
+    return settings;
+  },
+  set settings(value) {
+    settings = value;
+  },
+  get prepareInlineScanEntry() {
+    return prepareInlineScanEntry;
+  },
+  get inlineScanPanel() {
+    return inlineScanPanel;
+  },
+  get onlineSourceDiscovery() {
+    return onlineSourceDiscovery;
+  },
+  get notice() {
+    return notice;
+  },
+  get saveSettings() {
+    return saveSettings;
+  },
+  get updateImportActions() {
+    return updateImportActions;
+  },
+  get cancelOnlineSourceEntry() {
+    return cancelOnlineSourceEntry;
+  },
+  get refreshFreeTv() {
+    return refreshFreeTv;
+  },
+  get catalogWrites() {
+    return catalogWrites;
+  },
+  get customImportIntent() {
+    return customImportIntent;
+  },
+  set customImportIntent(value) {
+    customImportIntent = value;
+  },
+  get friendlyError() {
+    return friendlyError;
+  },
+  get collectionAbort() {
+    return collectionAbort;
+  },
+  set collectionAbort(value) {
+    collectionAbort = value;
+  },
+  get setImportBusy() {
+    return setImportBusy;
+  },
+  get refreshSource() {
+    return refreshSource;
+  },
+  get preferences() {
+    return preferences;
+  },
+  get applySettings() {
+    return applySettings;
+  },
+  get renderCatalog() {
+    return renderCatalog;
+  },
+  get guideController() {
+    return guideController;
+  },
+  get visibleGuide() {
+    return visibleGuide;
+  },
+  get guide() {
+    return guide;
+  },
+  get bootstrapBoundary() {
+    return bootstrapBoundary;
+  },
+  get automaticGuides() {
+    return automaticGuides;
+  },
+  get diagnostics() {
+    return diagnostics;
   },
 });
+const {
+  withPausedGuideUpdates,
+  wakeDailyRefresh,
+  automaticGuideUpdates,
+  startInlineDiscovery,
+  dailyRefresh,
+  dailyGuideRefresh,
+  refreshAllSources,
+  configuredImportEntry,
+  requestCachedGuideConnection,
+} = importController;
 
-function startInlineDiscovery(rescan = false): void {
-  if (
-    applicationClosing ||
-    contentLibrary !== 'live' ||
-    document.hidden ||
-    !nativeViewingForeground ||
-    addChannelsEntryWork ||
-    ((importRunning || transferBusy) && !scanController.automaticScanActive)
-  )
-    return;
-  rendererRecoveryPolicy.authorize('scan');
-  const capturedQuery = element<HTMLInputElement>('search')
-    .value.normalize('NFKC')
-    .trim()
-    .replace(/\s+/g, ' ');
-  const generation = ++addChannelsEntryGeneration;
-  const controller = new AbortController();
-  addChannelsEntryController = controller;
-  const capturedRegion = settings.preferredRegion
-    ? structuredClone(settings.preferredRegion)
-    : undefined;
-  const configuredSourceIdentity = () =>
-    JSON.stringify([catalog.sources, settings.reviewedChannelProviders, settings.preferredRegion]);
-  const capturedSourceIdentity = configuredSourceIdentity();
-  const admitted = () =>
-    contentLibrary === 'live' &&
-    !applicationClosing &&
-    !document.hidden &&
-    nativeViewingForeground &&
-    !controller.signal.aborted &&
-    generation === addChannelsEntryGeneration;
-  const searchAction = element<HTMLButtonElement>('search-programs');
-  searchAction.disabled = true;
-  const pending = prepareInlineScanEntry(controller.signal)
-    .then(async (state) => {
-      if (!admitted()) return;
-      const options = { query: capturedQuery, presentation: 'inline' as const };
-      if (scanController.indexedFreshAvailable) {
-        if (state === 'unavailable')
-          throw new Error('Saved scan ownership must be recovered before refreshing sources.');
-        if (state === 'unfinished' && !rescan) {
-          // A different query is refused with Continue/Rescan, never silently continued.
-          sourceScan.startAutomatic(undefined, {
-            ...(capturedQuery ? { query: capturedQuery } : {}),
-            presentation: 'inline',
-            intent: 'continue',
-          });
-          return;
-        }
-        if (state === 'running') {
-          sourceScan.startAutomatic(undefined, { presentation: 'inline' });
-          return;
-        }
-        // This explicit online search uses the same discovered-source permission
-        // pipeline below before native indexing. Refresh uses configured sources.
-      }
-      if (!rescan && state === 'running')
-        sourceScan.startAutomatic(undefined, { presentation: 'inline' });
-      else if (
-        !scanController.indexedFreshAvailable &&
-        !rescan &&
-        (state === 'unavailable' ||
-          (!capturedQuery &&
-            (state === 'completed' || (state === 'fresh' && catalog.channels.length > 0))))
-      ) {
-        // Revealing saved channels is not authorization to replace a finished/lost scan.
-        inlineScanPanel.reveal();
-        element('inline-scan-status').textContent =
-          state === 'completed'
-            ? 'Your previous scan is finished. Select Refresh to look for new channels and remove dead ones, or Rescan to check everything again.'
-            : state === 'unavailable'
-              ? 'Your saved channels are retained. Previous scan progress cannot resume. Select Rescan to check all sources again.'
-              : 'Saved channels are ready. Select Rescan to check all sources again.';
-        element('inline-scan-error').textContent = '';
-        element('inline-scan-error').hidden = true;
-        element('inline-scan-stop').hidden = true;
-        element('inline-scan-continue').hidden = true;
-        const rescanAction = element<HTMLButtonElement>('inline-scan-rescan');
-        rescanAction.hidden = false;
-        rescanAction.disabled = false;
-      } else if (!rescan && state === 'unfinished') {
-        // Offer Finish scan / Rescan / Close rather than resuming on its own.
-        if (!capturedQuery && inlineScanPanel.reopen()) return;
-        sourceScan.startAutomatic(undefined, {
-          ...(capturedQuery ? { query: capturedQuery } : {}),
-          presentation: 'inline',
-          intent: 'continue',
-        });
-      } else {
-        inlineScanPanel.reveal(true);
-        element('inline-scan-status').textContent = capturedQuery
-          ? `Finding “${capturedQuery}” online…`
-          : 'Finding public channel sources online…';
-        element('inline-scan-error').hidden = true;
-        element('inline-scan-stop').hidden = false;
-        element<HTMLButtonElement>('inline-scan-stop').disabled = false;
-        element('inline-scan-continue').hidden = true;
-        element('inline-scan-rescan').hidden = true;
-        const discovered = await onlineSourceDiscovery.start(
-          { query: capturedQuery, ...(capturedRegion ? { region: capturedRegion } : {}) },
-          controller.signal,
-        );
-        if (!admitted()) return;
-        if (configuredSourceIdentity() !== capturedSourceIdentity)
-          throw new Error('Configured sources changed during discovery.');
-        if (!discovered.channels.length) {
-          if (scanProviderSources().length > 0) {
-            notice('No new online sources were found. Checking your configured sources.');
-            if (rescan || (!scanController.indexedFreshAvailable && state === 'completed'))
-              sourceScan.rescanAutomatic(undefined, options);
-            else sourceScan.startAutomatic(undefined, options);
-            return;
-          }
-          element('inline-scan-status').textContent = emptyOnlineDiscoveryText(discovered);
-          element('inline-scan-stop').hidden = true;
-          element('inline-scan-rescan').hidden = false;
-          return;
-        }
-        // Known-dead links are skipped and pruned; saved catalog sources are never pruned.
-        const dead = {
-          unavailable: await readUnavailableSources(),
-          keep: new Set(catalog.sources.map((source) => source.location)),
-        };
-        const preparedRegistry = prepareDiscoveredSources(
-          settings,
-          discovered,
-          () => crypto.randomUUID(),
-          dead,
-        );
-        const registryUnchanged =
-          JSON.stringify([settings.reviewedChannelProviders, settings.reviewedGuideProviders]) ===
-          JSON.stringify([
-            preparedRegistry.preferences.reviewedChannelProviders,
-            preparedRegistry.preferences.reviewedGuideProviders,
-          ]);
-        const saved =
-          registryUnchanged ||
-          (await saveSettings(
-            (draft) => {
-              const prepared = prepareDiscoveredSources(
-                draft,
-                discovered,
-                () => crypto.randomUUID(),
-                dead,
-              );
-              draft.reviewedChannelProviders = prepared.preferences.reviewedChannelProviders;
-              draft.reviewedGuideProviders = prepared.preferences.reviewedGuideProviders;
-            },
-            async () =>
-              admitted() &&
-              configuredSourceIdentity() === capturedSourceIdentity &&
-              JSON.stringify(settings.preferredRegion) === JSON.stringify(capturedRegion),
-          ));
-        if (!saved || !admitted()) {
-          if (!saved && admitted()) throw new Error('Discovered sources could not be saved.');
-          return;
-        }
-        if (rescan || (!scanController.indexedFreshAvailable && state === 'completed'))
-          sourceScan.rescanAutomatic(undefined, options);
-        else sourceScan.startAutomatic(undefined, options);
-      }
-    })
-    .catch((failure: unknown) => {
-      if (admitted()) {
-        inlineScanPanel.reveal();
-        element('inline-scan-status').textContent =
-          failure instanceof BoundedScanEntryRefusal
-            ? 'Saved scan progress could not be checked. Your saved channels are retained. Select Rescan to try again.'
-            : 'Online source discovery could not finish. Your saved channels are retained. Select Rescan to try again.';
-        if (failure instanceof BoundedScanEntryRefusal) {
-          element('inline-scan-error').textContent =
-            'Saved scan admission is unavailable. No channels were changed.';
-          element('inline-scan-error').hidden = false;
-        }
-        element('inline-scan-stop').hidden = true;
-        element('inline-scan-continue').hidden = true;
-        element('inline-scan-rescan').hidden = false;
-      } else if (
-        !applicationClosing &&
-        !document.hidden &&
-        generation === addChannelsEntryGeneration
-      ) {
-        element('inline-scan-status').textContent =
-          'Online discovery stopped. Your saved channels are retained.';
-        element('inline-scan-stop').hidden = true;
-        element('inline-scan-rescan').hidden = false;
-      }
-    })
-    .finally(() => {
-      if (addChannelsEntryWork === pending) addChannelsEntryWork = null;
-      if (addChannelsEntryController === controller) addChannelsEntryController = null;
-      searchAction.disabled = applicationClosing;
-      updateImportActions();
-    });
-  addChannelsEntryWork = pending;
-  updateImportActions();
-}
-element('inline-scan-stop').addEventListener('click', () => {
-  if (applicationClosing) return;
-  const button = element<HTMLButtonElement>('inline-scan-stop');
-  button.disabled = true;
-  playbackAction(
-    Promise.all([cancelOnlineSourceEntry(), sourceScan.stopAutomatic()]).finally(() => {
-      button.disabled = applicationClosing;
-    }),
-  );
-});
-element('inline-scan-continue').addEventListener('click', () => {
-  if (applicationClosing || addChannelsEntryWork) return;
-  playbackAction(sourceScan.continueAutomatic({ presentation: 'inline' }));
-});
-element('inline-scan-rescan').addEventListener('click', () => startInlineDiscovery(true));
-element('inline-scan-refresh').addEventListener('click', () => playbackAction(refreshFreeTv()));
-
-installGuideGrabberExport(document);
-let playlistExportWork: Promise<void> | null = null;
-let playlistExportController: AbortController | null = null;
-element('export-channels-button').addEventListener('click', () => {
-  if (
-    applicationClosing ||
-    playlistExportWork ||
-    importRunning ||
-    transferBusy ||
-    scanController.automaticScanActive ||
-    addChannelsEntryWork
-  )
-    return;
-  const controller = new AbortController();
-  playlistExportController = controller;
-  const button = element<HTMLButtonElement>('export-channels-button');
-  const status = element('channel-transfer-status');
-  button.disabled = true;
-  status.textContent = 'Preparing your channel list…';
-  const work = (async () => {
-    try {
-      await catalogWrites;
-      controller.signal.throwIfAborted();
-      const removed = new Set(settings.removedChannels);
-      const result = await exportPlaylistInWorker(
-        {
-          channels: catalog.channels.filter((channel) => !removed.has(channel.id)),
-          sources: catalog.sources,
-        },
-        controller.signal,
-      );
-      controller.signal.throwIfAborted();
-      if (!applicationClosing) status.textContent = 'Choose where to save your playlist.';
-      const receipt = await savePlaylistExport(result, controller.signal);
-      if (!applicationClosing)
-        status.textContent =
-          receipt.status === 'saved'
-            ? `${result.channelCount} channels exported to ${receipt.filename}.`
-            : receipt.status === 'download-started'
-              ? `${result.channelCount} channels prepared. Your browser started the download.`
-              : 'Export canceled. Your saved channels are unchanged.';
-    } catch {
-      if (!applicationClosing && !controller.signal.aborted)
-        status.textContent =
-          'The channel list could not be exported. Your saved channels are unchanged.';
-    } finally {
-      if (playlistExportController === controller) playlistExportController = null;
-
-      button.disabled =
-        applicationClosing || importRunning || transferBusy || scanController.automaticScanActive;
-    }
-  })().finally(() => {
-    if (playlistExportWork === work) playlistExportWork = null;
-  });
-  playlistExportWork = work;
-});
-element('rescan-automatic-button').addEventListener('click', () => {
-  if (applicationClosing || importRunning || transferBusy || addChannelsEntryWork) return;
-  importDialog.close();
-  playbackAction(
-    (async () => {
-      await supportsBoundedResume(new AbortController().signal);
-      if (!applicationClosing && !backgroundSuspension) {
-        rendererRecoveryPolicy.authorize('scan');
-        sourceScan.rescanAutomatic();
-      }
-    })(),
-  );
-});
-element('settings-button').addEventListener('click', () =>
-  element<HTMLDialogElement>('settings-dialog').showModal(),
-);
-element('import-form').addEventListener('submit', (event) => {
-  event.preventDefault();
-  if (importRunning || transferBusy || applicationClosing) return;
-  const location = element<HTMLInputElement>('playlist-url').value.trim();
-  const allowHttp = element<HTMLInputElement>('allow-http').checked;
-  const generation = addChannelsEntryGeneration;
-  const intent = ++customImportIntent;
-  playbackAction(
-    ownImport(
-      (async () => {
-        try {
-          await addChannelsEntryWork;
-          if (
-            !importDialog.open ||
-            generation !== addChannelsEntryGeneration ||
-            intent !== customImportIntent ||
-            importRunning ||
-            transferBusy ||
-            applicationClosing ||
-            backgroundSuspension
-          )
-            return;
-          let drafts: ScanSource[] | undefined;
-          if (location) {
-            const url = new URL(location);
-            const existing = catalog.sources.find(
-              (source) => source.kind === 'url' && source.location === url.href,
-            );
-            const source = validateSource({
-              id: existing?.id ?? crypto.randomUUID(),
-              name: url.hostname,
-              location: url.href,
-              kind: 'url',
-              allowHttp,
-            });
-            drafts = [{ source, fingerprint: crypto.randomUUID() }];
-          }
-          element<HTMLDialogElement>('import-dialog').close();
-          sourceScan.start(drafts);
-        } catch {
-          if (
-            !importDialog.open ||
-            generation !== addChannelsEntryGeneration ||
-            intent !== customImportIntent
-          )
-            return;
-          element('import-status').textContent =
-            'Enter a complete HTTP or HTTPS source URL and allow HTTP if needed.';
-        }
-      })(),
-    ),
-  );
-});
-async function importPlaylistFile(): Promise<void> {
-  const file = element<HTMLInputElement>('playlist-file').files?.[0];
-  if (!file) return;
-  const allowHttp = element<HTMLInputElement>('allow-http').checked;
-  const generation = addChannelsEntryGeneration;
-  const intent = ++customImportIntent;
-  const targetId = fileImportTarget.value;
-  try {
-    await addChannelsEntryWork;
-    if (
-      !importDialog.open ||
-      generation !== addChannelsEntryGeneration ||
-      intent !== customImportIntent
-    )
-      return;
-    if (importRunning || transferBusy || applicationClosing || backgroundSuspension) return;
-    const existing = targetId
-      ? catalog.sources.find((source) => source.id === targetId && source.kind === 'file')
-      : undefined;
-    if (targetId && !existing)
-      throw new Error('The selected playlist was removed. Choose it again.');
-    element<HTMLDialogElement>('import-dialog').close();
-    await sourceScan.reviewFile(createFileImportSource(file.name, allowHttp, existing), file);
-  } catch (error) {
-    if (
-      importDialog.open &&
-      generation === addChannelsEntryGeneration &&
-      intent === customImportIntent
-    )
-      element('import-status').textContent = friendlyError(error);
-  } finally {
-    if (intent === customImportIntent) element<HTMLInputElement>('playlist-file').value = '';
-  }
-}
-element('playlist-file').addEventListener('change', () => {
-  playbackAction(ownImport(importPlaylistFile()));
-});
-element('cancel-import').addEventListener('click', () => {
-  if (collectionAbort) collectionAbort.abort();
-  element('import-status').textContent = 'Canceling…';
-});
-async function refreshAllSources(quiet = false, signal?: AbortSignal): Promise<void> {
-  if (importRunning || transferBusy || applicationClosing) return;
-  signal?.throwIfAborted();
-  if (await supportsBoundedResume(signal ?? new AbortController().signal)) {
-    const cancel = () => {
-      void sourceScan.stopAutomatic().catch(() => undefined);
-    };
-    signal?.addEventListener('abort', cancel, { once: true });
-    try {
-      signal?.throwIfAborted();
-      const state = await prepareInlineScanEntry(signal ?? new AbortController().signal);
-      if (state === 'unavailable')
-        throw new Error('Saved scan ownership must be recovered before refreshing sources.');
-      if (state === 'unfinished') await sourceScan.continueAutomatic({ presentation: 'inline' });
-      else await sourceScan.refreshAutomatic(undefined, { query: '', presentation: 'inline' });
-    } finally {
-      signal?.removeEventListener('abort', cancel);
-      if (signal?.aborted) await sourceScan.stopAutomatic();
-    }
-    return;
-  }
-  if (!quiet) element<HTMLDialogElement>('import-dialog').showModal();
-  const controller = new AbortController();
-  const cancel = () => controller.abort();
-  signal?.addEventListener('abort', cancel, { once: true });
-  const warnings: string[] = [];
-  collectionAbort = controller;
-  setImportBusy(true);
-  try {
-    const outcomes = await collectSources(
-      [...catalog.sources].filter((item) => item.kind === 'url'),
-      async (source, signal) => {
-        const result = await refreshSource(source, undefined, signal);
-        warnings.push(...(result.warnings ?? []));
-        return result.status === 'completed'
-          ? { status: 'completed', value: result.channels?.length ?? 0, published: true }
-          : { status: 'canceled' };
-      },
-      controller.signal,
-      (progress) => {
-        element(quiet ? 'source-refresh-status' : 'import-status').textContent =
-          `Collected ${progress.settled} of ${progress.total} sources…`;
-      },
-    );
-    settings = await preferences.update((draft) => {
-      draft.sources = [...catalog.sources];
-    });
-    applySettings();
-    const completed = outcomes.filter((item) => item.status === 'completed').length;
-    const failed = outcomes.filter((item) => item.status === 'failed').length;
-    const summary = `${completed} sources refreshed${failed ? `; ${failed} failed and retained their saved channels` : ''}${controller.signal.aborted ? '; remaining collection canceled' : ''}.`;
-    const message = [summary, ...warnings].join(' ');
-    element('source-refresh-status').textContent = message;
-    if (!quiet) {
-      element('import-status').textContent = message;
-      if (!failed && !controller.signal.aborted) {
-        element<HTMLDialogElement>('import-dialog').close();
-        notice(message);
-      }
-    }
-  } catch (error) {
-    element(quiet ? 'source-refresh-status' : 'import-status').textContent = friendlyError(error);
-  } finally {
-    signal?.removeEventListener('abort', cancel);
-    collectionAbort = null;
-    setImportBusy(false);
-    renderCatalog();
-  }
-}
-const dailyRefresh = createDailyRefresh({
-  cadence: () =>
-    migrateRefreshCadence(settings.sourceRefreshCadence, settings.automaticSourceRefresh),
-  canRun: () =>
-    rendererRecoveryPolicy.allowAutomaticWork() &&
-    settings.automaticSourceRefresh &&
-    element('app').dataset.ready === 'true' &&
-    !document.hidden &&
-    nativeViewingForeground &&
-    !backgroundSuspension &&
-    !applicationClosing &&
-    !importRunning &&
-    !transferBusy &&
-    !scanController.automaticScanActive &&
-    // A refresh would invalidate a paused scan's saved checks.
-    !scanController.pausedScanResumable &&
-    !document.querySelector('dialog[open]') &&
-    catalog.sources.some((source) => source.kind === 'url'),
-  lastAttemptAt: () => settings.sourceRefreshAttemptAt,
-  persistAttempt: async (time, signal) => {
-    settings = await preferences.update(
-      (draft) => {
-        draft.sourceRefreshAttemptAt = time;
-      },
-      async () => {
-        if (signal.aborted || applicationClosing) throw new DailyRefreshAttemptNotStartedError();
-        return true;
-      },
-    );
-  },
-  run: (signal) => ownImport(refreshAllSources(true, signal)),
-  onError: () => {
-    element('source-refresh-status').textContent =
-      'Automatic update could not finish. Your saved channels remain available. Use Refresh to retry.';
-  },
-});
-const dailyGuideRefresh = createDailyGuideRefresh({
-  canRun: () =>
-    rendererRecoveryPolicy.allowAutomaticWork() &&
-    isTauri() &&
-    settings.automaticGuideUpdates !== false &&
-    !guideController.automaticGuideControlPending &&
-    element('app').dataset.ready === 'true' &&
-    !document.hidden &&
-    nativeViewingForeground &&
-    !backgroundSuspension &&
-    !applicationClosing &&
-    !importRunning &&
-    !transferBusy &&
-    !document.querySelector('dialog[open]'),
-  plan: async (signal) => {
-    const result = await readDailyGuidePlan(signal);
-    const localNow = Date.now();
-    return result.sources.map((entry) => ({
-      ...entry,
-      nextDueMs: localNow + Math.max(0, entry.nextDueMs - result.nowMs),
-    }));
-  },
-  refresh: refreshDailyGuide,
-  onChanged: () => {
-    void visibleGuide?.refresh().catch(() => undefined);
-    guide.catalogChanged(true);
-    requestCachedGuideConnection();
-  },
-  onError: () => {
-    element('source-refresh-status').textContent =
-      'A program guide could not update. Its previous schedule remains available. Retry from Guide.';
-  },
-});
-const automaticGuideUpdates = bootstrapBoundary.run('settings', () =>
-  mountAutomaticGuideUpdates(element<HTMLDialogElement>('settings-dialog'), {
-    automaticGuideUpdates: settings.automaticGuideUpdates,
-    save: (value) =>
-      withPausedGuideUpdates(async () => {
-        if (
-          !(await saveSettings((draft) => {
-            draft.automaticGuideUpdates = value;
-          }))
-        )
-          throw new Error('Program guide settings could not be saved.');
-        if (value) rendererRecoveryPolicy.authorize('update-settings');
-      }),
-  }),
-);
-async function withPausedGuideUpdates<T>(operation: () => Promise<T>): Promise<T> {
-  guideController.automaticGuideControlPending++;
-  try {
-    await joinGuideWork([automaticGuides, dailyGuideRefresh]);
-    return await operation();
-  } finally {
-    guideController.automaticGuideControlPending--;
-    if (!guideController.automaticGuideControlPending && !applicationClosing) wakeDailyRefresh();
-  }
-}
-function requestCachedGuideConnection(): void {
-  void automaticGuides.requestCached().catch((error) => {
-    if (error instanceof DOMException && error.name === 'AbortError') return;
-    void diagnostics.emit({ operation: 'guide', level: 'warning', code: 'guide-failed' });
-  });
-}
-function wakeDailyRefresh(): void {
-  void dailyGuideRefresh.wake().catch(() => {
-    element('source-refresh-status').textContent =
-      'The program guide update could not finish. Retry from Guide.';
-  });
-  void dailyRefresh.wake().catch(() => {
-    element('source-refresh-status').textContent =
-      'Automatic update could not finish. Your saved channels remain available. Use Refresh to retry.';
-  });
-}
 element('daily-source-refresh').addEventListener('change', async () => {
   const control = element<HTMLSelectElement>('daily-source-refresh');
   const cadence = validateRefreshCadence(control.value);
@@ -4133,7 +3459,7 @@ vodStopControl = mountVODStop(element<HTMLButtonElement>('vod-stop'), {
   focusFallback: () => restoreRemoteFocus(element('mute-button')),
   canRestoreFocus: () => nativeViewingForeground && !backgroundSuspension,
 });
-liveReplay = installLiveReplay(document, {
+playerView.liveReplay = installLiveReplay(document, {
   replay: () => player.liveReplay(),
   usable: () =>
     !applicationClosing &&
@@ -4147,9 +3473,9 @@ liveReplay = installLiveReplay(document, {
   notice,
   focusFallback: () => restoreRemoteFocus(element('pause-button'), element('mute-button')),
 });
-player.subscribe(() => liveReplay?.render());
+player.subscribe(() => playerView.liveReplay?.render());
 element('pause-button').addEventListener('click', () => {
-  if (liveReplay?.active()) return liveReplay.togglePause();
+  if (playerView.liveReplay?.active()) return playerView.liveReplay.togglePause();
   if (player.snapshot.state === 'paused' || archiveBackgroundPaused || backgroundLiveChoice)
     playbackAction(resumeLocalPlayback());
   else playbackAction(pauseLocalPlayback());
@@ -4170,246 +3496,100 @@ element('favorite-button').addEventListener('click', () => {
   if (!id) return;
   toggleChannelFavorite(id);
 });
-async function removeSavedChannel(id: string): Promise<void> {
-  if (applicationClosing) throw new Error('Application closing.');
-  if (/^archive-[a-f0-9]{64}$/u.test(id))
-    throw new Error('GenXtra titles are managed separately from channels.');
-  if (/^account-[a-f0-9]{32}-[a-f0-9]{64}$/u.test(id)) {
-    const receipt = await writeAccountPreference({ kind: 'remove', channelId: id });
-    try {
-      if (player.snapshot.selection?.id === id) await accountPlayer!.stop();
-      notice('Channel removed. You can restore it in Settings.');
-    } catch {
-      notice('Channel removed. Playback cleanup needs a retry.');
-    }
-    if (receipt.cleanupPending) notice('Channel removed. Playback cleanup needs a retry.');
-    return;
-  }
-  if (isTauri()) {
-    await editPublicChannelGroup(id, { kind: 'remove' });
-    try {
-      const selected = player.snapshot.selection?.id;
-      if (selected && settings.removedChannels.includes(selected)) await sharingBridge.stop();
-      notice('Channel removed. You can restore removed channels in Settings.');
-    } catch {
-      notice('Channel removed, but playback cleanup needs attention.');
-    }
-    return;
-  }
-  const saved = await saveSettings((draft) => {
-    if (!draft.removedChannels.includes(id)) draft.removedChannels.push(id);
-  });
-  if (!saved) throw new Error('Channel was not removed.');
-  if (saved) {
-    try {
-      if (player.snapshot.selection?.id === id) await sharingBridge.stop();
-      notice('Channel removed. You can restore removed channels in Settings.');
-    } catch {
-      notice('Channel removed, but playback cleanup needs attention. Retry stopping playback.');
-    } finally {
-      renderCatalog();
-    }
-  }
-}
-// The quiet saved-channel check (Free TV, native store only).
-const channelCheckStore = createChannelCheckStore();
-const savedChannelCheck = createSavedChannelCheck({
-  channels: () => {
-    const removed = new Set(settings.removedChannels);
-    const allowHttp = new Map(catalog.sources.map((source) => [source.id, !!source.allowHttp]));
-    return catalog.channels
-      .filter((channel) => !removed.has(channel.id) && channel.urls.length > 0)
-      .map((channel) => ({
-        id: channel.id,
-        url: channel.urls[0],
-        allowHttp: allowHttp.get(channel.sourceId) ?? false,
-      }));
+const channelHealth = createChannelHealthController({
+  get applicationClosing() {
+    return applicationClosing;
   },
-  idle: () =>
-    !applicationClosing &&
-    element('app').dataset.ready === 'true' &&
-    !document.hidden &&
-    nativeViewingForeground &&
-    scanController.healthPlatform !== null &&
-    ['idle', 'paused', 'failed'].includes(player.snapshot.state) &&
-    !scanController.automaticScanActive &&
-    !sourceScan.snapshot().busy,
-  read: (signal) => channelCheckStore.read(signal),
-  record: (observations, signal) => channelCheckStore.record(observations, signal),
-  probe: async (channel, signal) =>
-    healthVerdict(await inspectStreamEvidence(channel.url, channel.allowHttp, signal, 20000)),
-  changed: (checks, slow) => {
-    channelCheckMarks = checks;
-    adoptSlowChannels(slow);
-    presentNotResponding();
+  get writeAccountPreference() {
+    return writeAccountPreference;
   },
-  wait: (ms, signal) =>
-    new Promise<void>((resolve, reject) => {
-      const timer = window.setTimeout(resolve, ms);
-      signal.addEventListener(
-        'abort',
-        () => {
-          window.clearTimeout(timer);
-          reject(signal.reason);
-        },
-        { once: true },
-      );
-    }),
+  get player() {
+    return player;
+  },
+  get accountPlayer() {
+    return accountPlayer;
+  },
+  get notice() {
+    return notice;
+  },
+  get editPublicChannelGroup() {
+    return editPublicChannelGroup;
+  },
+  get settings() {
+    return settings;
+  },
+  get sharingBridge() {
+    return sharingBridge;
+  },
+  get saveSettings() {
+    return saveSettings;
+  },
+  get renderCatalog() {
+    return renderCatalog;
+  },
+  get catalog() {
+    return catalog;
+  },
+  get element() {
+    return element;
+  },
+  get nativeViewingForeground() {
+    return nativeViewingForeground;
+  },
+  get scanController() {
+    return scanController;
+  },
+  get sourceScan() {
+    return sourceScan;
+  },
+  get inspectStreamEvidence() {
+    return inspectStreamEvidence;
+  },
+  get channelCheckMarks() {
+    return channelCheckMarks;
+  },
+  set channelCheckMarks(value) {
+    channelCheckMarks = value;
+  },
+  get slowChannelIds() {
+    return slowChannelIds;
+  },
+  set slowChannelIds(value) {
+    slowChannelIds = value;
+  },
+  get browser() {
+    return browser;
+  },
+  get catalogBrowseViewRevision() {
+    return catalogBrowseViewRevision;
+  },
+  set catalogBrowseViewRevision(value) {
+    catalogBrowseViewRevision = value;
+  },
+  get contentLibrary() {
+    return contentLibrary;
+  },
+  get accountBrowser() {
+    return accountBrowser;
+  },
+  get addChannelsEntryWork() {
+    return addChannelsEntryWork;
+  },
+  get startInlineDiscovery() {
+    return startInlineDiscovery;
+  },
+  get playbackAction() {
+    return playbackAction;
+  },
 });
-let lastCheckPlayback: PlaybackSnapshot['state'] | null = null;
-/**
- * How long a saved Free TV channel takes from selection to playing sets or
- * clears its Slow badge (owner design, October 21, 2026): under 3 s clears it,
- * over 5 s sets it (native rule). Measured once per selection, page clock.
- */
-let channelStart: { id: string; at: number; recorded: boolean } | null = null;
-/**
- * Slow channels sort after fast ones (owner design, October 21, 2026). A
- * badge change advances the native list's view revision, so the list is read
- * again at once in the new order rather than paging with a refused cursor.
- */
-function adoptSlowChannels(ids: ReadonlySet<string>): void {
-  const same = ids.size === slowChannelIds.size && [...ids].every((id) => slowChannelIds.has(id));
-  browser.setSlow(ids);
-  if (same) return;
-  slowChannelIds = new Set(ids);
-  catalogBrowseViewRevision++;
-  if (!applicationClosing) browser.search(element<HTMLInputElement>('search').value);
-}
-player.subscribe((snapshot) => {
-  const id = snapshot.selection?.id;
-  if (!id || ['idle', 'failed', 'disposed'].includes(snapshot.state)) channelStart = null;
-  else if (snapshot.state === 'connecting' && channelStart?.id !== id)
-    channelStart = { id, at: performance.now(), recorded: false };
-  else if (
-    snapshot.state === 'playing' &&
-    channelStart?.id === id &&
-    !channelStart.recorded &&
-    isTauri() &&
-    catalog.channels.some((channel) => channel.id === id)
-  ) {
-    channelStart.recorded = true;
-    const startMs = Math.round(performance.now() - channelStart.at);
-    if (startMs <= 120_000)
-      void channelCheckStore
-        .recordStart(id, startMs, new AbortController().signal)
-        .then((slow) => {
-          if (slow !== null && slow !== slowChannelIds.has(id)) {
-            const next = new Set(slowChannelIds);
-            if (slow) next.add(id);
-            else next.delete(id);
-            adoptSlowChannels(next);
-          }
-          savedChannelCheck.poke();
-        })
-        .catch(() => undefined);
-  }
-});
-player.subscribe((snapshot) => {
-  const selected = snapshot.selection?.id;
-  // A saved Free TV channel playing here is working: record it.
-  if (
-    snapshot.state === 'playing' &&
-    lastCheckPlayback !== 'playing' &&
-    selected &&
-    catalog.channels.some((channel) => channel.id === selected)
-  )
-    savedChannelCheck.played(selected);
-  if (snapshot.state !== lastCheckPlayback) savedChannelCheck.poke();
-  lastCheckPlayback = snapshot.state;
-});
-let removingDeadChannels = false;
-/** Marks, the Not responding category and its Remove strip follow the newest checks. */
-function presentNotResponding(): void {
-  const removed = new Set(settings.removedChannels);
-  const ids = new Set<string>();
-  for (const check of channelCheckMarks.values())
-    if (check.notResponding && !removed.has(check.channelId)) ids.add(check.channelId);
-  browser.setNotResponding(ids);
-  const freeTv = contentLibrary === 'live' && !accountBrowser.selectedAccount;
-  const offered = freeTv && ids.size > 0;
-  const item = document.querySelector<HTMLButtonElement>('.filters [data-filter="unresponsive"]');
-  const option = document.querySelector<HTMLOptionElement>(
-    '#compact-filter option[value="unresponsive"]',
-  );
-  if (!item || !option) return;
-  const chosen = item.getAttribute('aria-pressed') === 'true';
-  item.hidden = !offered;
-  item.dataset.count = ids.size.toLocaleString();
-  option.hidden = option.disabled = !offered;
-  option.textContent = `Not responding (${ids.size.toLocaleString()})`;
-  element('dead-channels').hidden = !(offered && chosen);
-  if (!removingDeadChannels) {
-    element('dead-channels-text').textContent =
-      `${ids.size.toLocaleString()} saved ${ids.size === 1 ? 'channel' : 'channels'} failed checks on two different days.`;
-    element('remove-dead-channels').textContent =
-      ids.size === 1 ? 'Remove it' : `Remove all ${ids.size.toLocaleString()}`;
-  }
-  // Nothing left to show (removed, recovered, or Paid TV): back to All.
-  if (chosen && !offered && !removingDeadChannels)
-    document.querySelector<HTMLButtonElement>('.filters [data-filter="all"]')?.click();
-}
-/**
- * Removes saved channels the quiet check confirmed Not responding (failed on
- * two different days). Refresh keeps favorites (owner decision, October 21,
- * 2026); the Not responding view's own button removes them all. Every removal
- * is the ordinary one, restorable in Settings.
- */
-async function removeDeadChannels(options: { keepFavorites?: boolean } = {}): Promise<number> {
-  if (removingDeadChannels) return 0;
-  const removed = new Set(settings.removedChannels);
-  const favorites = new Set(options.keepFavorites ? settings.favorites : []);
-  const ids = [...channelCheckMarks.values()]
-    .filter(
-      (check) =>
-        check.notResponding && !removed.has(check.channelId) && !favorites.has(check.channelId),
-    )
-    .map((check) => check.channelId);
-  if (!ids.length) return 0;
-  removingDeadChannels = true;
-  const button = element<HTMLButtonElement>('remove-dead-channels');
-  button.disabled = true;
-  try {
-    // One native write and one list refresh per 5,001 channels (owner design,
-    // October 21, 2026); each removal takes the channel's duplicates with it.
-    for (let start = 0; start < ids.length; start += CATALOG_GROUP_BATCH_LIMIT + 1) {
-      if (applicationClosing) break;
-      const [first, ...more] = ids.slice(start, start + CATALOG_GROUP_BATCH_LIMIT + 1);
-      element('dead-channels-text').textContent =
-        `Removing ${ids.length.toLocaleString()} ${ids.length === 1 ? 'channel' : 'channels'}…`;
-      await editPublicChannelGroup(first!, { kind: 'remove' }, more);
-    }
-    const selected = player.snapshot.selection?.id;
-    if (selected && settings.removedChannels.includes(selected)) await sharingBridge.stop();
-    notice(
-      `${ids.length.toLocaleString()} not responding ${ids.length === 1 ? 'channel' : 'channels'} removed. You can restore removed channels in Settings.`,
-    );
-  } finally {
-    removingDeadChannels = false;
-    button.disabled = false;
-    presentNotResponding();
-  }
-  return ids.length;
-}
-/**
- * Refresh (owner request, October 21, 2026): remove the channels the daily
- * check confirmed dead (favorites kept), then look for new channels only.
- * The scan's Refresh mode checks just what is due: never-seen streams, and
- * failures past their trust window (source_snapshot_activation.rs). Rescan
- * still checks everything from scratch.
- */
-async function refreshFreeTv(): Promise<void> {
-  if (applicationClosing || addChannelsEntryWork) return;
-  await removeDeadChannels({ keepFavorites: true });
-  startInlineDiscovery(false);
-}
-element('remove-dead-channels').addEventListener('click', () =>
-  playbackAction(removeDeadChannels().then(() => undefined)),
-);
-element('remove-channel').addEventListener('click', () => {
-  const id = player.snapshot.selection?.id;
-  if (id) playbackAction(removeSavedChannel(id));
-});
+const {
+  channelCheckStore,
+  savedChannelCheck,
+  removeSavedChannel,
+  presentNotResponding,
+  refreshFreeTv,
+} = channelHealth;
+
 element('restore-channels').addEventListener('click', () => {
   if (accountBrowser.selectedAccount) {
     playbackAction(
@@ -4477,7 +3657,7 @@ function suspendForegroundWork(): Promise<void> {
   libraryIntent++;
   liveBrowseSuspended = true;
   document.querySelector<HTMLElement>('.browser')!.inert = true;
-  vodSeekGeneration++;
+  playerView.vodSeekGeneration++;
   renderVODTransport();
   if (archivePlayer?.selection) {
     archiveResumeChoice = archivePlayer.selection;
@@ -4521,7 +3701,7 @@ function suspendForegroundWork(): Promise<void> {
   // cancellation settles through its existing atomic publication flow.
   // Explicit LAN sharing keeps its separate service owner.
   backgroundSuspension = Promise.allSettled([
-    vodSeekWork,
+    playerView.vodSeekWork,
     archiveSearch!.suspend(),
     archiveDiscovery.suspend(),
     archiveDownloads!.suspend(),
@@ -4634,7 +3814,7 @@ async function handleBack(): Promise<void> {
     return;
   }
   // An instant replay returns to live before Back leaves anything else.
-  if (!document.querySelector('dialog[open]') && liveReplay?.back()) return;
+  if (!document.querySelector('dialog[open]') && playerView.liveReplay?.back()) return;
   const modal = [
     ...document.querySelectorAll<HTMLDialogElement>('dialog[open]:not([data-primary-page])'),
   ].at(-1);
@@ -4827,7 +4007,7 @@ window.addEventListener('pagehide', () => {
   removeVideoQuality();
   removeAudioTracks();
   void viewingWake?.close().catch(() => undefined);
-  healthCaptureClosing = true;
+  playerView.healthCaptureClosing = true;
   void playbackHealth.dispose().catch(() => undefined);
   void savedChannelCheck.dispose().catch(() => undefined);
   void probeScheduler.dispose().catch(() => undefined);
@@ -4888,13 +4068,13 @@ const closeOwner = createCloseOwner({
     for (const controller of startupJobs.values()) controller.abort();
     storageRecovery?.dispose();
     storageRecovery = undefined;
-    healthCaptureClosing = true;
+    playerView.healthCaptureClosing = true;
     // Startup may have made the shell inert; the close modal must remain reachable.
     element('app').inert = false;
     for (const region of document.querySelectorAll<HTMLElement>('.topbar,.workspace,dialog'))
       if (region.id !== 'close-dialog') region.inert = true;
     collectionAbort?.abort();
-    playlistExportController?.abort();
+    importController.playlistExportController?.abort();
     addChannelsEntryController?.abort();
   },
   owners: [
@@ -4932,8 +4112,8 @@ const closeOwner = createCloseOwner({
     },
     () => providerManagement.dispose(),
     async () => {
-      playlistExportController?.abort();
-      await playlistExportWork;
+      importController.playlistExportController?.abort();
+      await importController.playlistExportWork;
     },
     () => browser.dispose(),
     () => removeVideoQuality(),
