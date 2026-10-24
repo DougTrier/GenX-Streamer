@@ -3,10 +3,11 @@ import org.junit.Assert.*
 import org.junit.Test
 class DonationTargetsTest {
  @Test fun exactTargetsOnly() {
+  assertEquals("https://github.com/dougtrier",DonationTargets.url("author"))
   assertEquals("https://github.com/sponsors/dougtrier",DonationTargets.url("github"))
   assertEquals("https://opencollective.com/trier-os",DonationTargets.url("opencollective"))
   assertEquals("https://www.buymeacoffee.com/dougtrier",DonationTargets.url("coffee"))
-  listOf("","Github","github ","https://github.com/sponsors/dougtrier","coffee?x=1","file:///C:/","cmd.exe").forEach { assertNull(DonationTargets.url(it)) }
+  listOf("","Author","https://github.com/dougtrier","Github","github ","https://github.com/sponsors/dougtrier","coffee?x=1","file:///C:/","cmd.exe").forEach { assertNull(DonationTargets.url(it)) }
  }
  @Test fun unavailableAndBackgroundNeverPretendSuccess() {
    var calls=0

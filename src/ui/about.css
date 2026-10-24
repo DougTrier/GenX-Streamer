@@ -1,0 +1,358 @@
+/* About GenX Streamer (owner request, October 23, 2026): branded header, two
+   tabs (About the Author, Quick Guide) and support cards in the GenX neon
+   palette. Only the body scrolls; the header and tabs stay in view. */
+#about-dialog {
+  width: min(760px, calc(100vw - 16px));
+  /* One height for both tabs, so switching does not resize the window. */
+  height: min(640px, calc(100dvh - 16px));
+  max-height: calc(100dvh - 16px);
+  padding: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 70% at 100% 0%, #f58dca1f, transparent 60%),
+    radial-gradient(90% 60% at 0% 100%, #83e9f514, transparent 60%),
+    linear-gradient(160deg, #121d38, #0a1128 70%);
+  border-color: #3d6280;
+}
+#about-dialog[open] {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+#about-dialog .about-hero {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 16px;
+  padding: 18px 20px 12px 24px;
+}
+#about-dialog .about-hero-icon {
+  width: 64px;
+  height: 64px;
+  object-fit: contain;
+  filter: drop-shadow(0 0 10px #83e9f540);
+}
+#about-dialog .about-hero-copy {
+  min-width: 0;
+}
+#about-dialog h2 {
+  margin: 0;
+  line-height: 0;
+}
+#about-dialog .about-hero-wordmark {
+  display: block;
+  width: min(100%, 230px);
+  height: auto;
+}
+#about-dialog #about-version {
+  margin: 2px 0 0;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: var(--gx-muted);
+}
+#about-dialog .about-close {
+  align-self: start;
+  width: 44px;
+  padding: 0;
+  font-size: 24px;
+  line-height: 1;
+  border-radius: 50%;
+  background: #ffffff0d;
+}
+#about-dialog .about-close:hover {
+  background: #ffffff1f;
+}
+
+#about-dialog .about-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 0 24px;
+  border-bottom: 1px solid #34566e99;
+}
+#about-dialog [role='tab'] {
+  position: relative;
+  background: none;
+  border: 0;
+  border-radius: 8px 8px 0 0;
+  padding: 10px 16px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--gx-muted);
+}
+#about-dialog [role='tab']:hover {
+  color: var(--gx-text);
+  background: #ffffff0a;
+}
+#about-dialog [role='tab'][aria-selected='true'] {
+  color: var(--gx-cyan);
+}
+#about-dialog [role='tab'][aria-selected='true']::after {
+  content: '';
+  position: absolute;
+  inset: auto 10px -1px;
+  height: 3px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--gx-magenta), var(--gx-cyan));
+  box-shadow: 0 0 10px #83e9f580;
+}
+#about-dialog [role='tab']:focus-visible {
+  outline-offset: -2px;
+}
+
+#about-dialog .about-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  padding: 20px 24px 24px;
+}
+#about-dialog .about-panel > :first-child {
+  margin-top: 0;
+}
+
+/* About the Author */
+#about-dialog .about-author {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 18px;
+  align-items: center;
+  padding: 18px 20px;
+  border: 1px solid #34566ecc;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #ffffff0a, #ffffff03);
+}
+#about-dialog .about-author-mark {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  font-size: 24px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--gx-text);
+  background:
+    linear-gradient(#141f3c, #141f3c) padding-box,
+    linear-gradient(135deg, var(--gx-magenta), var(--retro-violet), var(--gx-cyan)) border-box;
+  border: 3px solid transparent;
+  box-shadow: 0 0 18px #ac9bff40;
+}
+#about-dialog .about-author-copy p {
+  margin: 0 0 10px;
+}
+#about-dialog .about-eyebrow {
+  margin: 0 !important;
+  font-size: 11px !important;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gx-cyan) !important;
+}
+#about-dialog .about-author-name {
+  margin: 0 0 6px !important;
+  font-family: 'Yellowtail', cursive;
+  font-size: 36px !important;
+  line-height: 1.15 !important;
+  color: var(--gx-magenta) !important;
+  text-shadow: 0 0 14px #f58dca66;
+}
+#about-dialog .about-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-align: left;
+}
+#about-dialog .about-author-link {
+  border-color: #83e9f566;
+  background: #83e9f512;
+  color: var(--gx-cyan);
+  font-weight: 600;
+}
+#about-dialog .about-author-link:hover {
+  background: #83e9f526;
+}
+#about-dialog .about-glyph {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Support */
+#about-dialog .about-section-title {
+  margin: 24px 0 4px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gx-cyan);
+}
+#about-dialog .about-support {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+#about-dialog .about-support-card {
+  --card-accent: var(--gx-magenta);
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid #34566ecc;
+  border-radius: 14px;
+  background: linear-gradient(160deg, #1b2a4a, #121d36);
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s,
+    transform 0.15s;
+}
+#about-dialog .about-support-card[data-support-target='coffee'] {
+  --card-accent: #ffd27a;
+}
+#about-dialog .about-support-card[data-support-target='opencollective'] {
+  --card-accent: var(--gx-cyan);
+}
+#about-dialog .about-support-card:is(:hover, :focus-visible) {
+  border-color: var(--card-accent);
+  box-shadow: 0 0 16px -4px var(--card-accent);
+  transform: translateY(-1px);
+}
+#about-dialog .about-support-card .about-glyph {
+  box-sizing: content-box;
+  width: 24px;
+  height: 24px;
+  padding: 9px;
+  border-radius: 50%;
+  color: var(--card-accent);
+  background: color-mix(in srgb, var(--card-accent) 14%, transparent);
+}
+#about-dialog .about-support-copy {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+#about-dialog .about-support-copy strong {
+  font-size: 16px;
+  color: var(--gx-text);
+}
+#about-dialog .about-support-copy span {
+  font-size: 13px;
+  color: var(--gx-muted);
+}
+#about-dialog .about-support-copy small {
+  margin-top: 4px;
+  font-size: 11px;
+  color: #8fa3c0;
+  overflow-wrap: anywhere;
+}
+#about-dialog .about-status:empty {
+  display: none;
+}
+#about-dialog .about-status {
+  margin: 12px 0 0;
+  overflow-wrap: anywhere;
+}
+
+/* Licenses: out of the way, still one step from the author page. */
+#about-dialog .about-licenses {
+  margin-top: 24px;
+  padding-top: 14px;
+  border-top: 1px solid #34566e66;
+  font-size: 13px;
+  color: var(--gx-muted);
+}
+#about-dialog .about-licenses summary {
+  cursor: pointer;
+}
+#about-dialog .about-licenses details {
+  margin: 8px 0 0 12px;
+}
+#about-dialog .about-licenses pre {
+  max-height: 240px;
+  overflow: auto;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 11px;
+}
+
+/* Quick Guide */
+#about-dialog .about-guide {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+#about-dialog .about-guide li {
+  display: flex;
+  gap: 14px;
+  min-width: 0;
+  padding: 14px 16px;
+  border: 1px solid #34566e99;
+  border-radius: 12px;
+  background: #ffffff07;
+}
+#about-dialog .about-guide li:focus-visible {
+  outline: 2px solid var(--gx-cyan);
+  outline-offset: 2px;
+}
+#about-dialog .about-step {
+  display: grid;
+  place-items: center;
+  flex: 0 0 32px;
+  height: 32px;
+  border-radius: 50%;
+  font-weight: 700;
+  color: #0a1128;
+  background: linear-gradient(135deg, var(--gx-magenta), var(--retro-violet));
+  box-shadow: 0 0 10px #f58dca59;
+}
+#about-dialog .about-guide strong {
+  display: block;
+  margin-top: 5px;
+  font-size: 15px;
+  color: var(--gx-text);
+}
+#about-dialog .about-guide p {
+  margin: 6px 0 0;
+}
+
+@media (max-width: 520px) {
+  #about-dialog .about-hero {
+    gap: 12px;
+    padding: 14px 12px 10px 16px;
+  }
+  #about-dialog .about-hero-icon {
+    width: 44px;
+    height: 44px;
+  }
+  #about-dialog .about-tabs {
+    padding: 0 8px;
+  }
+  #about-dialog [role='tab'] {
+    flex: 1 1 0;
+    padding-inline: 8px;
+    font-size: 13px;
+  }
+  #about-dialog .about-body {
+    padding: 16px;
+  }
+  #about-dialog .about-author {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: start;
+  }
+  /* Phones: icon beside the text, so the three cards fit with less scrolling. */
+  #about-dialog .about-support-card {
+    flex-direction: row;
+    align-items: center;
+    gap: 14px;
+    padding: 12px 14px;
+  }
+}

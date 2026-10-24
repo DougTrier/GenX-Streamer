@@ -4,51 +4,51 @@
     {
       "identifier": "GilligansIsland1.00",
       "url": "https://archive.org/metadata/GilligansIsland1.00?extended_err=1",
-      "sha256": "124c3c4dd9233965fd4a507a6fc302c722ede0deaf6ca2a2ce3bd3b2e7f755e4",
-      "bytes": 10348,
-      "scope": "Unmodified actual public metadata response; fixture only, not installed catalog/media/codec/rights proof."
+      "sha256": "ef2cc4e6e5526cb4cc22f8cf0270523fb7acbd645829237a42eb62d6064cdcca",
+      "bytes": 10349,
+      "scope": "Official public metadata response with personal email addresses replaced by placeholders (October 23, 2026); test fixture only, not installed content or decoder/rights proof."
     },
     {
       "identifier": "NightOfTheLivingDead-MPEG",
       "url": "https://archive.org/metadata/NightOfTheLivingDead-MPEG?extended_err=1",
-      "sha256": "6c9e8b3eed68f59d58dc8d10d215da129b66a4d1bffb213447337c479971e4d8",
-      "bytes": 35406,
-      "scope": "Unmodified actual public metadata response; fixture only, not installed catalog/media/codec/rights proof."
+      "sha256": "f43af02a40cf82c06c2147ccaa264d45af84843a2cc8d0110097b55932e2b142",
+      "bytes": 35405,
+      "scope": "Official public metadata response with personal email addresses replaced by placeholders (October 23, 2026); test fixture only, not installed content or decoder/rights proof."
     },
     {
       "identifier": "mmtvnh-Merrimack_Middle_School_Band_-_Cartoon_Symphony_2023",
       "url": "https://archive.org/metadata/mmtvnh-Merrimack_Middle_School_Band_-_Cartoon_Symphony_2023?extended_err=1",
-      "sha256": "2882df63a9ce5130872961e3d3547af31b3f51dea386bc37fd6ec24d04569bb7",
-      "bytes": 8550,
-      "scope": "Unmodified actual public metadata response; fixture only, not installed catalog/media/codec/rights proof."
+      "sha256": "46b36705e6b24842776f3081acb2bdad318e1759211394ad1aa60ba018cb5e86",
+      "bytes": 8556,
+      "scope": "Official public metadata response with personal email addresses replaced by placeholders (October 23, 2026); test fixture only, not installed content or decoder/rights proof."
     },
     {
       "identifier": "gtv16nm-El_Camino_-_A_Breaking_Bad_Movie_An_Interview_with_Vince_Gilligan_from_the_KiMo_Theatre",
       "url": "https://archive.org/metadata/gtv16nm-El_Camino_-_A_Breaking_Bad_Movie_An_Interview_with_Vince_Gilligan_from_the_KiMo_Theatre?extended_err=1",
-      "sha256": "c55bb5f111cc541e2430d0841cf2061347b2f985bd1e3636f1a2fa0546064e75",
-      "bytes": 14097,
-      "scope": "Unmodified actual public metadata response; fixture only, not installed catalog/media/codec/rights proof."
+      "sha256": "5cb0a7ef9172101fbe5bc4438fa1d1d94871fb22b7c7172975b905ac72f3c0e7",
+      "bytes": 14103,
+      "scope": "Official public metadata response with personal email addresses replaced by placeholders (October 23, 2026); test fixture only, not installed content or decoder/rights proof."
     },
     {
       "identifier": "Humane_Society_of_St._Lucie_County_Adopt-a-Pet_-_Gilligan",
       "url": "https://archive.org/metadata/Humane_Society_of_St._Lucie_County_Adopt-a-Pet_-_Gilligan?extended_err=1",
-      "sha256": "41ec567c1e253cbec4520e9ffb80a09411e4ebb5f61803be77596f2b2b7c539e",
-      "bytes": 8578,
-      "scope": "Unmodified actual public metadata response; fixture only, not installed catalog/media/codec/rights proof."
+      "sha256": "3171b697afceb371f71fe5f964323b5ac8ab61d9436dcdc69f2df91281d39fd6",
+      "bytes": 8589,
+      "scope": "Official public metadata response with personal email addresses replaced by placeholders (October 23, 2026); test fixture only, not installed content or decoder/rights proof."
     },
     {
       "identifier": "JamusUnpluggedLiveGilligansBarAndGrillJanuary112019",
       "url": "https://archive.org/metadata/JamusUnpluggedLiveGilligansBarAndGrillJanuary112019?extended_err=1",
-      "sha256": "10ed3f4bce1344ec7af62c955fe976c1fcac87dc3848ba047d3a4dfabfe513fe",
-      "bytes": 201743,
-      "scope": "Unmodified actual public metadata response; fixture only, not installed catalog/media/codec/rights proof."
+      "sha256": "0ff0b181ab642821abea046a612866f7f9ef426d7eb5e01bc2e02caaff53f73c",
+      "bytes": 201738,
+      "scope": "Official public metadata response with personal email addresses replaced by placeholders (October 23, 2026); test fixture only, not installed content or decoder/rights proof."
     },
     {
       "identifier": "GrooviesMusicalEvolution",
       "url": "https://archive.org/metadata/GrooviesMusicalEvolution?extended_err=1",
-      "sha256": "7560d8df1bb845d20208036cfaf66d0acd74a1cf9d15c5082527bc39d4db1a4c",
-      "bytes": 10518,
-      "scope": "Unmodified actual public metadata response; fixture only, not installed catalog/media/codec/rights proof."
+      "sha256": "d676a3dc0b3be608334871012afa1e84fcc2b36a3edca5572c69c5dcaa26627e",
+      "bytes": 10523,
+      "scope": "Official public metadata response with personal email addresses replaced by placeholders (October 23, 2026); test fixture only, not installed content or decoder/rights proof."
     }
   ]
 }

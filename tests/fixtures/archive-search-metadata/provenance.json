@@ -4,44 +4,44 @@
     {
       "identifier": "kdhxmo-Opera_Bell_Band_50_000_000_Live_at_KDHX_7_20_21",
       "url": "https://archive.org/metadata/kdhxmo-Opera_Bell_Band_50_000_000_Live_at_KDHX_7_20_21?extended_err=1",
-      "sha256": "9305d248af0fcec222d9e4ce3890994c2f6b91d63a76ad456c1a8e35de8159cc",
-      "bytes": 9831,
-      "scope": "Unmodified official public metadata response; test fixture only, not installed content or decoder/rights proof."
+      "sha256": "31699d11f6c59d5bb2bb859e4b914cf2b7ba4242769cf2df0a4509365371727d",
+      "bytes": 9837,
+      "scope": "Official public metadata response with personal email addresses replaced by placeholders (October 23, 2026); test fixture only, not installed content or decoder/rights proof."
     },
     {
       "identifier": "thenewadventuresofgilligans1",
       "url": "https://archive.org/metadata/thenewadventuresofgilligans1?extended_err=1",
-      "sha256": "047f81ac1c9db47715d4e580db9463ab5ba4a6fddaf6f50053ce13f64d3904d5",
-      "bytes": 105464,
-      "scope": "Unmodified official public metadata response; test fixture only, not installed content or decoder/rights proof."
+      "sha256": "0edfc976a2a5da2a72cd1dd5a574f7f254dcca9f874d1f656fe8277a40c45733",
+      "bytes": 105459,
+      "scope": "Official public metadata response with personal email addresses replaced by placeholders (October 23, 2026); test fixture only, not installed content or decoder/rights proof."
     },
     {
       "identifier": "Popeye_forPresident",
       "url": "https://archive.org/metadata/Popeye_forPresident?extended_err=1",
-      "sha256": "4f884fd7fb8eff195e17a90e083ea510f66df46392927c800b913f362d769efc",
-      "bytes": 12273,
-      "scope": "Unmodified official public metadata response; test fixture only, not installed content or decoder/rights proof."
+      "sha256": "6381c1951539762f0a1452662996ad8204c499a707cabfc4b2c358b149676cee",
+      "bytes": 12266,
+      "scope": "Official public metadata response with personal email addresses replaced by placeholders (October 23, 2026); test fixture only, not installed content or decoder/rights proof."
     },
     {
       "identifier": "BettyBoopCartoons",
       "url": "https://archive.org/metadata/BettyBoopCartoons?extended_err=1",
-      "sha256": "8120e67762277440bc1d0917020926771e276cbb978357473eddb4289ea56f20",
-      "bytes": 31172,
-      "scope": "Unmodified official public metadata response; test fixture only, not installed content or decoder/rights proof."
+      "sha256": "cd80e3ca05de549979ab144005ad012f44b75c931edf5ab51aa799bf99bb91db",
+      "bytes": 31182,
+      "scope": "Official public metadata response with personal email addresses replaced by placeholders (October 23, 2026); test fixture only, not installed content or decoder/rights proof."
     },
     {
       "identifier": "BugsBunnyCaseOfTheMissingHare",
       "url": "https://archive.org/metadata/BugsBunnyCaseOfTheMissingHare?extended_err=1",
-      "sha256": "74e8914c94c2d904949cdee98ae560efef2530b8bd8417af0108b82f16f5e228",
-      "bytes": 11865,
-      "scope": "Unmodified official public metadata response; test fixture only, not installed content or decoder/rights proof."
+      "sha256": "56cada8afe15a1ced74f8eabe3bc31c5ab293f9cc2236707dff10965c6d6dfdd",
+      "bytes": 11860,
+      "scope": "Official public metadata response with personal email addresses replaced by placeholders (October 23, 2026); test fixture only, not installed content or decoder/rights proof."
     },
     {
       "identifier": "The_Beverly_Hillbillies",
       "url": "https://archive.org/metadata/The_Beverly_Hillbillies?extended_err=1",
-      "sha256": "9b84d35c30b06f4ee860cc227b8c77745e7251de20d67c3696e8f5c2933113b9",
-      "bytes": 39710,
-      "scope": "Unmodified official public metadata response; test fixture only, not installed content or decoder/rights proof."
+      "sha256": "7420ffa778e80a9d04b57715b6a606bf9aab0b1b934a3ff28ae46e335572c1ca",
+      "bytes": 39709,
+      "scope": "Official public metadata response with personal email addresses replaced by placeholders (October 23, 2026); test fixture only, not installed content or decoder/rights proof."
     }
   ],
   "notes": "No media downloaded. h.264 and h.264 IA are provider codec claims. Generic MPEG4 is not codec evidence. Access restrictions preserved."

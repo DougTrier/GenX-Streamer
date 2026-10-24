@@ -1,0 +1,249 @@
+/* GenX pop-up look (owner request, October 23, 2026): every pop-up gets the
+   About window's finish. Neon-glass frame with a magenta-to-cyan top edge, the
+   retro TV mark beside each title, cyan section labels, glass buttons and dark
+   fields. Loaded after every other sheet.
+
+   Mostly paint: colours, borders, shadows and type. Selectors stay at element
+   weight (or :where) so any pop-up with its own designed look (Guide, history,
+   program search, About) keeps it. No filters or blur: they would cost the TV
+   extra graphics layers. */
+dialog,
+/* Pop-ups whose own sheet painted a plain frame take the shared one too. */
+dialog:is(
+    .gx-event-history,
+    .source-scan-dialog,
+    .website-discovery-dialog,
+    .storage-recovery-dialog,
+    .archive-resume-dialog,
+    .channel-actions-dialog,
+    .location-dialog
+  ) {
+  color: var(--gx-text);
+  background:
+    linear-gradient(90deg, var(--gx-magenta), var(--retro-violet), var(--gx-cyan)) top / 100% 3px
+      no-repeat,
+    radial-gradient(120% 70% at 100% 0%, #f58dca17, transparent 60%),
+    radial-gradient(90% 60% at 0% 100%, #83e9f512, transparent 60%),
+    linear-gradient(160deg, #121d38, #0a1128 70%);
+  border: 1px solid #3d6280;
+  border-radius: 18px;
+  box-shadow:
+    0 24px 80px #000000b3,
+    0 0 36px #29d9ff14,
+    inset 0 1px 0 #ffffff0f;
+}
+dialog::backdrop {
+  background: #020612b8;
+}
+
+/* Titles: the retro TV mark, then the name in bright type. */
+:where(dialog:not(#about-dialog)) :is(.dialog-head > h2),
+:where(dialog:not(#about-dialog)) > h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  color: #f4f7ff;
+  text-shadow: 0 0 18px #83e9f533;
+}
+:where(dialog:not(#about-dialog)) .dialog-head > h2::before,
+:where(dialog:not(#about-dialog)) > h2::before {
+  content: '';
+  flex: 0 0 auto;
+  width: 1.35em;
+  height: 1.35em;
+  background: url('../../assets/tmg-retro-tv-96.png') center / contain no-repeat;
+}
+:where(dialog) .dialog-head {
+  padding-bottom: 12px;
+  border-bottom: 1px solid #34566e80;
+}
+
+/* Round close button in the title row. */
+:where(dialog) .dialog-head > button[aria-label^='Close'] {
+  /* Paint only: the shared size rules keep it from clipping at large text. */
+  border-radius: 999px;
+  color: var(--gx-text);
+  background: #ffffff0d;
+  border: 1px solid #ffffff26;
+  box-shadow: none;
+}
+:where(dialog) .dialog-head > button[aria-label^='Close']:hover {
+  background: #ffffff1f;
+  border-color: #7fe9ffd9;
+}
+
+/* Section labels. */
+:where(dialog:not(#about-dialog)) h3 {
+  margin: 20px 0 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--gx-cyan);
+}
+:where(dialog:not(#about-dialog)) h4 {
+  color: var(--gx-text);
+}
+:where(dialog) p {
+  color: var(--gx-muted);
+}
+
+/* Glass buttons for every pop-up button that has no look of its own. */
+dialog button {
+  color: #e8f2ff;
+  background: var(--gx-glass-sheen), var(--gx-glass-fill);
+  border-color: var(--gx-glass-edge);
+  box-shadow: var(--gx-glass-depth);
+  text-shadow: 0 1px 1px #00000080;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s,
+    color 0.15s;
+}
+@media (hover: hover) {
+  dialog button:not(:disabled):hover {
+    color: #ffffff;
+    border-color: #7fe9ffd9;
+    box-shadow:
+      var(--gx-glass-depth),
+      0 0 10px #29d9ff4d;
+  }
+}
+dialog button:is([aria-pressed='true'], [aria-current='true'], [aria-expanded='true']) {
+  color: #fff4fc;
+  background: var(--gx-glass-sheen), var(--gx-selected-fill);
+  border-color: var(--gx-selected-edge);
+  box-shadow: var(--gx-selected-glow);
+  text-shadow: 0 0 8px #ff8bdc8c;
+}
+/* The main action keeps its blue glass even inside a dialog's action row. The
+   premium sheet's shared glass rule carries two ids (#app and :not(#genxtra-
+   button)), so this one needs two as well. */
+#app dialog button.primary:not(:disabled, #genxtra-button),
+dialog button.primary {
+  color: #ffffff;
+  background: var(--gx-glass-sheen), var(--gx-primary-fill);
+  border-color: #9cf2ff;
+  box-shadow:
+    inset 0 1px 0 #ffffff47,
+    inset 0 -1px 0 #00000059,
+    0 0 12px #29d9ff59;
+}
+dialog button:focus-visible {
+  color: #ffffff;
+  border-color: var(--gx-focus-edge);
+  box-shadow: var(--gx-focus-glow);
+}
+dialog button:disabled {
+  border-color: #34566e80;
+  box-shadow: inset 0 1px 0 #ffffff14;
+  text-shadow: none;
+}
+
+/* Fields: dark wells with a steel edge and a cyan focus glow. */
+dialog
+  :where(
+    input:not([type='checkbox'], [type='radio'], [type='range'], [type='file']),
+    select,
+    textarea
+  ) {
+  color: var(--gx-text);
+  background: #0a1328;
+  border: 1px solid #3d6280;
+  border-radius: 8px;
+  /* The one size change: native fields were as thin as their text. */
+  min-height: 40px;
+  padding-inline: 10px;
+}
+dialog :where(input:not([type='checkbox'], [type='radio'], [type='range']), select, textarea) {
+  accent-color: var(--gx-magenta);
+}
+dialog :where(select) option {
+  color: var(--gx-text);
+  background: #0f1a33;
+}
+dialog
+  :where(
+    input:not([type='checkbox'], [type='radio'], [type='range'], [type='file']),
+    select,
+    textarea
+  ):focus-visible {
+  border-color: var(--gx-focus-edge);
+  box-shadow:
+    0 0 0 1px #a6f5ff66,
+    0 0 12px #29d9ff4d;
+}
+dialog :where(input[type='checkbox'], input[type='radio'], input[type='range']) {
+  accent-color: var(--gx-magenta);
+}
+
+/* Disclosures read as quiet cards. */
+:where(dialog:not(#about-dialog)) details {
+  border: 1px solid #34566e80;
+  border-radius: 10px;
+  background: #ffffff05;
+  padding: 0 12px;
+  margin: 8px 0;
+}
+:where(dialog:not(#about-dialog)) details > summary {
+  padding: 10px 0;
+  font-weight: 600;
+  color: var(--gx-text);
+  cursor: pointer;
+}
+:where(dialog:not(#about-dialog)) details[open] > summary {
+  color: var(--gx-cyan);
+}
+
+/* Settings: a roomier window on desktop screens, the section picker as a
+   glowing pill, and the chosen section on its own panel. */
+@media (min-width: 900px) and (min-height: 620px) {
+  #settings-dialog {
+    width: min(600px, calc(100vw - 16px));
+  }
+}
+#settings-dialog #settings-section {
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  border-radius: 12px;
+  border-color: #83e9f566;
+  background: linear-gradient(135deg, #83e9f514, #f58dca0f), var(--gx-glass-fill);
+}
+#settings-dialog #settings-section[aria-expanded='true'] {
+  border-color: var(--gx-selected-edge);
+}
+#settings-section-choices button {
+  border-radius: 10px;
+}
+#settings-dialog [data-settings-panel] {
+  border: 1px solid #34566e66;
+  border-radius: 14px;
+  background: #ffffff05;
+  padding: 4px 16px 16px;
+}
+#settings-dialog [data-settings-panel] > h3:first-child {
+  margin-top: 12px;
+}
+#settings-dialog .settings-footer {
+  padding-top: 12px;
+  border-top: 1px solid #34566e80;
+}
+
+/* The file picker's own button matches the glass buttons beside it. */
+dialog input[type='file'] {
+  color: var(--gx-muted);
+}
+dialog input[type='file']::file-selector-button {
+  margin-right: 10px;
+  min-height: 40px;
+  padding: 0 14px;
+  font: inherit;
+  color: #e8f2ff;
+  background: var(--gx-glass-sheen), var(--gx-glass-fill);
+  border: 1px solid var(--gx-glass-edge);
+  border-radius: 9px;
+  box-shadow: var(--gx-glass-depth);
+  cursor: pointer;
+}

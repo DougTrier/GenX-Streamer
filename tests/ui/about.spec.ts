@@ -9,7 +9,7 @@ test.beforeEach(async ({ page }) => {
   await expect(page.locator('#app')).toHaveAttribute('data-ready', 'true');
 });
 
-test('About shows build version and quick guide; Escape returns to its settings opener', async ({
+test('About shows the version, the author tab and the quick guide tab; Escape returns to its settings opener', async ({
   page,
 }) => {
   await page.locator('#settings-button').click();
@@ -19,17 +19,31 @@ test('About shows build version and quick guide; Escape returns to its settings 
   await expect(about.locator('#about-version')).toHaveText(
     `Version ${packageInfo.version} · Browser development preview`,
   );
-  await expect(about).toContainText('Created by Doug Trier.');
-  await expect(about).toContainText('If you enjoy the application, please support the project.');
-  await expect(about.locator('ol li')).toHaveCount(8);
+  const authorTab = about.getByRole('tab', { name: 'About the Author' });
+  const guideTab = about.getByRole('tab', { name: 'Quick Guide' });
+  await expect(authorTab).toHaveAttribute('aria-selected', 'true');
+  const authorPanel = about.getByRole('tabpanel', { name: 'About the Author' });
+  await expect(authorPanel).toContainText('Doug Trier');
+  await expect(authorPanel).toContainText('Support GenX Streamer');
+  await expect(about.locator('.about-guide')).toBeHidden();
+  await guideTab.click();
+  await expect(guideTab).toHaveAttribute('aria-selected', 'true');
+  await expect(authorTab).toHaveAttribute('aria-selected', 'false');
+  await expect(authorPanel).toBeHidden();
+  const steps = about.getByRole('tabpanel', { name: 'Quick Guide' }).locator('li');
+  await expect(steps).toHaveCount(8);
+  await expect(steps.first()).toContainText('Find channels');
   expect(await page.locator('#video').evaluate((node: HTMLVideoElement) => node.paused)).toBe(true);
   await page.keyboard.press('Escape');
   await expect(about).not.toBeVisible();
   await expect(page.locator('#settings-dialog')).toBeVisible();
   await expect(page.locator('#about-button')).toBeFocused();
+  // Reopening starts on the author tab again.
+  await page.locator('#about-button').click();
+  await expect(authorTab).toHaveAttribute('aria-selected', 'true');
 });
 
-test('Support selects only the verified fixed destinations and never opens a link on mount', async ({
+test('Author and support links select only the verified fixed destinations and never open on mount', async ({
   page,
 }) => {
   await page.evaluate(() => {
@@ -43,6 +57,7 @@ test('Support selects only the verified fixed destinations and never opens a lin
   await page.locator('#about-button').click();
   expect(await page.evaluate(() => Reflect.get(window, '__supportCalls'))).toEqual([]);
   const destinations = [
+    ['Doug Trier on GitHub', 'https://github.com/dougtrier'],
     ['GitHub Sponsors', 'https://github.com/sponsors/dougtrier'],
     ['Buy Me a Coffee', 'https://www.buymeacoffee.com/dougtrier'],
     ['Open Collective', 'https://opencollective.com/trier-os'],
@@ -58,7 +73,7 @@ for (const viewport of [
   { width: 640, height: 360 },
   { width: 1280, height: 800 },
 ])
-  test(`About keeps close and support controls reachable at ${viewport.width}x${viewport.height} with enlarged text`, async ({
+  test(`About keeps close, tabs and links reachable at ${viewport.width}x${viewport.height} with enlarged text`, async ({
     page,
   }) => {
     await page.setViewportSize(viewport);
@@ -71,11 +86,23 @@ for (const viewport of [
     expect(closeBounds).not.toBeNull();
     expect(closeBounds!.y).toBeGreaterThanOrEqual(0);
     expect(closeBounds!.y + closeBounds!.height).toBeLessThanOrEqual(viewport.height);
-    for (const label of ['GitHub Sponsors', 'Buy Me a Coffee', 'Open Collective']) {
+    for (const tab of ['About the Author', 'Quick Guide'])
+      await expect(dialog.getByRole('tab', { name: tab })).toBeInViewport();
+    for (const label of [
+      'Doug Trier on GitHub',
+      'GitHub Sponsors',
+      'Buy Me a Coffee',
+      'Open Collective',
+    ]) {
       const button = dialog.getByRole('button', { name: label, exact: true });
       await button.scrollIntoViewIfNeeded();
       await expect(button).toBeInViewport();
     }
+    expect(await dialog.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
+    await dialog.getByRole('tab', { name: 'Quick Guide' }).click();
+    const last = dialog.locator('.about-guide li').last();
+    await last.scrollIntoViewIfNeeded();
+    await expect(last).toBeInViewport();
     expect(await dialog.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
     await close.click();
     await expect(dialog).not.toBeVisible();

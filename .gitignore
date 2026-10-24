@@ -25,3 +25,6 @@ local-only/
 
 # Owner-specific privacy patterns for scripts/clean-repo.mjs (never committed)
 .private-patterns.json
+
+# Screenshots written by test runs
+Screenshot/

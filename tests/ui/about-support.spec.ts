@@ -32,6 +32,7 @@ test('Native About uses platform version, refuses repeated pending clicks, and r
   });
   await page.getByRole('button', { name: 'About', exact: true }).click();
   await expect(page.locator('#about-version')).toHaveText('Version 7.8.9');
+  await page.locator('.about-licenses > summary').click();
   const fontNotices = page.locator('.about-font-licenses details');
   await expect(fontNotices).toHaveCount(2);
   for (const [index, file] of [
@@ -53,7 +54,7 @@ test('Native About uses platform version, refuses repeated pending clicks, and r
     Reflect.get(window, '__rejectSupport')(new Error('private-secret-url')),
   );
   await expect(page.getByRole('status')).toHaveText(
-    'Could not open your browser. Use the support address shown above.',
+    'Could not open your browser. Visit https://www.buymeacoffee.com/dougtrier',
   );
   await expect(page.locator('body')).not.toContainText('private-secret-url');
   await page.getByRole('button', { name: 'GitHub Sponsors', exact: true }).click();

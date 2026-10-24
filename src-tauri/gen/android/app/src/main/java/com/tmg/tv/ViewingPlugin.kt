@@ -30,6 +30,7 @@ class SpeechArgs {var requestId:String="";var language:String="en-US";var allowC
 class DonationArgs {var target:String=""}
 internal object DonationTargets {
   fun url(target:String):String? = when(target) {
+    "author" -> "https://github.com/dougtrier"
     "github" -> "https://github.com/sponsors/dougtrier"
     "opencollective" -> "https://opencollective.com/trier-os"
     "coffee" -> "https://www.buymeacoffee.com/dougtrier"

@@ -1,4 +1,5 @@
-//! Explicit fixed donation destinations; no caller-provided URLs or programs.
+//! Explicit fixed destinations (donation pages and the author's GitHub page);
+//! no caller-provided URLs or programs.
 use crate::NativeState;
 use serde::{Deserialize, Serialize};
 #[cfg(windows)]
@@ -13,6 +14,7 @@ pub struct DonationReceipt {
 }
 fn destination(target: &str) -> Result<&'static str, &'static str> {
     match target {
+        "author" => Ok("https://github.com/dougtrier"),
         "github" => Ok("https://github.com/sponsors/dougtrier"),
         "opencollective" => Ok("https://opencollective.com/trier-os"),
         "coffee" => Ok("https://www.buymeacoffee.com/dougtrier"),
@@ -112,6 +114,7 @@ mod tests {
     #[test]
     fn only_exact_fixed_targets_are_passed_to_system_opener() {
         for (target, url) in [
+            ("author", "https://github.com/dougtrier"),
             ("github", "https://github.com/sponsors/dougtrier"),
             ("opencollective", "https://opencollective.com/trier-os"),
             ("coffee", "https://www.buymeacoffee.com/dougtrier"),
@@ -129,6 +132,8 @@ mod tests {
             "Github",
             "github ",
             "https://github.com/sponsors/dougtrier",
+            "Author",
+            "https://github.com/dougtrier",
             "coffee?x=1",
             "file:///C:/",
             "cmd.exe",

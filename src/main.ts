@@ -302,6 +302,8 @@ import {
   createChannelCategoryResolver,
   type Preferences,
 } from './preferences';
+// Last stylesheet: the shared pop-up look sits over every component sheet.
+import './ui/dialog-polish.css';
 
 const bootstrapBoundary = createBootstrapBoundary();
 const rendererRecoveryPolicy = createRendererRecoveryPolicy(() =>
