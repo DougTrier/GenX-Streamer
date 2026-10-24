@@ -42,6 +42,7 @@ Each step is a separate choice; **Not now** at any point changes nothing.
 | UP-008 | Settings, accounts, playlists, favorites and history survive. | Windows replaces only GenX Streamer.exe (never the data folder or `tmg-portable.flag`); Android updates in place with the same signature. |
 | UP-009 | Older versions keep running. | No expiry date anywhere. |
 | UP-010 | Offline operation stays available. | A failed check says GitHub could not be reached; nothing else changes. |
+| UP-011 | A partial download never resumes against a different release. | The checkpoint records the release, asset, size and digest; resume uses `Range` with `If-Range` and an exact `Content-Range`; anything else restarts from zero and deletes the old partial; nothing installs before the full SHA-256 matches. |
 
 ## Release files
 
@@ -51,8 +52,7 @@ without its `v`):
 | Device | File |
 | --- | --- |
 | Windows x64 (portable) | `GenX-Streamer-<version>-Windows-x64.exe` (the bare exe, beside `GenX-Streamer-<version>-Windows-x64-portable.zip` for new installs) |
-| Android ARM64 | `GenX-Streamer-<version>-Android-arm64.apk` |
-| Android ARMv7 | `GenX-Streamer-<version>-Android-armv7.apk` |
+| Android (ARM, 32- and 64-bit) | `GenX-Streamer-<version>-Android.apk` (universal: arm64-v8a and armeabi-v7a) |
 
 The build's own architecture (`std::env::consts`) picks the file. GitHub
 computes each file's SHA-256 digest when it is uploaded; GenX refuses a file

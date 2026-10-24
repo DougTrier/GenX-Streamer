@@ -207,6 +207,38 @@ the QR code is the invitation). The next step for those places is a
 temporary hotspot on the sharer's phone (Android's local-only hotspot, with a
 Wi-Fi QR code to join), which needs testing on devices.
 
+## Rules for passing the app on (SH-009 to SH-025)
+
+The device that receives GenX decides which build it needs; the sharing
+device never assumes (owner, October 24, 2026). The research behind these
+rules (Briar, Knit, F-Droid Nearby, LocalSend, TrebleShot, LocalShare) is in
+the owner's private notes.
+
+| Code | Rule |
+| --- | --- |
+| SH-009 | Never offer a package known to be incompatible with the receiving device. |
+| SH-010 | A universal Android APK contains every architecture it is offered for (arm64-v8a and armeabi-v7a); the release build and packager refuse it otherwise. |
+| SH-011 | Unknown compatibility is disclosed, never assumed. |
+| SH-012 | Downloads are chosen only from verified, published release files. |
+| SH-013 | Offline sharing never depends on an internet page. |
+| SH-014 | Cross-platform offline sharing fails plainly when the right package is not on this device. |
+| SH-015 | The person receiving approves every download and installation. |
+| SH-016 | Installing keeps the publisher's original signing identity (no re-signing; split installs are not shared). |
+| SH-017 | A package is shared only after its integrity, publisher identity (where the platform has one) and declared compatibility are verified. |
+| SH-018 | A kept package is verified again before it is offered. |
+| SH-019 | No sharing method knowingly delivers an incompatible build. |
+| SH-020 | When compatibility cannot be established, the uncertainty is shown and the person confirms. |
+| SH-021 | Stop, expiry, exit or a network change closes the nearby listener: the port refuses connections. |
+| SH-022 | On Android, a nearby session runs as a foreground service with a visible notification and Stop. |
+| SH-023 | A nearby session listens only on the chosen local address and answers only local clients. |
+| SH-024 | Every nearby session has a fresh random secret (and fresh hotspot credentials when it makes one). |
+| SH-025 | The download page shows the file's SHA-256 and, for Android, the official signing fingerprint. |
+
+Android tells only an installed app its exact architecture; a browser does
+not (its user agent is a claim, and a frozen one on Android). So browsers get
+the universal APK with its requirements stated, an iPhone or a PC is never
+offered an APK, and anything else is told plainly.
+
 ## The web page
 
 `site/watch/index.html` (with its icon) is ready for GitHub Pages at

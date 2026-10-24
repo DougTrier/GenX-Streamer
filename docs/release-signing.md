@@ -12,32 +12,37 @@ install over them without uninstalling first.
 
 ## Creating the release key (owner, once)
 
-Run this yourself in your own terminal, so the passwords never appear
-anywhere else. Keep the keystore outside the repository:
+Run this yourself, in your own PowerShell 7 (not through an assistant), so the
+password never appears anywhere else:
 
 ```powershell
-& 'C:\Program Files\Android\Android Studio\jbr\bin\keytool.exe' -genkeypair -v -keystore 'D:\GenX-Release\genx-release.jks' -alias genx-release -keyalg RSA -keysize 4096 -validity 36500 -dname 'CN=Doug Trier, O=GenX Streamer'
+pwsh -NoProfile -File src-tauri/scripts/new-release-key.ps1 -Folder 'D:\GenX-Release'
 ```
 
-keytool asks for the passwords. Then, before anything else:
+The script asks for the password twice (hidden), creates the key
+(`genx-release.jks`, RSA 4096, valid 100 years), writes `signing.properties`
+for the release build (readable only by your Windows account) and
+`fingerprint.txt`, and prints the public SHA-256 fingerprint. It refuses a
+folder inside the repository and never overwrites an existing key.
 
-- **Back it up in two places** (for example an encrypted USB drive and your
-  password manager), with its passwords. If the key is lost, no installed copy
-  can ever be updated again; everyone would have to uninstall and lose their
-  saved channels.
+Then, before anything else:
+
+- **Back up `genx-release.jks` and the password in two places** (for example
+  an encrypted USB drive and your password manager). If the key is lost, no
+  installed copy can ever be updated again; everyone would have to uninstall
+  and lose their saved channels.
 - **Never commit it.** `.gitignore` already refuses `*.jks`, `*.keystore` and
-  `keystore.properties`.
+  `keystore.properties`, and the folder is outside the repository anyway.
 
 ## The signing file
 
-Beside the key, create a properties file (also outside the repository) that
-the build reads; nothing else reads it:
+`signing.properties` (written by the script) is what the release build reads:
 
 ```properties
 storeFile=D:/GenX-Release/genx-release.jks
-storePassword=<the keystore password>
+storePassword=<the password>
 keyAlias=genx-release
-keyPassword=<the key password>
+keyPassword=<the password>
 ```
 
 Point the build at it in the terminal you build from:
@@ -55,7 +60,8 @@ public (it is printed in every APK). Read it with:
 & 'C:\Program Files\Android\Android Studio\jbr\bin\keytool.exe' -list -v -keystore 'D:\GenX-Release\genx-release.jks' -alias genx-release
 ```
 
-Take the `SHA256:` line, remove the colons and lowercase it, and put it in
+(or open `fingerprint.txt`, which the script wrote). Take the `SHA256:` line,
+remove the colons and lowercase it, and put it in
 `RELEASE_CERTIFICATE_SHA256` in `src-tauri/src/platform/app_identity.rs`. Only
 then does a release-signed copy count as an official release (About → This
 copy → Official release, and Pass It Along can send the APK). The same
