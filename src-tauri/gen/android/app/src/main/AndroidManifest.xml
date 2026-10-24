@@ -9,7 +9,12 @@
     <!-- W16: an Android app (APK) a website offers opens in Android's own installer, which asks first. -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
-    <queries><intent><action android:name="android.speech.RecognitionService" /></intent></queries>
+    <queries>
+      <intent><action android:name="android.speech.RecognitionService" /></intent>
+      <!-- Share links (docs/share-links.md): whether any app takes a shared link or the app's APK. -->
+      <intent><action android:name="android.intent.action.SEND" /><data android:mimeType="text/plain" /></intent>
+      <intent><action android:name="android.intent.action.SEND" /><data android:mimeType="application/vnd.android.package-archive" /></intent>
+    </queries>
 
     <!-- AndroidTV support -->
     <uses-feature android:name="android.software.leanback" android:required="false" />
@@ -33,6 +38,22 @@
                 <category android:name="android.intent.category.LAUNCHER" />
                 <!-- AndroidTV support -->
                 <category android:name="android.intent.category.LEANBACK_LAUNCHER" />
+            </intent-filter>
+            <!-- Share links (docs/share-links.md). The page link opens GenX once the
+                 site proves it belongs to this app (assetlinks.json at the domain
+                 root with the release key's fingerprint); until then it opens the
+                 page, whose button uses genx://. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="dougtrier.github.io" android:pathPrefix="/GenX-Streamer/watch" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="genx" android:host="watch" />
             </intent-filter>
         </activity>
 

@@ -4161,6 +4161,7 @@ dependencies = [
  "unicode-normalization",
  "webview2-com",
  "windows",
+ "windows-collections",
  "windows-sys 0.61.2",
  "zeroize",
 ]

@@ -23,6 +23,7 @@ import wordmarkUrl from '../../../assets/genx-wordmark-v2-display.png?no-inline'
 import robotoLicense from '../../../assets/fonts/roboto-condensed/OFL.txt?raw';
 import yellowtailLicense from '../../../assets/fonts/yellowtail/LICENSE.txt?raw';
 import dependencyNoticesUrl from '../../../assets/licenses/dependency-notices.txt?url&no-inline';
+import { mountAboutShare } from './about-share';
 
 /** Static destinations belong to the app, never to imported channel metadata. */
 export const authorLink = {
@@ -133,6 +134,7 @@ export function mountAbout(root: HTMLElement, opener: HTMLButtonElement): () => 
             </button>
           </div>
         </div>
+        <section class="about-share"></section>
         <h3 class="about-section-title">Support GenX Streamer</h3>
         <p>If GenX Streamer has earned a place on your screen, you can support its development. Links open in your browser.</p>
         <div class="about-support"></div>
@@ -220,6 +222,7 @@ export function mountAbout(root: HTMLElement, opener: HTMLButtonElement): () => 
       },
     );
   const removers: (() => void)[] = [];
+  removers.push(mountAboutShare(dialog.querySelector<HTMLElement>('.about-share')!));
   const listen = (element: HTMLElement, handler: () => void) => {
     element.addEventListener('click', handler);
     removers.push(() => element.removeEventListener('click', handler));

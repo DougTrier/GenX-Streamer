@@ -122,6 +122,7 @@ use playback::native_live;
 use playback::native_video;
 use sharing::native_sharing;
 pub use sharing::relay;
+use sharing::share_links;
 pub use sharing::sharing_policy;
 pub mod trier_video;
 use browser::web_page;
@@ -173,6 +174,11 @@ impl NativeState {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // A genx:// link opened while GenX runs goes to the running copy (docs/share-links.md).
+    #[cfg(windows)]
+    if share_links::forward_to_running_copy() {
+        return;
+    }
     startup_milestones::start();
     let builder = tauri::Builder::default()
         .plugin(tauri_plugin_fs::init())
@@ -194,7 +200,8 @@ pub fn run() {
         .plugin(renderer_recovery::init())
         .plugin(web_page::init())
         .plugin(native_video::init())
-        .plugin(vpn_status::init());
+        .plugin(vpn_status::init())
+        .plugin(share_links::init());
     builder
         .setup(|app| {
             use startup_milestones::{observe_root, root_mark, RootEvent};
@@ -308,6 +315,8 @@ pub fn run() {
             commands::viewing::spawn_download_sweep(app.handle().clone());
             #[cfg(windows)]
             web_page::forget_sites(app.handle());
+            #[cfg(windows)]
+            share_links::start_windows(app.handle());
             startup_milestones::mark(startup_milestones::Event::SetupFinished);
             Ok(())
         })
@@ -498,6 +507,10 @@ pub fn run() {
             native_live::native_live_renew,
             native_live::native_live_close,
             vpn_status::vpn_status,
+            share_links::take_incoming_link,
+            share_links::share_text,
+            share_links::share_app_file,
+            share_links::check_shared_destination,
             account_vod::account_series_info,
             account_vod::account_vod_details,
             viewing_settings::read_viewing_settings,

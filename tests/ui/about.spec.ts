@@ -41,6 +41,8 @@ test('About shows the version, the author tab and the quick guide tab; Escape re
   const authorPanel = about.getByRole('tabpanel', { name: 'About the Author' });
   await expect(authorPanel).toContainText('Doug Trier');
   await expect(authorPanel).toContainText('Support GenX Streamer');
+  await expect(authorPanel).toContainText('Share GenX Streamer');
+  await expect(authorPanel.getByRole('button', { name: 'Send the download link' })).toBeVisible();
   await expect(about.locator('.about-guide')).toBeHidden();
   await guideTab.click();
   await expect(guideTab).toHaveAttribute('aria-selected', 'true');

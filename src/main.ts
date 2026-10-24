@@ -111,6 +111,7 @@ import { createLibraryController } from './application/genxtra/library-controlle
 import { createPageController } from './application/shell/page-controller';
 import { createStartup } from './application/shell/startup';
 import { createCloseController } from './application/shell/close-controller';
+import { createShareLinks } from './application/sharing/share-links';
 import { createForegroundController } from './application/shell/foreground-controller';
 import { createSettingsController } from './application/shell/settings-controller';
 import { createCatalogView } from './application/catalog/catalog-view';
@@ -306,6 +307,7 @@ const app = createSharedContext(
     setImportBusy: () => setImportBusy,
     settings: () => preferencesSetup.settings,
     sharingBridge: () => sharingBridge,
+    shareLinks: () => shareLinks,
     sharingPanel: () => sharingAndCasting.sharingPanel,
     slowChannelIds: () => slowChannelIds,
     soundNow: () => soundNow,
@@ -497,6 +499,9 @@ let archiveSearch: ReturnType<typeof mountArchiveSearch> | undefined;
 // eslint-disable-next-line prefer-const -- assigned once, below; bootstrap failure callbacks read it before that
 let archiveDownloads: ReturnType<typeof createArchiveDownloads> | undefined;
 let channelLogos: ReturnType<typeof createChannelLogos> | undefined;
+// Assigned once the shared context exists (below); read lazily through it before then.
+// eslint-disable-next-line prefer-const
+let shareLinks: ReturnType<typeof createShareLinks> | undefined;
 const library = createLibraryState();
 const libraryQueries: Record<ContentLibrary, string> = { live: '', genxtra: '' };
 const archiveCatalog = createArchiveCatalog();
@@ -540,6 +545,7 @@ const playbackAllowsHttp = (url: string) =>
   archivePlayer?.allowsHttp(url) === true ||
   localStreams?.allowsHttp(url) === true ||
   accountPlayer?.allowsHttp(url) === true ||
+  shareLinks?.allowsHttp(url) === true ||
   sourceAllowsHttp(url);
 // Android: Paid TV movies and episodes play natively so their embedded audio
 // languages and subtitles can be chosen, and so do live channels whose MPEG-2
@@ -927,6 +933,9 @@ installPageHide(app);
 
 const closeController = createCloseController(app);
 const { installCloseBridge } = closeController;
+
+// Share what I'm watching, and links others shared (docs/share-links.md).
+shareLinks = createShareLinks(app);
 
 bootstrapBoundary.mounted();
 void initialize().catch(() => {

@@ -87,7 +87,7 @@ where to start reading, its rules and its test commands.
 | `discovery/` | Channel scans: batches, windows, checkpoints and resumable manifests, stream checks, the source directory. |
 | `guide/` | XMLTV parsing, the guide database, channel matching (crosswalk), refresh, the guide commands. |
 | `playback/` | The Android native players, transport-stream audio alignment, viewing settings, keeping the screen awake. |
-| `sharing/` | `lan/` the LAN viewing server and its viewer page, `casting/` Chromecast and DLNA, `relay.rs` the public-only media relay, `sharing_policy.rs`. |
+| `sharing/` | `lan/` the LAN viewing server and its viewer page, `casting/` Chromecast and DLNA, `relay.rs` the public-only media relay, `sharing_policy.rs`, `share_links` share links ([design](docs/share-links.md)). |
 | `browser/` | The in-app player for station websites (`web_page.rs`, with `../page-scripts/`) and the fixed support pages. |
 | `platform/` | Close and shutdown owners, device capabilities, speech, VPN status, renderer recovery, diagnostics, start-up milestones, the request registry. |
 | `trier_video/` | Trier MPEG Video, GenX's own MPEG-2 video decoder ([design](docs/trier-mpeg-video.md)). |
@@ -113,6 +113,7 @@ GenX's patches listed in its `GENX-PATCHES.md`.
 | `ViewingPlugin.kt`, `ViewingLifecycleOwner.kt`, `ViewingWakePolicy.kt` | Screen-on, lifecycle and support links. |
 | `NativeSpeech.kt` | Voice search. |
 | `TelevisionCapability.kt`, `TelevisionShellFocusOwner.kt`, `BackOwnership.kt` | TV detection, remote focus and the Back key. |
+| `SharePlugin.kt` | Share links: links that open GenX, the share sheet, sending the installed APK ([design](docs/share-links.md)). |
 
 ## File size
 

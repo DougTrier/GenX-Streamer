@@ -372,3 +372,20 @@
     padding: 12px 14px;
   }
 }
+
+/* Share GenX Streamer (docs/share-links.md): the download link and the app itself. */
+#about-dialog .about-share-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+#about-dialog .about-share-guidance,
+#about-dialog .about-share-status {
+  margin: 8px 0 0;
+  font-size: 14px;
+  color: var(--gx-muted);
+}
+#about-dialog .about-share-status:empty {
+  display: none;
+}

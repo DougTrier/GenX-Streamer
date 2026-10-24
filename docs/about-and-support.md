@@ -6,6 +6,8 @@ Settings contains an **About GenX Streamer** button. The modal shows the native 
 
 The offline quick guide covers sources, watching and removing channels, XMLTV matching and seven-day program search, screen controls, compatible casting, supported remote navigation, and explicit Windows LAN viewing/phone pairing. Its close control remains outside the scrolling content. Escape/Back returns to the settings opener through the existing modal navigation owner.
 
+**Share GenX Streamer** (above the support cards) sends the download link through the share sheet or copies it, and sends the installed app itself: the APK on Android, GenX Streamer.exe on Windows. See [share-links.md](share-links.md).
+
 The support message is: **If you enjoy the application, please support the project.** Destinations were retrieved from [Trier OS funding configuration](https://github.com/DougTrier/trier-os/blob/main/.github/FUNDING.yml) on October 10, 2026:
 
 - GitHub Sponsors: https://github.com/sponsors/dougtrier

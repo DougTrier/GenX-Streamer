@@ -38,6 +38,14 @@ For program search, open **Guide → Search programs** and type a phrase such as
 
 **Voice search** captures one request using available on-device recognition. Choose it to start and **Stop voice input** to finish. The final text enters the editable search field; it does not tune a channel. The current app refuses cloud fallback. If microphone permission, language models or recognition are unavailable, type instead.
 
+## Share what you are watching
+
+Choose **Share** beside the playing channel to send it: "Watch News 24 on GenX Streamer" and a link, through your device's share sheet (messages, mail, Quick Share, Nearby Sharing). Free TV channels and GenXtra titles can be shared; Paid TV channels cannot, because their addresses contain your account details. The link carries only the channel's name, logo and public stream address. Where a device has no share sheet (many TVs), GenX shows the link to copy instead.
+
+When someone shares a link with you, it opens GenX Streamer with "<name> was shared with you". Choose **Play** to watch or **Add to favorites** to keep it; nothing plays until you choose. GenX checks the channel first and tells you plainly when it has moved, ended, only plays in certain countries, or cannot be reached. Without GenX Streamer, the link opens a web page that says what was shared and where to get the app.
+
+To pass on GenX Streamer itself, open **Settings → About GenX Streamer → Share GenX Streamer**. **Send the download link** shares the download page; on Android, **Send the app (Quick Share, Bluetooth)** sends this installed app phone to phone (the other phone opens the received file and allows Files or Quick Share to install apps when asked); on Windows, **Send the app file** sends GenX Streamer.exe. An app sent from your phone carries your copy's signing: a later official build may need it uninstalled first.
+
 ## Cast to a TV
 
 Open **Cast** and choose **Nearby TV**, **Venue instructions**, or **Known receiver**. Nearby discovery looks for Chromecast and DLNA receivers. Known receiver checks a local address without sending video. Follow a hotel or conference TV's own pairing instructions; GenX cannot create a room PIN or bypass an isolated network.

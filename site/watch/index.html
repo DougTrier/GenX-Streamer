@@ -1,0 +1,161 @@
+<!doctype html>
+<!--
+  Copyright 2026 Doug Trier
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+
+  The page a GenX Streamer share link opens when the app is not installed
+  (docs/share-links.md), for GitHub Pages at
+  https://dougtrier.github.io/GenX-Streamer/watch/. The link's details are in
+  the address's fragment (after #), which browsers never send to this server;
+  the page reads them here, checks them like the app does, shows the name as
+  text, and fetches nothing from the shared link (no logo, no stream).
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; script-src 'sha256-OuryOdETY4l1Y/sPulO7h8XiDLJ2bFlRQSJ/YwXjlPQ='; base-uri 'none'; form-action 'none'"
+    />
+    <title>Shared with GenX Streamer</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --text: #eef3ff;
+        --muted: #b9c6dd;
+        --cyan: #83e9f5;
+        --magenta: #f58dca;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        font: 17px/1.5 system-ui, 'Segoe UI', Roboto, sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(120% 70% at 100% 0%, #f58dca1f, transparent 60%),
+          radial-gradient(90% 60% at 0% 100%, #83e9f514, transparent 60%),
+          linear-gradient(160deg, #121d38, #0a1128 70%);
+      }
+      main {
+        box-sizing: border-box;
+        width: min(520px, calc(100vw - 32px));
+        padding: 28px;
+        border: 1px solid #3d6280;
+        border-top: 3px solid var(--magenta);
+        border-radius: 18px;
+        background: #0c1530cc;
+      }
+      img {
+        width: 64px;
+        height: 64px;
+      }
+      h1 {
+        margin: 12px 0 4px;
+        font-size: 1.5rem;
+        overflow-wrap: anywhere;
+      }
+      p {
+        color: var(--muted);
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        margin-top: 20px;
+      }
+      a.button {
+        padding: 10px 16px;
+        border-radius: 12px;
+        border: 1px solid #34566e;
+        color: var(--text);
+        text-decoration: none;
+        background: #1b2a4a;
+      }
+      a.button.primary {
+        border-color: var(--cyan);
+        color: #071022;
+        background: var(--cyan);
+        font-weight: 700;
+      }
+      [hidden] {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="genx-icon.png" alt="" />
+      <h1 id="title">GenX Streamer</h1>
+      <p id="detail">A free TV app for Windows and Android.</p>
+      <div class="actions">
+        <a id="open" class="button primary" hidden>Open in GenX Streamer</a>
+        <a
+          id="get"
+          class="button"
+          href="https://github.com/DougTrier/GenX-Streamer/releases/latest"
+          rel="noopener noreferrer"
+          >Get GenX Streamer</a
+        >
+      </div>
+      <p id="help" hidden>
+        No GenX Streamer yet? Get it, install it, then open this link again.
+      </p>
+    </main>
+    <script>
+      (() => {
+        // The same rules as src/sharing/share-link.ts, in short: unknown or
+        // invalid details show the plain page, never a half-trusted card.
+        const hidden =
+          /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g;
+        const params = new URLSearchParams(location.hash.slice(1));
+        const keys = [...params.keys()];
+        const known = ['v', 'c', 'n', 's', 'l', 't'];
+        if (
+          params.get('v') !== '1' ||
+          keys.some((key) => !known.includes(key)) ||
+          new Set(keys).size !== keys.length
+        )
+          return;
+        const raw = params.get('n') || '';
+        const name = raw.normalize('NFC').replace(hidden, ' ').replace(/\s+/g, ' ').trim();
+        if (!name || raw.length > 480 || [...name].length > 120) return;
+        const kind = params.get('c');
+        if (kind === 'ch') {
+          let stream;
+          try {
+            stream = new URL(params.get('s') || '');
+          } catch {
+            return;
+          }
+          if (!/^https?:$/.test(stream.protocol) || stream.username || stream.password) return;
+          if (stream.href.length > 2048) return;
+        } else if (kind !== 'gx' || !/^[a-f0-9]{64}$/.test(params.get('t') || '')) return;
+        document.title = name + ' · shared with GenX Streamer';
+        document.getElementById('title').textContent = name + ' was shared with you';
+        document.getElementById('detail').textContent =
+          kind === 'gx'
+            ? 'A public-domain title from GenXtra, the archive library in GenX Streamer.'
+            : 'A free TV channel to watch in GenX Streamer.';
+        const open = document.getElementById('open');
+        open.href = 'genx://watch?' + params.toString();
+        open.hidden = false;
+        document.getElementById('help').hidden = false;
+      })();
+    </script>
+  </body>
+</html>
