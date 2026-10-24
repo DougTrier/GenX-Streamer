@@ -1,0 +1,15 @@
+GenX Streamer
+Copyright 2026 Doug Trier
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+The Apache License covers the source code and documentation. It does not
+cover the GenX Streamer name or its brand artwork (the logo, app icons,
+wordmark, badges, header button art and picture screens); see TRADEMARK.md.
+
+This product includes third-party components under their own licenses:
+- the Roboto Condensed font (SIL Open Font License 1.1) and the Yellowtail font
+  (Apache License 2.0), with their license texts in assets/fonts/;
+- Lucide icons (ISC License), with the license text in assets/icons/lucide/;
+- the open-source libraries listed, with their notices, in
+  assets/licenses/dependency-notices.txt.

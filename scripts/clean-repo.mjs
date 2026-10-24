@@ -48,6 +48,9 @@ const ROOT_FILES = new Set([
   'README.md',
   'TASKS.md',
   '.gitattributes',
+  'LICENSE',
+  'NOTICE',
+  'TRADEMARK.md',
 ]);
 const FOLDERS = ['src/', 'src-tauri/', 'assets/', 'tests/', 'scripts/'];
 const DOCS = new Set([

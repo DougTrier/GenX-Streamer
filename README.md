@@ -111,3 +111,13 @@ It blocks credentials, keys, databases, user-profile paths and private network
 addresses. Your own device serials, addresses and paths belong in an untracked
 `.private-patterns.json` (already in `.gitignore`); reviewed test placeholders
 are listed by fingerprint in `scripts/clean-repo-allow.json`.
+
+## License
+
+GenX Streamer's source code is licensed under the
+[Apache License 2.0](LICENSE). Copyright 2026 Doug Trier. See [NOTICE](NOTICE)
+for the third-party components and their licenses.
+
+The GenX Streamer name, logo and brand artwork are not covered by the Apache
+License: a fork you publish should use its own name and icons. See
+[TRADEMARK.md](TRADEMARK.md).

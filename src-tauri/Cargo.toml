@@ -4,7 +4,7 @@ version = "0.1.0"
 description = "GenX Streamer portable IPTV player"
 edition = "2021"
 rust-version = "1.88"
-license = "MIT"
+license = "Apache-2.0"
 
 [lib]
 name = "tmg_tv_lib"
