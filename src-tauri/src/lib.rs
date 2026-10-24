@@ -64,6 +64,7 @@ use genxtra::archive_provider_probe;
 use platform::android_manifest_protector;
 #[cfg(any(target_os = "android", test))]
 use platform::android_task_finish;
+use platform::app_identity;
 use platform::app_update;
 use platform::close_owner;
 pub use sharing::casting;
@@ -526,6 +527,8 @@ pub fn run() {
             nearby_download::nearby_start,
             nearby_download::nearby_status,
             nearby_download::nearby_stop,
+            app_identity::app_identity,
+            app_identity::app_checksum,
             app_update::update_check,
             app_update::update_download,
             app_update::update_cancel,

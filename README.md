@@ -109,6 +109,12 @@ pwsh -NoProfile -File scripts/windows-sandbox-launch-check.ps1 -Zip <zip> -Out <
 The Windows build is distributed unsigned by decision; Windows SmartScreen may
 show an unknown-publisher prompt on first run.
 
+The package holds the release files named with version and platform
+(`GenX-Streamer-<version>-Windows-x64-portable.zip`, `-Windows-x64.exe`,
+`-Android-arm64.apk`; the version comes from `src-tauri/tauri.conf.json`
+unless `--version` is given) and a `SHA256SUMS` file for the release page.
+How a recipient checks a copy: [docs/verify-a-download.md](docs/verify-a-download.md).
+
 ## Privacy
 
 Before publishing or copying this repository anywhere, run:

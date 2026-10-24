@@ -134,10 +134,26 @@ async function pe(filename) {
     await handle.close();
   }
 }
-const names = {
-  windows: 'GenX-Streamer-Windows-candidate.zip',
-  android: 'GenX-Streamer-Android-arm64-candidate.apk',
-};
+/**
+ * Release file names carry the version and platform (docs/verify-a-download.md,
+ * docs/updates.md): the portable ZIP for new installs, the bare exe that
+ * Check for updates installs, and the Android APK. SHA256SUMS lists them all.
+ */
+export function releaseNames(version) {
+  if (!/^\d{1,9}\.\d{1,9}\.\d{1,9}$/.test(version)) throw new Error('A release version is x.y.z.');
+  return {
+    windows: `GenX-Streamer-${version}-Windows-x64-portable.zip`,
+    'windows-exe': `GenX-Streamer-${version}-Windows-x64.exe`,
+    android: `GenX-Streamer-${version}-Android-arm64.apk`,
+  };
+}
+/** The app's own version (src-tauri/tauri.conf.json), the one GenX reports in About. */
+async function appVersion() {
+  const config = JSON.parse(
+    await readFile(new URL('../src-tauri/tauri.conf.json', import.meta.url), 'utf8'),
+  );
+  return String(config.version);
+}
 export async function packageCandidate(options) {
   const {
     windowsExe,
@@ -150,6 +166,7 @@ export async function packageCandidate(options) {
     pythonExecutable = 'python',
     mode = 'candidate',
   } = options;
+  const names = releaseNames(options.version ?? (await appVersion()));
   // windows-only (owner, October 23, 2026): the Windows ZIP alone, while the
   // Android release APK waits for its owner-held release key.
   const windowsOnly = mode === 'windows-only';
@@ -201,6 +218,11 @@ export async function packageCandidate(options) {
     await copyFile(windowsExe, exe);
     if ((await sha256(exe)) !== inputHashes.windows)
       throw new Error('Packaging inputs changed during staging.');
+    // The bare exe beside the ZIP: what Check for updates installs.
+    const bareExe = path.join(stage, names['windows-exe']);
+    await copyFile(windowsExe, bareExe);
+    if ((await sha256(bareExe)) !== inputHashes.windows)
+      throw new Error('Packaging inputs changed during staging.');
     if (!windowsOnly) {
       const apk = path.join(stage, names.android);
       await copyFile(androidApk, apk);
@@ -243,6 +265,7 @@ export async function packageCandidate(options) {
       schemaVersion: 1,
       product: 'GenX Streamer',
       appIdentifier: 'com.tmg.tv',
+      version: names.windows.split('-')[2],
       mode,
       releaseAcceptance: false,
       profiles: {
@@ -327,10 +350,13 @@ export async function verifyCandidate(directory) {
     manifest.releaseAcceptance !== false ||
     manifest.signatureStatus !== 'unverified' ||
     !Array.isArray(manifest.artifacts) ||
-    manifest.artifacts.length !== (manifest.mode === 'windows-only' ? 1 : 2)
+    manifest.artifacts.length !== (manifest.mode === 'windows-only' ? 2 : 3)
   )
     throw new Error('Candidate manifest is invalid.');
-  for (const platform of manifest.mode === 'windows-only' ? ['windows'] : ['windows', 'android']) {
+  const names = releaseNames(String(manifest.version));
+  for (const platform of manifest.mode === 'windows-only'
+    ? ['windows', 'windows-exe']
+    : ['windows', 'windows-exe', 'android']) {
     const artifact = manifest.artifacts.find((a) => a.platform === platform);
     if (!artifact || artifact.name !== names[platform] || !/^[a-f0-9]{64}$/.test(artifact.sha256))
       throw new Error('Candidate artifact identity is invalid.');
@@ -352,6 +378,7 @@ function cli(argv) {
     'notices',
     'source-revision',
     'python',
+    'version',
   ];
   const args = {};
   for (let i = 0; i < argv.length; i += 2) {
@@ -385,6 +412,7 @@ function cli(argv) {
     notices: args.notices,
     sourceRevision: args['source-revision'],
     pythonExecutable: args.python,
+    version: args.version,
   };
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

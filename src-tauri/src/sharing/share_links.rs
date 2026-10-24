@@ -155,6 +155,28 @@ pub(crate) async fn android_app_file(
     Ok((std::path::PathBuf::from(reply.path), reply.split))
 }
 
+/// This copy's signing fingerprints, whether it is debuggable and whether it is split.
+#[cfg(target_os = "android")]
+#[derive(serde::Deserialize)]
+pub(crate) struct AndroidIdentity {
+    pub signers: Vec<String>,
+    pub debuggable: bool,
+    pub split: bool,
+}
+#[cfg(target_os = "android")]
+pub(crate) async fn android_identity(app: &tauri::AppHandle) -> Result<AndroidIdentity, String> {
+    let found: AndroidIdentity = android_call(app, "appIdentity", serde_json::json!({})).await?;
+    if found.signers.len() > 8
+        || found
+            .signers
+            .iter()
+            .any(|s| s.len() != 64 || !s.bytes().all(|b| b.is_ascii_hexdigit()))
+    {
+        return Err("identity-unavailable".into());
+    }
+    Ok(found)
+}
+
 /// The link GenX was opened with, or the newest one since; each is given out once.
 #[tauri::command]
 pub(crate) async fn take_incoming_link(app: tauri::AppHandle) -> Result<Option<String>, String> {
@@ -214,6 +236,8 @@ pub(crate) async fn share_app_file(
     text: String,
 ) -> Result<ShareReceipt, String> {
     message_fields(&title, &text)?;
+    // Only an official release copy sends its own APK (docs/verify-a-download.md).
+    crate::app_identity::may_send_app_file(&app).await?;
     #[cfg(target_os = "android")]
     {
         android_call(

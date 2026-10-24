@@ -33,6 +33,8 @@ export function nearbyFailure(code: string): string {
   switch (code) {
     case 'nearby-no-network':
       return 'Connect this device to Wi-Fi first. Friends join the same Wi-Fi to download it.';
+    case 'share-app-development':
+      return 'Sharing the app itself works from official releases. Send the link or QR code instead.';
     case 'share-app-split':
       return 'This copy was installed in several parts, so it cannot be shared as one file.';
     case 'share-app-unavailable':
@@ -55,12 +57,14 @@ const clock = (ms: number) => {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 };
 
-export function mountNearbyShare(card: HTMLElement): () => void {
-  if (!nearbyAvailable()) {
-    card.hidden = true;
-    return () => undefined;
-  }
-  card.hidden = false;
+/** `allowed`: this copy may serve its own app file (an official release on Android). */
+export function mountNearbyShare(card: HTMLElement, allowed: Promise<boolean>): () => void {
+  let disposed = false;
+  card.hidden = true;
+  if (!nearbyAvailable()) return () => undefined;
+  void allowed.then((yes) => {
+    if (!disposed) card.hidden = !yes;
+  });
   card.innerHTML = `
     <h3>Share with everyone nearby</h3>
     <p class="send-app-detail">Friends on the same Wi-Fi scan the code with their camera and download GenX Streamer from this device. No store, link or internet needed. It stops after 10 minutes.</p>
@@ -80,7 +84,6 @@ export function mountNearbyShare(card: HTMLElement): () => void {
   const cheer = card.querySelector<HTMLElement>('.nearby-cheer')!;
   const toggle = card.querySelector<HTMLButtonElement>('.nearby-toggle')!;
   const message = card.querySelector<HTMLElement>('.nearby-status')!;
-  let disposed = false;
   let pending = false;
   let current: NearbyStatus | null = null;
   let deadline = 0;

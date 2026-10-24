@@ -35,6 +35,8 @@ SAMPLES = [
     'GenX',
     'https://dougtrier.github.io/GenX-Streamer/watch/#v=1&c=ch&n=News+24&s=https%3A%2F%2Fcdn.example.com%2Fnews24%2Findex.m3u8',
     'x' * 150,
+    'https://dougtrier.github.io/GenX-Streamer/watch/#v=1&c=ch&n=Channel&s=' + 'a' * 600,
+    'y' * 997,
     'Grüße · GenX Streamer ✓',
 ]
 
@@ -59,7 +61,7 @@ class QrCodeTests(unittest.TestCase):
         for text, matrix in zip(SAMPLES, encode(SAMPLES)):
             size = len(matrix)
             self.assertEqual((size - 17) % 4, 0)
-            self.assertTrue(21 <= size <= 57, size)
+            self.assertTrue(21 <= size <= 117, size)
             modules = numpy.array(matrix, dtype=numpy.uint8)
             image = numpy.pad((1 - modules) * 255, 4, constant_values=255)
             image = cv2.resize(image, None, fx=8, fy=8, interpolation=cv2.INTER_NEAREST)
@@ -69,7 +71,7 @@ class QrCodeTests(unittest.TestCase):
 
     def test_text_too_long_is_refused(self):
         with self.assertRaises(subprocess.CalledProcessError):
-            encode(['x' * 300])
+            encode(['x' * 998])
 
 
 if __name__ == '__main__':

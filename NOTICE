@@ -13,3 +13,7 @@ This product includes third-party components under their own licenses:
 - Lucide icons (ISC License), with the license text in assets/icons/lucide/;
 - the open-source libraries listed, with their notices, in
   assets/licenses/dependency-notices.txt.
+
+GenX Streamer's QR code encoder (src/sharing/qr-code.ts) is its own code for
+ISO/IEC 18004; its structure follows Project Nayuki's QR Code generator (MIT
+License), which GenX Streamer does not include.

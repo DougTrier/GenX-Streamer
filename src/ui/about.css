@@ -433,3 +433,22 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+/* This copy (docs/verify-a-download.md): version, build, signer, checksum. */
+#about-dialog .about-identity-signer,
+#about-dialog .about-identity-sha {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 13px;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+#about-dialog .about-identity-status {
+  color: var(--gx-muted);
+}
+#about-dialog .about-identity-actions {
+  display: flex;
+  gap: 8px;
+}
+#about-dialog .about-identity-actions[hidden] {
+  display: none;
+}

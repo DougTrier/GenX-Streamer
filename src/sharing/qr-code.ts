@@ -15,16 +15,21 @@
  */
 /**
  * A small QR code encoder (ISO/IEC 18004) for Share with everyone nearby:
- * byte mode, error correction level M, versions 1–10 (up to 213 bytes), the
+ * byte mode, error correction level M, versions 1–25 (up to 997 bytes), the
  * mask chosen by the standard's penalty rules. It follows the structure of
  * Project Nayuki's public QR code generator. Tested by decoding its output
  * with OpenCV (tests/tooling/test_qr_code.py).
  */
 
 /** Error-correction codewords per block, and blocks, at level M (index = version). */
-const ECC_PER_BLOCK = [-1, 10, 16, 26, 18, 24, 16, 18, 22, 22, 26];
-const BLOCKS = [-1, 1, 1, 1, 2, 2, 4, 4, 4, 5, 5];
-export const MAX_VERSION = 10;
+const ECC_PER_BLOCK = [
+  -1, 10, 16, 26, 18, 24, 16, 18, 22, 22, 26, 30, 22, 22, 24, 24, 28, 28, 26, 26, 26, 26, 28, 28,
+  28, 28,
+];
+const BLOCKS = [
+  -1, 1, 1, 1, 2, 2, 4, 4, 4, 5, 5, 5, 8, 9, 9, 10, 10, 11, 13, 14, 16, 17, 17, 18, 20, 21,
+];
+export const MAX_VERSION = 25;
 
 function rawModules(version: number): number {
   let result = (16 * version + 128) * version + 64;

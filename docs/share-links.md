@@ -122,9 +122,14 @@ the page's **Open in GenX Streamer** button is the way in.
 
 ## The share sheet
 
+The Share button opens a card first: the link as a QR code (to scan from a
+TV across the room), the link with **Copy**, and **Send…** for the share sheet.
+The QR code is GenX's own encoder (no library, no web service); a link too
+long for a code keeps Copy and Send.
+
 - **Android**: `ACTION_SEND` through the system chooser (Quick Share, Nearby,
   Bluetooth, messaging apps). Many TVs have no app that takes shared text;
-  then the card shows the link to copy or read out.
+  then the card says so and the code and Copy remain.
 - **Windows**: Windows' own share (`IDataTransferManagerInterop`, as desktop
   browsers use for `navigator.share`): Nearby Sharing, mail, messaging apps.
   Where it is unavailable, the card shows the link with **Copy**.
@@ -132,6 +137,19 @@ the page's **Open in GenX Streamer** button is the way in.
 A shown share sheet is not proof that anything was sent.
 
 ## Sending the app itself
+
+Only an official release copy sends its own app file (owner-approved,
+October 24, 2026): on Android the installed copy must be signed with the
+owner's release certificate (`RELEASE_CERTIFICATE_SHA256` in
+`src-tauri/src/platform/app_identity.rs`, empty until the owner provides it,
+so APK sending is off for now) and installed as one APK. Development copies
+offer the download link and its QR code instead. Windows is unsigned by
+decision, so its exe can be sent; the checksum is its check
+([verify-a-download.md](verify-a-download.md)). The native layer enforces this
+too (`share_app_file`, `nearby_start`), not only the page.
+
+Pass It Along also shows the download page as a QR code, and on Windows offers
+the Windows portable ZIP's link (on the release page).
 
 - **Android**: the installed copy's own APK (`applicationInfo.sourceDir`),
   copied to the app's cache and offered through the existing FileProvider as

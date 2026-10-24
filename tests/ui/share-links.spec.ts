@@ -48,6 +48,19 @@ async function nativeRecorder(page: Page, answers: Record<string, unknown>) {
       invoke: (command: string, args: unknown) => {
         if (command.startsWith('plugin:')) return Promise.resolve(callback);
         // Status reads are the card refreshing itself, not a viewer's choice.
+        // Which copy this is (a read, not a viewer's choice): Windows unless the test says.
+        if (command === 'app_identity')
+          return Promise.resolve(
+            answers.app_identity ?? {
+              version: '0.1.0',
+              platform: 'Windows',
+              architecture: 'x86_64',
+              build: 'release',
+              signers: [],
+              official: false,
+              split: false,
+            },
+          );
         if (command === 'nearby_status') {
           const status = Reflect.get(window, '__nearby');
           return Promise.resolve(
@@ -154,6 +167,7 @@ test('Send app offers the app file, the download link and a copy, each through t
     'https://github.com/DougTrier/GenX-Streamer/releases/latest',
   );
   await dialog.getByRole('button', { name: 'Send the download link' }).click();
+  await expect(dialog.getByRole('button', { name: 'Send the Windows ZIP link' })).toBeVisible();
   await dialog.getByRole('button', { name: 'Send the app file' }).click();
   await expect(dialog.locator('.send-app-status')).toContainText('several parts');
   expect(await page.evaluate(() => Reflect.get(window, '__calls'))).toEqual([
@@ -176,12 +190,25 @@ test('Send app offers the app file, the download link and a copy, each through t
   await expect(dialog).toBeHidden();
 });
 
+const androidIdentity = {
+  version: '0.1.0',
+  platform: 'Android',
+  architecture: 'aarch64',
+  build: 'development',
+  signers: ['ab'.repeat(32)],
+  official: false,
+  split: false,
+};
+
 test.describe('on Android', () => {
   test.use({ userAgent: 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 Chrome/140' });
   test('Send app sends the app phone to phone with one line for the receiver', async ({ page }) => {
     await fixture(page, 'send-app-android');
     await page.goto('/send-app-android');
-    await nativeRecorder(page, { share_app_file: { shown: true } });
+    await nativeRecorder(page, {
+      share_app_file: { shown: true },
+      app_identity: { ...androidIdentity, official: true, build: 'release' },
+    });
     const dialog = await mountSendApp(page);
     await expect(
       dialog.getByRole('heading', { name: 'Send the app, phone to phone' }),
@@ -201,6 +228,21 @@ test.describe('on Android', () => {
           },
         },
       ]);
+  });
+  test('a development copy offers the link and QR code, never its own APK', async ({ page }) => {
+    await fixture(page, 'send-app-android-dev');
+    await page.goto('/send-app-android-dev');
+    await nativeRecorder(page, { app_identity: androidIdentity });
+    const dialog = await mountSendApp(page);
+    await expect(dialog.locator('.send-app-development')).toBeVisible();
+    await expect(dialog.locator('.send-app-file')).toBeHidden();
+    await expect(dialog.locator('.send-app-nearby')).toBeHidden();
+    await dialog.getByRole('button', { name: 'Show QR code' }).click();
+    await expect(
+      dialog.getByRole('img', { name: 'Code to open the GenX Streamer download page' }),
+    ).toBeVisible();
+    await expect(dialog.getByRole('button', { name: 'Send the download link' })).toBeVisible();
+    expect(await page.evaluate(() => Reflect.get(window, '__calls'))).toEqual([]);
   });
 });
 
@@ -257,6 +299,36 @@ test('Share with everyone nearby explains why it cannot start', async ({ page })
   await dialog.getByRole('button', { name: 'Start sharing nearby' }).click();
   await expect(dialog.locator('.nearby-status')).toHaveText(
     'Connect this device to Wi-Fi first. Friends join the same Wi-Fi to download it.',
+  );
+});
+
+test('About shows which copy this is and its checksum on request', async ({ page }) => {
+  await fixture(page, 'identity-fixture');
+  await page.goto('/identity-fixture');
+  await nativeRecorder(page, {
+    app_identity: androidIdentity,
+    app_checksum: { sha256: 'cd'.repeat(32), bytes: 52_000_000 },
+  });
+  await page.evaluate(async () => {
+    const modulePath = '/src/ui/settings/about-identity.ts';
+    const { mountAboutIdentity } = await import(modulePath);
+    mountAboutIdentity(document.getElementById('app')!);
+  });
+  const app = page.locator('#app');
+  await expect(app.locator('.about-identity-summary')).toHaveText(
+    'GenX Streamer 0.1.0 · Android (aarch64) · Development build',
+  );
+  await expect(app.locator('.about-identity-signer')).toHaveText(
+    `Signing certificate SHA-256: ${Array(32).fill('AB').join(':')}`,
+  );
+  await expect(app.locator('.about-identity-status')).toHaveText(
+    'Development build: not signed with the GenX Streamer release key.',
+  );
+  // The checksum is computed only when asked.
+  expect(await page.evaluate(() => Reflect.get(window, '__calls'))).toEqual([]);
+  await page.getByRole('button', { name: 'Show checksum' }).click();
+  await expect(app.locator('.about-identity-sha')).toHaveText(
+    `SHA-256 of this copy’s file: ${'cd'.repeat(32)}`,
   );
 });
 

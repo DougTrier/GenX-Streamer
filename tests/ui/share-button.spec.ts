@@ -64,8 +64,13 @@ test('Share sends "Watch <name> on GenX Streamer: <link>" with only the channel 
   const share = page.getByRole('button', { name: 'Share', exact: true });
   await expect(share).toBeEnabled();
   await share.click();
+  // The card: a code to scan, the link to copy, and Send.
+  const card = page.getByRole('dialog', { name: 'Share News 24' });
+  await expect(card.getByRole('img', { name: 'Code to scan for this link' })).toBeVisible();
   const link =
     'https://dougtrier.github.io/GenX-Streamer/watch/#v=1&c=ch&n=News+24&s=https%3A%2F%2Fcdn.example.com%2Fnews24%2Findex.m3u8';
+  await expect(card.getByRole('textbox', { name: 'Share link' })).toHaveValue(link);
+  await card.getByRole('button', { name: 'Send…' }).click();
   await expect
     .poll(() => page.evaluate(() => Reflect.get(window, '__shared')))
     .toEqual([{ title: 'News 24', text: `Watch News 24 on GenX Streamer: ${link}` }]);

@@ -89,7 +89,7 @@ where to start reading, its rules and its test commands.
 | `playback/` | The Android native players, transport-stream audio alignment, viewing settings, keeping the screen awake. |
 | `sharing/` | `lan/` the LAN viewing server and its viewer page, `casting/` Chromecast and DLNA, `relay.rs` the public-only media relay, `sharing_policy.rs`, `share_links` share links ([design](docs/share-links.md)). |
 | `browser/` | The in-app player for station websites (`web_page.rs`, with `../page-scripts/`) and the fixed support pages. |
-| `platform/` | Close and shutdown owners, device capabilities, speech, VPN status, renderer recovery, diagnostics, start-up milestones, the request registry, voluntary updates (`app_update`). |
+| `platform/` | Close and shutdown owners, device capabilities, speech, VPN status, renderer recovery, diagnostics, start-up milestones, the request registry, voluntary updates (`app_update`), which copy this is (`app_identity`). |
 | `trier_video/` | Trier MPEG Video, GenX's own MPEG-2 video decoder ([design](docs/trier-mpeg-video.md)). |
 
 A large module keeps its file and puts its parts in a folder of the same name

@@ -21,6 +21,7 @@
  * Nothing plays until the viewer chooses Play.
  */
 import '../share-card.css';
+import { qrSvg } from '../../sharing/qr-code';
 
 export interface ShareCardAction {
   label: string;
@@ -34,6 +35,8 @@ export interface ShareCardView {
   logo?: string | null;
   /** A link shown in a read-only field with Copy beside it. */
   link?: string;
+  /** Text shown as a QR code (when it fits one). */
+  qr?: string;
   actions?: readonly ShareCardAction[];
 }
 
@@ -50,6 +53,7 @@ export function mountShareCard(root: HTMLElement, copy: (text: string) => Promis
     </header>
     <div class="dialog-body share-card-body">
       <p class="share-card-message" role="status" aria-live="polite"></p>
+      <div class="share-card-qr" hidden></div>
       <div class="share-card-link" hidden>
         <input type="text" readonly aria-label="Share link" />
         <button type="button" class="share-card-copy">Copy</button>
@@ -63,6 +67,7 @@ export function mountShareCard(root: HTMLElement, copy: (text: string) => Promis
   const linkRow = dialog.querySelector<HTMLElement>('.share-card-link')!;
   const linkField = linkRow.querySelector<HTMLInputElement>('input')!;
   const actions = dialog.querySelector<HTMLElement>('.share-card-actions')!;
+  const qr = dialog.querySelector<HTMLElement>('.share-card-qr')!;
   const close = () => dialog.close();
   dialog.querySelector('.share-card-close')!.addEventListener('click', close);
   linkRow.querySelector('.share-card-copy')!.addEventListener('click', () => {
@@ -87,6 +92,16 @@ export function mountShareCard(root: HTMLElement, copy: (text: string) => Promis
     } else {
       logo.hidden = true;
       logo.removeAttribute('src');
+    }
+    qr.replaceChildren();
+    qr.hidden = true;
+    if (view.qr) {
+      try {
+        qr.append(qrSvg(view.qr, 'Code to scan for this link'));
+        qr.hidden = false;
+      } catch {
+        // Too long for a code: the link and Copy remain.
+      }
     }
     linkRow.hidden = !view.link;
     linkField.value = view.link ?? '';

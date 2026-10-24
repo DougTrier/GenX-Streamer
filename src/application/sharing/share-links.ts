@@ -127,30 +127,41 @@ export function createShareLinks(env: ShareLinksEnvironment) {
       env.notice(shareRefusalMessage(error instanceof ShareLinkError ? error.code : ''));
       return;
     }
-    sharing = true;
-    try {
-      await shareText(message.title, message.text);
-    } catch (error) {
-      const code = shareFailureCode(error);
-      // The viewer closed a browser share, or GenX went to the background: nothing to say.
-      if (
-        code === 'share-background' ||
-        (error instanceof DOMException && error.name === 'AbortError')
-      )
-        return;
-      // No share sheet here (many TVs): show the link to copy or read out.
-      card.show({
-        title: `Share ${message.title}`,
-        message:
+    // The card: the code to scan (a TV across the room, a phone beside you), the
+    // link to copy, and Send through the share sheet.
+    const send = async () => {
+      if (sharing) return;
+      sharing = true;
+      try {
+        await shareText(message.title, message.text);
+        card.close();
+      } catch (error) {
+        const code = shareFailureCode(error);
+        // The viewer closed a browser share, or GenX went to the background: nothing to say.
+        if (
+          code === 'share-background' ||
+          (error instanceof DOMException && error.name === 'AbortError')
+        )
+          return;
+        card.say(
           code === 'share-no-target'
-            ? 'No app on this device can send links. Copy the link, or open it on your phone.'
-            : 'The share sheet is not available here. Copy the link to send it.',
-        link: message.link,
-        actions: [{ label: 'Close', run: card.close }],
-      });
-    } finally {
-      sharing = false;
-    }
+            ? 'No app on this device can send links. Scan the code or copy the link.'
+            : 'The share sheet is not available here. Scan the code or copy the link.',
+        );
+      } finally {
+        sharing = false;
+      }
+    };
+    card.show({
+      title: `Share ${message.title}`,
+      message: `Watch ${message.title} on GenX Streamer: scan the code, copy the link, or send it.`,
+      link: message.link,
+      qr: message.link,
+      actions: [
+        { label: 'Send…', run: () => void send() },
+        { label: 'Close', run: card.close },
+      ],
+    });
   }
   button.addEventListener('click', () => void shareCurrent());
   const unsubscribe = env.player.subscribe(render);

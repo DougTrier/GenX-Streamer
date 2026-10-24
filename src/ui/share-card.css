@@ -64,3 +64,16 @@
   gap: 8px;
   justify-content: flex-end;
 }
+#share-card .share-card-qr {
+  width: min(240px, 70vw);
+  margin: 0 auto 12px;
+}
+#share-card .share-card-qr[hidden] {
+  display: none;
+}
+#share-card .share-card-qr svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+}

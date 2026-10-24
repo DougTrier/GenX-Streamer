@@ -126,3 +126,26 @@
 #send-app-dialog .nearby-cheer[hidden] {
   display: none;
 }
+#send-app-dialog .send-app-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+#send-app-dialog .send-app-development {
+  margin: 0;
+  font-size: 14px;
+  color: var(--gx-muted);
+}
+#send-app-dialog :is(.send-app-development, .send-app-qr-code, .send-app-buttons button)[hidden] {
+  display: none;
+}
+#send-app-dialog .send-app-qr-code {
+  width: min(220px, 70vw);
+  margin: 4px auto 12px;
+}
+#send-app-dialog .send-app-qr-code svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+}

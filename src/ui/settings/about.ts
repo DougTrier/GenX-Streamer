@@ -25,6 +25,7 @@ import yellowtailLicense from '../../../assets/fonts/yellowtail/LICENSE.txt?raw'
 import dependencyNoticesUrl from '../../../assets/licenses/dependency-notices.txt?url&no-inline';
 import { mountSendApp } from './send-app';
 import { mountAboutUpdate } from './about-update';
+import { mountAboutIdentity } from './about-identity';
 
 /** Static destinations belong to the app, never to imported channel metadata. */
 export const authorLink = {
@@ -135,6 +136,7 @@ export function mountAbout(root: HTMLElement, opener: HTMLButtonElement): () => 
             </button>
           </div>
         </div>
+        <section class="about-identity"></section>
         <section class="about-update"></section>
         <h3 class="about-section-title">Share GenX Streamer</h3>
         <p>Send the app itself, or a download link, to friends and family.</p>
@@ -233,6 +235,7 @@ export function mountAbout(root: HTMLElement, opener: HTMLButtonElement): () => 
       dialog.querySelector<HTMLButtonElement>('.about-send-app'),
     ]),
   );
+  removers.push(mountAboutIdentity(dialog.querySelector<HTMLElement>('.about-identity')!));
   removers.push(
     mountAboutUpdate(dialog.querySelector<HTMLElement>('.about-update')!, {
       // Restart after an update is an ordinary exit (Settings → Exit app).

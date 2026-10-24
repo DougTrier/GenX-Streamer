@@ -62,10 +62,14 @@ internal object UpdateRules {
     MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
 }
 
-@TauriPlugin
-class AppUpdatePlugin(private val activity: Activity) : Plugin(activity) {
+/** An app's signing certificates as SHA-256 fingerprints (lowercase hex, no colons). */
+internal object AppSigning {
   @Suppress("DEPRECATION")
-  private fun signers(info: PackageInfo?): Set<String> {
+  val flags: Int get() =
+    if (Build.VERSION.SDK_INT >= 28) PackageManager.GET_SIGNING_CERTIFICATES else PackageManager.GET_SIGNATURES
+
+  @Suppress("DEPRECATION")
+  fun signers(info: PackageInfo?): Set<String> {
     if (info == null) return emptySet()
     val certificates = if (Build.VERSION.SDK_INT >= 28) {
       val signing = info.signingInfo ?: return emptySet()
@@ -73,6 +77,11 @@ class AppUpdatePlugin(private val activity: Activity) : Plugin(activity) {
     } else info.signatures
     return certificates?.map { UpdateRules.digest(it.toByteArray()) }?.toSet() ?: emptySet()
   }
+}
+
+@TauriPlugin
+class AppUpdatePlugin(private val activity: Activity) : Plugin(activity) {
+  private fun signers(info: PackageInfo?): Set<String> = AppSigning.signers(info)
 
   @Suppress("DEPRECATION")
   private fun code(info: PackageInfo): Long =
@@ -86,8 +95,7 @@ class AppUpdatePlugin(private val activity: Activity) : Plugin(activity) {
       val refusal = try {
         val file = UpdateRules.ownFile(activity.cacheDir, args.path)
         if (file == null) "update-file-missing" else {
-          @Suppress("DEPRECATION")
-          val flags = if (Build.VERSION.SDK_INT >= 28) PackageManager.GET_SIGNING_CERTIFICATES else PackageManager.GET_SIGNATURES
+          val flags = AppSigning.flags
           val installed = activity.packageManager.getPackageInfo(activity.packageName, flags)
           val archive = activity.packageManager.getPackageArchiveInfo(file.path, flags)
           UpdateRules.refusal(activity.packageName, archive?.packageName, code(installed),

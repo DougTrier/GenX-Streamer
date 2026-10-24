@@ -273,6 +273,8 @@ fn serve(
 }
 
 async fn the_app_file(app: &tauri::AppHandle) -> Result<AppFile, String> {
+    // Only an official release copy serves its own APK (docs/verify-a-download.md).
+    crate::app_identity::may_send_app_file(app).await?;
     #[cfg(target_os = "android")]
     {
         let (path, split) = crate::share_links::android_app_file(app).await?;

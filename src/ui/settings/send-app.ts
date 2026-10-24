@@ -24,6 +24,8 @@
  */
 import '../send-app.css';
 import { mountNearbyShare } from './send-app-nearby';
+import { appIdentity, maySendAppFile } from '../../platform/app-identity';
+import { qrSvg } from '../../sharing/qr-code';
 import { isTauri } from '@tauri-apps/api/core';
 import { DOWNLOAD_PAGE } from '../../sharing/share-link';
 import {
@@ -35,6 +37,9 @@ import {
 } from '../../platform/share-sheet';
 
 export const appShareMessage = `Get GenX Streamer, a free TV app for Windows and Android: ${DOWNLOAD_PAGE}`;
+
+/** The Windows portable ZIP is on the release page (release files carry the version in their names). */
+export const windowsZipMessage = `Get GenX Streamer for Windows: on this page, download the Windows portable ZIP (GenX-Streamer-…-Windows-x64-portable.zip), extract it and open GenX Streamer.exe: ${DOWNLOAD_PAGE}`;
 
 /** The receiver's one line of guidance for each platform's app file. */
 export const appFileGuidance = {
@@ -48,6 +53,8 @@ function failure(code: string): string {
   switch (code) {
     case 'share-no-target':
       return 'No app on this device can send it. Copy the link instead.';
+    case 'share-app-development':
+      return 'Sending the app itself works from official releases. Send the link or QR code instead.';
     case 'share-app-split':
       return 'This copy was installed in several parts, so it cannot be sent as one file. Send the download link instead.';
     case 'share-app-unavailable':
@@ -90,10 +97,20 @@ export function mountSendApp(
           <button type="button" class="primary send-app-file-button"></button>
         </section>
         <section class="send-app-option send-app-nearby" hidden></section>
+        <p class="send-app-development" hidden>Sending the app itself works from official releases. This copy is a development build, so send the link or the QR code instead.</p>
         <section class="send-app-option">
           <h3>Send a download link</h3>
           <p class="send-app-detail">By text, email or chat: they download GenX Streamer themselves, on Windows or Android.</p>
-          <button type="button" class="send-app-link-button">Send the download link</button>
+          <div class="send-app-buttons">
+            <button type="button" class="send-app-link-button">Send the download link</button>
+            <button type="button" class="send-app-zip-button" hidden>Send the Windows ZIP link</button>
+          </div>
+        </section>
+        <section class="send-app-option send-app-qr">
+          <h3>Show a QR code</h3>
+          <p class="send-app-detail">They scan it with their camera to open the download page.</p>
+          <div class="send-app-qr-code" hidden></div>
+          <button type="button" class="send-app-qr-button">Show QR code</button>
         </section>
         <section class="send-app-option">
           <h3>Copy the download link</h3>
@@ -112,8 +129,15 @@ export function mountSendApp(
   const fileButton = dialog.querySelector<HTMLButtonElement>('.send-app-file-button')!;
   const linkField = dialog.querySelector<HTMLInputElement>('.send-app-copy input')!;
   linkField.value = DOWNLOAD_PAGE;
+  // Only an official release copy sends its own app file (Windows: always;
+  // Android: release-signed, one APK). Development copies send the link or QR.
+  const fileAllowed = appIdentity().then(maySendAppFile, () => false);
+  void fileAllowed.then((allowed) => {
+    if (disposed) return;
+    fileOption.hidden = !allowed;
+    dialog.querySelector<HTMLElement>('.send-app-development')!.hidden = allowed || !android;
+  });
   if (android || desktop) {
-    fileOption.hidden = false;
     fileOption.querySelector('h3')!.textContent = android
       ? 'Send the app, phone to phone'
       : 'Send the app file';
@@ -148,7 +172,7 @@ export function mountSendApp(
       });
   };
   const removers: (() => void)[] = [
-    mountNearbyShare(dialog.querySelector<HTMLElement>('.send-app-nearby')!),
+    mountNearbyShare(dialog.querySelector<HTMLElement>('.send-app-nearby')!, fileAllowed),
   ];
   const listen = (button: HTMLButtonElement, handler: () => void) => {
     button.addEventListener('click', handler);
@@ -167,6 +191,26 @@ export function mountSendApp(
   listen(dialog.querySelector<HTMLButtonElement>('.send-app-link-button')!, () =>
     run(() => shareText('GenX Streamer', appShareMessage), 'Opening the share sheet…'),
   );
+  const zip = dialog.querySelector<HTMLButtonElement>('.send-app-zip-button')!;
+  zip.hidden = !desktop;
+  listen(zip, () =>
+    run(
+      () => shareText('GenX Streamer for Windows', windowsZipMessage),
+      'Opening the share sheet…',
+    ),
+  );
+  const qrButton = dialog.querySelector<HTMLButtonElement>('.send-app-qr-button')!;
+  const qrCode = dialog.querySelector<HTMLElement>('.send-app-qr-code')!;
+  listen(qrButton, () => {
+    if (!qrCode.hidden) {
+      qrCode.hidden = true;
+      qrButton.textContent = 'Show QR code';
+      return;
+    }
+    qrCode.replaceChildren(qrSvg(DOWNLOAD_PAGE, 'Code to open the GenX Streamer download page'));
+    qrCode.hidden = false;
+    qrButton.textContent = 'Hide QR code';
+  });
   listen(dialog.querySelector<HTMLButtonElement>('.send-app-copy-button')!, () =>
     run(async () => {
       if (!(await copyText(DOWNLOAD_PAGE))) throw new Error('share-copy-refused');

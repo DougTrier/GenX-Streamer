@@ -106,6 +106,19 @@ class SharePlugin(private val activity: Activity) : Plugin(activity) {
     }
   }
 
+  /** Is this copy genuine? Its signing fingerprints, whether it is debuggable, and whether it is split. */
+  @Command
+  fun appIdentity(invoke: Invoke) {
+    try {
+      val info = activity.packageManager.getPackageInfo(activity.packageName, AppSigning.flags)
+      val application = activity.applicationInfo
+      invoke.resolveObject(mapOf(
+        "signers" to AppSigning.signers(info).sorted(),
+        "debuggable" to ((application.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0),
+        "split" to !application.splitSourceDirs.isNullOrEmpty()))
+    } catch (_: Exception) { invoke.reject("identity-unavailable") }
+  }
+
   /** This copy's APK, for Share with everyone nearby (served as it is, never copied). */
   @Command
   fun appFile(invoke: Invoke) {

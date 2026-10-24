@@ -29,6 +29,7 @@
 pub(crate) mod android_manifest_protector;
 #[cfg(any(target_os = "android", test))]
 pub(crate) mod android_task_finish;
+pub(crate) mod app_identity;
 pub(crate) mod app_update;
 pub(crate) mod close_owner;
 pub(crate) mod device_capabilities;

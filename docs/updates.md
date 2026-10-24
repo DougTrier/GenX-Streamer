@@ -50,15 +50,15 @@ without its `v`):
 
 | Device | File |
 | --- | --- |
-| Windows x64 (portable) | `GenX-Streamer-<version>-Windows-x64.exe` (the bare exe, beside the portable ZIP for new installs) |
+| Windows x64 (portable) | `GenX-Streamer-<version>-Windows-x64.exe` (the bare exe, beside `GenX-Streamer-<version>-Windows-x64-portable.zip` for new installs) |
 | Android ARM64 | `GenX-Streamer-<version>-Android-arm64.apk` |
 | Android ARMv7 | `GenX-Streamer-<version>-Android-armv7.apk` |
 
 The build's own architecture (`std::env::consts`) picks the file. GitHub
 computes each file's SHA-256 digest when it is uploaded; GenX refuses a file
-without one. The packaging script (`scripts/package-candidate.mjs`) still
-produces development candidates under other names; release packaging with
-these names is the owner's to set up.
+without one. `scripts/package-candidate.mjs` writes these names (ARM64 for
+Android so far) and `SHA256SUMS`; see
+[verify-a-download.md](verify-a-download.md).
 
 ## Verification
 
