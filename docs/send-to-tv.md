@@ -139,6 +139,10 @@ Every network call runs off the interface thread
   runs, and "couldn't be checked" instead of guessing an older copy.
 - A browser that saves the file to Downloads leaves it there; Android 11+
   lets GenX delete only its own files, so it cannot remove it.
+- **From the screensaver, October 24, 2026 (Streamer, recorded on the TV and
+  the phone):** GenX connected, and Android logged the screensaver stopping
+  "from 'short press on home'" 0.1 s later. Then the helper route as above:
+  installed in under 2 minutes, and verified.
 - Still to test: an update over an older official copy on a TV.
 
 ## Testing
