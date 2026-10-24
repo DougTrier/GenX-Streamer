@@ -137,5 +137,7 @@
   "registryArchiveUrl": "https://static.crates.io/crates/tao/tao-0.35.0.crate",
   "schemaVersion": 1,
   "scope": "Android only; no API/JNI/non-Android source changes; platform-independent regression does not prove Android runtime.",
-  "version": "0.35.0"
+  "version": "0.35.0",
+  "nullIntentFile": "src/platform_impl/android/ndk_glue.rs",
+  "nullIntentFileSha256": "6342c98cb744dde3438ff016cc3d05da806ac019a2e3d0ac19994c56228facb5"
 }

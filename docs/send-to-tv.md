@@ -32,9 +32,10 @@ rest: no address to type, no settings to find (owner's decision, October 24,
    address. The card says "Ready! GenX Streamer is installed." only when it
    matches the file sent.
    - GenX coming to the front is not enough: an older copy could open instead.
-     That copy either reports a different file or, if it predates the check,
-     never reports; either way the card says "Your TV has an older GenX
+     A copy that reports a different file gets "Your TV has an older GenX
      Streamer. Uninstall it on your TV, then try again."
+   - One that opens but never reports gets "GenX Streamer is on your TV, but
+     its version couldn't be checked."
    - A finished download without the report is said as a download.
 
    Then GenX disconnects and ends the nearby share it started.
@@ -98,8 +99,13 @@ Every network call runs off the interface thread
 - A read-only probe of both TVs found no built-in app receiver: only Google's
   services listen, and nothing built in except Android's installer may
   install apps.
-- The Sansui receives files over Bluetooth (the Streamer does not), which is
-  a built-in route to test separately: Send the app → Bluetooth.
+- The Sansui has Android's Bluetooth file receiver (the Streamer does not),
+  tested on October 24, 2026:
+  - pairing worked and the file arrived;
+  - Android asks to accept it only in a notification, which Google TV never
+    shows, so the transfer is rejected after about 50 seconds.
+
+  Not a usable route on Google TV.
 - Published research found built-in app receivers only on China-market TCL
   and Xiaomi TVs.
 - Still to test with GenX itself: a first install, an update over an older

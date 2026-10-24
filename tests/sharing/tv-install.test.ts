@@ -130,7 +130,7 @@ describe('Install on TV', () => {
   it('an older copy that opens instead is never taken for the install', () => {
     const checking: TvWatch = { step: 'checking', since: 0, baseline: HOME };
     expect(play(checking, [[GENX, 1_000, 'different']])).toEqual([['older-copy', null]]);
-    // An older copy without the check (it never reports): GenX in front, no report.
+    // GenX opened but never reported (an older copy, or a check that failed): only what is known.
     expect(
       play(checking, [
         [GENX, 1_000],
@@ -138,10 +138,13 @@ describe('Install on TV', () => {
       ]),
     ).toEqual([
       ['checking', null],
-      ['older-copy', null],
+      ['unconfirmed', null],
     ]);
     expect(stepText('older-copy', true)).toBe(
       'Your TV has an older GenX Streamer. Uninstall it on your TV, then try again.',
+    );
+    expect(stepText('unconfirmed', true)).toBe(
+      "GenX Streamer is on your TV, but its version couldn't be checked.",
     );
   });
 
@@ -197,6 +200,7 @@ describe('Install on TV', () => {
       'sending',
       'choose',
       'older-copy',
+      'unconfirmed',
       'helper',
       'downloading',
       'permission',

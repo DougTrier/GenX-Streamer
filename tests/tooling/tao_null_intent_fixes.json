@@ -1,0 +1,14 @@
+[
+ [
+  "    .and_then(|result| result.l().ok())\n    .map(|jstr| jstr.into())\n    .map(|intent_type| {\n      env\n        .get_string(&intent_type)\n        .unwrap()\n        .to_string_lossy()\n        .to_string()\n    });\n",
+  "    .and_then(|result| result.l().ok())\n    // GenX: a link without a MIME type (genx://open) has a null type.\n    .filter(|jstr| !jstr.is_null())\n    .map(|jstr| jstr.into())\n    .and_then(|intent_type: JString| {\n      env\n        .get_string(&intent_type)\n        .ok()\n        .map(|intent_type| intent_type.to_string_lossy().to_string())\n    });\n"
+ ],
+ [
+  "        let uri = env\n          .call_method(&clip_item, \"getUri\", \"()Landroid/net/Uri;\", &[])\n          .ok()\n          .and_then(|result| result.l().ok());\n",
+  "        let uri = env\n          .call_method(&clip_item, \"getUri\", \"()Landroid/net/Uri;\", &[])\n          .ok()\n          .and_then(|result| result.l().ok())\n          // GenX: a text-only clip item has no URI.\n          .filter(|uri| !uri.is_null());\n"
+ ],
+ [
+  "        &[(&env.new_string(\"android.intent.extra.STREAM\").unwrap()).into()],\n      )\n      .ok()\n      .and_then(|result| result.l().ok());\n",
+  "        &[(&env.new_string(\"android.intent.extra.STREAM\").unwrap()).into()],\n      )\n      .ok()\n      .and_then(|result| result.l().ok())\n      // GenX: most links carry extras without a stream.\n      .filter(|stream| !stream.is_null());\n"
+ ]
+]

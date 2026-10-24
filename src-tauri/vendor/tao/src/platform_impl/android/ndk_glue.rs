@@ -516,13 +516,14 @@ pub unsafe fn handle_intent(mut env: JNIEnv, intent: JObject) {
     .call_method(&intent, "getType", "()Ljava/lang/String;", &[])
     .ok()
     .and_then(|result| result.l().ok())
+    // GenX: a link without a MIME type (genx://open) has a null type.
+    .filter(|jstr| !jstr.is_null())
     .map(|jstr| jstr.into())
-    .map(|intent_type| {
+    .and_then(|intent_type: JString| {
       env
         .get_string(&intent_type)
-        .unwrap()
-        .to_string_lossy()
-        .to_string()
+        .ok()
+        .map(|intent_type| intent_type.to_string_lossy().to_string())
     });
 
   // Handle text/plain intents (EXTRA_TEXT)
@@ -589,7 +590,9 @@ pub unsafe fn handle_intent(mut env: JNIEnv, intent: JObject) {
         let uri = env
           .call_method(&clip_item, "getUri", "()Landroid/net/Uri;", &[])
           .ok()
-          .and_then(|result| result.l().ok());
+          .and_then(|result| result.l().ok())
+          // GenX: a text-only clip item has no URI.
+          .filter(|uri| !uri.is_null());
 
         if let Some(uri) = uri {
           let uri_string: JString = env
@@ -628,7 +631,9 @@ pub unsafe fn handle_intent(mut env: JNIEnv, intent: JObject) {
         &[(&env.new_string("android.intent.extra.STREAM").unwrap()).into()],
       )
       .ok()
-      .and_then(|result| result.l().ok());
+      .and_then(|result| result.l().ok())
+      // GenX: most links carry extras without a stream.
+      .filter(|stream| !stream.is_null());
 
     if let Some(stream_uri) = extra_stream {
       let uri_string: JString = env

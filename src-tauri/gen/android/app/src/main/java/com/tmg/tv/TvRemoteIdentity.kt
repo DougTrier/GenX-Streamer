@@ -63,7 +63,14 @@ internal class TvRemoteIdentity(context: Context) {
 
   private companion object {
     const val KEYSTORE = "AndroidKeyStore"
-    const val ALIAS = "genx-send-to-tv"
+    /**
+     * The key's name. TLS 1.3 signs with RSA-PSS, which the platform does as a
+     * raw RSA operation in Android Keystore, so the key allows that too; the
+     * first key (October 24, 2026, "genx-send-to-tv") did not and could never
+     * pair, and is removed when found.
+     */
+    const val ALIAS = "genx-send-to-tv-2"
+    const val OLD_ALIAS = "genx-send-to-tv"
     const val PAIRED = "paired"
   }
 
@@ -75,14 +82,17 @@ internal class TvRemoteIdentity(context: Context) {
 
   fun forget() {
     preferences.edit().remove(PAIRED).apply()
-    if (keys.containsAlias(ALIAS)) keys.deleteEntry(ALIAS)
+    for (alias in listOf(ALIAS, OLD_ALIAS)) if (keys.containsAlias(alias)) keys.deleteEntry(alias)
   }
 
   private fun certificate(): X509Certificate {
+    if (keys.containsAlias(OLD_ALIAS)) keys.deleteEntry(OLD_ALIAS)
     if (!keys.containsAlias(ALIAS)) {
       val until = Calendar.getInstance().apply { add(Calendar.YEAR, 20) }.time
-      val spec = KeyGenParameterSpec.Builder(ALIAS, KeyProperties.PURPOSE_SIGN)
+      val spec = KeyGenParameterSpec.Builder(ALIAS, KeyProperties.PURPOSE_SIGN or KeyProperties.PURPOSE_DECRYPT)
         .setKeySize(2048)
+        // TLS 1.3's RSA-PSS signature reaches Keystore as a raw RSA operation.
+        .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE, KeyProperties.ENCRYPTION_PADDING_RSA_PKCS1)
         .setDigests(KeyProperties.DIGEST_NONE, KeyProperties.DIGEST_SHA256,
           KeyProperties.DIGEST_SHA384, KeyProperties.DIGEST_SHA512)
         .setSignaturePaddings(KeyProperties.SIGNATURE_PADDING_RSA_PKCS1, KeyProperties.SIGNATURE_PADDING_RSA_PSS)

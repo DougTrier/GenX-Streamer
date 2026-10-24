@@ -29,6 +29,7 @@ export type TvStep =
   | 'checking'
   | 'done'
   | 'older-copy'
+  | 'unconfirmed'
   | 'not-installed'
   | 'stalled'
   | 'disconnected';
@@ -99,6 +100,7 @@ const to = (step: TvStep, now: number, watch: TvWatch): TvWatch =>
 export const finishedSteps: readonly TvStep[] = [
   'done',
   'older-copy',
+  'unconfirmed',
   'not-installed',
   'stalled',
   'disconnected',
@@ -158,7 +160,8 @@ export function observe(
     case 'checking':
       if (checkIn === 'different') return go('older-copy');
       if (kind === 'installer') return go('approve');
-      if (waited >= CHECK_MS) return go(kind === 'genx' ? 'older-copy' : 'not-installed');
+      // GenX opened but did not report: it is there, its version unknown (never "installed").
+      if (waited >= CHECK_MS) return go(kind === 'genx' ? 'unconfirmed' : 'not-installed');
       return stay;
     default:
       return stay;
@@ -188,6 +191,8 @@ export function stepText(step: TvStep, downloaded: boolean): string {
       return 'Ready! GenX Streamer is installed.';
     case 'older-copy':
       return 'Your TV has an older GenX Streamer. Uninstall it on your TV, then try again.';
+    case 'unconfirmed':
+      return "GenX Streamer is on your TV, but its version couldn't be checked.";
     case 'not-installed':
       return downloaded
         ? 'Downloaded, but not installed. If your TV has an older GenX Streamer, uninstall it first.'
