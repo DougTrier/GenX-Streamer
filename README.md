@@ -73,10 +73,10 @@ builds are debug-signed development APKs; a release APK needs a release key
 ## Test
 
 `npm run verify` runs every development check in order (types, format, lint,
-unit, interface, privacy scan, Rust format and lint, native tests, tooling
-tests) and writes a receipt under `artifacts/development-verification/`. Run
-it from PowerShell 7: some tooling tests exercise the PowerShell build helpers.
-The checks one by one:
+unit, interface, privacy scan, Rust format and lint, native tests, the casting
+harness, tooling tests) and writes a receipt under
+`artifacts/development-verification/`. Run it from PowerShell 7: some tooling
+tests exercise the PowerShell build helpers. The checks one by one:
 
 ```powershell
 npx vitest run                         # unit and browser-component tests

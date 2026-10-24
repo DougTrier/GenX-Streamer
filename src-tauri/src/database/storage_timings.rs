@@ -104,7 +104,13 @@ pub(crate) enum ArchivePhase {
     DomainValidation,
 }
 static ARCHIVE_COUNTERS: [[Counter; 7]; 5] = [const { [const { Counter::new() }; 7] }; 5];
-std::thread_local! {
+thread_local! {
+    // Already const. Clippy on the Android targets still asks for it (it reads
+    // that platform's thread_local! expansion, not this initializer).
+    #[allow(
+        clippy::missing_const_for_thread_local,
+        reason = "the initializer is const; Android-only false positive"
+    )]
     static ARCHIVE_CALLER: std::cell::Cell<ArchiveCaller> = const { std::cell::Cell::new(ArchiveCaller::Other) };
 }
 pub(crate) struct ArchiveMeasurement {

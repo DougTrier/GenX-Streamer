@@ -69,10 +69,10 @@ npm run verify
 
 It runs, in order: types, formatting, lint, unit and browser tests, the
 interface tests, the privacy scan, Rust formatting and lint (warnings are
-errors), native tests and the tooling tests, and writes a receipt under
-`artifacts/development-verification/`. A Rust test filter such as
-`cargo test --lib catalog::` matches by substring, so it also runs modules
-whose names end in `catalog`.
+errors), native tests, the standalone casting harness and the tooling tests,
+and writes a receipt under `artifacts/development-verification/`. A Rust test
+filter such as `cargo test --lib catalog::` matches by substring, so it also
+runs modules whose names end in `catalog`.
 
 Changes to the Trier decoders also need the bench comparison described in
 [docs/components/trier-mpeg.md](docs/components/trier-mpeg.md): identical

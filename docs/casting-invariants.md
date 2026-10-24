@@ -57,6 +57,6 @@ October 10, 2026, Windows x86_64, Rust 1.96.0. Static deterministic fixtures (no
 - `cargo test --offline --manifest-path src-tauri/Cargo.toml casting`: exit 0, 15 casting tests passed. Includes actual loopback HTTP/SOAP load/status/owned stop and refusal to stop a foreign URI; real mDNS record decoding; protobuf frames, XML entities/DTD/depth and public-media/private-device boundary. Loopback is confined to internal transport fixtures; production discovered endpoints refuse loopback.
 - `cargo clippy --offline --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings`: exit 0.
 
-The independent `src-tauri/src/sharing/casting/verify/Cargo.toml` harness builds the same modules when a platform build is occupied. It is a protocol fixture aid, not a replacement release build or hardware test.
+The independent `src-tauri/src/sharing/casting/verify/Cargo.toml` harness builds the same modules when a platform build is occupied. It is a protocol fixture aid, not a replacement release build or hardware test. `npm run verify` builds it and runs its tests (the `casting-harness` step).
 
 Reuse is architectural rather than copying the older Python server into a portable application. Pins, protocol tests, receiver reachability and shutdown evidence are required before claiming transport support.

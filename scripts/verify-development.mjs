@@ -341,6 +341,20 @@ export async function runDevelopmentVerification() {
       timeoutMs: 1_800_000,
     },
     {
+      // The casting code built on its own, with its protocol fixture tests,
+      // so the standalone harness keeps compiling as the app changes.
+      name: 'casting-harness',
+      executable: 'cargo',
+      args: [
+        'test',
+        '--manifest-path',
+        'src-tauri/src/sharing/casting/verify/Cargo.toml',
+        '--target-dir',
+        'src-tauri/target/casting-verify',
+      ],
+      timeoutMs: 1_800_000,
+    },
+    {
       // Several of these exercise the PowerShell 7 build helpers.
       name: 'python-tooling',
       executable: 'python',

@@ -274,7 +274,7 @@ pub(crate) fn remove_published_sync(
     }
     fs::remove_file(&path).map_err(|_| "archive-download-cleanup-failed")?;
     #[cfg(not(windows))]
-    File::open(&directory)
+    File::open(directory)
         .map_err(|_| "archive-download-cleanup-failed")?
         .sync_all()
         .map_err(|_| "archive-download-cleanup-failed")?;

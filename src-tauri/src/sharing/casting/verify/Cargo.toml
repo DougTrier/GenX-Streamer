@@ -19,3 +19,10 @@ socket2 = { version = "0.6", features = ["all"] }
 if-addrs = "0.15"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+# The same versions as the app (src-tauri/Cargo.toml), for code the casting
+# modules share with the rest of the native layer.
+bytes = "=1.11.1"
+sha2 = "0.10"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_NetworkManagement_IpHelper", "Win32_NetworkManagement_Ndis", "Win32_Networking_WinSock"] }

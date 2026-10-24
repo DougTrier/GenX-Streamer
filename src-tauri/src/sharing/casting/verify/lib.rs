@@ -14,8 +14,18 @@
 
 //! Independent protocol fixture harness; does not stand in for the Tauri platform build.
 #[path = "../mod.rs"]
+#[allow(
+    unused_imports,
+    reason = "casting re-exports ReceiverRelay for the Android native player, which this harness does not build"
+)]
 pub mod casting;
 #[path = "../../relay.rs"]
 pub mod relay;
 #[path = "../../sharing_policy.rs"]
 pub mod sharing_policy;
+// Modules from other components that the casting code uses.
+#[cfg(test)]
+#[path = "../../../platform/close_owner.rs"]
+pub mod close_owner;
+#[path = "../../../playback/ts_align.rs"]
+pub mod ts_align;

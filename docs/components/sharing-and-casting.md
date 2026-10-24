@@ -33,6 +33,7 @@ S01–S06 in [streaming-invariants.md](../streaming-invariants.md); C01–C08 in
 npx vitest run tests/sharing tests/casting
 npx playwright test lan-viewer casting-confirmation
 cd src-tauri; cargo test --lib sharing::
+cargo test --manifest-path src/sharing/casting/verify/Cargo.toml   # the casting code on its own
 ```
 
 Packaged check: `tests/native/sharing-pause-smoke.mjs`.

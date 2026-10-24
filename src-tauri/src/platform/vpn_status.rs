@@ -46,8 +46,12 @@ pub(crate) struct VpnStatus {
     name: Option<String>,
 }
 
+// The adapter checks below are Windows only (and the tests): Android asks the
+// system instead.
+
 /// Adapter names that belong to VPN clients (WireGuard/NordLynx, OpenVPN TAP,
 /// Wintun-based clients and the big consumer VPNs).
+#[cfg(any(windows, test))]
 const VPN_NAMES: [&str; 11] = [
     "nordlynx",
     "wireguard",
@@ -62,14 +66,18 @@ const VPN_NAMES: [&str; 11] = [
     "mullvad",
 ];
 /// System tunnels that are always up and are not VPNs.
+#[cfg(any(windows, test))]
 const NOT_VPN: [&str; 5] = ["teredo", "isatap", "6to4", "ip-https", "loopback"];
+#[cfg(any(windows, test))]
 const IF_TYPE_PPP: u32 = 23;
+#[cfg(any(windows, test))]
 const IF_TYPE_SOFTWARE_LOOPBACK: u32 = 24;
 
 /// One network adapter as Windows reports it: is it a VPN that is connected?
 /// Windows' own VPN connections (IKEv2, L2TP, PPTP, SSTP) are PPP adapters;
 /// third-party clients are recognised by their adapter name. An adapter that
 /// is down or has no address is not connected.
+#[cfg(any(windows, test))]
 pub(crate) fn connected_vpn(
     if_type: u32,
     up: bool,
@@ -88,6 +96,7 @@ pub(crate) fn connected_vpn(
 }
 
 /// A display name: printable, at most 64 characters.
+#[cfg(any(windows, test))]
 fn display_name(raw: &str) -> Option<String> {
     let clean: String = raw
         .chars()
