@@ -745,6 +745,36 @@
       "label": "address with a password",
       "sha256": "1c2f142726550cc899773668b5e1a76cae742b0797b1394c78d5aca4f50048a9",
       "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/account_acquisition/acquisition_tests.rs",
+      "label": "username/password query",
+      "sha256": "f943c7fd30da66cf038283a7becf7f3811e5b32c96c8a1eef0472a6937a180c8",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/account_acquisition/acquisition_tests.rs",
+      "label": "private network address",
+      "sha256": "0946a4084092f684b2f783f69423ebc5a2035defd22e77d730e9fb0f7ac6b4a2",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/account_acquisition/acquisition_tests.rs",
+      "label": "address with a password",
+      "sha256": "a0fa1815b231ab20ceab9c71824504611b2d6dfc25d5f255551d153be524d363",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/account_acquisition/acquisition_tests.rs",
+      "label": "username/password query",
+      "sha256": "73298095e9bee1c158864ec2f29c872e484deeb74a852b918fd0539357161a3b",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "src-tauri/src/account_acquisition/acquisition_tests.rs",
+      "label": "username/password query",
+      "sha256": "7e8b6cb717504df9671281e21992d379db9ea8bb1ed17c72bbdaa79f4c138de9",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
     }
   ]
 }
