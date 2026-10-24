@@ -1,3 +1,17 @@
+// Copyright 2026 Doug Trier
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 //! Paid TV guide commands. The download runs only when the viewer asks for the
 //! guide (opening it, or Refresh); nothing here starts on its own. The guide
 //! address carries the sign-in, so it never leaves native code or a log.

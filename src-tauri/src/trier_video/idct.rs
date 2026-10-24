@@ -1,3 +1,17 @@
+// Copyright 2026 Doug Trier
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 //! 8x8 inverse DCT (H.262 Annex A): f(x,y) = 2/N sum_u sum_v C(u)C(v) F(u,v)
 //! cos((2x+1)u pi/2N) cos((2y+1)v pi/2N), N = 8, C(0) = 1/sqrt(2). Evaluated
 //! separably in single precision, rounded to the nearest integer and limited
