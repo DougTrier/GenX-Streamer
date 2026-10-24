@@ -91,6 +91,9 @@ pub struct Session {
     idle_reason: Option<String>,
     /// The last status showed another sender's media on the receiver.
     foreign_media: bool,
+    /// The TV closed the cast app GenX launched: Back or Home on its remote,
+    /// another phone's app, or sleep. Nothing of GenX's plays there any more.
+    app_closed: bool,
     request: u32,
 }
 impl Session {
@@ -132,6 +135,7 @@ impl Session {
             owned_url: None,
             idle_reason: None,
             foreign_media: false,
+            app_closed: false,
             request: 0,
         };
         session
@@ -300,6 +304,14 @@ impl Session {
     async fn next_state(&mut self) -> Result<ReceiverState, &'static str> {
         loop {
             let message = self.receive().await?;
+            if self.closes_our_app(&message) {
+                self.app_closed = true;
+                self.receiver_session = None;
+                self.media_session = None;
+                self.owned_url = None;
+                self.foreign_media = false;
+                return Ok(ReceiverState::Ended);
+            }
             if message.namespace != protocol::MEDIA
                 || self.destination.as_deref() != Some(message.source.as_str())
             {
@@ -347,7 +359,28 @@ impl Session {
             }
         }
     }
+    /// The TV says GenX's cast app is gone: it closed GenX's connection to
+    /// the app, or its receiver status no longer lists the app GenX launched.
+    fn closes_our_app(&self, message: &protocol::Message) -> bool {
+        if message.namespace == protocol::CONNECTION {
+            return message.payload["type"] == "CLOSE"
+                && self.destination.as_deref() == Some(message.source.as_str());
+        }
+        let Some(ours) = self.receiver_session.as_deref() else {
+            return false;
+        };
+        let status = &message.payload["status"];
+        message.namespace == protocol::RECEIVER
+            && message.payload["type"] == "RECEIVER_STATUS"
+            && status.is_object()
+            && !status["applications"]
+                .as_array()
+                .is_some_and(|apps| apps.iter().any(|app| app["sessionId"] == ours))
+    }
     pub async fn status(&mut self) -> Result<ReceiverState, &'static str> {
+        if self.app_closed {
+            return Ok(ReceiverState::Ended);
+        }
         let destination = self.destination.clone().ok_or("cast-not-loaded")?;
         self.send(&destination, protocol::MEDIA, json!({"type":"GET_STATUS"}))
             .await?;
@@ -362,6 +395,9 @@ impl Session {
         Ok(stopped)
     }
     async fn stop_media(&mut self) -> Result<bool, &'static str> {
+        if self.app_closed {
+            return Ok(true);
+        }
         if self.media_session.is_none() {
             if self.owned_url.is_none() {
                 return Ok(true);
@@ -531,9 +567,18 @@ mod receiver_tests {
                             replies.push(("web-1", protocol::MEDIA, reply.clone()));
                         }
                     }
-                    (protocol::MEDIA, "GET_STATUS") => {
-                        replies.push(("web-1", protocol::MEDIA, on_status.clone()))
-                    }
+                    (protocol::MEDIA, "GET_STATUS") => match on_status["fixture"].as_str() {
+                        // Back or Home on the TV's remote closes GenX's cast app.
+                        Some("close-app") => {
+                            replies.push(("web-1", protocol::CONNECTION, json!({"type":"CLOSE"})))
+                        }
+                        // Another phone's app replaced GenX's on the TV.
+                        Some("other-app") => replies.push(("receiver-0", protocol::RECEIVER, json!({"type":"RECEIVER_STATUS","requestId":0,"status":{"applications":[{"appId":"233637DE","transportId":"web-9","sessionId":"app-9"}]}}))),
+                        // The TV turned off or left the network.
+                        Some("hang-up") => return seen,
+                        Some("silent") => {}
+                        _ => replies.push(("web-1", protocol::MEDIA, on_status.clone())),
+                    },
                     // Google TV reports the ending playback once before going idle.
                     (protocol::MEDIA, "STOP") => {
                         replies.push(("web-1", protocol::MEDIA, media("PLAYING", None)));
@@ -633,5 +678,83 @@ mod receiver_tests {
         assert!(seen
             .iter()
             .all(|m| !(m["ns"] == protocol::MEDIA && m["payload"]["type"] == "STOP")));
+    }
+
+    async fn loaded(on_status: Value) -> (Session, tokio::task::JoinHandle<Vec<Value>>) {
+        let (address, server) = receiver(vec![media("PLAYING", None)], on_status).await;
+        let mut session = Session::connect_transport(address, "back-out-fixture".into())
+            .await
+            .unwrap();
+        tokio::time::timeout(Duration::from_secs(5), session.load(&selection()))
+            .await
+            .unwrap()
+            .unwrap();
+        (session, server)
+    }
+
+    // Owner requirement, October 24, 2026: someone backing out of the stream
+    // on the TV, or another phone taking it over, ends GenX's cast at once.
+    #[tokio::test]
+    async fn the_tv_closing_genx_app_reads_as_ended_and_stop_sends_nothing_more() {
+        for case in ["close-app", "other-app"] {
+            let (mut session, server) = loaded(json!({ "fixture": case })).await;
+            let state = tokio::time::timeout(Duration::from_secs(5), session.status())
+                .await
+                .unwrap();
+            assert!(matches!(state, Ok(ReceiverState::Ended)), "{case}");
+            assert!(matches!(session.status().await, Ok(ReceiverState::Ended)));
+            assert!(tokio::time::timeout(Duration::from_secs(5), session.stop())
+                .await
+                .unwrap()
+                .unwrap());
+            drop(session);
+            let seen = server.await.unwrap();
+            let asked = |kind: &str, ns: &str| {
+                seen.iter()
+                    .filter(|m| m["ns"] == ns && m["payload"]["type"] == kind)
+                    .count()
+            };
+            assert_eq!(asked("GET_STATUS", protocol::MEDIA), 1, "{case}");
+            assert_eq!(asked("STOP", protocol::MEDIA), 0, "{case}");
+            assert_eq!(asked("STOP", protocol::RECEIVER), 0, "{case}");
+        }
+    }
+
+    #[tokio::test]
+    async fn idle_empty_and_foreign_media_statuses_read_as_ended() {
+        let mut foreign = media("PLAYING", None);
+        foreign["status"][0]["mediaSessionId"] = json!(99);
+        for status in [
+            media("IDLE", Some("CANCELLED")),
+            json!({"type":"MEDIA_STATUS","status":[]}),
+            foreign,
+        ] {
+            let (mut session, server) = loaded(status).await;
+            let state = tokio::time::timeout(Duration::from_secs(5), session.status())
+                .await
+                .unwrap();
+            assert!(matches!(state, Ok(ReceiverState::Ended)));
+            drop(session);
+            server.await.unwrap();
+        }
+    }
+
+    #[tokio::test]
+    async fn a_tv_that_hangs_up_or_stops_answering_fails_the_status_check() {
+        let (mut session, server) = loaded(json!({ "fixture": "hang-up" })).await;
+        let state = tokio::time::timeout(Duration::from_secs(5), session.status())
+            .await
+            .unwrap();
+        assert!(state.is_err());
+        drop(session);
+        server.await.unwrap();
+        let (mut session, server) = loaded(json!({ "fixture": "silent" })).await;
+        assert!(
+            tokio::time::timeout(Duration::from_millis(500), session.status())
+                .await
+                .is_err()
+        );
+        drop(session);
+        server.await.unwrap();
     }
 }

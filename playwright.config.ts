@@ -20,6 +20,7 @@ const componentSuites = [
   '**/background-collection.spec.ts',
   '**/data-transfer-cleanup.spec.ts',
   '**/casting-confirmation.spec.ts',
+  '**/casting-multi-tv.spec.ts',
   '**/storage-recovery.spec.ts',
   '**/website-discovery.spec.ts',
   '**/text-resize-layout.spec.ts',

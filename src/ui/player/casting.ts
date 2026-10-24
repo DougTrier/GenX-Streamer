@@ -17,6 +17,8 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import {
   CastingController,
+  castDeviceKey,
+  type ActiveCast,
   type CastAdapter,
   type CastDevice,
   type CastSnapshot,
@@ -37,6 +39,8 @@ export interface CastingUiOptions {
   ) => CastAdapter;
   probe?: typeof probeKnownReceiver;
   warnings?: () => Promise<string[]>;
+  /** Every TV being cast to and its channel, whenever that changes. */
+  castsChanged?: (casts: readonly ActiveCast[]) => void;
 }
 export function installCasting(
   selection: () => ChannelSelection | null,
@@ -46,14 +50,22 @@ export function installCasting(
   const available = () => options.available?.() !== false;
   const receivers =
     options.receivers ?? createConfirmedReceiver({ readNetworkScope, validateReceiver });
+  // Choosing another TV waits while one is still being authorized, as both
+  // share the one confirmation gate (several TVs at once, October 24, 2026).
+  const authorizing = new Map<string, () => void>();
+  const authorizations = new Set<Promise<void>>();
   const authorize = async (device: CastDevice, signal: AbortSignal) => {
-    const capturedRevision = revision;
-    if (!dialog.open || disposed || !available()) throw new Error('Casting selection expired.');
-    const handle = await receivers.authorize(device, signal);
-    signal.throwIfAborted();
-    if (!dialog.open || disposed || !available() || revision !== capturedRevision)
-      throw new Error('Casting selection expired.');
-    return handle;
+    try {
+      const capturedRevision = revision;
+      if (!dialog.open || disposed || !available()) throw new Error('Casting selection expired.');
+      const handle = await receivers.authorize(device, signal);
+      signal.throwIfAborted();
+      if (!dialog.open || disposed || !available() || revision !== capturedRevision)
+        throw new Error('Casting selection expired.');
+      return handle;
+    } finally {
+      authorizing.get(device.id)?.();
+    }
   };
   const controller = new CastingController(
     options.createAdapter?.(authorize) ??
@@ -130,6 +142,8 @@ export function installCasting(
     for (const remove of deviceListeners.splice(0)) remove();
     rows.clear();
     devices.replaceChildren();
+    // TVs still being cast to stay listed, each with its Stop.
+    if (!disposed) markCasting(controller.snapshot);
   };
   const on = (node: EventTarget, name: string, handler: EventListener): void => {
     node.addEventListener(name, handler);
@@ -163,81 +177,128 @@ export function installCasting(
       !selected ||
       (selected.requiresUnverifiedAcknowledgment && !unknown.checked);
   };
-  // The TV being cast to is marked in the list, with its own Stop beside it
-  // (owner request, October 24, 2026).
-  const rows = new Map<
-    ReceiverDetails,
-    { button: HTMLButtonElement; badge: HTMLSpanElement; stopButton: HTMLButtonElement }
-  >();
-  const castingLabel: Partial<Record<CastState, string>> = {
+  // Every TV being cast to is marked in the list with the channel it plays
+  // and its own Stop (owner requests, October 24, 2026).
+  interface CastMarks {
+    badge: HTMLSpanElement;
+    channel: HTMLSpanElement;
+    stopButton: HTMLButtonElement;
+  }
+  const rows = new Map<ReceiverDetails, CastMarks & { button: HTMLButtonElement }>();
+  const castingLabel: Record<CastState, string> = {
     connecting: 'Connecting…',
     buffering: 'Buffering…',
     playing: 'Casting',
     paused: 'Paused',
     stopping: 'Stopping…',
   };
-  const isCastingTo = (device: ReceiverDetails, snapshot: CastSnapshot): boolean => {
-    const active = snapshot.device as (CastDevice & Partial<ReceiverDetails>) | null;
-    return (
-      !!active &&
-      !!snapshot.sessionId &&
-      !!castingLabel[snapshot.state] &&
-      (active.id === device.id ||
-        (!!device.protocolReceiverId && active.protocolReceiverId === device.protocolReceiverId))
+  const castTo = (device: CastDevice, snapshot: CastSnapshot): ActiveCast | undefined =>
+    snapshot.casts.find(
+      (cast) =>
+        cast.device.id === device.id || castDeviceKey(cast.device) === castDeviceKey(device),
     );
-  };
-  const markCasting = (snapshot: CastSnapshot): void => {
-    for (const [device, row] of rows) {
-      const casting = isCastingTo(device, snapshot);
-      row.button.setAttribute('aria-current', String(casting));
-      row.badge.hidden = !casting;
-      row.badge.textContent = casting ? castingLabel[snapshot.state]! : '';
-      row.stopButton.hidden = !casting;
-      row.stopButton.disabled = !casting || snapshot.state === 'stopping';
-    }
-  };
-  const stopCasting = (): void => {
-    clearSelection();
-    void controller.stop().catch(() => {
-      if (!disposed)
-        status.textContent = 'The receiver has not confirmed Stop. Retry Stop casting.';
-    });
-  };
-  const unsubscribe = controller.subscribe((snapshot) => {
-    const label = castingLabel[snapshot.state];
-    status.textContent =
-      snapshot.error ??
-      (snapshot.state === 'idle'
-        ? 'Choose a channel, then select your TV.'
-        : snapshot.state === 'playing'
-          ? `Casting to ${snapshot.device?.name ?? 'your TV'}.`
-          : `${snapshot.device?.name ?? 'Receiver'} · ${label ?? snapshot.state}`);
-    stop.disabled = !snapshot.sessionId || snapshot.state === 'idle';
-    markCasting(snapshot);
-  });
-  const addDevice = (device: ReceiverDetails): void => {
-    const row = document.createElement('div');
-    row.className = 'cast-device-row';
-    const button = document.createElement('button');
-    button.className = 'cast-device';
+  // TVs being cast to that the list does not show (still searching, or not
+  // found this time) are listed above it, so each can still be stopped.
+  const elsewhere = document.createElement('div');
+  elsewhere.id = 'cast-active';
+  elsewhere.className = 'cast-devices';
+  elsewhere.setAttribute('aria-label', 'Now casting');
+  elsewhere.hidden = true;
+  devices.before(elsewhere);
+  const elsewhereListeners: Array<() => void> = [];
+  const castMarks = (device: CastDevice, listeners: Array<() => void>): CastMarks => {
     const badge = document.createElement('span');
     badge.className = 'cast-device-badge';
     badge.hidden = true;
-    button.append(
-      badge,
-      `${device.name} · ${device.model ?? (device.protocol === 'dlna' ? 'DLNA' : 'Chromecast')}${device.protocolReceiverId ? ' · ' + device.protocolReceiverId : ' · Identity unverified'}`,
-    );
+    const channel = document.createElement('span');
+    channel.className = 'cast-device-channel';
+    channel.hidden = true;
     const stopButton = document.createElement('button');
     stopButton.className = 'cast-device-stop';
     stopButton.textContent = 'Stop';
     stopButton.setAttribute('aria-label', `Stop casting to ${device.name}`);
     stopButton.hidden = true;
-    stopButton.addEventListener('click', stopCasting);
-    deviceListeners.push(() => stopButton.removeEventListener('click', stopCasting));
-    row.append(button, stopButton);
-    rows.set(device, { button, badge, stopButton });
+    const stopThis = () => {
+      const cast = castTo(device, controller.snapshot);
+      if (!cast) return;
+      void controller.stop(cast.device).catch(() => {
+        if (!disposed)
+          status.textContent = `${cast.device.name} has not confirmed Stop. Retry its Stop.`;
+      });
+    };
+    stopButton.addEventListener('click', stopThis);
+    listeners.push(() => stopButton.removeEventListener('click', stopThis));
+    return { badge, channel, stopButton };
+  };
+  const showCast = (marks: CastMarks, cast: ActiveCast | undefined): void => {
+    marks.badge.hidden = marks.channel.hidden = marks.stopButton.hidden = !cast;
+    marks.badge.textContent = cast ? castingLabel[cast.state] : '';
+    marks.channel.textContent = cast ? ` · ${cast.selection.name}` : '';
+    marks.stopButton.disabled = !cast || cast.state === 'stopping';
+  };
+  const markCasting = (snapshot: CastSnapshot): void => {
+    const listed = new Set<string>();
+    for (const [device, row] of rows) {
+      const cast = castTo(device, snapshot);
+      if (cast) listed.add(cast.sessionId);
+      row.button.setAttribute('aria-current', String(!!cast));
+      showCast(row, cast);
+    }
+    for (const remove of elsewhereListeners.splice(0)) remove();
+    elsewhere.replaceChildren();
+    for (const cast of snapshot.casts) {
+      if (listed.has(cast.sessionId)) continue;
+      const marks = castMarks(cast.device, elsewhereListeners);
+      const row = document.createElement('div');
+      row.className = 'cast-device-row';
+      const name = document.createElement('span');
+      name.className = 'cast-device';
+      name.setAttribute('aria-current', 'true');
+      name.append(marks.badge, cast.device.name, marks.channel);
+      row.append(name, marks.stopButton);
+      showCast(marks, cast);
+      elsewhere.append(row);
+    }
+    elsewhere.hidden = !elsewhere.childElementCount;
+  };
+  const stopCasting = (): void => {
+    clearSelection();
+    void controller.stopAll().catch(() => {
+      if (!disposed) status.textContent = 'A TV has not confirmed Stop. Retry Stop casting.';
+    });
+  };
+  const unsubscribe = controller.subscribe((snapshot) => {
+    const [only] = snapshot.casts;
+    status.textContent =
+      snapshot.message ??
+      (!only
+        ? 'Choose a channel, then select your TV.'
+        : snapshot.casts.length > 1
+          ? `Casting to ${snapshot.casts.length} TVs. Choose another TV to cast this channel there too.`
+          : only.state === 'playing'
+            ? `Casting to ${only.device.name}: ${only.selection.name}.`
+            : `${only.device.name} · ${castingLabel[only.state]}`);
+    stop.disabled = !only;
+    markCasting(snapshot);
+    options.castsChanged?.(snapshot.casts);
+  });
+  const addDevice = (device: ReceiverDetails): void => {
+    const marks = castMarks(device, deviceListeners);
+    const row = document.createElement('div');
+    row.className = 'cast-device-row';
+    const button = document.createElement('button');
+    button.className = 'cast-device';
+    button.append(
+      marks.badge,
+      `${device.name} · ${device.model ?? (device.protocol === 'dlna' ? 'DLNA' : 'Chromecast')}${device.protocolReceiverId ? ' · ' + device.protocolReceiverId : ' · Identity unverified'}`,
+      marks.channel,
+    );
+    row.append(button, marks.stopButton);
+    rows.set(device, { ...marks, button });
     const selectDevice = () => {
       void (async () => {
+        await Promise.allSettled([...authorizations]);
+        if (disposed || !dialog.open) return;
         const { owned, current } = begin();
         status.textContent = 'Checking the selected TV…';
         try {
@@ -271,7 +332,9 @@ export function installCasting(
     document.getElementById('cast-button')!.click(),
   );
   on(document.getElementById('cast-button')!, 'click', () => {
-    if (!available()) return;
+    // While TVs play, the panel opens to manage them even when this channel
+    // cannot be cast (Paid TV or GenXtra here, for instance).
+    if (!available() && !controller.snapshot.casts.length) return;
     dialog.showModal();
     if (method.value === 'nearby') discover.click();
   });
@@ -292,6 +355,16 @@ export function installCasting(
       const current = revision;
       confirming = true;
       confirm.disabled = true;
+      let settle!: () => void;
+      const authorized = new Promise<void>((resolve) => (settle = resolve));
+      const done = () => {
+        settle();
+        authorizations.delete(authorized);
+        if (authorizing.get(selected.receiver.id) === done)
+          authorizing.delete(selected.receiver.id);
+      };
+      authorizations.add(authorized);
+      authorizing.set(selected.receiver.id, done);
       try {
         await receivers.confirm(unknown.checked, owned.signal);
         if (!live(owned, current) || !available()) return;
@@ -300,6 +373,7 @@ export function installCasting(
         if (live(owned, current))
           status.textContent = 'Casting could not start. Select your TV again.';
       } finally {
+        done();
         if (live(owned, current)) {
           confirming = false;
           refreshConfirm();
@@ -407,6 +481,9 @@ export function installCasting(
       methodLabel.remove();
       venue.remove();
       confirmation.remove();
+      for (const remove of elsewhereListeners.splice(0)) remove();
+      elsewhere.remove();
+      options.castsChanged?.([]);
     }
     const attempt = Promise.resolve().then(async () => {
       await discoveryCleanup;

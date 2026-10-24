@@ -81,17 +81,24 @@ export function createNativeCastAdapter(
           selectionId: status.selectionId,
           state: status.state,
           ...(status.remoteSessionId ? { remoteSessionId: status.remoteSessionId } : {}),
+          ...(status.state === 'ended' ? { reason: 'receiver' as const } : {}),
         });
       };
       const poll = async () => {
         if (released || stopping || cancellation?.aborted) return;
+        let status: NativeStatus;
         try {
-          publish(await invoke<NativeStatus>('cast_status', { sessionId }));
+          status = await invoke<NativeStatus>('cast_status', { sessionId });
         } catch {
+          // The cast was playing, so a TV that no longer answers its status
+          // check is off, gone from the network or hung up: the cast ended
+          // there (owner requirement, October 24, 2026).
           if (!released && !stopping && !cancellation?.aborted && selected)
-            emit({ sessionId, selectionId: selected.id, state: 'failed' });
+            emit({ sessionId, selectionId: selected.id, state: 'ended', reason: 'unreachable' });
           return;
         }
+        publish(status);
+        if (status.state === 'ended') return;
         if (!released && !stopping && !cancellation?.aborted)
           timer = setTimeout(() => {
             void poll();

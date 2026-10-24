@@ -21,21 +21,31 @@ export interface CastDevice {
   id: string;
   name: string;
   protocol: 'chromecast' | 'dlna';
+  /** The TV's own identity; discovery gives the same TV a new `id` each time. */
+  protocolReceiverId?: string;
 }
-export type CastState =
-  'idle' | 'connecting' | 'playing' | 'paused' | 'buffering' | 'stopping' | 'failed' | 'disposed';
-export interface CastSnapshot {
+export type CastState = 'connecting' | 'playing' | 'paused' | 'buffering' | 'stopping';
+/** One TV being cast to, and the channel it plays. */
+export interface ActiveCast {
+  device: CastDevice;
+  selection: ChannelSelection;
+  sessionId: string;
   state: CastState;
-  device: CastDevice | null;
-  selection: ChannelSelection | null;
-  sessionId: string | null;
-  error: string | null;
+}
+export interface CastSnapshot {
+  /** Every TV being cast to, in the order they were chosen. */
+  casts: ActiveCast[];
+  /** The latest outcome to tell the viewer (a failure, or a TV that ended). */
+  message: string | null;
+  disposed: boolean;
 }
 export type CastEvent = {
   sessionId: string;
   selectionId: string;
   state: 'playing' | 'paused' | 'buffering' | 'ended' | 'failed';
   remoteSessionId?: string;
+  /** Why it ended: the TV said so (Back, Home, another phone, idle), or it stopped answering. */
+  reason?: 'receiver' | 'unreachable';
 };
 export interface CastEngine {
   /** LOAD acceptance alone is not playing. Emit verified receiver transport status separately. */
@@ -49,10 +59,23 @@ export interface CastAdapter {
   discover(signal: AbortSignal): Promise<CastDevice[]>;
   create(device: CastDevice, sessionId: string, emit: (event: CastEvent) => void): CastEngine;
 }
+/** TVs cast to at once, as many as the native layer allows. */
+export const MAX_CASTS = 4;
 interface Session {
   id: string;
+  key: string;
+  device: CastDevice;
+  selection: ChannelSelection;
   engine: CastEngine;
   abort: AbortController;
+  state: CastState;
+  deadline: ReturnType<typeof setTimeout> | undefined;
+}
+/** Which TV this is: its own identity when it reports one, else its roster id. */
+export function castDeviceKey(device: CastDevice): string {
+  return device.protocolReceiverId
+    ? `${device.protocol}:${device.protocolReceiverId}`
+    : `id:${device.id}`;
 }
 function bounded<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -69,19 +92,19 @@ function bounded<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {
   });
 }
 
+/**
+ * Casts to several TVs at once, each its own channel (owner request, October
+ * 24, 2026). Each TV has one session, its own queue and its own latest
+ * intent: choosing a TV that is already casting replaces only that TV's cast,
+ * and nothing here follows what this device itself plays.
+ */
 export class CastingController {
-  private current: CastSnapshot = {
-    state: 'idle',
-    device: null,
-    selection: null,
-    sessionId: null,
-    error: null,
-  };
-  private session: Session | null = null;
-  private generation = 0;
+  private sessions = new Map<string, Session>();
+  /** The latest start or stop asked of each TV; older work for it gives way. */
+  private intents = new Map<string, number>();
+  private queues = new Map<string, Promise<unknown>>();
+  private message: string | null = null;
   private listeners = new Set<(snapshot: CastSnapshot) => void>();
-  private queue: Promise<unknown> = Promise.resolve();
-  private deadline: ReturnType<typeof setTimeout> | undefined;
   private disposed = false;
   private closing = false;
   private disposePromise: Promise<void> | null = null;
@@ -93,9 +116,14 @@ export class CastingController {
   ) {}
   get snapshot(): CastSnapshot {
     return {
-      ...this.current,
-      device: this.current.device ? { ...this.current.device } : null,
-      selection: this.current.selection ? { ...this.current.selection } : null,
+      casts: [...this.sessions.values()].map((session) => ({
+        device: { ...session.device },
+        selection: { ...session.selection },
+        sessionId: session.id,
+        state: session.state,
+      })),
+      message: this.message,
+      disposed: this.disposed,
     };
   }
   subscribe(listener: (snapshot: CastSnapshot) => void): () => void {
@@ -105,18 +133,30 @@ export class CastingController {
       this.listeners.delete(listener);
     };
   }
-  private publish(state: CastState, error: string | null = null): void {
-    this.current = { ...this.current, state, error };
+  private publish(message?: string | null): void {
+    if (message !== undefined) this.message = message;
     for (const listener of this.listeners) listener(this.snapshot);
   }
-  private enqueue<T>(operation: () => Promise<T>): Promise<T> {
-    const result = this.queue.then(operation);
-    this.queue = result.catch(() => undefined);
+  private intent(key: string): number {
+    const next = (this.intents.get(key) ?? 0) + 1;
+    this.intents.set(key, next);
+    return next;
+  }
+  /** Work for one TV runs in order; other TVs do not wait for it. */
+  private enqueue<T>(key: string, operation: () => Promise<T>): Promise<T> {
+    const result = (this.queues.get(key) ?? Promise.resolve()).then(operation);
+    const settled = result.then(
+      () => undefined,
+      () => undefined,
+    );
+    this.queues.set(key, settled);
+    void settled.then(() => {
+      if (this.queues.get(key) === settled) this.queues.delete(key);
+    });
     return result;
   }
-  private clearDeadline(): void {
-    clearTimeout(this.deadline);
-    this.deadline = undefined;
+  private current(session: Session): boolean {
+    return this.sessions.get(session.key) === session;
   }
   async listDevices(signal?: AbortSignal): Promise<CastDevice[]> {
     if (this.disposed || this.closing) throw new Error('Casting controller is closed.');
@@ -172,17 +212,17 @@ export class CastingController {
     await Promise.allSettled(pending.map(([, work]) => work));
   }
   /**
-   * Asks the receiver to stop (five seconds at most), then lets the session go
-   * whether or not it answered, and reports whether it confirmed. Switching to
-   * another TV, or stopping, is never held up by a TV that does not answer
-   * (owner decision, October 24, 2026): one that is asleep, unplugged, or
-   * already taken over by another phone would otherwise block every later
-   * cast. The native layer revokes the stream relay first, either way.
+   * Asks this TV to stop (five seconds at most), then lets its session go
+   * whether or not it answered, and reports whether it confirmed. A TV that
+   * does not answer (asleep, unplugged, taken over by another phone) never
+   * blocks casting (owner decision, October 24, 2026). The native layer
+   * revokes the TV's stream relay first, either way. Other TVs are untouched.
    */
-  private async release(): Promise<boolean> {
-    const session = this.session;
+  private async release(key: string): Promise<boolean> {
+    const session = this.sessions.get(key);
     if (!session) return true;
     session.abort.abort();
+    clearTimeout(session.deadline);
     let confirmed: boolean;
     try {
       const stopSignal = AbortSignal.timeout(5_000);
@@ -195,73 +235,62 @@ export class CastingController {
     } catch {
       // The sender's own timers and listeners go with the session below.
     }
-    if (this.session === session) this.session = null;
+    if (this.current(session)) this.sessions.delete(key);
     return confirmed;
   }
+  /** Casts `selection` to `device`; every other TV keeps playing its own channel. */
   async start(device: CastDevice, selection: ChannelSelection): Promise<void> {
     if (this.disposed || this.closing) throw new Error('Casting controller is closed.');
-    const generation = ++this.generation;
-    this.clearDeadline();
-    this.session?.abort.abort();
-    const started = await this.enqueue(async () => {
-      // The previous TV, if any, is asked to stop and let go before this one starts.
-      await this.release();
-      if (generation !== this.generation || this.disposed) return null;
-      const sessionId = this.id();
-      const abort = new AbortController();
-      this.current = {
-        state: 'connecting',
-        device: { ...device },
-        selection: { ...selection },
-        sessionId,
-        error: null,
-      };
-      let engine: CastEngine;
-      try {
-        engine = this.adapter.create(device, sessionId, (event) => {
-          if (
-            generation !== this.generation ||
-            this.session?.id !== event.sessionId ||
-            event.selectionId !== selection.id
-          )
-            return;
-          if (event.state === 'failed') {
-            this.fail(
-              generation,
-              'The receiver could not play this channel. Check its format and network access.',
-            );
-            return;
-          }
-          if (event.state === 'ended') {
-            void this.stop();
-            return;
-          }
-          if (event.state === 'playing') {
-            if (!event.remoteSessionId) return;
-            this.clearDeadline();
-          }
-          this.publish(event.state);
-        });
-      } catch {
-        this.publish(
-          'failed',
-          'The selected cast device is unavailable. Refresh devices and try again.',
-        );
+    const key = castDeviceKey(device);
+    const intent = this.intent(key);
+    const previous = this.sessions.get(key);
+    if (previous) {
+      previous.abort.abort();
+      clearTimeout(previous.deadline);
+    }
+    const started = await this.enqueue(key, async () => {
+      // This TV's previous cast, if any, is asked to stop and let go first.
+      await this.release(key);
+      if (intent !== this.intents.get(key) || this.disposed || this.closing) return null;
+      if (this.sessions.size >= MAX_CASTS) {
+        this.publish(`GenX casts to ${MAX_CASTS} TVs at most. Stop one to cast to ${device.name}.`);
         return null;
       }
-      this.session = { id: sessionId, engine, abort };
-      this.publish('connecting');
+      const sessionId = this.id();
+      const owner: { session: Session | null } = { session: null };
+      let engine: CastEngine;
+      try {
+        engine = this.adapter.create({ ...device }, sessionId, (event) => {
+          if (owner.session) this.receive(owner.session, event);
+        });
+      } catch {
+        this.publish(`${device.name} is unavailable. Refresh devices and try again.`);
+        return null;
+      }
+      const session: Session = {
+        id: sessionId,
+        key,
+        device: { ...device },
+        selection: { ...selection },
+        engine,
+        abort: new AbortController(),
+        state: 'connecting',
+        deadline: undefined,
+      };
+      owner.session = session;
+      this.sessions.set(key, session);
       // A live stream through the relay takes the TV several seconds after its
       // cast app opens; the native start (40 s) gives up first, with cleanup.
-      this.deadline = setTimeout(
+      session.deadline = setTimeout(
         () =>
           this.fail(
-            generation,
-            'The TV did not start playing within 45 seconds. Retry or choose another TV.',
+            session,
+            'did not start playing within 45 seconds. Retry or choose another TV.',
           ),
         45_000,
       );
-      return this.session;
+      this.publish(null);
+      return session;
     });
     if (!started) return;
     try {
@@ -270,47 +299,103 @@ export class CastingController {
         started.abort.signal,
       );
     } catch {
-      if (generation === this.generation)
-        this.fail(generation, 'Casting could not start. Check the receiver and channel access.');
+      if (this.current(started) && !started.abort.signal.aborted)
+        this.fail(started, 'could not start casting. Check the receiver and channel access.');
     }
   }
-  private fail(generation: number, message: string): void {
-    if (generation !== this.generation) return;
-    const failedGeneration = ++this.generation;
-    this.clearDeadline();
-    this.session?.abort.abort();
-    this.publish('failed', message);
-    void this.enqueue(() => this.release()).then((confirmed) => {
-      if (!confirmed && failedGeneration === this.generation)
-        this.publish(
-          'failed',
-          `${message} If the TV still shows the channel, stop it with the TV's remote.`,
-        );
+  /** A status event, bound to its own session and channel (C02). */
+  private receive(session: Session, event: CastEvent): void {
+    if (
+      !this.current(session) ||
+      session.abort.signal.aborted ||
+      event.sessionId !== session.id ||
+      event.selectionId !== session.selection.id
+    )
+      return;
+    if (event.state === 'failed') {
+      this.fail(session, 'could not play this channel. Check its format and network access.');
+      return;
+    }
+    if (event.state === 'ended') {
+      // Back or Home on the TV, another phone, sleep, or a TV gone from the
+      // network: release this TV alone; the rest keeps working.
+      this.end(
+        session,
+        event.reason === 'unreachable'
+          ? `${session.device.name} stopped answering, so its cast ended.`
+          : `${session.device.name} stopped casting.`,
+      );
+      return;
+    }
+    if (event.state === 'playing') {
+      if (!event.remoteSessionId) return;
+      clearTimeout(session.deadline);
+    }
+    // Status arrives every two seconds; only a change redraws the panel and pins.
+    if (session.state === event.state) return;
+    session.state = event.state;
+    this.publish();
+  }
+  /** Lets go of a TV that ended the cast on its side. */
+  private end(session: Session, message: string): void {
+    const intent = this.intent(session.key);
+    session.abort.abort();
+    clearTimeout(session.deadline);
+    session.state = 'stopping';
+    this.publish();
+    void this.enqueue(session.key, async () => {
+      await this.release(session.key);
+      this.publish(intent === this.intents.get(session.key) ? message : undefined);
     });
   }
-  async stop(): Promise<void> {
-    if (this.disposed) return;
-    const generation = ++this.generation;
-    this.clearDeadline();
-    this.session?.abort.abort();
-    this.publish('stopping');
-    await this.enqueue(async () => {
-      const confirmed = await this.release();
-      if (generation !== this.generation) return;
-      this.current = {
-        state: 'idle',
-        device: null,
-        selection: null,
-        sessionId: null,
-        error: null,
-      };
+  private fail(session: Session, problem: string): void {
+    if (!this.current(session)) return;
+    const message = `${session.device.name} ${problem}`;
+    const intent = this.intent(session.key);
+    session.abort.abort();
+    clearTimeout(session.deadline);
+    session.state = 'stopping';
+    this.publish(message);
+    void this.enqueue(session.key, () => this.release(session.key)).then((confirmed) => {
+      if (intent !== this.intents.get(session.key)) return;
       this.publish(
-        'idle',
         confirmed
-          ? null
-          : "The TV did not answer. If it still shows the channel, stop it with the TV's remote.",
+          ? message
+          : `${message} If the TV still shows the channel, stop it with the TV's remote.`,
       );
     });
+  }
+  /** Stops casting to this TV only. */
+  async stop(device: CastDevice): Promise<void> {
+    if (this.disposed) return;
+    const key = castDeviceKey(device);
+    const intent = this.intent(key);
+    const session = this.sessions.get(key);
+    if (session) {
+      session.abort.abort();
+      clearTimeout(session.deadline);
+      session.state = 'stopping';
+      this.publish();
+    }
+    await this.enqueue(key, async () => {
+      const name = this.sessions.get(key)?.device.name ?? device.name;
+      const confirmed = await this.release(key);
+      if (intent !== this.intents.get(key)) return;
+      this.publish(
+        confirmed
+          ? null
+          : `${name} did not answer. If it still shows the channel, stop it with the TV's remote.`,
+      );
+    });
+  }
+  /** Stops every TV, together. */
+  async stopAll(): Promise<void> {
+    const devices = new Map<string, CastDevice>();
+    for (const session of this.sessions.values()) devices.set(session.key, session.device);
+    // A start still waiting in a TV's queue gives way too.
+    for (const key of this.queues.keys()) if (!devices.has(key)) this.intent(key);
+    await Promise.all([...devices.values()].map((device) => this.stop(device)));
+    await Promise.allSettled([...this.queues.values()]);
   }
   dispose(): Promise<void> {
     if (this.disposed) return Promise.resolve();
@@ -318,12 +403,11 @@ export class CastingController {
     this.closing = true;
     this.disposePromise = (async () => {
       await this.cancelDiscovery();
-      await this.stop();
-      if (this.session)
+      await this.stopAll();
+      if (this.sessions.size)
         throw new Error('Receiver cleanup is incomplete; casting ownership was retained.');
       this.disposed = true;
-      ++this.generation;
-      this.publish('disposed');
+      this.publish(null);
       this.listeners.clear();
     })().catch((error) => {
       this.closing = false;

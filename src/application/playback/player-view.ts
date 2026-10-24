@@ -79,6 +79,7 @@ export interface PlayerViewEnvironment {
   readonly settings: Preferences;
   readonly castButton: HTMLButtonElement;
   readonly castingAvailable: boolean;
+  readonly castsActive: boolean;
   readonly privatePlayback: (selection: PlaybackSnapshot['selection']) => boolean;
   renderedSelection: string | null;
   readonly guide: ReturnType<typeof mountGuide>;
@@ -366,8 +367,10 @@ export function createPlayerView(env: PlayerViewEnvironment) {
     env.element<HTMLButtonElement>('restore-channels').disabled = env.accountBrowser.selectedAccount
       ? !env.accountBrowser.preferenceScope() || !!env.accountPreferenceWork
       : env.settings.removedChannels.length === 0;
+    // While TVs play, Cast opens their panel whatever plays here.
     env.castButton.disabled =
-      !!env.backgroundLiveChoice || !env.castingAvailable || env.privatePlayback(selection);
+      !env.castsActive &&
+      (!!env.backgroundLiveChoice || !env.castingAvailable || env.privatePlayback(selection));
     if (
       focusedControl instanceof HTMLButtonElement &&
       focusedControl.disabled &&

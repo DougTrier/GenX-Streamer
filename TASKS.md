@@ -28,6 +28,11 @@ dropped.
 - **T068**: sharing under a network change and a firewall refusal.
 - **T071–T073, T100**: casting to real Chromecast/DLNA receivers, at home and
   away.
+- **Casting to several TVs at once** (October 24, 2026): two or three of the
+  owner's TVs (Sony BRAVIA, Google TV Streamer, Sansui) each playing a
+  different channel while the PC plays another; Back or Home on one TV, one
+  TV turned off, and another phone taking one over, each releasing only that
+  TV and its pin. Fixture tests pass; not yet seen on the TVs.
 
 ## Known limits
 

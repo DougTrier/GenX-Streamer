@@ -25,6 +25,8 @@ import { createArchiveBookmarks } from '../../platform/archive-bookmarks';
 import { chooseArchiveResume } from '../../ui/genxtra/archive-resume';
 import { type installInAppSelects } from '../../ui/shell/in-app-select';
 import { installCasting } from '../../ui/player/casting';
+import { mountCastPins } from '../../ui/channels/cast-pins';
+import { type createPlayerView } from '../playback/player-view';
 import { type createBootstrapBoundary } from '../shell/bootstrap-boundary';
 import { type createSettingsController } from '../shell/settings-controller';
 import { type createCatalogView } from '../catalog/catalog-view';
@@ -76,6 +78,7 @@ export interface SharingAndCastingEnvironment {
   readonly libraryQueries: Record<ContentLibrary, string>;
   readonly friendlyError: ReturnType<typeof createCatalogView>['friendlyError'];
   readonly element: <T extends HTMLElement = HTMLElement>(id: string) => T;
+  readonly renderPlayer: ReturnType<typeof createPlayerView>['renderPlayer'];
 }
 
 export function createSharingAndCasting(env: SharingAndCastingEnvironment) {
@@ -174,8 +177,19 @@ export function createSharingAndCasting(env: SharingAndCastingEnvironment) {
   const castButton = env.element('cast-button') as HTMLButtonElement;
   castButton.hidden = !castingAvailable;
   castButton.disabled = !castingAvailable;
-  const removeCasting = env.bootstrapBoundary.run('casting', () =>
-    installCasting(
+  // Several TVs at once, each its own channel, while this device plays
+  // whatever the viewer picks next (owner request, October 24, 2026): casting
+  // follows only the viewer's choices in the cast panel, never local playback.
+  let castsActive = false;
+  const removeCasting = env.bootstrapBoundary.run('casting', () => {
+    const pins = mountCastPins(env.element('channel-list'), (selection) => {
+      env.element('app').dataset.compactView = 'watch';
+      env.element<HTMLSelectElement>('compact-view').value = 'watch';
+      playbackAction(
+        sharingBridge.select({ id: selection.id, name: selection.name, url: selection.url }),
+      );
+    });
+    const remove = installCasting(
       () =>
         env.privatePlayback(env.player.snapshot.selection) ? null : env.player.snapshot.selection,
       (selected) =>
@@ -190,13 +204,28 @@ export function createSharingAndCasting(env: SharingAndCastingEnvironment) {
           !env.accountPlayer?.selection &&
           !env.archivePlayer?.selection &&
           !env.privatePlayback(env.player.snapshot.selection),
+        castsChanged: (casts) => {
+          pins.update(casts);
+          // While TVs play, Cast stays open to manage them (player view).
+          if (castsActive === casts.length > 0) return;
+          castsActive = casts.length > 0;
+          env.renderPlayer(env.player.snapshot);
+        },
       },
-    ),
-  );
+    );
+    return () => {
+      pins.dispose();
+      return remove();
+    };
+  });
   return {
     castButton,
     get castingAvailable() {
       return castingAvailable;
+    },
+    /** Some TV is being cast to. */
+    get castsActive() {
+      return castsActive;
     },
     set castingAvailable(value: typeof castingAvailable) {
       castingAvailable = value;

@@ -183,6 +183,7 @@ const app = createSharedContext(
     cancelOnlineSourceEntry: () => cancelOnlineSourceEntry,
     castButton: () => castButton,
     castingAvailable: () => sharingAndCasting.castingAvailable,
+    castsActive: () => sharingAndCasting.castsActive,
     catalog: () => catalog,
     catalogBrowseReady: () => catalogBrowseReady,
     catalogBrowseViewRevision: () => catalogBrowseViewRevision,

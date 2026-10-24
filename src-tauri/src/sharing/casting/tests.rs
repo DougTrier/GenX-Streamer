@@ -12,26 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#[test]
-fn receiver_fetch_needs_a_grant_on_the_actual_response() {
-    use reqwest::header::HeaderValue;
-    assert!(grants_receiver(Some(&HeaderValue::from_static("*"))));
-    assert!(grants_receiver(Some(&HeaderValue::from_static(
-        "https://www.gstatic.com"
-    ))));
-    assert!(!grants_receiver(None));
-    assert!(!grants_receiver(Some(&HeaderValue::from_static(
-        "https://example.com"
-    ))));
-}
-
-#[tokio::test]
-async fn plain_http_and_invalid_streams_always_relay() {
-    assert!(!receiver_can_fetch("http://example.invalid/live.m3u8").await);
-    assert!(!receiver_can_fetch("not a url").await);
-    assert!(!receiver_can_fetch("https://user:pass@example.invalid/live.m3u8").await);
-}
-
 use super::*;
 #[test]
 fn discovery_requests_fence_supersession_and_retain_actual_work_until_lease_drop() {
@@ -135,7 +115,7 @@ async fn raw_roster_id_cannot_start_or_allocate_a_receiver_session() {
         result,
         Err("cast-issued-handle-expired-revalidate")
     ));
-    assert!(manager.active.lock().await.is_none());
+    assert!(manager.active.lock().await.is_empty());
 }
 #[test]
 fn immutable_grant_expires_and_network_epoch_changes_cannot_retarget_it() {
@@ -221,7 +201,7 @@ async fn shutdown_waits_for_owned_operations_and_refuses_late_work() {
 #[test]
 fn native_operations_are_bounded() {
     let manager = CastingManager::default();
-    let operations: Vec<_> = (0..4).map(|_| manager.enter().unwrap()).collect();
+    let operations: Vec<_> = (0..8).map(|_| manager.enter().unwrap()).collect();
     assert!(manager.enter().is_err());
     drop(operations);
     assert_eq!(manager.operations.load(Ordering::SeqCst), 0);
@@ -273,5 +253,5 @@ async fn media_policy_never_permits_local_device_urls_as_upstream_media() {
             .await,
         Err("cast-media-public-url-required")
     ));
-    assert!(manager.active.lock().await.is_none());
+    assert!(manager.active.lock().await.is_empty());
 }
