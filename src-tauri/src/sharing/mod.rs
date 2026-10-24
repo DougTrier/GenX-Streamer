@@ -21,6 +21,7 @@
 pub mod casting;
 pub mod lan;
 pub(crate) mod native_sharing;
+pub(crate) mod nearby_download;
 pub mod relay;
 pub(crate) mod share_links;
 pub mod sharing_policy;

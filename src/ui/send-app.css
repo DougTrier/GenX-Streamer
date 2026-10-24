@@ -29,8 +29,32 @@
   width: min(560px, calc(100vw - 16px));
   max-height: calc(100dvh - 16px);
 }
+/* Pass It Along: a cassette, handed on like a mixtape. */
+#send-app-dialog .send-app-tape {
+  width: 72px;
+  margin: 14px auto 0;
+  color: var(--gx-magenta);
+}
+#send-app-dialog .send-app-tape svg {
+  display: block;
+  width: 100%;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  filter: drop-shadow(0 0 6px #f58dca66);
+}
+#send-app-dialog .send-app-tagline {
+  margin: 8px 0 0;
+  text-align: center;
+  font-size: 1.1rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--gx-cyan);
+}
 #send-app-dialog .send-app-intro {
-  margin-top: 12px;
+  margin-top: 6px;
+  text-align: center;
 }
 #send-app-dialog .send-app-options {
   display: grid;
@@ -71,5 +95,34 @@
   margin: 12px 0 0;
 }
 #send-app-dialog .send-app-status:empty {
+  display: none;
+}
+#send-app-dialog .nearby-active[hidden] {
+  display: none;
+}
+#send-app-dialog .nearby-code {
+  width: min(240px, 70vw);
+  margin: 4px auto 12px;
+}
+#send-app-dialog .nearby-code svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+}
+#send-app-dialog .nearby-counts {
+  margin: 10px 0 4px;
+  font-weight: 700;
+  color: var(--gx-text);
+}
+#send-app-dialog .nearby-status:empty {
+  display: none;
+}
+#send-app-dialog .nearby-cheer {
+  margin: 4px 0;
+  font-weight: 700;
+  color: var(--gx-magenta);
+}
+#send-app-dialog .nearby-cheer[hidden] {
   display: none;
 }

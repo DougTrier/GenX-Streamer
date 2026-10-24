@@ -140,6 +140,21 @@ async fn android_call<R: serde::de::DeserializeOwned>(
         })
 }
 
+/// This installed copy's APK (its own sourceDir) and whether it was installed
+/// in several parts (which cannot be shared as one file).
+#[cfg(target_os = "android")]
+pub(crate) async fn android_app_file(
+    app: &tauri::AppHandle,
+) -> Result<(std::path::PathBuf, bool), String> {
+    #[derive(serde::Deserialize)]
+    struct Reply {
+        path: String,
+        split: bool,
+    }
+    let reply: Reply = android_call(app, "appFile", serde_json::json!({})).await?;
+    Ok((std::path::PathBuf::from(reply.path), reply.split))
+}
+
 /// The link GenX was opened with, or the newest one since; each is given out once.
 #[tauri::command]
 pub(crate) async fn take_incoming_link(app: tauri::AppHandle) -> Result<Option<String>, String> {

@@ -1,0 +1,60 @@
+<!doctype html>
+<!-- Copyright 2026 Doug Trier. Licensed under the Apache License, Version 2.0.
+     The page a friend's phone opens to get GenX Streamer from a nearby device
+     (src-tauri/src/sharing/nearby_download.rs). Fixed text: nothing about the
+     person sharing it. -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <title>Get GenX Streamer</title>
+    <style>
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        font: 17px/1.5 system-ui, 'Segoe UI', Roboto, sans-serif;
+        color: #eef3ff;
+        background: linear-gradient(160deg, #121d38, #0a1128 70%);
+      }
+      main {
+        box-sizing: border-box;
+        width: min(480px, calc(100vw - 32px));
+        padding: 28px;
+        border: 1px solid #3d6280;
+        border-top: 3px solid #f58dca;
+        border-radius: 18px;
+        background: #0c1530;
+      }
+      h1 {
+        margin: 0 0 8px;
+        font-size: 1.5rem;
+      }
+      p {
+        color: #b9c6dd;
+      }
+      a {
+        display: inline-block;
+        margin: 12px 0;
+        padding: 12px 18px;
+        border-radius: 12px;
+        color: #071022;
+        background: #83e9f5;
+        font-weight: 700;
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Get GenX Streamer</h1>
+      <p>A free TV app, shared from a device nearby. No internet needed for this download.</p>
+      <a href="{{FILE}}" download>Download GenX Streamer ({{SIZE}})</a>
+      <p>{{GUIDANCE}}</p>
+      <p>Then open GenX Streamer, and you're ready to rock.</p>
+      <p>This download is available for a few minutes only.</p>
+    </main>
+  </body>
+</html>

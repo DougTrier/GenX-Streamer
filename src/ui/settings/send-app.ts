@@ -15,13 +15,15 @@
  */
 /**
  * Send app to a friend (Settings header, and About; docs/share-links.md):
- * one page with every way to pass GenX Streamer on. Send the installed app
+ * Pass It Along, one page with every way to pass GenX Streamer on, in the
+ * spirit of a mixtape handed to a friend. Send the installed app
  * itself (Android: this copy's APK through the share sheet, so Quick Share,
  * Bluetooth or a messaging app, since Android Beam left with Android 10;
  * Windows: GenX Streamer.exe through Windows' share, so Nearby Sharing or
  * mail), send the download link by text or message, or copy it.
  */
 import '../send-app.css';
+import { mountNearbyShare } from './send-app-nearby';
 import { isTauri } from '@tauri-apps/api/core';
 import { DOWNLOAD_PAGE } from '../../sharing/share-link';
 import {
@@ -71,11 +73,15 @@ export function mountSendApp(
   dialog.setAttribute('aria-labelledby', 'send-app-title');
   dialog.innerHTML = `
     <div class="dialog-head">
-      <h2 id="send-app-title">Send GenX Streamer to a friend</h2>
+      <h2 id="send-app-title">Pass It Along</h2>
       <button type="button" class="send-app-close" aria-label="Close send app">×</button>
     </div>
     <div class="dialog-body send-app-body">
-      <p class="send-app-intro">Choose how to send it. They get the same free app you have.</p>
+      <div class="send-app-tape" aria-hidden="true">
+        <svg viewBox="0 0 64 40" focusable="false"><rect x="2" y="2" width="60" height="36" rx="4"/><rect x="9" y="7" width="46" height="12" rx="2"/><circle cx="21" cy="26" r="5"/><circle cx="43" cy="26" r="5"/><path d="M26 26h12M14 38l4-6h28l4 6"/></svg>
+      </div>
+      <p class="send-app-tagline">Too rad to keep to yourself.</p>
+      <p class="send-app-intro">Pass GenX Streamer to friends and family: they get the same free app you have.</p>
       <div class="send-app-options">
         <section class="send-app-option send-app-file" hidden>
           <h3></h3>
@@ -83,6 +89,7 @@ export function mountSendApp(
           <p class="send-app-guidance"></p>
           <button type="button" class="primary send-app-file-button"></button>
         </section>
+        <section class="send-app-option send-app-nearby" hidden></section>
         <section class="send-app-option">
           <h3>Send a download link</h3>
           <p class="send-app-detail">By text, email or chat: they download GenX Streamer themselves, on Windows or Android.</p>
@@ -140,7 +147,9 @@ export function mountSendApp(
         pending = false;
       });
   };
-  const removers: (() => void)[] = [];
+  const removers: (() => void)[] = [
+    mountNearbyShare(dialog.querySelector<HTMLElement>('.send-app-nearby')!),
+  ];
   const listen = (button: HTMLButtonElement, handler: () => void) => {
     button.addEventListener('click', handler);
     removers.push(() => button.removeEventListener('click', handler));

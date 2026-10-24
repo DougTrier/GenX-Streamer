@@ -8,10 +8,13 @@ Two ways to pass GenX Streamer on (owner's idea, October 24, 2026):
   channel on one tap; elsewhere it opens a small web page that says what was
   shared and how to get GenX Streamer.
 - **Send app to a friend.** A button in the Settings header (and **Share
-  GenX Streamer** in About) opens one page with every way to pass GenX on:
-  the installed app itself (the APK phone to phone on Android, GenX
-  Streamer.exe on Windows), the download link by text or message, or the link
-  to copy (`src/ui/settings/send-app.ts`).
+  GenX Streamer** in About) opens **Pass It Along** ("Too rad to keep to
+  yourself."), one page with every way to pass GenX on, like a mixtape handed
+  to a friend: the installed app itself (the APK phone to phone on Android,
+  GenX Streamer.exe on Windows), **Share with everyone nearby**, the download
+  link by text or message, or the link to copy (`src/ui/settings/send-app.ts`).
+  The app carries the means of its own distribution: no store, website or
+  link needed, which Apache-2.0 redistribution allows.
 
 ## The link
 
@@ -149,6 +152,43 @@ phone carries that copy's signature. A later release-signed build will not
 install over it; the receiver must uninstall first (which removes their saved
 channels: back up first).
 
+## Share with everyone nearby
+
+For a room full of friends (watching the game at home): GenX serves itself on
+the local Wi-Fi for ten minutes (`src-tauri/src/sharing/nearby_download.rs`,
+`src/ui/settings/send-app-nearby.ts`).
+
+- Only when the viewer chooses **Start sharing nearby**; it ends after ten
+  minutes, on **Stop sharing**, or when GenX closes.
+- The page shows a QR code (`src/sharing/qr-code.ts`, GenX's own encoder,
+  checked by decoding with OpenCV in `tests/tooling/test_qr_code.py`) and the
+  address, `http://<this device>:<port>/<secret>/`. Friends scan it with their
+  camera; their browser opens a small "Get GenX Streamer" page and downloads
+  the app. No internet, store or GenX on their side is needed.
+- Every session has a fresh 128-bit secret in the address: without the code,
+  nothing is found. Only local clients (private, shared or link-local
+  addresses) are answered; at most eight connections at a time, bounded
+  request heads, read and write deadlines.
+- It serves the installed app itself (Android: the APK in its own install
+  folder; Windows: the running exe), never a second copy, and nothing else:
+  no settings, channels, accounts or history. The page names nothing about the
+  sharer.
+- The sharer sees how many devices opened the page and how many downloads
+  finished ("Totally tubular! 2 friends are ready to rock.").
+- Receivers approve the install themselves: Android's installer asks (and
+  asks to allow the browser or Files to install apps); Windows asks to run an
+  app from an unknown publisher.
+
+Limits, plainly: it is plain HTTP on the local network, so another device on
+the same Wi-Fi could in principle tamper with a download; Android's installer
+then still requires a valid signature, and **Check for updates** verifies
+official releases against GitHub. It needs a shared Wi-Fi: guest and bar
+networks that keep devices apart (client isolation) will not work, and other
+phones cannot be notified (no app can push a notice to a stranger's phone;
+the QR code is the invitation). The next step for those places is a
+temporary hotspot on the sharer's phone (Android's local-only hotspot, with a
+Wi-Fi QR code to join), which needs testing on devices.
+
 ## The web page
 
 `site/watch/index.html` (with its icon) is ready for GitHub Pages at
@@ -164,7 +204,8 @@ Content-Security-Policy hash: after editing the script, update the
 ```powershell
 npx vitest run tests/sharing/share-link.test.ts
 npx playwright test share-links share-button about
-cd src-tauri; cargo test --lib share_links
+python -B -X utf8 -m unittest discover -s tests/tooling -p test_qr_code.py
+cd src-tauri; cargo test --lib share_links nearby_download
 ```
 
 Android: `IncomingLinkTest.kt` (the link shape); the share sheet, intent

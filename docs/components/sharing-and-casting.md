@@ -15,7 +15,7 @@ or the app itself to someone else ([design](../share-links.md)).
 | Application | `src/application/sharing/` (`sharing-and-casting.ts`, `sharing-host.ts`; `share-links.ts` and `shared-incoming.ts` for share links) |
 | Screens | `src/ui/player/casting.ts`; the sharing settings live with `src/sharing/settings.ts`; `src/ui/sharing/share-card.ts`, `src/ui/settings/about-share.ts` |
 | Platform (TypeScript) | `src/platform/share-sheet.ts` |
-| Native (Rust) | `src-tauri/src/sharing/` (`lan/` the sharing server, its routes and the viewer page; `casting/` Chromecast and DLNA; `relay.rs`; `sharing_policy.rs`; `native_sharing.rs` with the commands; `share_links.rs` and `share_links/` share links, genx:// on Windows and Windows' share sheet) |
+| Native (Rust) | `src-tauri/src/sharing/` (`lan/` the sharing server, its routes and the viewer page; `casting/` Chromecast and DLNA; `relay.rs`; `sharing_policy.rs`; `native_sharing.rs` with the commands; `share_links.rs` and `share_links/` share links, genx:// on Windows and Windows' share sheet; `nearby_download.rs` Share with everyone nearby) |
 | Android (Kotlin) | `SharePlugin.kt` (incoming links, the share sheet, sending the APK); intent filters in `AndroidManifest.xml` |
 | Web page | `site/watch/index.html`: what a share link opens where GenX is not installed |
 

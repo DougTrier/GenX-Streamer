@@ -106,6 +106,13 @@ class SharePlugin(private val activity: Activity) : Plugin(activity) {
     }
   }
 
+  /** This copy's APK, for Share with everyone nearby (served as it is, never copied). */
+  @Command
+  fun appFile(invoke: Invoke) {
+    val info = activity.applicationInfo
+    invoke.resolveObject(mapOf("path" to info.sourceDir, "split" to !info.splitSourceDirs.isNullOrEmpty()))
+  }
+
   /**
    * Shares this installed copy's APK (its own sourceDir), copied to the cache
    * so the FileProvider can offer it. An app installed as several split APKs

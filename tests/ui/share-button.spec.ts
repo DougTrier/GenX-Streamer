@@ -83,8 +83,9 @@ test('Settings offers Send app to a friend in its header, opening every way to s
     .getByRole('button', { name: 'Send app to a friend' });
   await expect(send).toBeVisible();
   await send.click();
-  const dialog = page.getByRole('dialog', { name: 'Send GenX Streamer to a friend' });
+  const dialog = page.getByRole('dialog', { name: 'Pass It Along' });
   await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText('Too rad to keep to yourself.');
   // The browser preview has no app file to send; the link options remain.
   await expect(dialog.getByRole('button', { name: 'Send the download link' })).toBeVisible();
   await expect(dialog.getByRole('textbox', { name: 'Download link' })).toHaveValue(

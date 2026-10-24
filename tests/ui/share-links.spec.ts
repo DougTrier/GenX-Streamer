@@ -31,9 +31,39 @@ async function nativeRecorder(page: Page, answers: Record<string, unknown>) {
     const calls: unknown[] = [];
     Reflect.set(window, '__calls', calls);
     Reflect.set(window, 'isTauri', true);
+    let callback = 0;
+    const callbacks = new Map<number, (event: unknown) => void>();
+    Reflect.set(window, '__nearbyChanged', () =>
+      callbacks.forEach((handler) =>
+        handler({ event: 'nearby-share-changed', id: 1, payload: null }),
+      ),
+    );
+    Reflect.set(window, '__TAURI_EVENT_PLUGIN_INTERNALS__', { unregisterListener: () => {} });
     Reflect.set(window, '__TAURI_INTERNALS__', {
+      transformCallback: (handler: (event: unknown) => void) => {
+        callbacks.set(++callback, handler);
+        return callback;
+      },
+      unregisterCallback: (id: number) => callbacks.delete(id),
       invoke: (command: string, args: unknown) => {
+        if (command.startsWith('plugin:')) return Promise.resolve(callback);
+        // Status reads are the card refreshing itself, not a viewer's choice.
+        if (command === 'nearby_status') {
+          const status = Reflect.get(window, '__nearby');
+          return Promise.resolve(
+            status ?? {
+              active: false,
+              url: null,
+              expiresInMs: 0,
+              visitors: 0,
+              downloads: 0,
+              completed: 0,
+            },
+          );
+        }
         calls.push({ command, args });
+        // A stopped session reads back as stopped, as the native layer reports it.
+        if (command === 'nearby_stop') Reflect.set(window, '__nearby', undefined);
         const answer = answers[command];
         return typeof answer === 'string' && answer.startsWith('reject:')
           ? Promise.reject(answer.slice('reject:'.length))
@@ -102,7 +132,7 @@ async function mountSendApp(page: Page) {
     Reflect.set(window, '__dispose', mountSendApp(document.getElementById('app')!, [opener]));
   });
   await page.getByRole('button', { name: 'Send app to a friend' }).click();
-  return page.getByRole('dialog', { name: 'Send GenX Streamer to a friend' });
+  return page.getByRole('dialog', { name: 'Pass It Along' });
 }
 
 test('Send app offers the app file, the download link and a copy, each through the native share', async ({
@@ -156,7 +186,7 @@ test.describe('on Android', () => {
     await expect(
       dialog.getByRole('heading', { name: 'Send the app, phone to phone' }),
     ).toBeVisible();
-    await expect(dialog.locator('.send-app-guidance')).toHaveText(
+    await expect(dialog.locator('.send-app-file .send-app-guidance')).toHaveText(
       'On their phone: open the received file and, when asked, allow Files or Quick Share to install apps.',
     );
     await dialog.getByRole('button', { name: 'Send the app', exact: true }).click();
@@ -172,6 +202,62 @@ test.describe('on Android', () => {
         },
       ]);
   });
+});
+
+test('Share with everyone nearby shows a code for the local download, live counts, and Stop', async ({
+  page,
+}) => {
+  await fixture(page, 'send-app-nearby');
+  await page.goto('/send-app-nearby');
+  const url = 'http://192.168.1.20:49152/q1w2e3r4t5y6u7i8o9p0aa/';
+  const running = {
+    active: true,
+    url,
+    expiresInMs: 600_000,
+    visitors: 0,
+    downloads: 0,
+    completed: 0,
+  };
+  await nativeRecorder(page, { nearby_start: running, nearby_stop: null });
+  const dialog = await mountSendApp(page);
+  const nearby = dialog.locator('.send-app-nearby');
+  await expect(nearby.getByRole('heading', { name: 'Share with everyone nearby' })).toBeVisible();
+  // Nothing is served until the viewer starts it.
+  expect(await page.evaluate(() => Reflect.get(window, '__calls'))).toEqual([]);
+  await nearby.getByRole('button', { name: 'Start sharing nearby' }).click();
+  await expect(
+    nearby.getByRole('img', { name: 'Code to download GenX Streamer nearby' }),
+  ).toBeVisible();
+  await expect(nearby.getByRole('textbox', { name: 'Nearby download address' })).toHaveValue(url);
+  await expect(nearby.locator('.nearby-counts')).toContainText(
+    '0 connected · 0 downloads · 10:00 left',
+  );
+  await page.evaluate((status) => {
+    Reflect.set(window, '__nearby', { ...status, visitors: 3, downloads: 2, completed: 2 });
+    Reflect.get(window, '__nearbyChanged')();
+  }, running);
+  await expect(nearby.locator('.nearby-counts')).toContainText('3 connected · 2 downloads');
+  await expect(nearby.locator('.nearby-cheer')).toHaveText(
+    'Totally tubular! 2 friends are ready to rock.',
+  );
+  await nearby.getByRole('button', { name: 'Stop sharing' }).click();
+  await expect(nearby.getByRole('button', { name: 'Start sharing nearby' })).toBeVisible();
+  await expect(nearby.locator('.nearby-active')).toBeHidden();
+  expect(await page.evaluate(() => Reflect.get(window, '__calls'))).toEqual([
+    { command: 'nearby_start', args: {} },
+    { command: 'nearby_stop', args: {} },
+  ]);
+});
+
+test('Share with everyone nearby explains why it cannot start', async ({ page }) => {
+  await fixture(page, 'send-app-nearby-off');
+  await page.goto('/send-app-nearby-off');
+  await nativeRecorder(page, { nearby_start: 'reject:nearby-no-network' });
+  const dialog = await mountSendApp(page);
+  await dialog.getByRole('button', { name: 'Start sharing nearby' }).click();
+  await expect(dialog.locator('.nearby-status')).toHaveText(
+    'Connect this device to Wi-Fi first. Friends join the same Wi-Fi to download it.',
+  );
 });
 
 const sharePage = pathToFileURL(path.resolve('site/watch/index.html')).href;

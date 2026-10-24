@@ -122,6 +122,7 @@ use platform::startup_milestones;
 use playback::native_live;
 use playback::native_video;
 use sharing::native_sharing;
+use sharing::nearby_download;
 pub use sharing::relay;
 use sharing::share_links;
 pub use sharing::sharing_policy;
@@ -303,6 +304,7 @@ pub fn run() {
             });
             app.manage(Arc::new(casting::CastingManager::default()));
             app.manage(Arc::new(lan::LanManager::default()));
+            app.manage(nearby_download::NearbyOwner::default());
             app.manage(Arc::new(native_guide::NativeGuides::default()));
             #[cfg(target_os = "android")]
             renderer_recovery::start(app.handle().clone());
@@ -351,6 +353,9 @@ pub fn run() {
                     if let Ok(mut requests) = state.requests.lock() {
                         requests.stop();
                     }
+                }
+                if let Some(nearby) = window.try_state::<nearby_download::NearbyOwner>() {
+                    nearby.stop();
                 }
                 if let Some(casting) = window.try_state::<Arc<casting::CastingManager>>() {
                     let owned = casting.inner().clone();
@@ -518,6 +523,9 @@ pub fn run() {
             share_links::share_text,
             share_links::share_app_file,
             share_links::check_shared_destination,
+            nearby_download::nearby_start,
+            nearby_download::nearby_status,
+            nearby_download::nearby_stop,
             app_update::update_check,
             app_update::update_download,
             app_update::update_cancel,
