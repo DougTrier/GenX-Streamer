@@ -355,7 +355,8 @@ fn group_partitions_keep_explicit_choices_and_promote_surviving_alias() {
     .unwrap();
     refresh_projection(&c);
     assert_eq!(read(&c, &q(None)).channels.len(), 2);
-    c.execute_batch("DELETE FROM channel_category_override;UPDATE guide_mapping SET xmltv_channel_id='b' WHERE app_channel_id='b'").unwrap();
+    c.execute_batch("DELETE FROM channel_category_override;UPDATE guide_mapping SET xmltv_channel_id='b' WHERE app_channel_id='b'")
+        .unwrap();
     refresh_projection(&c);
     assert_eq!(read(&c, &q(None)).channels.len(), 2);
     c.execute_batch(

@@ -1204,8 +1204,16 @@ fn validate_value_guarded(
         synthetic.push(copy);
     }
     if !referenced {
+        let sources: Vec<_> = definitions
+            .iter()
+            .map(|d| {
+                let mut source = d["source"].clone();
+                source["allowHttp"] = json!(true);
+                source
+            })
+            .collect();
         crate::storage_transaction::validate_checkpoint_catalog(
-            &json!({"schemaVersion":1,"sources":definitions.iter().map(|d|{let mut source=d["source"].clone();source["allowHttp"]=json!(true);source}).collect::<Vec<_>>(),"channels":synthetic}),
+            &json!({ "schemaVersion": 1, "sources": sources, "channels": synthetic }),
         )?;
     }
     if referenced && reference_review_digest(review)? != v["reviewDigest"].as_str().ok_or(ERR)? {
@@ -1337,7 +1345,21 @@ pub(crate) fn capture(c: &Connection) -> Result<CapturedCheckpoint, String> {
         |r| r.get(0),
     ))?;
     let row = if exists {
-        sql(c.query_row("SELECT schema_version,revision,job_id,contents FROM scan_checkpoint WHERE singleton=1",[],|r|Ok((r.get::<_,i64>(0)?,r.get::<_,i64>(1)?,r.get::<_,Option<String>>(2)?,r.get::<_,Option<String>>(3)?))).optional())?.ok_or(ERR)?
+        sql(c
+            .query_row(
+                "SELECT schema_version,revision,job_id,contents FROM scan_checkpoint WHERE singleton=1",
+                [],
+                |r| {
+                    Ok((
+                        r.get::<_, i64>(0)?,
+                        r.get::<_, i64>(1)?,
+                        r.get::<_, Option<String>>(2)?,
+                        r.get::<_, Option<String>>(3)?,
+                    ))
+                },
+            )
+            .optional())?
+        .ok_or(ERR)?
     } else {
         (1, 0, None, None)
     };

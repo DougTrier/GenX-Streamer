@@ -235,7 +235,11 @@ fn cached_page_rechecks_all_bytes_and_authority_in_fresh_snapshot_without_progre
         let c = Connection::open(f.dir.path().join(DB)).unwrap();
         match mutation {
             "ciphertext" => {
-                c.execute("UPDATE scan_manifest_page SET ciphertext=zeroblob(length(ciphertext)) WHERE start_index=0",[]).unwrap();
+                c.execute(
+                    "UPDATE scan_manifest_page SET ciphertext=zeroblob(length(ciphertext)) WHERE start_index=0",
+                    [],
+                )
+                .unwrap();
             }
             "binding" => {
                 c.execute(

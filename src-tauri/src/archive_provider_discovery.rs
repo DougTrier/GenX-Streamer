@@ -517,16 +517,69 @@ pub(crate) async fn public_archive_discover_step(
 ) -> Result<Receipt, String> {
     validate(&request)?;
     let scope = scope(&request);
-    scan_manifest_work::owned(request.request_id.clone(),app,move|owner|async move{
-        let deadline=Instant::now()+Duration::from_secs(20);
-        let pending=OWNER.lock();tokio::pin!(pending);let _guard=loop{net::check(&owner,deadline)?;tokio::select!{g=&mut pending=>break g,_=tokio::time::sleep(Duration::from_millis(25))=>{}}};
-        let capture=request.clone();let key=scope.clone();let(states,generation)=owner.storage(None,move|s,check|{check()?;s.with_archive_read(|c|{if legacy::current(c)?!=legacy::revision(&capture.expected_revision)?{return Err("archive-revision-stale".into());}if !catalog::installed(c)?{return Err("public-archive-schema-incomplete".into());}let mut states=Vec::new();for p in [Provider::Loc,Provider::Nasa,Provider::Commons]{states.push((p,catalog::cursor(c,&key,p,capture.restart)?));}Ok(states)})}).await?;
-        let mut tasks=Vec::new();for(p,cursor)in states{tasks.push(tokio::spawn(acquire(p,cursor,request.clone(),owner.clone(),deadline)));}
-        let mut results=Vec::new();let mut failure=None;
-        for task in tasks {match task.await{Ok(Ok(v))=>results.push(v),Ok(Err(e))=>failure=Some(e),Err(_)=>failure=Some("public-archive-work-join-failed".into())}}
-        owner.check()?;if let Some(error)=failure{return Err(error);}
-        let(reply,_)=owner.storage(Some(generation),move|s,check|commit_acquired(s,&request.expected_revision,&scope,&results,check)).await?;Ok(reply)
-    }).await
+    scan_manifest_work::owned(request.request_id.clone(), app, move |owner| async move {
+        let deadline = Instant::now() + Duration::from_secs(20);
+        let pending = OWNER.lock();
+        tokio::pin!(pending);
+        let _guard = loop {
+            net::check(&owner, deadline)?;
+            tokio::select! {
+                g=&mut pending => break g,
+                _=tokio::time::sleep(Duration::from_millis(25)) => {
+                }
+            }
+        };
+        let capture = request.clone();
+        let key = scope.clone();
+        let (states, generation) = owner
+            .storage(None, move |s, check| {
+                check()?;
+                s.with_archive_read(|c| {
+                    if legacy::current(c)? != legacy::revision(&capture.expected_revision)? {
+                        return Err("archive-revision-stale".into());
+                    }
+                    if !catalog::installed(c)? {
+                        return Err("public-archive-schema-incomplete".into());
+                    }
+                    let mut states = Vec::new();
+                    for p in [Provider::Loc, Provider::Nasa, Provider::Commons] {
+                        states.push((p, catalog::cursor(c, &key, p, capture.restart)?));
+                    }
+                    Ok(states)
+                })
+            })
+            .await?;
+        let mut tasks = Vec::new();
+        for (p, cursor) in states {
+            tasks.push(tokio::spawn(acquire(
+                p,
+                cursor,
+                request.clone(),
+                owner.clone(),
+                deadline,
+            )));
+        }
+        let mut results = Vec::new();
+        let mut failure = None;
+        for task in tasks {
+            match task.await {
+                Ok(Ok(v)) => results.push(v),
+                Ok(Err(e)) => failure = Some(e),
+                Err(_) => failure = Some("public-archive-work-join-failed".into()),
+            }
+        }
+        owner.check()?;
+        if let Some(error) = failure {
+            return Err(error);
+        }
+        let (reply, _) = owner
+            .storage(Some(generation), move |s, check| {
+                commit_acquired(s, &request.expected_revision, &scope, &results, check)
+            })
+            .await?;
+        Ok(reply)
+    })
+    .await
 }
 /// A fresh exact-item observation is required for each selected online variant.
 pub(crate) async fn verify(
@@ -573,7 +626,6 @@ pub(crate) async fn verify(
         allowed_hosts: Vec::new(),
         expected_tail: String::new(),
         size_bytes: inspection.size,
-        duration_seconds: v.duration_seconds,
         public: Some(ExactMedia {
             provider: p,
             target,
@@ -739,7 +791,7 @@ mod tests {
             c.query_row(
                 "SELECT document FROM public_archive_checkpoint_v1 WHERE scope=?1",
                 [old],
-                |r| r.get::<_, String>(0)
+                |r| { r.get::<_, String>(0) }
             )
             .unwrap(),
             "old-valid-state"

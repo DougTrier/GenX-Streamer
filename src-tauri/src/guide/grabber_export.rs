@@ -291,9 +291,9 @@ mod tests {
                 }
             ]
         );
-        assert!(export.xml.contains(
-            "<channel site=\"tvtv.us\" lang=\"en\" xmltv_id=\"A.us@SD\" site_id=\"1\">A.us &lt;tvtv.us&gt;</channel>"
-        ));
+        assert!(export
+            .xml
+            .contains("<channel site=\"tvtv.us\" lang=\"en\" xmltv_id=\"A.us@SD\" site_id=\"1\">A.us &lt;tvtv.us&gt;</channel>"));
         assert!(!export
             .xml
             .contains("other.com\" lang=\"en\" xmltv_id=\"A.us@SD\""));

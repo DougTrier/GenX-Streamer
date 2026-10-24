@@ -43,7 +43,11 @@ impl SnapshotAmbiguity {
 /// Independent operational schema: key semantics are the exact reconcile v1
 /// equivalences above, not snapshot identity hashes or client supplied counts.
 fn ensure_counts(c: &Connection) -> Result<(), String> {
-    let exists: bool = sql(c.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='table' AND name='source_reconcile_count_namespace')", [], |r| r.get(0)))?;
+    let exists: bool = sql(c.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='table' AND name='source_reconcile_count_namespace')",
+        [],
+        |r| r.get(0),
+    ))?;
     if exists {
         let version: i64 = sql(c.query_row(
             "SELECT schema_version FROM source_reconcile_count_namespace WHERE singleton=1",
@@ -91,7 +95,11 @@ pub(super) fn pinned_coverage(
 
 /// Invoke after manifest retirement, in that same final commit transaction.
 pub(super) fn prune_unpinned_counts_in_transaction(c: &Connection) -> Result<(), String> {
-    let exists: bool = sql(c.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='table' AND name='source_reconcile_count_namespace')", [], |r| r.get(0)))?;
+    let exists: bool = sql(c.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='table' AND name='source_reconcile_count_namespace')",
+        [],
+        |r| r.get(0),
+    ))?;
     if !exists {
         return Ok(());
     }
@@ -110,7 +118,11 @@ pub(super) fn prune_unpinned_counts_in_transaction(c: &Connection) -> Result<(),
 }
 
 fn prune_counts(c: &Connection, source_id: &str, current: i64) -> Result<(), String> {
-    let mapped: bool = sql(c.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='table' AND name='source_activation_row')", [], |r| r.get(0)))?;
+    let mapped: bool = sql(c.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='table' AND name='source_activation_row')",
+        [],
+        |r| r.get(0),
+    ))?;
     if mapped {
         sql(c.execute("DELETE FROM source_reconcile_count_coverage WHERE source_id=?1 AND revision<>?2 AND NOT EXISTS(SELECT 1 FROM source_activation_row a JOIN scan_manifest m ON m.id=a.manifest_id WHERE a.source_id=?1 AND a.source_revision=CAST(source_reconcile_count_coverage.revision AS TEXT) AND m.state=1)", params![source_id, current]))?;
     } else {
@@ -144,7 +156,11 @@ pub(super) fn rebuild_counts_in_transaction(
     if current != Some(expected_revision) || expected_revision <= 0 {
         return Err("source-snapshot-revision-stale".into());
     }
-    let covered: bool = sql(c.query_row("SELECT EXISTS(SELECT 1 FROM source_reconcile_count_coverage WHERE source_id=?1 AND revision=?2 AND key_version=1)",params![source_id,expected_revision],|r|r.get(0)))?;
+    let covered: bool = sql(c.query_row(
+        "SELECT EXISTS(SELECT 1 FROM source_reconcile_count_coverage WHERE source_id=?1 AND revision=?2 AND key_version=1)",
+        params![source_id, expected_revision],
+        |r| r.get(0),
+    ))?;
     if covered {
         return prune_counts(c, source_id, expected_revision);
     }
@@ -153,7 +169,9 @@ pub(super) fn rebuild_counts_in_transaction(
         params![source_id, expected_revision],
     ))?;
     let mut insert = sql(c.prepare("INSERT INTO source_reconcile_count(source_id,revision,kind,key,n) VALUES(?1,?2,?3,?4,1) ON CONFLICT(source_id,revision,kind,key) DO UPDATE SET n=min(2,source_reconcile_count.n+1)"))?;
-    let mut page = sql(c.prepare("SELECT ordinal,channel FROM source_snapshot_entry WHERE source_id=?1 AND available=1 AND ordinal>?2 ORDER BY ordinal LIMIT 64"))?;
+    let mut page = sql(c.prepare(
+        "SELECT ordinal,channel FROM source_snapshot_entry WHERE source_id=?1 AND available=1 AND ordinal>?2 ORDER BY ordinal LIMIT 64",
+    ))?;
     let mut after = -1i64;
     let mut total = 0usize;
     let mut bytes = 0usize;
@@ -206,7 +224,10 @@ pub(super) fn rebuild_counts_in_transaction(
     drop(page);
     drop(insert);
     check()?;
-    sql(c.execute("INSERT INTO source_reconcile_count_coverage(source_id,revision,entry_count,key_version) VALUES(?1,?2,?3,1)", params![source_id, expected_revision, total as i64]))?;
+    sql(c.execute(
+        "INSERT INTO source_reconcile_count_coverage(source_id,revision,entry_count,key_version) VALUES(?1,?2,?3,1)",
+        params![source_id, expected_revision, total as i64],
+    ))?;
     prune_counts(c, source_id, expected_revision)
 }
 
@@ -229,7 +250,8 @@ pub(crate) fn prepare(
     }
     let exists: bool = sql(c.query_row(
         "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='table' AND name='source_activation_row')",
-        [], |r| r.get(0),
+        [],
+        |r| r.get(0),
     ))?;
     if !exists {
         return Ok(result);
@@ -302,10 +324,13 @@ pub(crate) fn prepare(
             )
             .optional())?;
         let expected = crate::scan_checkpoint::revision(&expected)?;
-        let coverage: Option<i64> = sql(c.query_row(
-            "SELECT key_version FROM source_reconcile_count_coverage WHERE source_id=?1 AND revision=?2",
-            params![source_id,expected], |r| r.get(0),
-        ).optional())?;
+        let coverage: Option<i64> = sql(c
+            .query_row(
+                "SELECT key_version FROM source_reconcile_count_coverage WHERE source_id=?1 AND revision=?2",
+                params![source_id, expected],
+                |r| r.get(0),
+            )
+            .optional())?;
         if current == Some(expected) {
             match coverage {
                 None => rebuild_counts_in_transaction(c, &source_id, expected, check)?,
@@ -315,9 +340,7 @@ pub(crate) fn prepare(
         } else if coverage != Some(1) || !pinned_coverage(c, manifest, &source_id, expected)? {
             return Err("source-snapshot-revision-stale".into());
         }
-        let mut lookup = sql(c.prepare(
-            "SELECT n FROM source_reconcile_count WHERE source_id=?1 AND revision=?2 AND kind=?3 AND key=?4",
-        ))?;
+        let mut lookup = sql(c.prepare("SELECT n FROM source_reconcile_count WHERE source_id=?1 AND revision=?2 AND kind=?3 AND key=?4"))?;
         for row in selected
             .iter()
             .filter(|row| row.candidate["sourceId"] == source_id)
@@ -376,13 +399,16 @@ mod pinned_revision_tests {
     use super::*;
     fn fixture() -> Connection {
         let c = Connection::open_in_memory().unwrap();
-        c.execute_batch("CREATE TABLE scan_manifest(id TEXT,job_id TEXT,review_digest TEXT,state INTEGER);
+        c.execute_batch(
+            "CREATE TABLE scan_manifest(id TEXT,job_id TEXT,review_digest TEXT,state INTEGER);
 CREATE TABLE source_activation_row(manifest_id TEXT,ordinal INTEGER,source_id TEXT,source_revision TEXT);
 CREATE TABLE source_snapshot_source(source_id TEXT,revision INTEGER);
 CREATE TABLE source_snapshot_entry(source_id TEXT,ordinal INTEGER,channel TEXT,available INTEGER);
 INSERT INTO scan_manifest VALUES('old','job','digest',1);
 INSERT INTO source_activation_row VALUES('old',0,'s','1');
-INSERT INTO source_snapshot_source VALUES('s',1);").unwrap();
+INSERT INTO source_snapshot_source VALUES('s',1);",
+        )
+        .unwrap();
         c
     }
     fn channel(provider: &str) -> Value {
@@ -477,13 +503,16 @@ INSERT INTO source_snapshot_source VALUES('s',1);").unwrap();
     #[test]
     fn legacy_migration_never_assigns_unversioned_keys_to_old_mapping() {
         let c = fixture();
-        c.execute_batch("UPDATE source_snapshot_source SET revision=2;
+        c.execute_batch(
+            "UPDATE source_snapshot_source SET revision=2;
 CREATE TABLE source_reconcile_count_namespace(singleton INTEGER PRIMARY KEY,schema_version INTEGER);
 INSERT INTO source_reconcile_count_namespace VALUES(1,1);
 CREATE TABLE source_reconcile_count(source_id TEXT,kind INTEGER,key BLOB,n INTEGER,PRIMARY KEY(source_id,kind,key));
 CREATE TABLE source_reconcile_count_coverage(source_id TEXT PRIMARY KEY,revision INTEGER,entry_count INTEGER,key_version INTEGER);
 INSERT INTO source_reconcile_count VALUES('s',1,zeroblob(32),2);
-INSERT INTO source_reconcile_count_coverage VALUES('s',1,0,1);").unwrap();
+INSERT INTO source_reconcile_count_coverage VALUES('s',1,0,1);",
+        )
+        .unwrap();
         ensure_counts(&c).unwrap();
         assert_eq!(
             c.query_row(

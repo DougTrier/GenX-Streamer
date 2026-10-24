@@ -15,7 +15,17 @@
 use super::*;
 #[test]
 fn documented_dynamic_repository_paths_queries_and_unicode_content_are_admitted() {
-    for url in ["https://api.github.com/search/repositories?q=xmltv+guide&sort=updated&order=desc&per_page=25&page=2","https://api.github.com/repos/Any-Owner/dynamic.repo","https://api.github.com/repos/o/r/readme?ref=release%2Fstable","https://api.github.com/repos/o/r/git/trees/main?recursive=1","https://api.github.com/repos/o/r/git/trees/release%2Fstable","https://api.github.com/repos/o/r/contents/guides/US.xml","https://api.github.com/repos/o/r/contents/%E6%8C%87%E5%8D%97.xml?ref=main"]{assert!(validate_endpoint(url).is_ok(),"{url}")}
+    for url in [
+        "https://api.github.com/search/repositories?q=xmltv+guide&sort=updated&order=desc&per_page=25&page=2",
+        "https://api.github.com/repos/Any-Owner/dynamic.repo",
+        "https://api.github.com/repos/o/r/readme?ref=release%2Fstable",
+        "https://api.github.com/repos/o/r/git/trees/main?recursive=1",
+        "https://api.github.com/repos/o/r/git/trees/release%2Fstable",
+        "https://api.github.com/repos/o/r/contents/guides/US.xml",
+        "https://api.github.com/repos/o/r/contents/%E6%8C%87%E5%8D%97.xml?ref=main",
+    ] {
+        assert!(validate_endpoint(url).is_ok(), "{url}")
+    }
 }
 #[test]
 fn hostile_hosts_transport_paths_and_credentials_are_whole_refused() {

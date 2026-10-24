@@ -255,7 +255,7 @@ pub(crate) fn parse_item(
         let url = Url::parse(target).map_err(|_| INVALID)?;
         let file_name = url
             .path_segments()
-            .and_then(|parts| parts.last())
+            .and_then(|mut parts| parts.next_back())
             .filter(|s| !s.is_empty())
             .ok_or(INVALID)?
             .to_owned();
@@ -441,7 +441,10 @@ mod tests {
             "https://images-assets.nasa.gov/video/Apollo%2014%20Launch%20Coverage/collection.json?x=1",
             "https://images-assets.nasa.gov/video/Apollo%2014%20Launch%20Coverage/collection.json#x",
         ] {
-            assert!(crate::archive_provider_net::source_url(Provider::Nasa, "Apollo 14 Launch Coverage", raw).is_err(), "{raw}");
+            assert!(
+                crate::archive_provider_net::source_url(Provider::Nasa, "Apollo 14 Launch Coverage", raw).is_err(),
+                "{raw}"
+            );
         }
         for raw in [
             "https://images-assets.nasa.gov/video/Apollo_14_Launch_Coverage/a.mp4",
@@ -450,7 +453,10 @@ mod tests {
             "https://images-assets.nasa.gov.evil.invalid/video/Apollo%2014%20Launch%20Coverage/a.mp4",
             "https://images-assets.nasa.gov/video/Apollo%2014%20Launch%20Coverage/a.mp4?token=x",
         ] {
-            assert!(crate::archive_provider_net::media_url(Provider::Nasa, "Apollo 14 Launch Coverage", raw).is_err(), "{raw}");
+            assert!(
+                crate::archive_provider_net::media_url(Provider::Nasa, "Apollo 14 Launch Coverage", raw).is_err(),
+                "{raw}"
+            );
         }
     }
 

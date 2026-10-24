@@ -136,6 +136,7 @@ impl PairStore {
             fence: plan_fence,
         })
     }
+    #[cfg(test)]
     pub(crate) fn finish_scan_resume_page(
         &self,
         proof: PreparedResumePage,

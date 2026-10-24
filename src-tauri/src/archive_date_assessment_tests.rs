@@ -42,16 +42,7 @@ fn archive_date_assessment_projects_only_existing_item_year_without_inference() 
             item
         })
         .collect();
-    commit(
-        &mut c,
-        "0",
-        None,
-        1,
-        "query",
-        false,
-        step(entries),
-        &mut || Ok(()),
-    )
+    commit(&mut c, "0", SearchPage { year: None, page: 1, query_hash: "query", restart: false }, step(entries), &mut || Ok(()))
     .unwrap();
     let changes = c.total_changes();
     let page = query(&c, &search_query("", "1"), &mut || Ok(())).unwrap();
@@ -74,16 +65,7 @@ fn archive_date_assessment_projects_only_existing_item_year_without_inference() 
 #[test]
 fn archive_date_assessment_preserves_stale_revision_and_cancellation_refusal() {
     let mut c = database();
-    commit(
-        &mut c,
-        "0",
-        None,
-        1,
-        "query",
-        false,
-        step(vec![title("listed", Some(2020), 1)]),
-        &mut || Ok(()),
-    )
+    commit(&mut c, "0", SearchPage { year: None, page: 1, query_hash: "query", restart: false }, step(vec![title("listed", Some(2020), 1)]), &mut || Ok(()))
     .unwrap();
     let changes = c.total_changes();
     assert!(matches!(query(&c, &search_query("", "0"), &mut || Ok(())),
@@ -122,15 +104,23 @@ fn archive_date_assessment_real_store_reads_and_reopen_preserve_all_authority_by
     let title_ref = opaque(&["archive-item-v1", "listed"]);
     let file_ref = opaque(&["archive-file-v1", "listed", "one.mp4"]);
     pair.with_guide_write(|c| {
-        commit(c, "0", None, 1, "query", false,
-            step(vec![title("listed", Some(2020), 1), title("unknown", None, 2)]),
-            &mut || Ok(()))?;
-        sql(c.execute("INSERT INTO archive_preferences_v1 VALUES(?1,'listed','Favorite retained',2020,1)", [&title_ref]))?;
-        sql(c.execute("INSERT INTO archive_preferences_v1 VALUES(?1,'orphan','Orphan retained',NULL,1)", [opaque(&["archive-item-v1", "orphan"])]))?;
-        sql(c.execute("INSERT INTO archive_bookmark_v1 VALUES(?1,'listed','one.mp4','100',?2,14013,60000,0,1234)", params![file_ref, "a".repeat(40)]))?;
+        commit(c, "0", SearchPage { year: None, page: 1, query_hash: "query", restart: false }, step(vec![title("listed", Some(2020), 1), title("unknown", None, 2)]), &mut || Ok(()))?;
+        sql(c.execute(
+            "INSERT INTO archive_preferences_v1 VALUES(?1,'listed','Favorite retained',2020,1)",
+            [&title_ref],
+        ))?;
+        sql(c.execute(
+            "INSERT INTO archive_preferences_v1 VALUES(?1,'orphan','Orphan retained',NULL,1)",
+            [opaque(&["archive-item-v1", "orphan"])],
+        ))?;
+        sql(c.execute(
+            "INSERT INTO archive_bookmark_v1 VALUES(?1,'listed','one.mp4','100',?2,14013,60000,0,1234)",
+            params![file_ref, "a".repeat(40)],
+        ))?;
         sql(c.execute_batch("UPDATE archive_catalog_meta_v1 SET revision=7;UPDATE archive_bookmark_meta_v1 SET revision=2;"))?;
         Ok(())
-    }).unwrap();
+    })
+    .unwrap();
     let legacy_fingerprint = pair
         .with_guide_read(|c| library::source_fingerprint(c, &mut || Ok(())))
         .unwrap();
@@ -190,7 +180,7 @@ fn archive_date_assessment_real_store_reads_and_reopen_preserve_all_authority_by
                     sql(c.query_row(
                         "SELECT position_ms FROM archive_bookmark_v1 WHERE file_ref=?1",
                         [&file_ref],
-                        |r| r.get::<_, i64>(0)
+                        |r| { r.get::<_, i64>(0) }
                     ))?,
                     14013
                 );

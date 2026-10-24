@@ -24,7 +24,11 @@ fn sql<T>(r: rusqlite::Result<T>) -> Result<T, String> {
     r.map_err(|e| crate::storage_transaction::sql_error_code(&e, "public-archive-storage-failed"))
 }
 pub(crate) fn installed(c: &Connection) -> Result<bool, String> {
-    sql(c.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE name='public_archive_item_v1' AND type='table')",[],|r|r.get(0)))
+    sql(c.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE name='public_archive_item_v1' AND type='table')",
+        [],
+        |r| r.get(0),
+    ))
 }
 pub(crate) fn install(tx: &Transaction<'_>) -> Result<(), String> {
     sql(tx.execute_batch("CREATE TABLE public_archive_item_v1(title_ref TEXT PRIMARY KEY CHECK(length(title_ref)=64),provider TEXT NOT NULL CHECK(provider IN('loc','nasa','commons')),item_id TEXT NOT NULL,document TEXT NOT NULL CHECK(length(CAST(document AS BLOB))<=524288),observed_ms INTEGER NOT NULL,UNIQUE(provider,item_id));CREATE TABLE public_archive_variant_v1(file_ref TEXT PRIMARY KEY CHECK(length(file_ref)=64),title_ref TEXT NOT NULL REFERENCES public_archive_item_v1(title_ref) ON DELETE CASCADE,variant_id TEXT NOT NULL,document TEXT NOT NULL CHECK(length(CAST(document AS BLOB))<=16384),observed_ms INTEGER NOT NULL CHECK(observed_ms BETWEEN 0 AND 9007199254740991),UNIQUE(title_ref,variant_id));CREATE INDEX public_archive_variant_title_v1 ON public_archive_variant_v1(title_ref);CREATE TABLE public_archive_preference_v1(title_ref TEXT PRIMARY KEY CHECK(length(title_ref)=64),favorite INTEGER NOT NULL CHECK(favorite IN(0,1)));CREATE TABLE public_archive_removal_v1(scope TEXT NOT NULL CHECK(scope IN('title','file')),reference TEXT NOT NULL CHECK(length(reference)=64),title_ref TEXT NOT NULL CHECK(length(title_ref)=64),PRIMARY KEY(scope,reference));CREATE TABLE public_archive_checkpoint_v1(scope TEXT NOT NULL CHECK(length(scope)=64),provider TEXT NOT NULL CHECK(provider IN('loc','nasa','commons')),document TEXT NOT NULL CHECK(length(CAST(document AS BLOB))<=524288),PRIMARY KEY(scope,provider));"))
@@ -337,7 +341,14 @@ fn facts(i: &ProviderItem, v: &ProviderVariant) -> Facts {
         unsupported_reason: if playable {
             None
         } else {
-            Some(if i.access_restricted==Some(true){"Provider access is restricted."}else{"This representation is listed for information; this player does not support its format."}.into())
+            Some(
+                if i.access_restricted == Some(true) {
+                    "Provider access is restricted."
+                } else {
+                    "This representation is listed for information; this player does not support its format."
+                }
+                .into(),
+            )
         },
     }
 }
@@ -516,7 +527,10 @@ pub(crate) fn set_favorite(
     let mut rev = old;
     if saved.unwrap_or(false) != r.value {
         rev = old.checked_add(1).ok_or("archive-revision-exhausted")?;
-        sql(tx.execute("INSERT INTO public_archive_preference_v1 VALUES(?1,?2) ON CONFLICT(title_ref) DO UPDATE SET favorite=excluded.favorite",params![r.title_ref,r.value]))?;
+        sql(tx.execute(
+            "INSERT INTO public_archive_preference_v1 VALUES(?1,?2) ON CONFLICT(title_ref) DO UPDATE SET favorite=excluded.favorite",
+            params![r.title_ref, r.value],
+        ))?;
         sql(tx.execute(
             "UPDATE archive_catalog_meta_v1 SET revision=?1 WHERE singleton=1",
             [rev],
@@ -664,7 +678,10 @@ pub(crate) fn save_cursor(
     {
         return Err("public-archive-progress-limit".into());
     }
-    sql(c.execute("INSERT INTO public_archive_checkpoint_v1 VALUES(?1,?2,?3) ON CONFLICT(scope,provider) DO UPDATE SET document=excluded.document",params![scope,p.id(),raw]))?;
+    sql(c.execute(
+        "INSERT INTO public_archive_checkpoint_v1 VALUES(?1,?2,?3) ON CONFLICT(scope,provider) DO UPDATE SET document=excluded.document",
+        params![scope, p.id(), raw],
+    ))?;
     bounds(c)
 }
 fn validate_cursor(p: Provider, c: &Cursor) -> Result<(), String> {
@@ -945,9 +962,11 @@ mod tests {
         let mut c = db();
         let key = "a".repeat(64);
         let t = c.transaction().unwrap();
-        let mut state = Cursor::default();
-        state.started = true;
-        state.complete = true;
+        let state = Cursor {
+            started: true,
+            complete: true,
+            ..Default::default()
+        };
         save_cursor(&t, &key, Provider::Loc, &state).unwrap();
         let i = item(Provider::Loc, "rolledback", "Before commit");
         upsert(&t, &i, 1).unwrap();

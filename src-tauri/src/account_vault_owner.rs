@@ -24,11 +24,10 @@ use tauri::Manager;
 pub(crate) async fn directory(app: &tauri::AppHandle) -> Result<PathBuf, String> {
     #[cfg(windows)]
     {
-        return app
-            .path()
+        app.path()
             .app_local_data_dir()
             .map(|p| p.join("device-account-vault"))
-            .map_err(|_| "account-vault-path-unavailable".into());
+            .map_err(|_| "account-vault-path-unavailable".into())
     }
     #[cfg(target_os = "android")]
     {

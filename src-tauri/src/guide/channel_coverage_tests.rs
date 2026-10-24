@@ -23,7 +23,8 @@ fn fixture() -> Connection {
          CREATE INDEX guide_program_channel_time ON guide_program(guide_source_id,channel_id,start_ms,ordinal);
          INSERT INTO guide_source VALUES('feed',2,2);
          INSERT INTO guide_channel VALUES('feed','A'),('feed','B');",
-    ).unwrap();
+    )
+    .unwrap();
     c
 }
 fn request(start: i64, end: i64) -> CoverageRequest {
@@ -204,20 +205,25 @@ fn read_transaction_keeps_source_channel_and_intervals_in_one_snapshot() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("coverage.sqlite3");
     let c = Connection::open(&path).unwrap();
-    c.execute_batch("PRAGMA journal_mode=WAL;
+    c.execute_batch(
+        "PRAGMA journal_mode=WAL;
         CREATE TABLE guide_source(id TEXT PRIMARY KEY,revision INTEGER,published_revision INTEGER);
         CREATE TABLE guide_channel(guide_source_id TEXT,id TEXT,PRIMARY KEY(guide_source_id,id));
         CREATE TABLE guide_program(guide_source_id TEXT,channel_id TEXT,ordinal INTEGER,start_ms INTEGER,stop_ms INTEGER);
         CREATE INDEX guide_program_channel_time ON guide_program(guide_source_id,channel_id,start_ms,ordinal);
         INSERT INTO guide_source VALUES('feed',2,2);
-        INSERT INTO guide_channel VALUES('feed','A');").unwrap();
+        INSERT INTO guide_channel VALUES('feed','A');",
+    )
+    .unwrap();
     insert(&c, "A", 0, 0, Some(100));
     let writer = Connection::open(&path).unwrap();
     let tx = c.unchecked_transaction().unwrap();
     let _: i64 = tx
         .query_row("SELECT revision FROM guide_source", [], |r| r.get(0))
         .unwrap();
-    writer.execute_batch("BEGIN IMMEDIATE;UPDATE guide_source SET revision=3,published_revision=3;DELETE FROM guide_program;COMMIT;").unwrap();
+    writer
+        .execute_batch("BEGIN IMMEDIATE;UPDATE guide_source SET revision=3,published_revision=3;DELETE FROM guide_program;COMMIT;")
+        .unwrap();
     let old = read(&tx, &request(0, 100), &(Arc::new(|| false) as CancelCheck)).unwrap();
     assert_eq!(old.source_revision, Some(2));
     assert_eq!(old.covered_ms, Some(100));
@@ -248,7 +254,13 @@ fn cancellation_during_sql_iteration_refuses_and_drops_transaction() {
 
 fn handler_was_removed(c: &Connection) {
     // Exceeds the production VM budget; would interrupt if the handler leaked.
-    let sum:i64=c.query_row("WITH RECURSIVE n(x) AS(VALUES(0) UNION ALL SELECT x+1 FROM n WHERE x<30000) SELECT sum(x) FROM n",[],|r|r.get(0)).unwrap();
+    let sum: i64 = c
+        .query_row(
+            "WITH RECURSIVE n(x) AS(VALUES(0) UNION ALL SELECT x+1 FROM n WHERE x<30000) SELECT sum(x) FROM n",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
     assert_eq!(sum, 450_015_000);
 }
 

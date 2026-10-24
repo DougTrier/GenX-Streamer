@@ -262,7 +262,7 @@ pub(crate) fn remove_published_sync(
     reference: &str,
     name: &str,
 ) -> Result<(), String> {
-    if !crate::archive_catalog::hex_ref(&reference) || name != format!("{reference}.mp4") {
+    if !crate::archive_catalog::hex_ref(reference) || name != format!("{reference}.mp4") {
         return Err("archive-download-path-refused".into());
     }
     ordinary(directory, true)?;
@@ -815,8 +815,15 @@ mod tests {
         let bytes = bytes.to_vec();
         let worker = std::thread::spawn(move || {
             let (mut socket, _) = server.accept().unwrap();
-            let mut request = [0; 2048];
-            socket.read(&mut request).unwrap();
+            // Read until the end of the request head: one read may return
+            // only part of it.
+            let mut request = Vec::new();
+            let mut chunk = [0; 2048];
+            while !request.windows(4).any(|window| window == b"\r\n\r\n") {
+                let read = socket.read(&mut chunk).unwrap();
+                assert!(read > 0, "client closed before the request head ended");
+                request.extend_from_slice(&chunk[..read]);
+            }
             socket.write_all(header.as_bytes()).unwrap();
             socket.write_all(&bytes).unwrap();
         });
@@ -834,18 +841,35 @@ mod tests {
     async fn archive_download_controlled_http_body_and_error_cleanup_use_actual_stream() {
         // This internal body seam uses a local fixture; production open still
         // refuses every private destination before sending a request.
-        for (header,body,ok) in [
-            ("HTTP/1.1 200 OK\r\nContent-Type: video/mp4\r\nContent-Length: 3\r\nConnection: close\r\n\r\n",b"abc".as_slice(),true),
-            ("HTTP/1.1 200 OK\r\nContent-Type: video/mp4\r\nContent-Length: 3\r\nConnection: close\r\n\r\n",b"a".as_slice(),false),
-            ("HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 3\r\nConnection: close\r\n\r\n",b"abc".as_slice(),false),
-        ]{
-            let root=tempfile::tempdir().unwrap();let state=writer(root.path(),3);
-            let(response,worker)=response_fixture(header,body).await;
-            let result=receive(response,state.clone(),None,check(),Arc::new(|_|{})).await;
-            assert_eq!(result.is_ok(),ok);
-            if let Ok(staged)=result{assert!(!staged.provider_sha1_verified);staged.discard().await.unwrap();}
-            cleanup(state).await.unwrap();tokio::task::spawn_blocking(move||worker.join().unwrap()).await.unwrap();
-            assert_eq!(fs::read_dir(root.path()).unwrap().count(),0);
+        for (header, body, ok) in [
+            (
+                "HTTP/1.1 200 OK\r\nContent-Type: video/mp4\r\nContent-Length: 3\r\nConnection: close\r\n\r\n",
+                b"abc".as_slice(),
+                true,
+            ),
+            (
+                "HTTP/1.1 200 OK\r\nContent-Type: video/mp4\r\nContent-Length: 3\r\nConnection: close\r\n\r\n",
+                b"a".as_slice(),
+                false,
+            ),
+            (
+                "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: 3\r\nConnection: close\r\n\r\n",
+                b"abc".as_slice(),
+                false,
+            ),
+        ] {
+            let root = tempfile::tempdir().unwrap();
+            let state = writer(root.path(), 3);
+            let (response, worker) = response_fixture(header, body).await;
+            let result = receive(response, state.clone(), None, check(), Arc::new(|_| {})).await;
+            assert_eq!(result.is_ok(), ok);
+            if let Ok(staged) = result {
+                assert!(!staged.provider_sha1_verified);
+                staged.discard().await.unwrap();
+            }
+            cleanup(state).await.unwrap();
+            tokio::task::spawn_blocking(move || worker.join().unwrap()).await.unwrap();
+            assert_eq!(fs::read_dir(root.path()).unwrap().count(), 0);
         }
     }
     #[tokio::test]

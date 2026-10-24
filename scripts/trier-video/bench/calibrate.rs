@@ -1002,7 +1002,8 @@ fn validate(args: &[String]) -> i32 {
                     label(&o.locked),
                     label(&o.found),
                     o.found_by,
-                    o.confirmation.map_or("none".into(), |c| format!("{:+.1}% {:?}", 100.0 * c.change, c.verdict)),
+                    o.confirmation
+                        .map_or("none".into(), |c| format!("{:+.1}% {:?}", 100.0 * c.change, c.verdict)),
                     o.trials,
                     secs,
                     if o.budget_hit { " budget" } else { "" },
@@ -1275,9 +1276,7 @@ fn machine_json(m: &platform::Machine) -> String {
         s(m.arch),
         arr(m.features.names().into_iter().map(s)),
         m.usable_cores,
-        m.allowed
-            .as_ref()
-            .map_or("null".into(), |a| arr(a.iter().map(|c| c.to_string()))),
+        m.allowed.as_ref().map_or("null".into(), |a| arr(a.iter().map(|c| c.to_string()))),
         arr(m.clusters.iter().map(|c| format!(
             "{{\"maxKhz\":{},\"capacity\":{},\"cpus\":{}}}",
             c.max_khz,

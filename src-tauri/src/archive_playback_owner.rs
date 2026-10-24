@@ -354,7 +354,7 @@ pub(crate) async fn start(
         });
         let mime_type = verified.mime;
         let proxy =
-            ArchivePlaybackProxy::start(verified, current, authority, alive, startup_ends).await?;
+            ArchivePlaybackProxy::start(*verified, current, authority, alive, startup_ends).await?;
         let media_url = proxy.media_url().to_owned();
         let valid = proxy.validity_handle();
         *active = Some(ActiveSession {
@@ -791,17 +791,6 @@ pub(crate) async fn save_bookmark(
         })
     })
     .await
-}
-pub(crate) async fn retry_cleanup() -> Result<(), String> {
-    let mut active = ACTIVE.lock().await;
-    if let Some(proxy) = active.as_mut() {
-        if proxy.proxy.needs_cleanup()? {
-            join_bookmark_jobs(&proxy.bookmark.jobs).await;
-            proxy.proxy.stop().await?;
-            *active = None;
-        }
-    }
-    Ok(())
 }
 /// Root calls BEFORE draining native work guards; proxy authorities retain one.
 pub(crate) async fn shutdown() -> Result<(), String> {

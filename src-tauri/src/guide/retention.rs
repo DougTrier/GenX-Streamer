@@ -181,7 +181,11 @@ fn capture_inner(
         )
         .optional(),
     )?;
-    let (catalog,guide,automatic):(i64,i64,Option<i64>)=db::sql(c.query_row("SELECT m.catalog_revision,g.revision,m.automatic_guide_updates FROM metadata m,guide_meta g WHERE m.singleton=1 AND g.singleton=1",[],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))))?;
+    let (catalog, guide, automatic): (i64, i64, Option<i64>) = db::sql(c.query_row(
+        "SELECT m.catalog_revision,g.revision,m.automatic_guide_updates FROM metadata m,guide_meta g WHERE m.singleton=1 AND g.singleton=1",
+        [],
+        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+    ))?;
     let published = if proposed {
         None
     } else {
@@ -573,7 +577,11 @@ pub(crate) fn compatibility(
     if !complete || headers.is_empty() {
         return Ok((false, None));
     }
-    let (revision,hash,old_stamp,fingerprint):(i64,String,String,String)=db::sql(c.query_row("SELECT published_revision,interest_hash,authority_stamp,source_fingerprint FROM guide_projection_v1 WHERE source_id=?1",[&scope.source.id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))))?;
+    let (revision, hash, old_stamp, fingerprint): (i64, String, String, String) = db::sql(c.query_row(
+        "SELECT published_revision,interest_hash,authority_stamp,source_fingerprint FROM guide_projection_v1 WHERE source_id=?1",
+        [&scope.source.id],
+        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+    ))?;
     let actual_programs: i64 = db::sql(c.query_row(
         "SELECT count(*) FROM guide_program WHERE guide_source_id=?1",
         [&scope.source.id],
@@ -946,9 +954,15 @@ pub(crate) fn commit_cleanup(
                 input_programs: s.before,
             };
             record(&tx, &request, &p, revision)?;
-            db::sql(tx.execute("UPDATE guide_projection_v1 SET input_channels=?2,retained_programs=?3 WHERE source_id=?1",params![s.scope.source.id,s.headers as i64,(s.before-s.drop_ordinals.len()) as i64]))?;
+            db::sql(tx.execute(
+                "UPDATE guide_projection_v1 SET input_channels=?2,retained_programs=?3 WHERE source_id=?1",
+                params![s.scope.source.id, s.headers as i64, (s.before - s.drop_ordinals.len()) as i64],
+            ))?;
         } else {
-            db::sql(tx.execute("UPDATE guide_projection_v1 SET published_revision=?2,retained_programs=?3,identity_complete=0 WHERE source_id=?1",params![s.scope.source.id,revision,(s.before-s.drop_ordinals.len()) as i64]))?;
+            db::sql(tx.execute(
+                "UPDATE guide_projection_v1 SET published_revision=?2,retained_programs=?3,identity_complete=0 WHERE source_id=?1",
+                params![s.scope.source.id, revision, (s.before - s.drop_ordinals.len()) as i64],
+            ))?;
         }
     }
     if plan.receipt.sources_changed > 0 {

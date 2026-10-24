@@ -578,9 +578,16 @@ fn checkpoint_real_process_kill_never_splits_publication_and_progress() {
         let original = store.read_pair().unwrap();
         drop(store);
         let mut command = std::process::Command::new(std::env::current_exe().unwrap());
-        command.args(["--exact","storage_transaction::scan_checkpoint_tests::checkpoint_real_process_kill_never_splits_publication_and_progress","--nocapture"])
-            .env(CHILD,dir.path()).env("GENX_TEST_CHECKPOINT_CHILD_PHASE",phase)
-            .stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null());
+        command
+            .args([
+                "--exact",
+                "storage_transaction::scan_checkpoint_tests::checkpoint_real_process_kill_never_splits_publication_and_progress",
+                "--nocapture",
+            ])
+            .env(CHILD, dir.path())
+            .env("GENX_TEST_CHECKPOINT_CHILD_PHASE", phase)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null());
         #[cfg(windows)]
         {
             use std::os::windows::process::CommandExt;
@@ -681,7 +688,9 @@ fn mixed_canonical_custom_and_unpublished_approved_provider_scope_is_not_truncat
         {"source":custom,"definitionFingerprint":scan_checkpoint::source_fingerprint(&custom).unwrap()},
         {"source":approved,"definitionFingerprint":scan_checkpoint::source_fingerprint(&approved).unwrap()}
     ]);
-    value["review"]["sources"].as_array_mut().unwrap().push(json!({"sourceId":"approved-unpublished","fingerprint":"approved-scope","status":"failed","inspected":0,"matched":0,"warnings":0}));
+    value["review"]["sources"].as_array_mut().unwrap().push(
+        json!({"sourceId":"approved-unpublished","fingerprint":"approved-scope","status":"failed","inspected":0,"matched":0,"warnings":0}),
+    );
     value["review"]["counts"]["failedSources"] = json!(1);
     value["policyFingerprint"] =
         json!(scan_checkpoint::policy_fingerprint(&value, &prefs).unwrap());

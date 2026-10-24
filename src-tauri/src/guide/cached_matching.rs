@@ -83,14 +83,16 @@ fn connect_inner(
 ) -> Result<CachedConnection, String> {
     connect_inner_with_crosswalk(
         connection,
-        expected_catalog_revision,
-        sources,
-        aliases,
-        None,
-        Outcome::not_requested(),
+        ConnectionRequest {
+            expected_catalog_revision,
+            sources,
+            aliases,
+            authority: None,
+            outcome: Outcome::not_requested(),
+            automatic: false,
+        },
         canceled,
         checkpoint,
-        false,
     )
 }
 pub(crate) fn connect_with_crosswalk(
@@ -104,14 +106,16 @@ pub(crate) fn connect_with_crosswalk(
 ) -> Result<CachedConnection, String> {
     connect_inner_with_crosswalk(
         connection,
-        expected_catalog_revision,
-        sources,
-        aliases,
-        authority,
-        outcome,
+        ConnectionRequest {
+            expected_catalog_revision,
+            sources,
+            aliases,
+            authority,
+            outcome,
+            automatic: false,
+        },
         canceled,
         &mut || Ok(()),
-        false,
     )
 }
 pub(crate) fn connect_automatic_cached(
@@ -125,14 +129,16 @@ pub(crate) fn connect_automatic_cached(
 ) -> Result<CachedConnection, String> {
     connect_inner_with_crosswalk(
         connection,
-        expected_catalog_revision,
-        sources,
-        aliases,
-        authority,
-        outcome,
+        ConnectionRequest {
+            expected_catalog_revision,
+            sources,
+            aliases,
+            authority,
+            outcome,
+            automatic: true,
+        },
         canceled,
         &mut || Ok(()),
-        true,
     )
 }
 fn validate_inputs(
@@ -295,26 +301,31 @@ pub(crate) fn connect_empty_cached(
 }
 fn connect_inner_with_crosswalk(
     connection: &mut Connection,
-    expected_catalog_revision: &str,
-    sources: &[CachedSource],
-    aliases: &[ReviewedAliases],
-    authority: Option<&VerifiedCrosswalk>,
-    outcome: Outcome,
+    request: ConnectionRequest<'_>,
     canceled: &dyn Fn() -> bool,
     checkpoint: &mut dyn FnMut() -> Result<(), String>,
-    automatic: bool,
 ) -> Result<CachedConnection, String> {
-    check(canceled)?;
-    let tx = sql(connection.transaction_with_behavior(TransactionBehavior::Immediate))?;
-    let plan = plan_connection(
-        &tx,
+    let ConnectionRequest {
         expected_catalog_revision,
         sources,
         aliases,
         authority,
         outcome,
-        canceled,
         automatic,
+    } = request;
+    check(canceled)?;
+    let tx = sql(connection.transaction_with_behavior(TransactionBehavior::Immediate))?;
+    let plan = plan_connection(
+        &tx,
+        ConnectionRequest {
+            expected_catalog_revision,
+            sources,
+            aliases,
+            authority,
+            outcome,
+            automatic,
+        },
+        canceled,
     )?;
     for mapping in &plan.pending {
         check(canceled)?;
@@ -342,6 +353,18 @@ fn connect_inner_with_crosswalk(
     sql(tx.commit())?;
     Ok(plan.result)
 }
+/// What a cached-guide connection is computed from: the catalog revision it
+/// must match, the selected guide sources, reviewed aliases, the verified
+/// crosswalk (if any), the outcome being recorded and whether the run is
+/// automatic.
+pub(crate) struct ConnectionRequest<'a> {
+    pub expected_catalog_revision: &'a str,
+    pub sources: &'a [CachedSource],
+    pub aliases: &'a [ReviewedAliases],
+    pub authority: Option<&'a VerifiedCrosswalk>,
+    pub outcome: Outcome,
+    pub automatic: bool,
+}
 struct ConnectionPlan {
     result: CachedConnection,
     pending: Vec<super::database::GuideMapping>,
@@ -350,24 +373,29 @@ struct ConnectionPlan {
 /// writes recapture the complete plan in their own IMMEDIATE transaction.
 pub(crate) fn preflight_connection(
     connection: &Connection,
-    expected_catalog_revision: &str,
-    sources: &[CachedSource],
-    aliases: &[ReviewedAliases],
-    authority: Option<&VerifiedCrosswalk>,
-    outcome: Outcome,
+    request: ConnectionRequest<'_>,
     canceled: &dyn Fn() -> bool,
-    automatic: bool,
 ) -> Result<Option<CachedConnection>, String> {
-    let tx = sql(connection.unchecked_transaction())?;
-    let plan = plan_connection(
-        &tx,
+    let ConnectionRequest {
         expected_catalog_revision,
         sources,
         aliases,
         authority,
         outcome,
-        canceled,
         automatic,
+    } = request;
+    let tx = sql(connection.unchecked_transaction())?;
+    let plan = plan_connection(
+        &tx,
+        ConnectionRequest {
+            expected_catalog_revision,
+            sources,
+            aliases,
+            authority,
+            outcome,
+            automatic,
+        },
+        canceled,
     )?;
     check(canceled)?;
     sql(tx.commit())?;
@@ -446,14 +474,17 @@ fn best_covered_choice(
 }
 fn plan_connection(
     connection: &Connection,
-    expected_catalog_revision: &str,
-    sources: &[CachedSource],
-    aliases: &[ReviewedAliases],
-    authority: Option<&VerifiedCrosswalk>,
-    outcome: Outcome,
+    request: ConnectionRequest<'_>,
     canceled: &dyn Fn() -> bool,
-    automatic: bool,
 ) -> Result<ConnectionPlan, String> {
+    let ConnectionRequest {
+        expected_catalog_revision,
+        sources,
+        aliases,
+        authority,
+        outcome,
+        automatic,
+    } = request;
     let expected = validate_inputs(expected_catalog_revision, sources)?;
     if aliases.len() > 100 || aliases.iter().map(|a| a.pairs.len()).sum::<usize>() > 1024 {
         return Err("guide-cache-match-limit".into());

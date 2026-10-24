@@ -57,7 +57,6 @@ pub struct PendingReceipt {
     pub catalog_revision: String,
     pub view_revision: String,
     pub affected_count: usize,
-    pub changed: bool,
 }
 fn sql<T>(r: rusqlite::Result<T>) -> Result<T, String> {
     r.map_err(|e| crate::storage_transaction::sql_error_code(&e, "catalog-group-database-failed"))
@@ -106,7 +105,10 @@ fn count(c: &Connection, table: &str) -> Result<i64, String> {
 }
 fn resequence(c: &Connection, table: &str, id: &str) -> Result<(), String> {
     sql(c.execute("DELETE FROM temp.catalog_group_order_v1", []))?;
-    sql(c.execute(&format!("INSERT INTO temp.catalog_group_order_v1 SELECT {id},ROW_NUMBER() OVER(ORDER BY ordinal,{id})-1 FROM {table}"), []))?;
+    sql(c.execute(
+        &format!("INSERT INTO temp.catalog_group_order_v1 SELECT {id},ROW_NUMBER() OVER(ORDER BY ordinal,{id})-1 FROM {table}"),
+        [],
+    ))?;
     sql(c.execute(&format!("UPDATE {table} SET ordinal=o.ordinal FROM temp.catalog_group_order_v1 o WHERE {table}.{id}=o.id AND {table}.ordinal<>o.ordinal"), []))?;
     Ok(())
 }
@@ -159,7 +161,11 @@ pub fn apply(
     if !crate::catalog_endpoint_projection::present(tx)? {
         return Err("catalog-query-projection-stale".into());
     }
-    let complete: bool = sql(tx.query_row("SELECT (SELECT count(*) FROM channel)=(SELECT count(*) FROM catalog_endpoint_projection_v1)", [], |r| r.get(0)))?;
+    let complete: bool = sql(tx.query_row(
+        "SELECT (SELECT count(*) FROM channel)=(SELECT count(*) FROM catalog_endpoint_projection_v1)",
+        [],
+        |r| r.get(0),
+    ))?;
     if !complete {
         return Err("catalog-query-projection-stale".into());
     }
@@ -222,7 +228,11 @@ pub fn apply(
     let changed = match &request.action {
         Action::Remove => {
             let old_count = count(tx, "removed")?;
-            let missing: i64 = sql(tx.query_row("SELECT count(*) FROM temp.catalog_group_members_v1 g WHERE NOT EXISTS(SELECT 1 FROM removed r WHERE r.id=g.id)", [], |r| r.get(0)))?;
+            let missing: i64 = sql(tx.query_row(
+                "SELECT count(*) FROM temp.catalog_group_members_v1 g WHERE NOT EXISTS(SELECT 1 FROM removed r WHERE r.id=g.id)",
+                [],
+                |r| r.get(0),
+            ))?;
             if old_count + missing > 100_000 {
                 return Err("catalog-group-preference-limit".into());
             }
@@ -232,7 +242,11 @@ pub fn apply(
         }
         Action::Favorite { value: true } => {
             let old_count = count(tx, "favorite")?;
-            let missing: i64 = sql(tx.query_row("SELECT count(*) FROM temp.catalog_group_members_v1 g WHERE NOT EXISTS(SELECT 1 FROM favorite f WHERE f.id=g.id)", [], |r| r.get(0)))?;
+            let missing: i64 = sql(tx.query_row(
+                "SELECT count(*) FROM temp.catalog_group_members_v1 g WHERE NOT EXISTS(SELECT 1 FROM favorite f WHERE f.id=g.id)",
+                [],
+                |r| r.get(0),
+            ))?;
             if old_count + missing > 100_000 {
                 return Err("catalog-group-preference-limit".into());
             }
@@ -249,7 +263,10 @@ pub fn apply(
             changes > 0
         }
         Action::Category { value: None } => {
-            let changes = sql(tx.execute("DELETE FROM channel_category_override WHERE channel_id IN(SELECT id FROM temp.catalog_group_members_v1)", []))?;
+            let changes = sql(tx.execute(
+                "DELETE FROM channel_category_override WHERE channel_id IN(SELECT id FROM temp.catalog_group_members_v1)",
+                [],
+            ))?;
             resequence(tx, "channel_category_override", "channel_id")?;
             changes > 0
         }
@@ -313,6 +330,5 @@ pub fn apply(
         catalog_revision: catalog.to_string(),
         view_revision: final_view.to_string(),
         affected_count: affected_count as usize,
-        changed,
     })
 }

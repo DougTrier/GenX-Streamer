@@ -241,7 +241,11 @@ pub(crate) async fn client(
             let _ = task.await;
             return Err(error);
         }
-        tokio::select! {r=&mut task=>break r.map_err(|_|"public-archive-dns-unavailable")?.map_err(str::to_owned)?,_=tokio::time::sleep(Duration::from_millis(25))=>{}}
+        tokio::select! {
+            r=&mut task => break r.map_err(|_|"public-archive-dns-unavailable")?.map_err(str::to_owned)?,
+            _=tokio::time::sleep(Duration::from_millis(25)) => {
+            }
+        }
     };
     check(owner, deadline)?;
     reqwest::Client::builder()
@@ -275,7 +279,11 @@ pub(crate) async fn json(
         tokio::pin!(pending);
         let mut next = loop {
             check(owner, deadline)?;
-            tokio::select! {guard=&mut pending=>break guard,_=tokio::time::sleep(Duration::from_millis(25))=>{}}
+            tokio::select! {
+                guard=&mut pending => break guard,
+                _=tokio::time::sleep(Duration::from_millis(25)) => {
+                }
+            }
         };
         if let Some(at) = *next {
             while Instant::now() < at {

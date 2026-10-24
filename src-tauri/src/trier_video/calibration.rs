@@ -250,11 +250,7 @@ pub fn stage_a(
                 start.label(),
                 label(&o.found),
                 o.trials,
-                if tune::cancelled() {
-                    ", cancelled"
-                } else {
-                    ", budget reached"
-                }
+                if tune::cancelled() { ", cancelled" } else { ", budget reached" }
             )),
         }
     }

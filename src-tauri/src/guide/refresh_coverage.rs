@@ -38,7 +38,11 @@ pub struct MappedTargets {
 }
 
 fn catalog_present(c: &Connection) -> Result<bool, String> {
-    let count: i64 = db::sql(c.query_row("SELECT count(*) FROM sqlite_schema WHERE type='table' AND name IN('channel','source','removed')", [], |r| r.get(0)))?;
+    let count: i64 = db::sql(c.query_row(
+        "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name IN('channel','source','removed')",
+        [],
+        |r| r.get(0),
+    ))?;
     if count == 3 {
         return Ok(true);
     }

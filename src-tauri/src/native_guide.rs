@@ -649,12 +649,17 @@ async fn preview_admitted(
         .register(request_id.clone())?;
     let owner = app.state::<Arc<NativeGuides>>().inner().clone();
     let result = async {
-        let (generation, canceled, _active) = match admission { Some(admission) => owner.admit_upload(&source_id, &request_id, admission)?, None => owner.begin(&source_id, &request_id)? };
+        let (generation, canceled, _active) = match admission {
+            Some(admission) => owner.admit_upload(&source_id, &request_id, admission)?,
+            None => owner.begin(&source_id, &request_id)?,
+        };
         let permit = tokio::select! {
             permit = owner.parser.clone().acquire_owned() => permit.map_err(|_| "guide-owner-closed")?,
             _ = &mut cancel => { canceled.store(true, Ordering::SeqCst); return Err("canceled".into()); }
         };
-        if canceled.load(Ordering::SeqCst) { return Err("canceled".into()); }
+        if canceled.load(Ordering::SeqCst) {
+            return Err("canceled".into());
+        }
         let bytes = match bytes {
             Some(bytes) => bytes,
             None => tokio::select! {
@@ -663,9 +668,9 @@ async fn preview_admitted(
             },
         };
         let flag = canceled.clone();
-        let work=state.admit_work()?;
+        let work = state.admit_work()?;
         let mut worker = tauri::async_runtime::spawn_blocking(move || {
-            let _work=work;
+            let _work = work;
             let expanded = input::expand(bytes, &flag)?;
             parser::parse_guide_cancelable(&expanded, &flag)
         });
@@ -677,11 +682,33 @@ async fn preview_admitted(
         let first_start_ms = parsed.programs.iter().map(|p| p.start_ms).min();
         let last_start_ms = parsed.programs.iter().map(|p| p.start_ms).max();
         let last_known_stop_ms = parsed.programs.iter().filter_map(|p| p.stop_ms).max();
-        let channels = parsed.channels.len(); let programs = parsed.programs.len();
+        let channels = parsed.channels.len();
+        let programs = parsed.programs.len();
         let proposed = crate::guide::retention::is_proposed(&retention_scope);
-        let ticket = owner.stage(Stage { request_id: request_id.clone(), source_id: source_id.clone(), source_revision: source.revision, root_generation, retention_scope: Some(retention_scope), generation, parsed: Arc::new(parsed), canceled, created: Instant::now() })?;
-        Ok(Preview { ticket, source_id, source_revision: source.revision, channels, programs, first_start_ms, last_start_ms, last_known_stop_ms, proposed })
-    }.await;
+        let ticket = owner.stage(Stage {
+            request_id: request_id.clone(),
+            source_id: source_id.clone(),
+            source_revision: source.revision,
+            root_generation,
+            retention_scope: Some(retention_scope),
+            generation,
+            parsed: Arc::new(parsed),
+            canceled,
+            created: Instant::now(),
+        })?;
+        Ok(Preview {
+            ticket,
+            source_id,
+            source_revision: source.revision,
+            channels,
+            programs,
+            first_start_ms,
+            last_start_ms,
+            last_known_stop_ms,
+            proposed,
+        })
+    }
+    .await;
     state
         .requests
         .lock()
@@ -1490,7 +1517,11 @@ async fn network_owned<T>(
         if flag.load(Ordering::SeqCst) {
             return Err("canceled".into());
         }
-        tokio::select! {result=&mut future=>return result,_=tokio::time::sleep(Duration::from_millis(20))=>{}}
+        tokio::select! {
+            result=&mut future => return result,
+            _=tokio::time::sleep(Duration::from_millis(20)) => {
+            }
+        }
     }
 }
 #[tauri::command]
@@ -1513,36 +1544,205 @@ pub(crate) async fn guide_refresh_due(
             updated_ms: None,
         });
     };
-    crate::scan_manifest_work::owned(request_id.clone(),app,move|context|async move{
-        let _active=active;let _permit=network_owned(async{owner.parser.clone().acquire_owned().await.map_err(|_|"guide-owner-closed".to_string())},&context,&flag).await?;
-        let lookup=source_id.clone();let canceled=flag.clone();let now=guide_now()?;
-        let ((source,next_due,claimed,scope),generation)=context.storage(None,move|store,check|{
-            let mut guard=||{check()?;if canceled.load(Ordering::SeqCst){Err("canceled".into())}else{Ok(())}};
-            let (source,next_due,claimed)=store.with_guide_write_preflight_checked(|c|crate::guide::refresh::preflight_claim(c,&lookup,expected_revision,now),|c,check|crate::guide::refresh::claim_checked(c,&lookup,expected_revision,now,check),&mut guard)?;
-            let scope=store.with_guide_read(|c|crate::guide::retention::capture_snapshot(c,&lookup,now))?;if scope.source!=source{return Err("guide-stale-revision".into());}Ok((source,next_due,claimed,scope))
-        }).await?;
-        if !claimed{return Ok(RefreshResult{request_id,source_id,status:"not-due",source_revision:source.revision,next_due_ms:next_due,updated_ms:source.updated_ms});}
-        let authority=if source.location==crate::guide::reviewed_crosswalk::FEED{crate::guide::reviewed_crosswalk::acquire(context.clone()).await?.authority}else{None};
-        if source.location==crate::guide::reviewed_crosswalk::FEED&&authority.is_none(){return Err("guide-retention-identity-unavailable".into());}
-        let request=Arc::new(crate::guide::retention::Request{scope,authority,aliases:None,automatic:true,allow_empty:false});
-        let lookup=request.clone();let (cached,_)=context.storage(Some(generation),move|store,check|{check()?;store.with_guide_read(|c|{let tx=c.unchecked_transaction().map_err(|_|"guide-database-operation-failed")?;let cached=crate::guide::conditional::read_projected(&tx,&lookup)?;tx.commit().map_err(|_|"guide-database-operation-failed")?;Ok(cached)})}).await?;
-        let fetched=network_owned(input::fetch_conditional(&source.location,source.allow_http,cached.as_ref(),&flag),&context,&flag).await?;
-        let (bytes,validators)=match fetched{
-            input::ConditionalFetch::Body(bytes,validators)=>(bytes,validators),
-            input::ConditionalFetch::NotModified(received)=>{
-                let cached=cached.ok_or("guide-not-modified-without-cache")?;let canceled=flag.clone();let checked=guide_now()?;
-                context.storage(Some(generation),move|store,check|{let mut guard=||{check()?;if canceled.load(Ordering::SeqCst){Err("canceled".into())}else{Ok(())}};store.with_guide_write_checked(|c|crate::guide::conditional::revalidate_projected(c,&request,&cached,&received,checked,&canceled),&mut guard)}).await?;
-                return Ok(RefreshResult{request_id,source_id,status:"not-modified",source_revision:source.revision,next_due_ms:next_due,updated_ms:source.updated_ms});
+    crate::scan_manifest_work::owned(request_id.clone(), app, move |context| async move {
+        let _active = active;
+        let _permit = network_owned(
+            async {
+                owner
+                    .parser
+                    .clone()
+                    .acquire_owned()
+                    .await
+                    .map_err(|_| "guide-owner-closed".to_string())
+            },
+            &context,
+            &flag,
+        )
+        .await?;
+        let lookup = source_id.clone();
+        let canceled = flag.clone();
+        let now = guide_now()?;
+        let ((source, next_due, claimed, scope), generation) = context
+            .storage(None, move |store, check| {
+                let mut guard = || {
+                    check()?;
+                    if canceled.load(Ordering::SeqCst) {
+                        Err("canceled".into())
+                    } else {
+                        Ok(())
+                    }
+                };
+                let (source, next_due, claimed) = store.with_guide_write_preflight_checked(
+                    |c| crate::guide::refresh::preflight_claim(c, &lookup, expected_revision, now),
+                    |c, check| {
+                        crate::guide::refresh::claim_checked(
+                            c,
+                            &lookup,
+                            expected_revision,
+                            now,
+                            check,
+                        )
+                    },
+                    &mut guard,
+                )?;
+                let scope = store.with_guide_read(|c| {
+                    crate::guide::retention::capture_snapshot(c, &lookup, now)
+                })?;
+                if scope.source != source {
+                    return Err("guide-stale-revision".into());
+                }
+                Ok((source, next_due, claimed, scope))
+            })
+            .await?;
+        if !claimed {
+            return Ok(RefreshResult {
+                request_id,
+                source_id,
+                status: "not-due",
+                source_revision: source.revision,
+                next_due_ms: next_due,
+                updated_ms: source.updated_ms,
+            });
+        }
+        let authority = if source.location == crate::guide::reviewed_crosswalk::FEED {
+            crate::guide::reviewed_crosswalk::acquire(context.clone())
+                .await?
+                .authority
+        } else {
+            None
+        };
+        if source.location == crate::guide::reviewed_crosswalk::FEED && authority.is_none() {
+            return Err("guide-retention-identity-unavailable".into());
+        }
+        let request = Arc::new(crate::guide::retention::Request {
+            scope,
+            authority,
+            aliases: None,
+            automatic: true,
+            allow_empty: false,
+        });
+        let lookup = request.clone();
+        let (cached, _) = context
+            .storage(Some(generation), move |store, check| {
+                check()?;
+                store.with_guide_read(|c| {
+                    let tx = c
+                        .unchecked_transaction()
+                        .map_err(|_| "guide-database-operation-failed")?;
+                    let cached = crate::guide::conditional::read_projected(&tx, &lookup)?;
+                    tx.commit().map_err(|_| "guide-database-operation-failed")?;
+                    Ok(cached)
+                })
+            })
+            .await?;
+        let fetched = network_owned(
+            input::fetch_conditional(&source.location, source.allow_http, cached.as_ref(), &flag),
+            &context,
+            &flag,
+        )
+        .await?;
+        let (bytes, validators) = match fetched {
+            input::ConditionalFetch::Body(bytes, validators) => (bytes, validators),
+            input::ConditionalFetch::NotModified(received) => {
+                let cached = cached.ok_or("guide-not-modified-without-cache")?;
+                let canceled = flag.clone();
+                let checked = guide_now()?;
+                context
+                    .storage(Some(generation), move |store, check| {
+                        let mut guard = || {
+                            check()?;
+                            if canceled.load(Ordering::SeqCst) {
+                                Err("canceled".into())
+                            } else {
+                                Ok(())
+                            }
+                        };
+                        store.with_guide_write_checked(
+                            |c| {
+                                crate::guide::conditional::revalidate_projected(
+                                    c, &request, &cached, &received, checked, &canceled,
+                                )
+                            },
+                            &mut guard,
+                        )
+                    })
+                    .await?;
+                return Ok(RefreshResult {
+                    request_id,
+                    source_id,
+                    status: "not-modified",
+                    source_revision: source.revision,
+                    next_due_ms: next_due,
+                    updated_ms: source.updated_ms,
+                });
             }
         };
-        let canceled=flag.clone();let mut worker=tauri::async_runtime::spawn_blocking(move||{let expanded=input::expand(bytes,&canceled)?;parser::parse_guide_cancelable(&expanded,&canceled)});
-        let parsed=loop{tokio::select!{r=&mut worker=>break r.map_err(|_|"guide-parser-worker-failed")??,_=tokio::time::sleep(Duration::from_millis(20))=>{if let Err(e)=context.check(){flag.store(true,Ordering::SeqCst);let _=worker.await;return Err(e);}if flag.load(Ordering::SeqCst){let _=worker.await;return Err("canceled".into());}}}};
-        let canceled=flag.clone();let ((revision,next_due,updated),_)=context.storage(Some(generation),move|store,check|{
-            let mut guard=||{check()?;if canceled.load(Ordering::SeqCst){Err("canceled".into())}else{Ok(())}};
-            store.with_guide_write_checked(|c|{let updated=guide_now()?;let due=crate::guide::refresh::next_after_feed(c,&request.scope.source,&parsed,updated,&canceled)?;let revision=db::replace_guide_conditional_projected(c,&request,&parsed,updated,&validators,&canceled)?;Ok((revision,due,updated))},&mut guard)
-        }).await?;
-        Ok(RefreshResult{request_id,source_id,status:"refreshed",source_revision:revision,next_due_ms:next_due,updated_ms:Some(updated)})
-    }).await
+        let canceled = flag.clone();
+        let mut worker = tauri::async_runtime::spawn_blocking(move || {
+            let expanded = input::expand(bytes, &canceled)?;
+            parser::parse_guide_cancelable(&expanded, &canceled)
+        });
+        let parsed = loop {
+            tokio::select! {
+                r = &mut worker => break r.map_err(|_| "guide-parser-worker-failed")??,
+                _ = tokio::time::sleep(Duration::from_millis(20)) => {
+                    if let Err(e) = context.check() {
+                        flag.store(true, Ordering::SeqCst);
+                        let _ = worker.await;
+                        return Err(e);
+                    }
+                    if flag.load(Ordering::SeqCst) {
+                        let _ = worker.await;
+                        return Err("canceled".into());
+                    }
+                }
+            }
+        };
+        let canceled = flag.clone();
+        let ((revision, next_due, updated), _) = context
+            .storage(Some(generation), move |store, check| {
+                let mut guard = || {
+                    check()?;
+                    if canceled.load(Ordering::SeqCst) {
+                        Err("canceled".into())
+                    } else {
+                        Ok(())
+                    }
+                };
+                store.with_guide_write_checked(
+                    |c| {
+                        let updated = guide_now()?;
+                        let due = crate::guide::refresh::next_after_feed(
+                            c,
+                            &request.scope.source,
+                            &parsed,
+                            updated,
+                            &canceled,
+                        )?;
+                        let revision = db::replace_guide_conditional_projected(
+                            c,
+                            &request,
+                            &parsed,
+                            updated,
+                            &validators,
+                            &canceled,
+                        )?;
+                        Ok((revision, due, updated))
+                    },
+                    &mut guard,
+                )
+            })
+            .await?;
+        Ok(RefreshResult {
+            request_id,
+            source_id,
+            status: "refreshed",
+            source_revision: revision,
+            next_due_ms: next_due,
+            updated_ms: Some(updated),
+        })
+    })
+    .await
 }
 
 #[cfg(test)]
@@ -1637,13 +1837,15 @@ pub(crate) async fn guide_connect_cached_catalog(
                     |c| {
                         crate::guide::cached_matching::preflight_connection(
                             c,
-                            &expected_catalog_revision,
-                            &sources,
-                            aliases.as_deref().unwrap_or(&[]),
-                            acquired.authority.as_deref(),
-                            acquired.outcome.clone(),
+                            crate::guide::cached_matching::ConnectionRequest {
+                                expected_catalog_revision: &expected_catalog_revision,
+                                sources: &sources,
+                                aliases: aliases.as_deref().unwrap_or(&[]),
+                                authority: acquired.authority.as_deref(),
+                                outcome: acquired.outcome.clone(),
+                                automatic: cache_only,
+                            },
                             &|| commit_owner.check().is_err(),
-                            cache_only,
                         )
                     },
                     |c, _check| {

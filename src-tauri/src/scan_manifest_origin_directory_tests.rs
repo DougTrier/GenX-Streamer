@@ -158,9 +158,23 @@ fn page_capture_origin_rows_and_capsule_seal_share_atomic_checkpoint_transaction
         f.store.read_scan_checkpoint().unwrap().checkpoint_revision,
         "1"
     );
-    let columns:i64=f.connection.query_row("SELECT COUNT(*) FROM pragma_table_info('scan_manifest_origin') WHERE name LIKE '%url%'",[],|r|r.get(0)).unwrap();
+    let columns: i64 = f
+        .connection
+        .query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('scan_manifest_origin') WHERE name LIKE '%url%'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
     assert_eq!(columns, 1); // Only binary hash, never original URL.
-    let size:i64=f.connection.query_row("SELECT MAX(length(metadata_hash)+length(primary_url_hash)+length(origin_token)) FROM scan_manifest_origin",[],|r|r.get(0)).unwrap();
+    let size: i64 = f
+        .connection
+        .query_row(
+            "SELECT MAX(length(metadata_hash)+length(primary_url_hash)+length(origin_token)) FROM scan_manifest_origin",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
     assert_eq!(size, 96);
 }
 #[test]

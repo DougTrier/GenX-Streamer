@@ -254,13 +254,15 @@ fn cached_zero_change_read_receipt_skips_backup_and_preserves_all_choices() {
             |c| {
                 cached::preflight_connection(
                     c,
-                    &revision,
-                    std::slice::from_ref(&scope),
-                    &[],
-                    None,
-                    Outcome::not_requested(),
+                    cached::ConnectionRequest {
+                        expected_catalog_revision: &revision,
+                        sources: std::slice::from_ref(&scope),
+                        aliases: &[],
+                        authority: None,
+                        outcome: Outcome::not_requested(),
+                        automatic: false,
+                    },
                     &|| false,
-                    false,
                 )
             },
             |_, _| Err("must-not-write".into()),
@@ -284,13 +286,15 @@ fn cached_actual_mapping_requires_backup_and_refuses_failed_backup() {
         .with_guide_write_preflight_checked(
             |c| cached::preflight_connection(
                 c,
-                &revision,
-                std::slice::from_ref(&scope),
-                &[],
-                None,
-                Outcome::not_requested(),
-                &|| false,
-                false
+                cached::ConnectionRequest {
+                    expected_catalog_revision: &revision,
+                    sources: std::slice::from_ref(&scope),
+                    aliases: &[],
+                    authority: None,
+                    outcome: Outcome::not_requested(),
+                    automatic: false
+                },
+                &|| false
             ),
             |c, _| {
                 entered.set(true);
@@ -324,13 +328,15 @@ fn preflight_is_readonly_and_changed_mapping_rechecks_preference_after_snapshot(
         |c| {
             assert!(cached::preflight_connection(
                 c,
-                &revision,
-                std::slice::from_ref(&scope),
-                &[],
-                None,
-                Outcome::not_requested(),
-                &|| false,
-                true
+                cached::ConnectionRequest {
+                    expected_catalog_revision: &revision,
+                    sources: std::slice::from_ref(&scope),
+                    aliases: &[],
+                    authority: None,
+                    outcome: Outcome::not_requested(),
+                    automatic: true
+                },
+                &|| false
             )?
             .is_none());
             Connection::open(&path)
@@ -412,13 +418,15 @@ fn real_mapping_commit_has_checked_preimage_and_exact_new_mapping() {
             |c| {
                 cached::preflight_connection(
                     c,
-                    &revision,
-                    std::slice::from_ref(&scope),
-                    &[],
-                    None,
-                    Outcome::not_requested(),
+                    cached::ConnectionRequest {
+                        expected_catalog_revision: &revision,
+                        sources: std::slice::from_ref(&scope),
+                        aliases: &[],
+                        authority: None,
+                        outcome: Outcome::not_requested(),
+                        automatic: false,
+                    },
                     &|| false,
-                    false,
                 )
             },
             |c, _| cached::connect(c, &revision, std::slice::from_ref(&scope), &[], &|| false),

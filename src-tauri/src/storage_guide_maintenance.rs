@@ -262,7 +262,7 @@ fn logical(
         let mut first = [0u8; 32];
         let mut second = [0u8; 32];
         while let Some(row) = sql(rows.next())? {
-            if total % 64 == 0 {
+            if total.is_multiple_of(64) {
                 check()?;
             }
             total = total.checked_add(1).ok_or("sqlite-maintenance-row-limit")?;

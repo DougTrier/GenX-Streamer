@@ -192,12 +192,7 @@ fn execute_observing_unlock(
             return Err("scan-resume-commit-stale".into());
         }
         if episode.cache.len() > 256
-            || episode
-                .cache
-                .values()
-                .try_fold(0usize, |n, v| n.checked_add(v.bytes))
-                .ok_or(ERR)?
-                != episode.cache_bytes
+            || episode.cache.values().try_fold(0usize, |n, v| n.checked_add(v.bytes)).ok_or(ERR)? != episode.cache_bytes
             || episode.cache_bytes > 20 * 1024 * 1024
         {
             return Err(ERR.into());
@@ -214,10 +209,7 @@ fn execute_observing_unlock(
                 || item.observation["sourceId"] != held.metadata["sourceId"]
                 || item.observation["fingerprint"] != held.metadata["sourceFingerprint"]
                 || item.observation["platform"] != episode.plan.header()["platform"]
-                || matches!(
-                    item.observation["verdict"].as_str(),
-                    None | Some("NotChecked" | "Canceled")
-                )
+                || matches!(item.observation["verdict"].as_str(), None | Some("NotChecked" | "Canceled"))
             {
                 return Err(ERR.into());
             }
@@ -254,16 +246,12 @@ fn execute_observing_unlock(
             .observations
             .iter()
             .filter(|v| {
-                matches!(
-                    v.observation["verdict"].as_str(),
-                    Some("Reachable" | "PlayedHere")
-                ) && !request.publication_indices.contains(&v.candidate_index)
+                matches!(v.observation["verdict"].as_str(), Some("Reachable" | "PlayedHere"))
+                    && !request.publication_indices.contains(&v.candidate_index)
             })
             .map(|v| v.candidate_index)
             .collect();
-        episode
-            .scheduler
-            .validate_acknowledgment(&ids, &republish)?;
+        episode.scheduler.validate_acknowledgment(&ids, &republish)?;
         let committed = write(&episode.plan, &rows)?;
         // SQL and private-plan settlement share this actor mutex. A peer probe
         // must never observe committed SQL with the preceding private fence.
@@ -272,12 +260,8 @@ fn execute_observing_unlock(
         "healthRevision":committed.receipt.health_revision,"checkpointRevision":committed.receipt.checkpoint_revision,
         "acknowledgedIndices":request.observations.iter().map(|v|v.candidate_index).collect::<Vec<_>>(),
         "publicationIndices":request.publication_indices,"counts":counts});
-        let updated = episode
-            .plan
-            .accept_delta(&committed.receipt, &committed.delta);
-        let acknowledged = episode
-            .scheduler
-            .acknowledge_and_requeue_publish(&ids, &republish);
+        let updated = episode.plan.accept_delta(&committed.receipt, &committed.delta);
+        let acknowledged = episode.scheduler.acknowledge_and_requeue_publish(&ids, &republish);
         if updated.is_err() || acknowledged.is_err() || episode.plan.counts() != counts {
             episode.quarantine();
         }

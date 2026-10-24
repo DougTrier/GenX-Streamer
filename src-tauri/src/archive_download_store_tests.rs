@@ -508,7 +508,8 @@ fn persisted_oversized_record_is_bounded_before_string_allocation_and_recovers_o
     let (_root, store) = fixture();
     complete(&store, 1);
     let c = connect(&store.directory.join(DB), false).unwrap();
-    c.execute_batch("PRAGMA ignore_check_constraints=ON;UPDATE download_entry SET record=printf('%10000s','x');").unwrap();
+    c.execute_batch("PRAGMA ignore_check_constraints=ON;UPDATE download_entry SET record=printf('%10000s','x');")
+        .unwrap();
     drop(c);
     let recovered = DownloadStore::open(&store.directory, false, &mut || Ok(()))
         .unwrap()

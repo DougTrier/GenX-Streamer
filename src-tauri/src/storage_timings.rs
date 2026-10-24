@@ -419,7 +419,7 @@ mod tests {
                 [ArchivePhase::DomainWalk as usize]
                 .snapshot()
                 .count
-                >= before + 1
+                > before
         );
         assert!(matches!(
             ARCHIVE_CALLER.with(std::cell::Cell::get),

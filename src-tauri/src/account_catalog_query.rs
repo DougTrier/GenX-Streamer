@@ -268,7 +268,21 @@ fn snapshot(c: &Connection, request: &Query) -> Result<Snapshot, String> {
     if !present(c, "account_media_catalog_v1")? {
         return Err("account-media-not-collected".into());
     }
-    let media = sql(c.query_row("SELECT account_revision,secret_ref,batch_id,revision FROM account_media_catalog_v1 WHERE account_id=?1",[&request.account_id],|r| Ok((r.get::<_,i64>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,i64>(3)?))).optional())?.ok_or("account-media-not-collected")?;
+    let media = sql(c
+        .query_row(
+            "SELECT account_revision,secret_ref,batch_id,revision FROM account_media_catalog_v1 WHERE account_id=?1",
+            [&request.account_id],
+            |r| {
+                Ok((
+                    r.get::<_, i64>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, String>(2)?,
+                    r.get::<_, i64>(3)?,
+                ))
+            },
+        )
+        .optional())?
+    .ok_or("account-media-not-collected")?;
     if media.0 != account.0 || media.1 != account.1 {
         return Err("account-media-reference-revoked".into());
     }
@@ -337,8 +351,12 @@ fn scope(c: &Connection) -> Result<Scope, String> {
         return Err("account-preferences-invalid".into());
     }
     let (join, category, favorite, removed) = if preferences {
-        (" LEFT JOIN account_channel_preferences_v1 pref ON pref.account_id=e.account_id AND pref.channel_id=e.channel_id",
-            "COALESCE(pref.category,e.category)", "COALESCE(pref.favorite,0)", "COALESCE(pref.removed,0)")
+        (
+            " LEFT JOIN account_channel_preferences_v1 pref ON pref.account_id=e.account_id AND pref.channel_id=e.channel_id",
+            "COALESCE(pref.category,e.category)",
+            "COALESCE(pref.favorite,0)",
+            "COALESCE(pref.removed,0)",
+        )
     } else {
         ("", "e.category", "CAST(0 AS INTEGER)", "0")
     };
@@ -578,11 +596,23 @@ pub(crate) fn read_page(
             owner.check()?;
             // The anchor must be live and match the same query/category/filter.
             // Metadata sort keys remain internal and never contain stream URLs.
-            let key = sql(tx.query_row(
-                &format!("SELECT e.name,{effective_category},e.channel_id,{favorite}{live}{predicate} AND e.channel_id=?5"),
-                rusqlite::params_from_iter(bound(&[&request.account_id,&request.query,&request.category,&filter,anchor],&request.country)),
-                |r| Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,bool>(3)?)),
-            ).optional())?;
+            let key = sql(tx
+                .query_row(
+                    &format!("SELECT e.name,{effective_category},e.channel_id,{favorite}{live}{predicate} AND e.channel_id=?5"),
+                    rusqlite::params_from_iter(bound(
+                        &[&request.account_id, &request.query, &request.category, &filter, anchor],
+                        &request.country,
+                    )),
+                    |r| {
+                        Ok((
+                            r.get::<_, String>(0)?,
+                            r.get::<_, String>(1)?,
+                            r.get::<_, String>(2)?,
+                            r.get::<_, bool>(3)?,
+                        ))
+                    },
+                )
+                .optional())?;
             if key.is_some() && matches!(request.sort, Sort::Country) {
                 // The country key is computed, so rank the anchor by its row
                 // position under exactly the requested order.
@@ -648,7 +678,9 @@ pub(crate) fn read_page(
                 original_category: r.get(7)?,
             })
         };
-        let columns = format!("SELECT e.channel_id,e.name,{effective_category},e.provider_id,e.epg_id,e.stream_ref,{favorite},e.category{live}{predicate}");
+        let columns = format!(
+            "SELECT e.channel_id,e.name,{effective_category},e.provider_id,e.epg_id,e.stream_ref,{favorite},e.category{live}{predicate}"
+        );
         let rows: Vec<rusqlite::Result<Channel>> = if let Some((_, _, ids)) = &listed {
             // Read only the requested slice of the cached order, each row
             // still through the same live scope and predicate.

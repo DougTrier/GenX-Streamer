@@ -204,7 +204,10 @@ fn bounded_pager_candidates_preserve_full_inspection_and_canonical_bytes() {
     }
     // Foreign-key damage remains a failed whole-store inspection for every candidate.
     let c = connect(&path, false).unwrap();
-    c.execute_batch("PRAGMA foreign_keys=OFF;INSERT INTO channel(id,source_id,name,category,ordinal) VALUES('orphan','missing','Fixture','News',0)").unwrap();
+    c.execute_batch(
+        "PRAGMA foreign_keys=OFF;INSERT INTO channel(id,source_id,name,category,ordinal) VALUES('orphan','missing','Fixture','News',0)",
+    )
+    .unwrap();
     drop(c);
     let damaged = std::fs::read(&path).unwrap();
     for cache_kib in [8192, 16384, 32768] {
@@ -388,7 +391,11 @@ fn foreign_key_violation_is_never_reused_and_restores_only_verified_backup() {
     let backup_bytes = std::fs::read(&backup).unwrap();
     let expected = PairStore::read_connection(&connect(&backup, true).unwrap()).unwrap();
     let writer = connect(&root.path().join(DB), false).unwrap();
-    writer.execute_batch("PRAGMA foreign_keys=OFF;INSERT INTO channel(id,source_id,name,category,ordinal) VALUES('orphan','missing','Orphan','News',0)").unwrap();
+    writer
+        .execute_batch(
+            "PRAGMA foreign_keys=OFF;INSERT INTO channel(id,source_id,name,category,ordinal) VALUES('orphan','missing','Orphan','News',0)",
+        )
+        .unwrap();
     drop(writer);
     let mut phases = Vec::new();
     store.recover_observed(|phase| phases.push(phase)).unwrap();

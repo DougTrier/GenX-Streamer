@@ -223,7 +223,13 @@ pub(crate) fn is_removed(c: &Connection, account: &str, channel_id: &str) -> Res
         return Ok(false);
     }
     revision(c, account)?;
-    let value = sql(c.query_row("SELECT removed FROM account_channel_preferences_v1 WHERE account_id=?1 AND channel_id=?2",params![account,channel_id],|r| r.get::<_,i64>(0)).optional())?;
+    let value = sql(c
+        .query_row(
+            "SELECT removed FROM account_channel_preferences_v1 WHERE account_id=?1 AND channel_id=?2",
+            params![account, channel_id],
+            |r| r.get::<_, i64>(0),
+        )
+        .optional())?;
     match value {
         None | Some(0) => Ok(false),
         Some(1) => Ok(true),
@@ -258,7 +264,21 @@ fn account_fence(c: &Connection, request: &Request) -> Result<AccountFence, Stri
     if !table(c, "account_media_catalog_v1")? {
         return Err("account-media-not-collected".into());
     }
-    let media = sql(c.query_row("SELECT account_revision,secret_ref,batch_id,revision FROM account_media_catalog_v1 WHERE account_id=?1",[&request.account_id],|r| Ok((r.get::<_,i64>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,i64>(3)?))).optional())?.ok_or("account-media-not-collected")?;
+    let media = sql(c
+        .query_row(
+            "SELECT account_revision,secret_ref,batch_id,revision FROM account_media_catalog_v1 WHERE account_id=?1",
+            [&request.account_id],
+            |r| {
+                Ok((
+                    r.get::<_, i64>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, String>(2)?,
+                    r.get::<_, i64>(3)?,
+                ))
+            },
+        )
+        .optional())?
+    .ok_or("account-media-not-collected")?;
     if media.0 != account.0 || media.1 != account.1 {
         return Err("account-media-reference-revoked".into());
     }
@@ -299,7 +319,13 @@ pub(crate) fn prepare(
     })
 }
 fn read_row(c: &Connection, account: &str, id: &str) -> Result<Option<Row>, String> {
-    let value = sql(c.query_row("SELECT favorite,removed,category FROM account_channel_preferences_v1 WHERE account_id=?1 AND channel_id=?2",params![account,id],|r| Ok((r.get::<_,i64>(0)?,r.get::<_,i64>(1)?,r.get::<_,Option<String>>(2)?))).optional())?;
+    let value = sql(c
+        .query_row(
+            "SELECT favorite,removed,category FROM account_channel_preferences_v1 WHERE account_id=?1 AND channel_id=?2",
+            params![account, id],
+            |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?, r.get::<_, Option<String>>(2)?)),
+        )
+        .optional())?;
     value
         .map(|(favorite, removed, category)| {
             if !(0..=1).contains(&favorite)
@@ -325,7 +351,7 @@ fn bounds(c: &Connection, account: &str) -> Result<(), String> {
     // JSON1 counts exact UTF-8 escaped metadata bytes, without a whole-account
     // Rust allocation. Boolean tags and nullable categories match export shape.
     let (rows,bytes) = sql(c.query_row("SELECT COUNT(*),COALESCE(SUM(length(CAST(json_object('channelId',channel_id,'favorite',json(CASE favorite WHEN 1 THEN 'true' ELSE 'false' END),'removed',json(CASE removed WHEN 1 THEN 'true' ELSE 'false' END),'category',category) AS BLOB))+1),0)+2 FROM account_channel_preferences_v1 WHERE account_id=?1",[account],|r| Ok((r.get::<_,i64>(0)?,r.get::<_,i64>(1)?))))?;
-    if rows < 0 || rows > MAX_ROWS || bytes < 0 || bytes > MAX_BYTES {
+    if !(0..=MAX_ROWS).contains(&rows) || !(0..=MAX_BYTES).contains(&bytes) {
         return Err("account-preferences-too-large".into());
     }
     Ok(())
@@ -383,7 +409,10 @@ pub(crate) fn commit(
             }
             // Preserve prior choices and recoverable missing identities. Restore
             // only changes flags; it never inserts or synthesizes media rows.
-            sql(tx.execute("INSERT INTO account_preferences_meta_v1(account_id,revision) VALUES(?1,?2) ON CONFLICT(account_id) DO NOTHING",params![request.account_id,expected]))?;
+            sql(tx.execute(
+                "INSERT INTO account_preferences_meta_v1(account_id,revision) VALUES(?1,?2) ON CONFLICT(account_id) DO NOTHING",
+                params![request.account_id, expected],
+            ))?;
             sql(tx.execute("INSERT INTO account_channel_preferences_v1 VALUES(?1,?2,?3,?4,?5) ON CONFLICT(account_id,channel_id) DO UPDATE SET favorite=excluded.favorite,removed=excluded.removed,category=excluded.category",params![request.account_id,id,next.favorite,next.removed,next.category]))?;
         }
         changed
@@ -392,7 +421,13 @@ pub(crate) fn commit(
         if expected == i64::MAX {
             return Err("account-preferences-revision-exhausted".into());
         }
-        if sql(tx.execute("UPDATE account_preferences_meta_v1 SET revision=revision+1 WHERE account_id=?1 AND revision=?2",params![request.account_id,expected]))?!=1 { return Err("account-preferences-revision-conflict".into()); }
+        if sql(tx.execute(
+            "UPDATE account_preferences_meta_v1 SET revision=revision+1 WHERE account_id=?1 AND revision=?2",
+            params![request.account_id, expected],
+        ))? != 1
+        {
+            return Err("account-preferences-revision-conflict".into());
+        }
         bounds(&tx, &request.account_id)?;
         expected + 1
     } else {

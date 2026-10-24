@@ -58,7 +58,10 @@ fn corrupt_review_or_progress_is_never_replacement_authority() {
 }
 #[test]
 fn replacement_remains_unavailable_to_ipc_and_cancellation_is_preserved() {
-    assert!(serde_json::from_value::<Mutation>(json!({"kind":"replace","checkpoint":"{}","prior_job_id":null,"prior_review_digest":null,"allow_unfinished":true})).is_err());
+    assert!(serde_json::from_value::<Mutation>(
+        json!({"kind":"replace","checkpoint":"{}","prior_job_id":null,"prior_review_digest":null,"allow_unfinished":true})
+    )
+    .is_err());
     assert_eq!(
         full_recheck_replacement_identity(&retained(), DAY * 3, &mut || Err(
             "fixture-canceled".into()

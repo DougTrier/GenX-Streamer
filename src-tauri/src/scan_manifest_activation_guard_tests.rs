@@ -329,13 +329,21 @@ fn autocommit_guard_seeks_keep_one_snapshot_during_concurrent_revision_change() 
     c.execute_batch("CREATE TABLE scan_manifest_replacement(manifest_id TEXT,prior_job_id TEXT,prior_review_digest TEXT,catalog_revision INTEGER,checkpoint_revision INTEGER,allow_unfinished INTEGER);INSERT INTO scan_manifest_replacement VALUES('m','job','digest',2,3,0);CREATE TABLE scan_checkpoint(singleton INTEGER,job_id TEXT,contents TEXT);INSERT INTO scan_checkpoint VALUES(1,'job','{\"reviewDigest\":\"digest\"}');").unwrap();
     let fired = Arc::new(AtomicBool::new(false));
     let owned = fired.clone();
-    c.progress_handler(50,Some(move || {
-        if !owned.swap(true,Ordering::SeqCst) {
-            let writer=Connection::open(&path).unwrap();
-            writer.execute_batch("BEGIN IMMEDIATE;UPDATE source_snapshot_source SET revision=2;UPDATE scan_checkpoint SET job_id='new';COMMIT;").unwrap();
-        }
-        false
-    })).unwrap();
+    c.progress_handler(
+        50,
+        Some(move || {
+            if !owned.swap(true, Ordering::SeqCst) {
+                let writer = Connection::open(&path).unwrap();
+                writer
+                    .execute_batch(
+                        "BEGIN IMMEDIATE;UPDATE source_snapshot_source SET revision=2;UPDATE scan_checkpoint SET job_id='new';COMMIT;",
+                    )
+                    .unwrap();
+            }
+            false
+        }),
+    )
+    .unwrap();
     let v = serde_json::json!({});
     let context = crate::scan_candidate_manifest::Context {
         preferences: &v,

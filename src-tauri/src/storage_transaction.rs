@@ -137,8 +137,16 @@ mod public_archive_migration_tests {
             [&tr],
         )
         .unwrap();
-        tx.execute("INSERT INTO archive_removal_v1 VALUES('file',?1,'legacy',?2,'Hidden file','hidden.mp4',1)",params!["b".repeat(64),tr]).unwrap();
-        tx.execute("INSERT INTO archive_bookmark_v1 VALUES(?1,'legacy','movie.mp4','100',?2,1000,5000,0,1)",params![fr,"a".repeat(40)]).unwrap();
+        tx.execute(
+            "INSERT INTO archive_removal_v1 VALUES('file',?1,'legacy',?2,'Hidden file','hidden.mp4',1)",
+            params!["b".repeat(64), tr],
+        )
+        .unwrap();
+        tx.execute(
+            "INSERT INTO archive_bookmark_v1 VALUES(?1,'legacy','movie.mp4','100',?2,1000,5000,0,1)",
+            params![fr, "a".repeat(40)],
+        )
+        .unwrap();
         tx.execute_batch("PRAGMA user_version=15").unwrap();
         tx.commit().unwrap();
         let before = ia_snapshot(&c);
@@ -1022,7 +1030,8 @@ fn validate_content_library_schema(c: &Connection) -> Result<(), String> {
     // including when no preference row is present.
     let invalid: i64 = sql(c.query_row(
         "SELECT count(*) FROM preference WHERE content_library IS NOT NULL AND content_library NOT IN ('live','genxtra')",
-        [], |r| r.get(0),
+        [],
+        |r| r.get(0),
     ))?;
     if invalid != 0 {
         return Err("sqlite-invalid-content-library".into());
@@ -1145,7 +1154,11 @@ fn inspect_database_with_access(
             }
         }
         if (14..=16).contains(&version) {
-            let removals:i64=inspect_sql(tx.query_row("SELECT count(*) FROM sqlite_schema WHERE type='table' AND name='archive_removal_v1'",[],|r|r.get(0)))?;
+            let removals: i64 = inspect_sql(tx.query_row(
+                "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name='archive_removal_v1'",
+                [],
+                |r| r.get(0),
+            ))?;
             if removals != 1 {
                 return Err(InspectionFailure::Refused(
                     "sqlite-incomplete-archive-schema",
@@ -1153,7 +1166,11 @@ fn inspect_database_with_access(
             }
         }
         if (15..=16).contains(&version) {
-            let bookmarks:i64=inspect_sql(tx.query_row("SELECT count(*) FROM sqlite_schema WHERE type='table' AND name IN ('archive_bookmark_meta_v1','archive_bookmark_v1')",[],|r|r.get(0)))?;
+            let bookmarks: i64 = inspect_sql(tx.query_row(
+                "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name IN ('archive_bookmark_meta_v1','archive_bookmark_v1')",
+                [],
+                |r| r.get(0),
+            ))?;
             if bookmarks != 2 {
                 return Err(InspectionFailure::Refused(
                     "sqlite-incomplete-archive-bookmark-schema",
@@ -1466,9 +1483,11 @@ impl PairStore {
         drop(c);
         library::ArchiveStore::open_locked(lease, &binding, &mut || Ok(()))
     }
+    #[cfg(test)]
     pub fn new(root: PathBuf) -> Result<Self, String> {
         Self::new_existing(root, false)
     }
+    #[cfg(test)]
     pub(crate) fn new_existing(root: PathBuf, require_database: bool) -> Result<Self, String> {
         refuse_link(&root)?;
         if !root.is_dir() {
@@ -1520,9 +1539,7 @@ impl PairStore {
         s.recover_observed_locked(lease, &mut |_| {})?;
         Ok(s)
     }
-    pub fn recover(&self) -> Result<(), String> {
-        self.recover_observed(|_| {})
-    }
+    #[cfg(test)]
     fn recover_observed(&self, mut observe: impl FnMut(RecoveryPhase)) -> Result<(), String> {
         let lease = crate::archive_library_store::lock_root(&self.root)?;
         self.recover_observed_locked(&lease, &mut observe)
@@ -1889,6 +1906,7 @@ impl PairStore {
         // a post-callback cancellation check.
         write(&mut c, &mut check)
     }
+    #[cfg(test)]
     pub(crate) fn write_archive_bookmark_checked(
         &self,
         proof: &crate::archive_bookmarks::Proof,
@@ -1899,7 +1917,7 @@ impl PairStore {
         check()?;
         let mut c = connect(&self.root.join(DB), false)?;
         if let Some(receipt) =
-            crate::archive_bookmarks::preflight_save(&mut c, proof, revision, position, &check)?
+            crate::archive_bookmarks::preflight_save(&c, proof, revision, position, &check)?
         {
             return Ok(receipt);
         }
@@ -2315,7 +2333,8 @@ impl PairStore {
         action: impl FnOnce(&crate::scan_candidate_manifest::Context<'_>) -> Result<T, String>,
     ) -> Result<T, String> {
         // Only authority fields are needed per page: no channel/URL/health/checkpoint body read.
-        let mut sources_stmt=sql(c.prepare("SELECT id,name,kind,location,allow_http,content_kind,media_mime FROM source ORDER BY ordinal LIMIT 101"))?;
+        let mut sources_stmt =
+            sql(c.prepare("SELECT id,name,kind,location,allow_http,content_kind,media_mime FROM source ORDER BY ordinal LIMIT 101"))?;
         let sources=sql(sources_stmt.query_map([],|r|{
             let mut value=json!({"id":r.get::<_,String>(0)?,"name":r.get::<_,String>(1)?,"kind":r.get::<_,String>(2)?,"location":r.get::<_,String>(3)?});
             if r.get::<_,bool>(4)?{value["allowHttp"]=json!(true);}
@@ -2352,7 +2371,11 @@ impl PairStore {
             [],
             |r| r.get(0),
         ))?;
-        let exists:bool=sql(c.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='scan_checkpoint')",[],|r|r.get(0)))?;
+        let exists: bool = sql(c.query_row(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='scan_checkpoint')",
+            [],
+            |r| r.get(0),
+        ))?;
         let checkpoint_revision = if exists {
             sql(c.query_row(
                 "SELECT revision FROM scan_checkpoint WHERE singleton=1",
@@ -2894,10 +2917,27 @@ impl PairStore {
             [],
             |r| Ok((r.get(0)?, r.get(1)?)),
         ))?;
-        let mut source_stmt=sql(c.prepare("SELECT id,name,location,kind,allow_http,content_kind,media_mime FROM source ORDER BY ordinal"))?;
-        let sources=sql(source_stmt.query_map([],|r|{let mut v=json!({"id":r.get::<_,String>(0)?,"name":r.get::<_,String>(1)?,"location":r.get::<_,String>(2)?,"kind":r.get::<_,String>(3)?});let http:bool=r.get(4)?;if http{v["allowHttp"]=json!(true);}
-if let Some(kind)=r.get::<_,Option<String>>(5)?{v["contentKind"]=json!(kind);}
-if let Some(mime)=r.get::<_,Option<String>>(6)?{v["mediaMime"]=json!(mime);}Ok(v)}))?.collect::<rusqlite::Result<Vec<_>>>();
+        let mut source_stmt =
+            sql(c.prepare("SELECT id,name,location,kind,allow_http,content_kind,media_mime FROM source ORDER BY ordinal"))?;
+        let sources = sql(source_stmt.query_map([], |r| {
+            let id: String = r.get(0)?;
+            let name: String = r.get(1)?;
+            let location: String = r.get(2)?;
+            let kind: String = r.get(3)?;
+            let mut v = json!({ "id": id, "name": name, "location": location, "kind": kind });
+            let http: bool = r.get(4)?;
+            if http {
+                v["allowHttp"] = json!(true);
+            }
+            if let Some(kind) = r.get::<_, Option<String>>(5)? {
+                v["contentKind"] = json!(kind);
+            }
+            if let Some(mime) = r.get::<_, Option<String>>(6)? {
+                v["mediaMime"] = json!(mime);
+            }
+            Ok(v)
+        }))?
+        .collect::<rusqlite::Result<Vec<_>>>();
         let sources = sql(sources)?;
         let catalog = if cp {
             let mut stmt = sql(c.prepare(
@@ -2965,7 +3005,11 @@ if let Some(mime)=r.get::<_,Option<String>>(6)?{v["mediaMime"]=json!(mime);}Ok(v
                 |r| r.get::<_, i64>(0),
             ))? >= 6
             {
-                sql(c.query_row("SELECT auto_source_refresh,source_refresh_attempt_at FROM preference WHERE singleton=1", [], |r| Ok((r.get(0)?,r.get(1)?))))?
+                sql(c.query_row(
+                    "SELECT auto_source_refresh,source_refresh_attempt_at FROM preference WHERE singleton=1",
+                    [],
+                    |r| Ok((r.get(0)?, r.get(1)?)),
+                ))?
             } else {
                 (false, 0)
             };
@@ -2980,7 +3024,11 @@ if let Some(mime)=r.get::<_,Option<String>>(6)?{v["mediaMime"]=json!(mime);}Ok(v
                 pref["sourceRefreshCadence"] = json!(cadence);
             }
             if sql(c.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)))? >= 7 {
-                let stored_extensions: (Option<String>,Option<String>,Option<String>)=sql(c.query_row("SELECT reviewed_channel_providers,reviewed_guide_providers,preferred_region FROM preference WHERE singleton=1",[],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))))?;
+                let stored_extensions: (Option<String>, Option<String>, Option<String>) = sql(c.query_row(
+                    "SELECT reviewed_channel_providers,reviewed_guide_providers,preferred_region FROM preference WHERE singleton=1",
+                    [],
+                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+                ))?;
                 extensions = [
                     stored_extensions.0,
                     stored_extensions.1,
@@ -3389,7 +3437,13 @@ if let Some(mime)=r.get::<_,Option<String>>(6)?{v["mediaMime"]=json!(mime);}Ok(v
                 ],
             ))?;
             if sql(tx.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)))? >= 6 {
-                sql(tx.execute("UPDATE preference SET auto_source_refresh=?1,source_refresh_attempt_at=?2 WHERE singleton=1", params![crate::refresh_cadence::from_preferences(&pref)? != crate::refresh_cadence::Cadence::Off,pref["sourceRefreshAttemptAt"].as_f64().unwrap_or(0.0) as i64]))?;
+                sql(tx.execute(
+                    "UPDATE preference SET auto_source_refresh=?1,source_refresh_attempt_at=?2 WHERE singleton=1",
+                    params![
+                        crate::refresh_cadence::from_preferences(&pref)? != crate::refresh_cadence::Cadence::Off,
+                        pref["sourceRefreshAttemptAt"].as_f64().unwrap_or(0.0) as i64
+                    ],
+                ))?;
             }
             if sql(tx.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)))? >= 8 {
                 sql(tx.execute(
@@ -3404,7 +3458,14 @@ if let Some(mime)=r.get::<_,Option<String>>(6)?{v["mediaMime"]=json!(mime);}Ok(v
                         .transpose()
                         .map_err(|_| "record-encoding-failed".into())
                 };
-                sql(tx.execute("UPDATE preference SET reviewed_channel_providers=?1,reviewed_guide_providers=?2,preferred_region=?3 WHERE singleton=1",params![json_field("reviewedChannelProviders")?,json_field("reviewedGuideProviders")?,json_field("preferredRegion")?]))?;
+                sql(tx.execute(
+                    "UPDATE preference SET reviewed_channel_providers=?1,reviewed_guide_providers=?2,preferred_region=?3 WHERE singleton=1",
+                    params![
+                        json_field("reviewedChannelProviders")?,
+                        json_field("reviewedGuideProviders")?,
+                        json_field("preferredRegion")?
+                    ],
+                ))?;
                 sql(tx.execute(
                     "UPDATE preference SET voice_search_consent=?1 WHERE singleton=1",
                     params![pref.get("voiceSearchConsent").and_then(Value::as_bool)],
@@ -3512,7 +3573,10 @@ if let Some(mime)=r.get::<_,Option<String>>(6)?{v["mediaMime"]=json!(mime);}Ok(v
                     catalog_changed || identity_changed || categories_changed,
                 )?;
             }
-            sql(tx.execute("UPDATE metadata SET catalog_revision=catalog_revision+?1,health_revision=health_revision+?2 WHERE singleton=1",params![catalog_changed,health_changed]))?;
+            sql(tx.execute(
+                "UPDATE metadata SET catalog_revision=catalog_revision+?1,health_revision=health_revision+?2 WHERE singleton=1",
+                params![catalog_changed, health_changed],
+            ))?;
         }
         if p.catalog.is_some() || p.preferences.is_some() {
             sql(tx.execute(
@@ -3888,7 +3952,11 @@ mod tests {
             c.execute_batch(SCHEMA).unwrap();
             PairStore::apply(&mut c, &original, |_| Ok(())).unwrap();
             crate::guide::database::migrate(&mut c).unwrap();
-            c.execute("INSERT INTO guide_source VALUES('guide','Saved guide','fixture','file',0,1,NULL,0)",[]).unwrap();
+            c.execute(
+                "INSERT INTO guide_source VALUES('guide','Saved guide','fixture','file',0,1,NULL,0)",
+                [],
+            )
+            .unwrap();
         }
         let store = PairStore::new(root.path().into()).unwrap();
         store
@@ -4279,7 +4347,9 @@ mod tests {
             .unwrap();
         // Confirm this is real SQLITE_FULL, rather than an arbitrary injected
         // application error. Only this owned connection's page budget changes.
-        let full = connection.execute_batch("CREATE TABLE full_probe(value BLOB); INSERT INTO full_probe VALUES(zeroblob(1048576));").unwrap_err();
+        let full = connection
+            .execute_batch("CREATE TABLE full_probe(value BLOB); INSERT INTO full_probe VALUES(zeroblob(1048576));")
+            .unwrap_err();
         assert_eq!(
             full.sqlite_error_code(),
             Some(rusqlite::ErrorCode::DiskFull)
@@ -4462,7 +4532,7 @@ mod migration_and_lock_tests {
                 h.update([0]);
             }
         }
-        let text=json!({"schemaVersion":1,"revision":7,"records":records,"checksum":format!("{:x}",h.finalize())}).to_string();
+        let text = json!({"schemaVersion":1,"revision":7,"records":records,"checksum":format!("{:x}",h.finalize())}).to_string();
         let path = root.path().join("record-pair.json");
         std::fs::write(&path, &text).unwrap();
         let store = PairStore::new(root.path().into()).unwrap();
@@ -4496,7 +4566,9 @@ mod migration_and_lock_tests {
         let root = tempfile::tempdir().unwrap();
         let store = PairStore::new(root.path().into()).unwrap();
         let channels:Vec<Value>=(0..100000).map(|i|json!({"id":format!("c{i}"),"sourceId":"s","name":format!("Fixture {i}"),"category":"Sports","urls":[format!("https://example.invalid/live/{i}")]})).collect();
-        let catalog=json!({"schemaVersion":1,"sources":[{"id":"s","name":"Fixture","kind":"file","location":"fixture"}],"channels":channels}).to_string();
+        let catalog =
+            json!({"schemaVersion":1,"sources":[{"id":"s","name":"Fixture","kind":"file","location":"fixture"}],"channels":channels})
+                .to_string();
         assert!(catalog.len() as u64 <= LIMIT);
         let start = std::time::Instant::now();
         store.write("catalog", &catalog).unwrap();
@@ -4535,8 +4607,17 @@ mod migration_and_lock_tests {
             assert!(!serde_json::to_string(&page).unwrap().contains("https://"));
         }
         times.sort_unstable();
-        println!("native catalog indexed fixture scope=host-SQL-only samples=30 warm_p95_us={} query=common-title no_UI_IPC_hardware_acceptance",times[28]);
-        println!("sqlite fixture seed=0 channels=100000 input_bytes={} write_ms={} full_json_read_ms={} sqlite_bytes={}",catalog.len(),write_ms,read_ms,std::fs::metadata(root.path().join(DB)).unwrap().len());
+        println!(
+            "native catalog indexed fixture scope=host-SQL-only samples=30 warm_p95_us={} query=common-title no_UI_IPC_hardware_acceptance",
+            times[28]
+        );
+        println!(
+            "sqlite fixture seed=0 channels=100000 input_bytes={} write_ms={} full_json_read_ms={} sqlite_bytes={}",
+            catalog.len(),
+            write_ms,
+            read_ms,
+            std::fs::metadata(root.path().join(DB)).unwrap().len()
+        );
     }
 }
 

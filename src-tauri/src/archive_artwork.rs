@@ -140,7 +140,7 @@ fn jpeg(bytes: &[u8]) -> Result<(u32, u32), String> {
         if marker == 0xe2 && bytes.get(offset + 2..offset + 6) == Some(b"MPF\0") {
             return Err("archive-artwork-format-refused".into());
         }
-        if matches!(marker, 0xc0 | 0xc1 | 0xc2) {
+        if matches!(marker, 0xc0..=0xc2) {
             if size.is_some() || length < 8 {
                 return Err("archive-artwork-format-refused".into());
             }

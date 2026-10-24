@@ -32,13 +32,24 @@ fn seed(store: &Store) -> Result<(), String> {
     let preferences = serde_json::json!({"schemaVersion":1,"sources":[source],"favorites":[],"removedChannels":[],"volume":0.5,"muted":true,"panelWidth":360.0,"automaticGuideUpdates":false}).to_string();
     store.write_guarded(&catalog, &preferences, None, (None, None), || Ok(()))?;
     store.with_guide_write(|c| {
-        db::save_source(c, &db::GuideSource {
-            id: "guide".into(), name: "Selected guide".into(),
-            location: "https://fixture.invalid/guide".into(), kind: "url".into(),
-            allow_http: false, revision: 0, updated_ms: None,
-        }, 0)?;
-        c.execute("INSERT INTO guide_channel(guide_source_id,id,names_json,search_names) VALUES('guide','selected','[\"Selected\"]','selected')", [])
-            .map_err(|_| "fixture-guide-header")?;
+        db::save_source(
+            c,
+            &db::GuideSource {
+                id: "guide".into(),
+                name: "Selected guide".into(),
+                location: "https://fixture.invalid/guide".into(),
+                kind: "url".into(),
+                allow_http: false,
+                revision: 0,
+                updated_ms: None,
+            },
+            0,
+        )?;
+        c.execute(
+            "INSERT INTO guide_channel(guide_source_id,id,names_json,search_names) VALUES('guide','selected','[\"Selected\"]','selected')",
+            [],
+        )
+        .map_err(|_| "fixture-guide-header")?;
         Ok(())
     })
 }

@@ -25,7 +25,11 @@ fn sql<T>(r: rusqlite::Result<T>) -> Result<T, String> {
     })
 }
 pub fn present(c: &Connection) -> Result<bool, String> {
-    sql(c.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='table' AND name='catalog_endpoint_projection_v1')", [], |r| r.get(0)))
+    sql(c.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='table' AND name='catalog_endpoint_projection_v1')",
+        [],
+        |r| r.get(0),
+    ))
 }
 /// Caller owns the backed schema migration and its transaction/revision fence.
 pub fn install(tx: &Transaction<'_>) -> Result<(), String> {
@@ -130,7 +134,10 @@ fn collect(
     Ok(changed)
 }
 pub fn rebuild(tx: &Transaction<'_>) -> Result<bool, String> {
-    let deleted = sql(tx.execute("DELETE FROM catalog_endpoint_projection_v1 WHERE channel_id NOT IN(SELECT id FROM channel)", []))? > 0;
+    let deleted = sql(tx.execute(
+        "DELETE FROM catalog_endpoint_projection_v1 WHERE channel_id NOT IN(SELECT id FROM channel)",
+        [],
+    ))? > 0;
     Ok(collect(tx, None, &mut 0, &mut 0)? || deleted)
 }
 /// Compact ACK changes only supplied identities; transaction rollback handles failure.
@@ -147,7 +154,10 @@ pub fn reconcile(tx: &Transaction<'_>, ids: &[String]) -> Result<bool, String> {
     let mut count = 0;
     let mut changed = false;
     for id in ids {
-        changed |= sql(tx.execute("DELETE FROM catalog_endpoint_projection_v1 WHERE channel_id=?1 AND NOT EXISTS(SELECT 1 FROM channel WHERE id=?1)", [id]))? > 0;
+        changed |= sql(tx.execute(
+            "DELETE FROM catalog_endpoint_projection_v1 WHERE channel_id=?1 AND NOT EXISTS(SELECT 1 FROM channel WHERE id=?1)",
+            [id],
+        ))? > 0;
         changed |= collect(tx, Some(id), &mut bytes, &mut count)?;
     }
     Ok(changed)
@@ -157,26 +167,6 @@ pub fn reconcile(tx: &Transaction<'_>, ids: &[String]) -> Result<bool, String> {
 /// admitted 100k canonical rows, avoiding quadratic pairwise conflict scans.
 pub const MEMBERS_CTE: &str = "WITH endpoint_members AS MATERIALIZED(SELECT e.channel_id,e.endpoint_key,c.ordinal,EXISTS(SELECT 1 FROM favorite f WHERE f.id=c.id) AS preferred,(SELECT o.category FROM channel_category_override o WHERE o.channel_id=c.id) AS custom_category,(SELECT m.guide_source_id FROM guide_mapping m WHERE m.app_channel_id=c.id AND m.catalog_source_id=c.source_id) AS guide_source,(SELECT m.xmltv_channel_id FROM guide_mapping m WHERE m.app_channel_id=c.id AND m.catalog_source_id=c.source_id) AS guide_channel,ROW_NUMBER() OVER(PARTITION BY e.endpoint_key,EXISTS(SELECT 1 FROM favorite f WHERE f.id=c.id),(SELECT o.category FROM channel_category_override o WHERE o.channel_id=c.id),(SELECT m.guide_source_id FROM guide_mapping m WHERE m.app_channel_id=c.id AND m.catalog_source_id=c.source_id),(SELECT m.xmltv_channel_id FROM guide_mapping m WHERE m.app_channel_id=c.id AND m.catalog_source_id=c.source_id) ORDER BY c.ordinal,c.id) AS position FROM catalog_endpoint_projection_v1 e JOIN channel c ON c.id=e.channel_id WHERE NOT EXISTS(SELECT 1 FROM removed r WHERE r.id=c.id)) ";
 pub const SAME_GROUP: &str = "am.endpoint_key=em.endpoint_key AND am.preferred=em.preferred AND am.custom_category IS em.custom_category AND am.guide_source IS em.guide_source AND am.guide_channel IS em.guide_channel";
-/// Bounded opaque identities only; never exposes endpoint keys or stream URLs.
-/// Callers must separately retain source grants and current mutation fences.
-pub fn members(
-    c: &Connection,
-    id: &str,
-    after: Option<&str>,
-    limit: usize,
-) -> Result<Vec<String>, String> {
-    if id.is_empty()
-        || id.len() > 16_384
-        || !(1..=64).contains(&limit)
-        || after.is_some_and(|s| s.len() > 16_384)
-    {
-        return Err("catalog-endpoint-invalid-scope".into());
-    }
-    let query = format!("{MEMBERS_CTE} SELECT am.channel_id FROM endpoint_members em JOIN endpoint_members am ON {SAME_GROUP} WHERE em.channel_id=?1 AND (?2 IS NULL OR am.channel_id>?2) ORDER BY am.channel_id LIMIT ?3");
-    let mut statement = sql(c.prepare(&query))?;
-    let rows = sql(statement.query_map(params![id, after, limit as i64], |r| r.get(0)))?;
-    sql(rows.collect())
-}
 pub fn representative(c: &Connection, id: &str) -> Result<Option<String>, String> {
     use rusqlite::OptionalExtension;
     if id.is_empty() || id.len() > 16_384 {

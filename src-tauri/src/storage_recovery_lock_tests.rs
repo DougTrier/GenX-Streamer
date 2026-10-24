@@ -25,10 +25,16 @@ fn exclusive_startup_lock_does_not_restore_stale_backup() {
     let store = PairStore::new(root.path().into()).unwrap();
     let catalog = r#"{"schemaVersion":1,"sources":[],"channels":[]}"#;
     store
-        .write_pair(catalog, r#"{"schemaVersion":1,"sources":[],"favorites":[],"removedChannels":[],"volume":0.5,"muted":false,"panelWidth":300.0}"#)
+        .write_pair(
+            catalog,
+            r#"{"schemaVersion":1,"sources":[],"favorites":[],"removedChannels":[],"volume":0.5,"muted":false,"panelWidth":300.0}"#,
+        )
         .unwrap();
     store
-        .write_pair(catalog, r#"{"schemaVersion":1,"sources":[],"favorites":[],"removedChannels":[],"volume":0.6,"muted":false,"panelWidth":300.0}"#)
+        .write_pair(
+            catalog,
+            r#"{"schemaVersion":1,"sources":[],"favorites":[],"removedChannels":[],"volume":0.6,"muted":false,"panelWidth":300.0}"#,
+        )
         .unwrap();
     let main = root.path().join(DB);
     let backup = root.path().join(BACKUP);

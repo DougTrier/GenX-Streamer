@@ -109,7 +109,15 @@ async fn client_for_host(
             let _ = task.await;
             return Err(error);
         }
-        tokio::select! {r=&mut task=>{let result=r.map_err(|_|"archive-dns-unavailable")?.map_err(str::to_owned)?;check(owner,deadline)?;break result;},_=tokio::time::sleep(Duration::from_millis(50))=>{}}
+        tokio::select! {
+            r=&mut task => {
+                let result=r.map_err(|_|"archive-dns-unavailable")?.map_err(str::to_owned)?;
+                check(owner,deadline)?;
+                break result;
+            }
+            _=tokio::time::sleep(Duration::from_millis(50)) => {
+            }
+        }
     };
     // OS DNS is joined on cancellation/expiry; admission deadline is not an OS kill.
     Client::builder()
@@ -286,7 +294,7 @@ fn servers(v: &Value) -> Vec<String> {
     out
 }
 enum Metadata {
-    Title(catalog::PreparedTitle),
+    Title(Box<catalog::PreparedTitle>),
     Deleted,
     UnknownYear,
     Unavailable,
@@ -498,7 +506,7 @@ fn parse_metadata_page(
         return Err("archive-search-metadata-limit".into());
     }
     // Item identity is retained; never merge different uploads by a series label.
-    Ok(Metadata::Title(catalog::PreparedTitle {
+    Ok(Metadata::Title(Box::new(catalog::PreparedTitle {
         partial,
         item_id: id.to_owned(),
         title,
@@ -510,7 +518,7 @@ fn parse_metadata_page(
         servers: servers(&v),
         all_file_names: names,
         files: prepared,
-    }))
+    })))
 }
 fn append_search_aliases(out: &mut String, value: &Value) -> Result<(), String> {
     let values: Vec<&Value> = match value {
@@ -752,6 +760,9 @@ fn parse_partial_header(id: &str, values: &[Value]) -> Result<PartialHeader, Str
         fingerprint,
     })
 }
+// The item's page position (capture, restart, curation year) and the fetch
+// limits (owner, deadline, budget) are used independently of each other.
+#[allow(clippy::too_many_arguments)]
 async fn acquire_file_page(
     client: &Client,
     id: &str,
@@ -959,7 +970,7 @@ async fn acquire(owner: Arc<Context>, r: &StepRequest) -> Result<catalog::Prepar
                             if t.files.is_empty() {
                                 step.unavailable += 1;
                             }
-                            step.titles.push(t);
+                            step.titles.push(*t);
                         }
                         Ok(false) => step.unavailable += 1,
                         Err(error) => query_error = Some(error),
@@ -1000,7 +1011,11 @@ pub async fn archive_discover_step(
         tokio::pin!(pending);
         let _step_owner = loop {
             check(&owner, admission)?;
-            tokio::select! {guard=&mut pending=>break guard,_=tokio::time::sleep(Duration::from_millis(50))=>{}}
+            tokio::select! {
+                guard=&mut pending => break guard,
+                _=tokio::time::sleep(Duration::from_millis(50)) => {
+                }
+            }
         };
         let captured = request.clone();
         let hash = query_hash.clone();
@@ -1024,19 +1039,29 @@ pub async fn archive_discover_step(
         let (receipt, _) = owner
             .storage(Some(generation), move |s, check| {
                 check()?;
-                s.with_archive_write_checked(&request.expected_revision, |_| Ok(None), |c, check| {
-                    catalog::commit_view(
-                        c,
-                        &request.expected_revision,
-                        request.year,
-                        request.page,
-                        &query_hash,
-                        request.restart,
-                        step,
-                        request.view.as_ref().map(|view| (request.query.as_str(), request.decade, view)),
-                        check,
-                    )
-                }, check)
+                s.with_archive_write_checked(
+                    &request.expected_revision,
+                    |_| Ok(None),
+                    |c, check| {
+                        catalog::commit_view(
+                            c,
+                            &request.expected_revision,
+                            catalog::SearchPage {
+                                year: request.year,
+                                page: request.page,
+                                query_hash: &query_hash,
+                                restart: request.restart,
+                            },
+                            step,
+                            request
+                                .view
+                                .as_ref()
+                                .map(|view| (request.query.as_str(), request.decade, view)),
+                            check,
+                        )
+                    },
+                    check,
+                )
             })
             .await?;
         Ok(receipt)
@@ -1063,23 +1088,92 @@ pub async fn archive_item_files_step(
     request: catalog::FileStepRequest,
     app: tauri::AppHandle,
 ) -> Result<catalog::FileStepReceipt, String> {
-    scan_manifest_work::owned(request.request_id.clone(),app,move |owner|async move {
-        let deadline=Instant::now()+Duration::from_secs(20);
-        let pending=DISCOVERY_OWNER.lock();tokio::pin!(pending);
-        let _guard=loop {check(&owner,deadline)?;tokio::select!{g=&mut pending=>break g,_=tokio::time::sleep(Duration::from_millis(50))=>{}}};
-        let captured_request=request.clone();
-        let (capture,generation)=owner.storage(None,move |s,check| {check()?;s.with_archive_read(|c|catalog::item_prepare(c,&captured_request))}).await?;
-        let client=client(&owner,deadline).await?;
-        let budget=Arc::new(AtomicUsize::new(0));
-        let result=acquire_file_page(&client,&capture.item_id,capture.downloads,owner.clone(),deadline,budget,Some(&capture.page),request.restart,capture.page.curation_year).await?;
-        let Metadata::Title(title)=result else {return Err("archive-item-unavailable".into());};
-        check(&owner,deadline)?;
-        let year=capture.page.curation_year;
-        let step=catalog::PreparedStep {item_page:true,titles:vec![title],deleted:Vec::new(),examined:1,unknown_year:0,transient_failures:0,unavailable:0,capacity_reached:false,next_page:None,observed_ms:catalog::now_ms()?};
-        let (receipt,_)=owner.storage(Some(generation),move |s,check|s.with_archive_write_checked(&request.expected_revision, |_| Ok(None), |c,check|catalog::commit(c,&request.expected_revision,year,1,"item-page",false,step,check),check)).await?;
-        let progress=receipt.file_page_progress.ok_or("archive-committed-receipt-invalid")?;
-        Ok(catalog::FileStepReceipt {schema_version:1,committed:true,revision:receipt.revision,progress,admitted:receipt.files_admitted,confirmed_dead:0})
-    }).await
+    scan_manifest_work::owned(request.request_id.clone(), app, move |owner| async move {
+        let deadline = Instant::now() + Duration::from_secs(20);
+        let pending = DISCOVERY_OWNER.lock();
+        tokio::pin!(pending);
+        let _guard = loop {
+            check(&owner, deadline)?;
+            tokio::select! {
+                g=&mut pending => break g,
+                _=tokio::time::sleep(Duration::from_millis(50)) => {
+                }
+            }
+        };
+        let captured_request = request.clone();
+        let (capture, generation) = owner
+            .storage(None, move |s, check| {
+                check()?;
+                s.with_archive_read(|c| catalog::item_prepare(c, &captured_request))
+            })
+            .await?;
+        let client = client(&owner, deadline).await?;
+        let budget = Arc::new(AtomicUsize::new(0));
+        let result = acquire_file_page(
+            &client,
+            &capture.item_id,
+            capture.downloads,
+            owner.clone(),
+            deadline,
+            budget,
+            Some(&capture.page),
+            request.restart,
+            capture.page.curation_year,
+        )
+        .await?;
+        let Metadata::Title(title) = result else {
+            return Err("archive-item-unavailable".into());
+        };
+        check(&owner, deadline)?;
+        let year = capture.page.curation_year;
+        let step = catalog::PreparedStep {
+            item_page: true,
+            titles: vec![*title],
+            deleted: Vec::new(),
+            examined: 1,
+            unknown_year: 0,
+            transient_failures: 0,
+            unavailable: 0,
+            capacity_reached: false,
+            next_page: None,
+            observed_ms: catalog::now_ms()?,
+        };
+        let (receipt, _) = owner
+            .storage(Some(generation), move |s, check| {
+                s.with_archive_write_checked(
+                    &request.expected_revision,
+                    |_| Ok(None),
+                    |c, check| {
+                        catalog::commit(
+                            c,
+                            &request.expected_revision,
+                            catalog::SearchPage {
+                                year,
+                                page: 1,
+                                query_hash: "item-page",
+                                restart: false,
+                            },
+                            step,
+                            check,
+                        )
+                    },
+                    check,
+                )
+            })
+            .await?;
+        let progress = receipt
+            .file_page_progress
+            .ok_or("archive-committed-receipt-invalid")?;
+        Ok(catalog::FileStepReceipt {
+            schema_version: 1,
+            committed: true,
+            revision: receipt.revision,
+            progress,
+            admitted: receipt.files_admitted,
+            confirmed_dead: 0,
+        })
+    })
+    .await
 }
 #[tauri::command]
 pub async fn archive_remove_title(
@@ -1490,7 +1584,6 @@ pub(crate) struct VerifiedFile {
     pub url: Url,
     pub allowed_hosts: Vec<String>,
     pub size_bytes: u64,
-    pub duration_seconds: Option<f64>,
     pub expected_tail: String,
     pub public: Option<crate::archive_provider_discovery::ExactMedia>,
     pub mime: &'static str,
@@ -1627,7 +1720,7 @@ impl MissingEvidence {
     }
 }
 pub(crate) enum FileVerification {
-    File(VerifiedFile),
+    File(Box<VerifiedFile>),
     Missing(MissingEvidence),
 }
 pub(crate) async fn verify_file(
@@ -1644,7 +1737,7 @@ pub(crate) async fn verify_file_with_deadline(
     if let Some(public) = &file.public {
         return crate::archive_provider_discovery::verify(owner, public, deadline)
             .await
-            .map(FileVerification::File);
+            .map(|file| FileVerification::File(Box::new(file)));
     }
     let client = client(&owner, deadline).await?;
     let (parsed, route) = if let Some(index) = file.provider_index {
@@ -1701,15 +1794,14 @@ pub(crate) async fn verify_file_with_deadline(
     }
     let route = route.ok_or("archive-file-route-unverified")?;
     owner.check()?;
-    Ok(FileVerification::File(VerifiedFile {
+    Ok(FileVerification::File(Box::new(VerifiedFile {
         url: route.url,
         allowed_hosts: route.hosts,
         expected_tail: route.tail,
         size_bytes: current.size.parse().map_err(|_| "archive-file-invalid")?,
-        duration_seconds: current.duration,
         public: None,
         mime: "video/mp4",
-    }))
+    })))
 }
 async fn verify_partial_file(
     client: &Client,
@@ -2331,9 +2423,8 @@ mod tests {
         ] {
             let mut candidate = old.clone();
             candidate["view"] = value;
-            match serde_json::from_value::<StepRequest>(candidate) {
-                Ok(request) => assert!(validate(&request).is_err()),
-                Err(_) => {}
+            if let Ok(request) = serde_json::from_value::<StepRequest>(candidate) {
+                assert!(validate(&request).is_err());
             }
         }
     }

@@ -136,7 +136,15 @@ async fn client(owner: &Arc<Context>, deadline: Instant, host: &str) -> Result<C
             let _ = task.await;
             return Err(e);
         }
-        tokio::select! { r=&mut task=>{let addresses=r.map_err(|_|"channel-logo-dns")?.map_err(str::to_owned)?; check(owner,deadline)?;break addresses;},_=tokio::time::sleep(Duration::from_millis(50))=>{} }
+        tokio::select! {
+            r=&mut task => {
+                let addresses=r.map_err(|_|"channel-logo-dns")?.map_err(str::to_owned)?;
+                check(owner,deadline)?;
+                break addresses;
+            }
+            _=tokio::time::sleep(Duration::from_millis(50)) => {
+            }
+        }
     };
     Client::builder()
         .no_proxy()
@@ -356,7 +364,11 @@ async fn load_directory(
 ) -> Result<HashMap<String, Vec<Logo>>, String> {
     let mut slot = loop {
         check(owner, deadline)?;
-        tokio::select! { guard=DIRECTORY.lock()=>break guard,_=tokio::time::sleep(Duration::from_millis(50))=>{} }
+        tokio::select! {
+            guard=DIRECTORY.lock() => break guard,
+            _=tokio::time::sleep(Duration::from_millis(50)) => {
+            }
+        }
     };
     if let Some(current) = slot
         .as_ref()
@@ -551,32 +563,79 @@ pub(crate) async fn channel_logos(
     if request.schema_version != 1 {
         return Err("channel-logo-request-invalid".into());
     }
-    scan_manifest_work::owned(request_id,app,move |owner|async move {
-        let _batch=loop {
+    scan_manifest_work::owned(request_id, app, move |owner| async move {
+        let _batch = loop {
             owner.check()?;
-            tokio::select! { guard=BATCH.lock()=>break guard,_=tokio::time::sleep(Duration::from_millis(50))=>{} }
+            tokio::select! {
+                guard=BATCH.lock() => break guard,
+                _=tokio::time::sleep(Duration::from_millis(50)) => {
+                }
+            }
         };
-        let ids=request.channel_ids; let final_ids=ids.clone(); let revision=request.expected_revision;
-        let read_revision=revision.clone();
-        let (capture,generation)=owner.storage(None,move |store,check|store.channel_logo_capture(&ids,&read_revision,check)).await?;
-        let deadline=Instant::now()+Duration::from_secs(25);
-        let logos=load_directory(&owner,&capture.root,deadline).await?;
-        let mut images=Vec::new(); let mut attempted_channel_ids=Vec::new(); let mut total=0usize;
+        let ids = request.channel_ids;
+        let final_ids = ids.clone();
+        let revision = request.expected_revision;
+        let read_revision = revision.clone();
+        let (capture, generation) = owner
+            .storage(None, move |store, check| {
+                store.channel_logo_capture(&ids, &read_revision, check)
+            })
+            .await?;
+        let deadline = Instant::now() + Duration::from_secs(25);
+        let logos = load_directory(&owner, &capture.root, deadline).await?;
+        let mut images = Vec::new();
+        let mut attempted_channel_ids = Vec::new();
+        let mut total = 0usize;
         for row in capture.rows {
             owner.check()?;
-            if Instant::now()>=deadline { break; }
+            if Instant::now() >= deadline {
+                break;
+            }
             attempted_channel_ids.push(row.channel_id.clone());
-            let Some((provider,logo))=row.provider_ids.iter().find_map(|p|choose(&logos,p).map(|l|(p,l))) else {continue};
-            if let Ok((bytes,mime,width,height))=image(&owner,&capture.root,logo,deadline).await {
-                total+=bytes.len(); if total>8*1024*1024 {return Err("channel-logo-batch-limit".into());}
-                images.push(Image { channel_id:row.channel_id,provider_id:provider.clone(),mime_type:mime.clone(),width,height,byte_length:bytes.len(),data_url:format!("data:{mime};base64,{}",base64::engine::general_purpose::STANDARD.encode(bytes)) });
+            let Some((provider, logo)) = row
+                .provider_ids
+                .iter()
+                .find_map(|p| choose(&logos, p).map(|l| (p, l)))
+            else {
+                continue;
+            };
+            if let Ok((bytes, mime, width, height)) =
+                image(&owner, &capture.root, logo, deadline).await
+            {
+                total += bytes.len();
+                if total > 8 * 1024 * 1024 {
+                    return Err("channel-logo-batch-limit".into());
+                }
+                images.push(Image {
+                    channel_id: row.channel_id,
+                    provider_id: provider.clone(),
+                    mime_type: mime.clone(),
+                    width,
+                    height,
+                    byte_length: bytes.len(),
+                    data_url: format!(
+                        "data:{mime};base64,{}",
+                        base64::engine::general_purpose::STANDARD.encode(bytes)
+                    ),
+                });
             }
         }
         owner.check()?;
         // Confirm the same root/catalog before any image can reach a live card.
-        let expected=revision.clone(); owner.storage(Some(generation),move |store,check|store.channel_logo_capture(&final_ids,&expected,check)).await?;
-        Ok(Reply {schema_version:1,catalog_revision:revision,attempted_channel_ids,images})
-    }).await
+        let expected = revision.clone();
+        owner
+            .storage(Some(generation), move |store, check| {
+                store.channel_logo_capture(&final_ids, &expected, check)
+            })
+            .await?;
+        Ok(Reply {
+            schema_version: 1,
+            catalog_revision: revision,
+            attempted_channel_ids,
+            images,
+        })
+    })
+    .await
 }
 
 #[cfg(test)]

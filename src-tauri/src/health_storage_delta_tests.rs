@@ -29,7 +29,8 @@ fn database() -> Connection {
          CREATE TRIGGER health_update AFTER UPDATE ON channel_health BEGIN INSERT INTO audit VALUES('update'); END;
          CREATE TRIGGER health_delete AFTER DELETE ON channel_health BEGIN INSERT INTO audit VALUES('delete'); END;
          CREATE TRIGGER health_presence AFTER UPDATE ON metadata BEGIN INSERT INTO audit VALUES('presence'); END;",
-    ).unwrap();
+    )
+    .unwrap();
     c
 }
 
@@ -186,7 +187,9 @@ fn invalid_new_payload_has_no_dml_and_hidden_invalid_evidence_can_be_removed() {
 fn target_invalidation_deletes_only_obsolete_health() {
     let c = database();
     let source = json!({"id":"source","kind":"url","location":"https://example.invalid/list.m3u","allowHttp":false});
-    let channels: Vec<_> = (0..2).map(|i| json!({"id":record(i).channel_id,"sourceId":"source","urls":[format!("https://example.invalid/{i}.m3u8")]})).collect();
+    let channels: Vec<_> = (0..2)
+        .map(|i| json!({"id":record(i).channel_id,"sourceId":"source","urls":[format!("https://example.invalid/{i}.m3u8")]}))
+        .collect();
     let mut records: Vec<_> = (0..2).map(record).collect();
     for (r, channel) in records.iter_mut().zip(&channels) {
         r.target_fingerprint = fingerprint(&source, channel, 0).unwrap();

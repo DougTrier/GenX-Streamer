@@ -305,7 +305,10 @@ fn actual_sqlite_vacuum_interrupt_rolls_back_and_clears_hook_without_erasing_pru
         // The 32 retained payload rows alone can VACUUM without any nested VM
         // reaching the production 1000-op progress quantum. Retain enough real
         // rows that copying this table must execute that handler during VACUUM.
-        c.execute_batch("WITH RECURSIVE n(x) AS(VALUES(2) UNION ALL SELECT x+1 FROM n WHERE x<20001) INSERT INTO maintenance_parent SELECT x FROM n;").unwrap();
+        c.execute_batch(
+            "WITH RECURSIVE n(x) AS(VALUES(2) UNION ALL SELECT x+1 FROM n WHERE x<20001) INSERT INTO maintenance_parent SELECT x FROM n;",
+        )
+        .unwrap();
     }
     let flag = cancel();
     let expected = Cell::new(None);

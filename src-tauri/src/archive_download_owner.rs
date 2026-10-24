@@ -372,7 +372,7 @@ pub(crate) async fn start(
                 }
             });
             let staged = archive_download_transfer::fetch(
-                verified,
+                *verified,
                 capture.file.sha1.clone(),
                 directory,
                 check.clone(),

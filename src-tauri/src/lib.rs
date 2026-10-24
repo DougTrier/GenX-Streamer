@@ -2102,7 +2102,10 @@ async fn inspect_media_resources(
         .lock()
         .map_err(|_| "request-lock")?
         .register(request_id.clone())?;
-    let result = tokio::select! {r=network_media_probe::inspect(&url,allow_http,request_id.clone(),budget_ms)=>r,_=receiver=>Err("canceled".into())};
+    let result = tokio::select! {
+        r=network_media_probe::inspect(&url,allow_http,request_id.clone(),budget_ms) => r,
+        _=receiver => Err("canceled".into()),
+    };
     state
         .requests
         .lock()

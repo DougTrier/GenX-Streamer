@@ -55,7 +55,15 @@ fn main() {
             Ok((count, available))
         }
     })();
-    match result {Ok((count,available))=>println!("{{\"installedTokens\":{count},\"inactiveDictationGrammars\":{available},\"microphoneOpened\":false}}"),Err(_)=>{eprintln!("sapi-capability-unavailable");std::process::exit(1)}}
+    match result {
+        Ok((count, available)) => {
+            println!("{{\"installedTokens\":{count},\"inactiveDictationGrammars\":{available},\"microphoneOpened\":false}}")
+        }
+        Err(_) => {
+            eprintln!("sapi-capability-unavailable");
+            std::process::exit(1)
+        }
+    }
 }
 #[cfg(not(windows))]
 fn main() {

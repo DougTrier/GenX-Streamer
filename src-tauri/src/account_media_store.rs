@@ -142,9 +142,6 @@ impl ResolvedMedia {
     pub(crate) fn urls(&self) -> &[String] {
         &self.opened.urls
     }
-    pub(crate) fn account_id(&self) -> &str {
-        &self.opened.prepared.fence.account
-    }
     pub(crate) fn channel_id(&self) -> &str {
         &self.opened.prepared.channel_id
     }

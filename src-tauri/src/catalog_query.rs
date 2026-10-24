@@ -153,7 +153,11 @@ pub struct Page {
     pub after: Option<Cursor>,
 }
 fn effective_category_expression(c: &Connection) -> Result<&'static str, String> {
-    let exists: bool = sql(c.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='table' AND name='channel_category_override')", [], |r| r.get(0)))?;
+    let exists: bool = sql(c.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='table' AND name='channel_category_override')",
+        [],
+        |r| r.get(0),
+    ))?;
     let version: i64 = sql(c.query_row("PRAGMA user_version", [], |r| r.get(0)))?;
     if !exists && version >= 10 {
         return Err("catalog-query-database-failed".into());
@@ -577,13 +581,17 @@ pub(crate) fn upgrade_projection_policy(
     sql(tx.commit())
 }
 fn record_query_version(tx: &Transaction<'_>) -> Result<(), String> {
-    sql(tx.execute("UPDATE catalog_projection_meta SET query_version=?1 WHERE singleton=1 AND query_version IS NOT ?1", [&labels().version]))?;
+    sql(tx.execute(
+        "UPDATE catalog_projection_meta SET query_version=?1 WHERE singleton=1 AND query_version IS NOT ?1",
+        [&labels().version],
+    ))?;
     Ok(())
 }
 pub fn rebuild_projection(tx: &Transaction<'_>) -> Result<(), String> {
     // Generic replacements/migrations still reconcile the entire canonical set.
     let mut writer = ProjectionWriter::new(tx)?;
-    let mut stale=sql(tx.prepare("SELECT p.rowid FROM catalog_projection p WHERE NOT EXISTS(SELECT 1 FROM channel c WHERE c.id=p.channel_id)"))?;
+    let mut stale =
+        sql(tx.prepare("SELECT p.rowid FROM catalog_projection p WHERE NOT EXISTS(SELECT 1 FROM channel c WHERE c.id=p.channel_id)"))?;
     let stale_rows = sql(stale.query_map([], |row| row.get::<_, i64>(0)))?;
     let stale_ids = sql(stale_rows.collect::<rusqlite::Result<Vec<_>>>())?;
     for rowid in stale_ids {
@@ -665,7 +673,14 @@ fn reconcile_projection_observed(
     record_query_version(tx)
 }
 pub fn advance_view_revision(tx: &Transaction<'_>, changed: bool) -> Result<(), String> {
-    if changed && sql(tx.execute("UPDATE catalog_projection_meta SET view_revision=view_revision+1 WHERE singleton=1 AND view_revision<9223372036854775807",[]))? != 1 { return Err("catalog-view-revision-exhausted".into()); }
+    if changed
+        && sql(tx.execute(
+            "UPDATE catalog_projection_meta SET view_revision=view_revision+1 WHERE singleton=1 AND view_revision<9223372036854775807",
+            [],
+        ))? != 1
+    {
+        return Err("catalog-view-revision-exhausted".into());
+    }
     Ok(())
 }
 fn revision(value: &str) -> Result<i64, String> {
@@ -839,7 +854,11 @@ fn query_page_inner(
             return Err("catalog-query-projection-stale".into());
         }
         if endpoint_projection {
-            let complete: bool = sql(tx.query_row("SELECT (SELECT count(*) FROM channel)=(SELECT count(*) FROM catalog_endpoint_projection_v1)", [], |r| r.get(0)))?;
+            let complete: bool = sql(tx.query_row(
+                "SELECT (SELECT count(*) FROM channel)=(SELECT count(*) FROM catalog_endpoint_projection_v1)",
+                [],
+                |r| r.get(0),
+            ))?;
             if !complete {
                 return Err("catalog-query-projection-stale".into());
             }
@@ -873,11 +892,7 @@ fn query_page_inner(
             "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='channel_speed_v1')",
             [],
             |r| r.get(0),
-        ))? && sql(tx.query_row(
-            "SELECT EXISTS(SELECT 1 FROM channel_speed_v1 WHERE slow=1)",
-            [],
-            |r| r.get(0),
-        ))?;
+        ))? && sql(tx.query_row("SELECT EXISTS(SELECT 1 FROM channel_speed_v1 WHERE slow=1)", [], |r| r.get(0)))?;
         let query_key = format!(
             "{:x}",
             Sha256::digest(
@@ -904,7 +919,8 @@ fn query_page_inner(
         };
         // Prefix the stable binary key; every rank/anchor/cursor/window uses this exact order.
         let favorite = "(CASE WHEN EXISTS(SELECT 1 FROM favorite f WHERE f.id=p.channel_id) THEN x'00' ELSE x'01' END)";
-        let speed = "(CASE WHEN EXISTS(SELECT 1 FROM channel_speed_v1 s WHERE s.channel_id=p.channel_id AND s.slow=1) THEN x'01' ELSE x'00' END)";
+        let speed =
+            "(CASE WHEN EXISTS(SELECT 1 FROM channel_speed_v1 s WHERE s.channel_id=p.channel_id AND s.slow=1) THEN x'01' ELSE x'00' END)";
         let sort = match (query.favorites_first, slow_any) {
             (false, false) => base_sort.to_owned(),
             (true, false) => format!("CAST({favorite} || {base_sort} AS BLOB)"),
@@ -960,7 +976,9 @@ fn query_page_inner(
             // IN itself has set semantics; a second UNION distinct sort is redundant.
             candidates
                 .push_str(" UNION ALL SELECT rowid FROM catalog_projection WHERE provider_key=?");
-            predicates.push(format!("p.rowid IN({candidates}) AND (instr(p.search_text,?)>0 OR p.provider_key=? OR (?<>'' AND instr(p.alias_text,?)>0))"));
+            predicates.push(format!(
+                "p.rowid IN({candidates}) AND (instr(p.search_text,?)>0 OR p.provider_key=? OR (?<>'' AND instr(p.alias_text,?)>0))"
+            ));
             for value in [q.clone(), q.clone(), q.clone(), aq.clone(), aq.clone()] {
                 values.push(value.into());
             }
@@ -1007,7 +1025,10 @@ fn query_page_inner(
             let members = crate::catalog_endpoint_projection::MEMBERS_CTE.trim_end();
             prefix = format!("{members}, matching_aliases AS MATERIALIZED(SELECT DISTINCT am.endpoint_key,am.preferred,am.custom_category,am.guide_source,am.guide_channel FROM endpoint_members am JOIN catalog_projection p ON p.channel_id=am.channel_id JOIN channel c ON c.id=p.channel_id WHERE {}) ", predicates.join(" AND "));
             predicates = vec!["em.position=1".into()];
-            format!("catalog_projection p JOIN endpoint_members em ON em.channel_id=p.channel_id JOIN matching_aliases ma ON {}", crate::catalog_endpoint_projection::SAME_GROUP.replace("am.", "ma."))
+            format!(
+                "catalog_projection p JOIN endpoint_members em ON em.channel_id=p.channel_id JOIN matching_aliases ma ON {}",
+                crate::catalog_endpoint_projection::SAME_GROUP.replace("am.", "ma.")
+            )
         } else if query.geography.is_empty() {
             "catalog_projection p".to_owned()
         } else {
@@ -1599,7 +1620,8 @@ mod tests {
         add(&c, "one", "One", "News", None, [None, None, None]);
         add(&c, "two", "Two", "Sports", None, [None, None, None]);
         refresh(&mut c);
-        c.execute_batch("INSERT INTO favorite VALUES('one');INSERT INTO favorite VALUES('missing');INSERT INTO removed VALUES('two');").unwrap();
+        c.execute_batch("INSERT INTO favorite VALUES('one');INSERT INTO favorite VALUES('missing');INSERT INTO removed VALUES('two');")
+            .unwrap();
         let mut q = query("");
         q.filter = Filter::Favorites;
         let page = run(&c, &q);
@@ -1697,7 +1719,10 @@ mod tests {
                 ["\u{fdfa}".repeat(1000)],
             )
             .unwrap();
-            assert!(rebuild_projection(&tx).is_err(),"normalization expansion must refuse rather than truncate or retain a partial index");
+            assert!(
+                rebuild_projection(&tx).is_err(),
+                "normalization expansion must refuse rather than truncate or retain a partial index"
+            );
         }
         assert_eq!(ids(&run(&c, &query("Original"))), vec!["one"]);
         assert_eq!(
@@ -1770,7 +1795,8 @@ mod tests {
         ] {
             add(&c, id, name, "News", None, [Some(country), None, None]);
         }
-        c.execute_batch("INSERT INTO favorite VALUES('n0');INSERT INTO favorite VALUES('n3');INSERT INTO favorite VALUES('orphan');").unwrap();
+        c.execute_batch("INSERT INTO favorite VALUES('n0');INSERT INTO favorite VALUES('n3');INSERT INTO favorite VALUES('orphan');")
+            .unwrap();
         refresh(&mut c);
         c
     }

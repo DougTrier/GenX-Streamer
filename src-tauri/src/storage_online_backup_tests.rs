@@ -376,11 +376,19 @@ fn process_kill_during_partial_copy_does_not_promote_incomplete_backup() {
             let _ = self.0.wait();
         }
     }
-    let mut child = OwnedChild(std::process::Command::new(std::env::current_exe().unwrap())
-        .args(["--exact", "storage_transaction::online_backup_tests::process_kill_during_partial_copy_does_not_promote_incomplete_backup", "--nocapture"])
-        .env(ENVIRONMENT, root.path())
-        .stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null())
-        .spawn().unwrap());
+    let mut child = OwnedChild(
+        std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "storage_transaction::online_backup_tests::process_kill_during_partial_copy_does_not_promote_incomplete_backup",
+                "--nocapture",
+            ])
+            .env(ENVIRONMENT, root.path())
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .unwrap(),
+    );
     let deadline = std::time::Instant::now() + Duration::from_secs(10);
     while !root.path().join("partial-copy-ready").exists() {
         assert!(

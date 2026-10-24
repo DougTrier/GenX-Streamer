@@ -275,7 +275,10 @@ pub fn lookup_suggestions(
                 query.provider_id.as_deref().unwrap_or_default().to_owned(),
             )
         } else {
-            ("id IN(SELECT channel_id FROM guide_channel_name WHERE guide_source_id=?1 AND normalized_name=?2)",exact_name(&query.name))
+            (
+                "id IN(SELECT channel_id FROM guide_channel_name WHERE guide_source_id=?1 AND normalized_name=?2)",
+                exact_name(&query.name),
+            )
         };
         result.candidate_count = sql(tx.query_row(
             &format!("SELECT count(*) FROM guide_channel WHERE guide_source_id=?1 AND {condition}"),
@@ -455,7 +458,13 @@ fn previous_source_save(
     expected_revision: i64,
 ) -> Result<Option<GuideSource>, String> {
     validate_source(source, expected_revision)?;
-    let previous=sql(c.query_row("SELECT id,name,location,kind,allow_http,revision,updated_ms FROM guide_source WHERE id=?1",[&source.id],source_row).optional())?;
+    let previous = sql(c
+        .query_row(
+            "SELECT id,name,location,kind,allow_http,revision,updated_ms FROM guide_source WHERE id=?1",
+            [&source.id],
+            source_row,
+        )
+        .optional())?;
     if previous.as_ref().map_or(0, |s| s.revision) != expected_revision {
         return Err("guide-stale-revision".into());
     }
@@ -637,6 +646,9 @@ fn replace_inner(
         None,
     )
 }
+// Internal join of the two replace paths; the public wrappers above name
+// their inputs, and `request` is the only difference between them.
+#[allow(clippy::too_many_arguments)]
 fn replace_inner_with_request(
     c: &mut Connection,
     id: &str,
@@ -1050,7 +1062,9 @@ pub(crate) fn replace_guide_match_projected(
         Some(request),
     )
 }
+// Test entry with match_inner_with_request's inputs spelled out.
 #[cfg(test)]
+#[allow(clippy::too_many_arguments)]
 fn match_inner(
     c: &mut Connection,
     id: &str,
@@ -1601,7 +1615,10 @@ pub fn list_channels(
             })
             .collect::<String>()
     };
-    let statement=format!("SELECT id,names_json FROM guide_channel WHERE guide_source_id=?1 AND (?2 IS NULL OR id>?2){search_clause} ORDER BY id LIMIT {}",page_size+1);
+    let statement = format!(
+        "SELECT id,names_json FROM guide_channel WHERE guide_source_id=?1 AND (?2 IS NULL OR id>?2){search_clause} ORDER BY id LIMIT {}",
+        page_size + 1
+    );
     let mut s = sql(tx.prepare(&statement))?;
     let raw: Vec<(String, String)> = sql(sql(s
         .query_map(rusqlite::params_from_iter(values), |r| {

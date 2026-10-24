@@ -166,7 +166,7 @@ fn rejected_guide_growth_leaves_reserved_space_for_actual_scan_window() {
         c.query_row(
             "SELECT title FROM guide_program WHERE guide_source_id='capacity-guide'",
             [],
-            |r| r.get::<_, String>(0)
+            |r| { r.get::<_, String>(0) }
         )
         .unwrap(),
         "Last good"

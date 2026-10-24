@@ -216,7 +216,9 @@ pub(crate) fn read_unsupported(
 /// No initialization, trimming or replacement takes place on this read path.
 pub(crate) fn validate(c: &Connection) -> Result<(), String> {
     current(c)?;
-    let mut query = sql(c.prepare("SELECT file_ref,item_id,file_name,size_bytes,provider_sha1,position_ms,duration_ms,completed,observed_ms FROM archive_bookmark_v1"))?;
+    let mut query = sql(c.prepare(
+        "SELECT file_ref,item_id,file_name,size_bytes,provider_sha1,position_ms,duration_ms,completed,observed_ms FROM archive_bookmark_v1",
+    ))?;
     let mut rows = sql(query.query([]))?;
     let mut count = 0usize;
     let mut bytes = 0usize;
@@ -348,6 +350,7 @@ pub(crate) fn preflight_save(
 }
 /// Explicit Archive-only reset. The eventual library-clear owner must call this
 /// within its SAME transaction using clear_in_transaction, not chain two commits.
+#[cfg(test)]
 pub(crate) fn clear_in_transaction(
     tx: &Transaction<'_>,
     revision: &str,
@@ -395,6 +398,7 @@ pub(crate) fn reset_library_in_transaction(
     check()?;
     Ok(())
 }
+#[cfg(test)]
 pub(crate) fn clear(
     c: &mut Connection,
     revision: &str,
@@ -420,7 +424,10 @@ mod tests {
     use std::cell::Cell;
     fn database() -> Connection {
         let mut c = Connection::open_in_memory().unwrap();
-        c.execute_batch("PRAGMA foreign_keys=ON;CREATE TABLE live_fixture(id TEXT PRIMARY KEY);INSERT INTO live_fixture VALUES('preserved');").unwrap();
+        c.execute_batch(
+            "PRAGMA foreign_keys=ON;CREATE TABLE live_fixture(id TEXT PRIMARY KEY);INSERT INTO live_fixture VALUES('preserved');",
+        )
+        .unwrap();
         let tx = c.transaction().unwrap();
         archive_catalog::install(&tx).unwrap();
         install(&tx).unwrap();
@@ -732,7 +739,7 @@ mod tests {
                 "completed" => next.completed = true,
                 _ => next.position_ms = 20_000,
             }
-            assert!(preflight_save(&mut c, &proof, revision, &next, &|| Ok(()))
+            assert!(preflight_save(&c, &proof, revision, &next, &|| Ok(()))
                 .unwrap()
                 .is_none());
             assert!(c.is_autocommit());

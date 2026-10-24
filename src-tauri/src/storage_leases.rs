@@ -57,6 +57,7 @@ impl DerefMut for ExclusiveLease<'_> {
     }
 }
 impl StoreOwner {
+    #[cfg(test)]
     pub(crate) fn new(store: Result<Store, String>) -> Self {
         Self(RwLock::new(Generation {
             number: 1,

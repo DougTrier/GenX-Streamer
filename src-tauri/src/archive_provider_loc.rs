@@ -245,7 +245,7 @@ fn variant(asset: &str, target: &str, node: &Value) -> Result<ProviderVariant, S
     let parsed = Url::parse(target).map_err(|_| INVALID)?;
     let file_name = parsed
         .path_segments()
-        .and_then(|segments| segments.last())
+        .and_then(|mut segments| segments.next_back())
         .filter(|name| !name.is_empty())
         .ok_or(INVALID)?
         .to_owned();

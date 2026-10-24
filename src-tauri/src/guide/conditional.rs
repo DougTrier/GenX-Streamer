@@ -77,10 +77,30 @@ pub fn read(c: &Connection, source: &GuideSource) -> Result<Option<CachedValidat
     if !exists {
         return Ok(None);
     }
-    let cached=db::sql(c.query_row("SELECT fingerprint,published_revision,etag,last_modified,schema_version FROM guide_http_cache WHERE source_id=?1",[&source.id],|r|{
-        if r.get::<_,i64>(4)?!=1 || [0,2,3].into_iter().any(|i|r.get_ref(i).is_ok_and(|v|v.as_bytes().is_ok_and(|b|b.len()>1024))) {return Err(rusqlite::Error::InvalidQuery)}
-        Ok(CachedValidators{fingerprint:r.get(0)?,revision:r.get(1)?,validators:Validators{etag:r.get(2)?,last_modified:r.get(3)?}})
-    }).optional())?;
+    let cached = db::sql(
+        c.query_row(
+            "SELECT fingerprint,published_revision,etag,last_modified,schema_version FROM guide_http_cache WHERE source_id=?1",
+            [&source.id],
+            |r| {
+                if r.get::<_, i64>(4)? != 1
+                    || [0, 2, 3]
+                        .into_iter()
+                        .any(|i| r.get_ref(i).is_ok_and(|v| v.as_bytes().is_ok_and(|b| b.len() > 1024)))
+                {
+                    return Err(rusqlite::Error::InvalidQuery);
+                }
+                Ok(CachedValidators {
+                    fingerprint: r.get(0)?,
+                    revision: r.get(1)?,
+                    validators: Validators {
+                        etag: r.get(2)?,
+                        last_modified: r.get(3)?,
+                    },
+                })
+            },
+        )
+        .optional(),
+    )?;
     let Some(cached) = cached else {
         return Ok(None);
     };

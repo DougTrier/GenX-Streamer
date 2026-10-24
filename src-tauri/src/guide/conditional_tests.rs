@@ -157,7 +157,8 @@ fn validator_failure_rolls_back_new_schedule_and_metadata_together() {
     let (mut c, s, f) = fixture();
     let s = publish(&mut c, &s, &f);
     let before = read(&c, &s).unwrap().unwrap();
-    c.execute_batch("CREATE TRIGGER fail_validator BEFORE UPDATE ON guide_http_cache BEGIN SELECT RAISE(ABORT,'fixture'); END;").unwrap();
+    c.execute_batch("CREATE TRIGGER fail_validator BEFORE UPDATE ON guide_http_cache BEGIN SELECT RAISE(ABORT,'fixture'); END;")
+        .unwrap();
     let mut next = f.clone();
     next.programs[0].title = "Replacement".into();
     assert!(db::replace_guide_conditional(
@@ -453,28 +454,47 @@ async fn controlled_200_xml_empty_expired_unknown_and_future_publication() {
     let (mut c, s, f) = fixture();
     let mut s = publish(&mut c, &s, &f);
     let channel = "<channel id=\"a\"><display-name>A</display-name></channel>";
-    for (program,expected) in [
-        ("",Some("guide-empty-confirmation-required")),
-        ("<programme channel=\"a\" start=\"19700101000001 +0000\" stop=\"19700101000002 +0000\"><title>Expired</title></programme>",Some("guide-refresh-no-future-schedule")),
-        ("<programme channel=\"a\" start=\"19700101000012 +0000\"><title>Unknown end</title></programme>",Some("guide-refresh-no-future-schedule")),
-        ("<programme channel=\"a\" start=\"19700101000012 +0000\" stop=\"19700101000014 +0000\"><title>Known future</title></programme>",None),
+    for (program, expected) in [
+        ("", Some("guide-empty-confirmation-required")),
+        (
+            "<programme channel=\"a\" start=\"19700101000001 +0000\" stop=\"19700101000002 +0000\"><title>Expired</title></programme>",
+            Some("guide-refresh-no-future-schedule"),
+        ),
+        (
+            "<programme channel=\"a\" start=\"19700101000012 +0000\"><title>Unknown end</title></programme>",
+            Some("guide-refresh-no-future-schedule"),
+        ),
+        (
+            "<programme channel=\"a\" start=\"19700101000012 +0000\" stop=\"19700101000014 +0000\"><title>Known future</title></programme>",
+            None,
+        ),
     ] {
-        let xml=format!("<tv>{channel}{program}</tv>");
-        let(result,_)=served(200,"ETag: \"http-candidate\"\r\n",xml.as_bytes(),None).await;
-        let crate::guide::input::ConditionalFetch::Body(bytes,validators)=result.unwrap() else{panic!("Expected HTTP200 body")};
-        let parsed=crate::guide::parser::parse_guide(&bytes).unwrap();
-        let old=read(&c,&s).unwrap().unwrap();
-        let result=db::replace_guide_conditional(&mut c,&s,&parsed,3000,&validators,&AtomicBool::new(false));
-        if let Some(error)=expected {
-            assert_eq!(result.unwrap_err(),error);
-            assert_eq!(db::list_sources(&c).unwrap()[0],s);
-            assert_eq!(read(&c,&s).unwrap().unwrap().validators,old.validators);
-            assert_eq!(db::source_coverage(&c,&s.id).unwrap().published_revision,Some(s.revision));
-            assert_eq!(c.query_row("SELECT title FROM guide_program",[],|r|r.get::<_,String>(0)).unwrap(),"Actual");
+        let xml = format!("<tv>{channel}{program}</tv>");
+        let (result, _) = served(200, "ETag: \"http-candidate\"\r\n", xml.as_bytes(), None).await;
+        let crate::guide::input::ConditionalFetch::Body(bytes, validators) = result.unwrap() else {
+            panic!("Expected HTTP200 body")
+        };
+        let parsed = crate::guide::parser::parse_guide(&bytes).unwrap();
+        let old = read(&c, &s).unwrap().unwrap();
+        let result = db::replace_guide_conditional(&mut c, &s, &parsed, 3000, &validators, &AtomicBool::new(false));
+        if let Some(error) = expected {
+            assert_eq!(result.unwrap_err(), error);
+            assert_eq!(db::list_sources(&c).unwrap()[0], s);
+            assert_eq!(read(&c, &s).unwrap().unwrap().validators, old.validators);
+            assert_eq!(db::source_coverage(&c, &s.id).unwrap().published_revision, Some(s.revision));
+            assert_eq!(
+                c.query_row("SELECT title FROM guide_program", [], |r| r.get::<_, String>(0))
+                    .unwrap(),
+                "Actual"
+            );
         } else {
-            assert_eq!(result.unwrap(),s.revision+1);
-            s=db::list_sources(&c).unwrap().remove(0);
-            assert_eq!(c.query_row("SELECT title FROM guide_program",[],|r|r.get::<_,String>(0)).unwrap(),"Known future");
+            assert_eq!(result.unwrap(), s.revision + 1);
+            s = db::list_sources(&c).unwrap().remove(0);
+            assert_eq!(
+                c.query_row("SELECT title FROM guide_program", [], |r| r.get::<_, String>(0))
+                    .unwrap(),
+                "Known future"
+            );
         }
     }
 }

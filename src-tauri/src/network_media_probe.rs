@@ -626,16 +626,18 @@ pub(crate) async fn inspect_triaged(
     // connection within a second, before any TLS (owner design). One that does
     // not goes to the Slow list like a late first answer.
     let gate = match probe.first_response {
-        Some(deadline) => match tokio::time::timeout_at(
-            deadline,
-            crate::network::connect_gate(&url, Duration::from_millis(CONNECT_GATE_MS)),
-        )
-        .await
-        {
-            Ok(Ok(())) => Ok(()),
-            Ok(Err("slow-connect")) | Err(_) => Err(Refusal("slow-first-response", None)),
-            Ok(Err(code)) => Err(Refusal(code, None)),
-        },
+        Some(deadline) => {
+            match tokio::time::timeout_at(
+                deadline,
+                crate::network::connect_gate(&url, Duration::from_millis(CONNECT_GATE_MS)),
+            )
+            .await
+            {
+                Ok(Ok(())) => Ok(()),
+                Ok(Err("slow-connect")) | Err(_) => Err(Refusal("slow-first-response", None)),
+                Ok(Err(code)) => Err(Refusal(code, None)),
+            }
+        }
         None => Ok(()),
     };
     let result = match gate {

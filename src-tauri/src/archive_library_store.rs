@@ -51,7 +51,6 @@ const DIRECTORY: &str = "archive-library-v1";
 const DB: &str = "archive.sqlite3";
 const BACKUP: &str = "archive.sqlite3.backup";
 const WITNESS: &str = "archive-authority-v1";
-const META: &str = "archive_namespace_meta_v1";
 const MAX_DB: u64 = 128 * 1024 * 1024;
 const MAX_ROWS: usize = 200_000;
 const MAX_BYTES: usize = 96 * 1024 * 1024;
@@ -348,7 +347,9 @@ fn install(c: &mut Connection) -> Result<(), String> {
 }
 type SchemaRows = Vec<(String, String, String, Option<String>)>;
 fn schema_rows(c: &Connection, namespace: bool) -> Result<SchemaRows, String> {
-    let mut statement=sql(c.prepare("SELECT type,name,tbl_name,sql FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' OR type='index' ORDER BY type,name"))?;
+    let mut statement = sql(
+        c.prepare("SELECT type,name,tbl_name,sql FROM sqlite_schema WHERE name NOT LIKE 'sqlite_%' OR type='index' ORDER BY type,name")
+    )?;
     let rows = sql(statement.query_map([], |r| {
         Ok((
             r.get::<_, String>(0)?,
@@ -771,7 +772,11 @@ pub(crate) fn finalize(
     clear_epoch: bool,
     check: &mut dyn FnMut() -> Result<(), String>,
 ) -> Result<(), String> {
-    let installed:bool=sql(c.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE name='archive_namespace_meta_v1' AND type='table')",[],|r|r.get(0)))?;
+    let installed: bool = sql(c.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE name='archive_namespace_meta_v1' AND type='table')",
+        [],
+        |r| r.get(0),
+    ))?;
     if !installed {
         return Ok(());
     }
@@ -1304,6 +1309,7 @@ impl ArchiveStore {
         mirror(&c, &dir.join(BACKUP), &mut || Ok(()))?;
         Ok(receipt)
     }
+    #[cfg(test)]
     pub(crate) fn open(
         root: &Path,
         binding: &Binding,
@@ -1420,9 +1426,11 @@ impl ArchiveStore {
 mod tests;
 
 #[cfg(test)]
+type ProofBoundaryHook = Option<Box<dyn FnMut(ProofBoundary)>>;
+#[cfg(test)]
 thread_local! {
     static STARTUP_PAIR_VALIDATIONS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
-    static PROOF_BOUNDARY_HOOK: std::cell::RefCell<Option<Box<dyn FnMut(ProofBoundary)>>> = const { std::cell::RefCell::new(None) };
+    static PROOF_BOUNDARY_HOOK: std::cell::RefCell<ProofBoundaryHook> = const { std::cell::RefCell::new(None) };
 }
 #[cfg(test)]
 #[derive(Clone, Copy, PartialEq, Eq)]

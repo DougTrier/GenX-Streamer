@@ -21,7 +21,7 @@ use crate::{
 };
 use rusqlite::{Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
-use std::{future::Future, sync::Arc};
+use std::sync::Arc;
 
 const ERR: &str = "account-catalog-request-invalid";
 const PAGE_LIMIT: usize = 1024 * 1024;
@@ -131,8 +131,21 @@ fn snapshot(c: &Connection, account: &str) -> Result<Snapshot, String> {
     if !table(c, "account_media_catalog_v1")? {
         return Err("account-media-not-collected".into());
     }
-    let media = sql(c.query_row("SELECT account_revision,secret_ref,batch_id,revision FROM account_media_catalog_v1 WHERE account_id=?1",[account],|r| Ok((r.get::<_,i64>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,i64>(3)?))).optional())?
-        .ok_or("account-media-not-collected")?;
+    let media = sql(c
+        .query_row(
+            "SELECT account_revision,secret_ref,batch_id,revision FROM account_media_catalog_v1 WHERE account_id=?1",
+            [account],
+            |r| {
+                Ok((
+                    r.get::<_, i64>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, String>(2)?,
+                    r.get::<_, i64>(3)?,
+                ))
+            },
+        )
+        .optional())?
+    .ok_or("account-media-not-collected")?;
     if media.0 != metadata.0 || media.1 != metadata.1 {
         return Err("account-media-reference-revoked".into());
     }
@@ -402,18 +415,4 @@ pub(crate) async fn verify(owner: Arc<Context>, authority: Authority) -> Result<
         .await?;
     owner.check()?;
     Ok(())
-}
-pub(crate) async fn with_resolved<T, F, Fut>(
-    owner: Arc<Context>,
-    app: tauri::AppHandle,
-    request: ResolveRequest,
-    operation: F,
-) -> Result<T, String>
-where
-    F: FnOnce(Arc<Context>, NativeSelection) -> Fut,
-    Fut: Future<Output = Result<T, String>>,
-{
-    let selected = resolve(owner.clone(), app, request).await?;
-    owner.check()?;
-    operation(owner, selected).await
 }

@@ -162,7 +162,11 @@ pub(crate) fn query(
     let _progress = Progress(c);
     let result = (|| {
         let tx = sql(c.unchecked_transaction())?;
-        let (catalog, mutation, database): (i64,i64,i64) = sql(tx.query_row("SELECT m.catalog_revision,m.revision,g.revision FROM metadata m,guide_meta g WHERE m.singleton=1 AND g.singleton=1", [], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?))))?;
+        let (catalog, mutation, database): (i64, i64, i64) = sql(tx.query_row(
+            "SELECT m.catalog_revision,m.revision,g.revision FROM metadata m,guide_meta g WHERE m.singleton=1 AND g.singleton=1",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        ))?;
         if catalog < 0 || mutation < 0 || database < 0 {
             return Err("guide-invalid-stored-revision".into());
         }

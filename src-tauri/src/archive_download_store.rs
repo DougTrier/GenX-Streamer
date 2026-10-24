@@ -225,7 +225,9 @@ fn connect(path: &Path, create: bool) -> Result<Connection, String> {
         };
     let c = sql(Connection::open_with_flags(path, flags))?;
     sql(c.busy_timeout(std::time::Duration::from_secs(2)))?;
-    sql(c.execute_batch("PRAGMA foreign_keys=ON;PRAGMA trusted_schema=OFF;PRAGMA synchronous=EXTRA;PRAGMA cache_size=-2048;PRAGMA max_page_count=4096;"))?;
+    sql(c.execute_batch(
+        "PRAGMA foreign_keys=ON;PRAGMA trusted_schema=OFF;PRAGMA synchronous=EXTRA;PRAGMA cache_size=-2048;PRAGMA max_page_count=4096;",
+    ))?;
     Ok(c)
 }
 fn snapshot(c: &Connection, full: bool) -> Result<Snapshot, String> {
@@ -238,18 +240,24 @@ fn read_snapshot(tx: &Connection, full: bool) -> Result<Snapshot, String> {
     if sql(tx.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)))? != 1 {
         return Err("archive-download-schema-unsupported".into());
     }
-    if full {
-        if sql(tx.query_row("PRAGMA quick_check", [], |r| r.get::<_, String>(0)))? != "ok"
+    if full
+        && (sql(tx.query_row("PRAGMA quick_check", [], |r| r.get::<_, String>(0)))? != "ok"
             || sql(
                 tx.query_row("SELECT count(*) FROM pragma_foreign_key_check", [], |r| {
                     r.get::<_, i64>(0)
                 }),
-            )? != 0
-        {
-            return Err("archive-download-integrity-failed".into());
-        }
+            )? != 0)
+    {
+        return Err("archive-download-integrity-failed".into());
     }
-    if sql(tx.query_row("SELECT count(*) FROM sqlite_schema WHERE type='table' AND name IN ('download_meta','download_entry','download_bookmark')",[],|r|r.get::<_,i64>(0)))?!=3{return Err("archive-download-integrity-failed".into());}
+    if sql(tx.query_row(
+        "SELECT count(*) FROM sqlite_schema WHERE type='table' AND name IN ('download_meta','download_entry','download_bookmark')",
+        [],
+        |r| r.get::<_, i64>(0),
+    ))? != 3
+    {
+        return Err("archive-download-integrity-failed".into());
+    }
     for (table, expected) in [
         (
             "download_meta",
@@ -1002,6 +1010,7 @@ impl LocalProof {
             &self.saved.local_sha256,
         )
     }
+    #[cfg(test)]
     pub(crate) fn download_ref(&self) -> &str {
         &self.saved.download_ref
     }

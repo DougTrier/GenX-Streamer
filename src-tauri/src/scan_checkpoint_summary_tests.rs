@@ -137,7 +137,8 @@ fn captured_summary_remains_coherent_after_later_sql_changes_and_cancellation_re
     let c = connection();
     install(&c, &value(3));
     let captured = capture(&c).unwrap();
-    c.execute_batch("UPDATE metadata SET catalog_revision=20;UPDATE scan_checkpoint SET revision=8,contents=NULL,job_id=NULL").unwrap();
+    c.execute_batch("UPDATE metadata SET catalog_revision=20;UPDATE scan_checkpoint SET revision=8,contents=NULL,job_id=NULL")
+        .unwrap();
     let old = finish(captured, || Ok(())).unwrap();
     assert_eq!(
         (
@@ -198,17 +199,21 @@ fn real_pair_store_summary_is_readonly_reopens_and_keeps_snapshot_revision_ident
     use crate::storage_transaction::{PairStore, DB};
     let dir = tempfile::tempdir().unwrap();
     let store = PairStore::new(dir.path().into()).unwrap();
-    store.write_pair(
-        &json!({"schemaVersion":1,"sources":[],"channels":[]}).to_string(),
-        &json!({"schemaVersion":1,"sources":[],"favorites":[],"removedChannels":[],"volume":0.5,"muted":false,"panelWidth":300}).to_string(),
-    ).unwrap();
+    store
+        .write_pair(
+            &json!({"schemaVersion":1,"sources":[],"channels":[]}).to_string(),
+            &json!({"schemaVersion":1,"sources":[],"favorites":[],"removedChannels":[],"volume":0.5,"muted":false,"panelWidth":300})
+                .to_string(),
+        )
+        .unwrap();
     let mut c = Connection::open(dir.path().join(DB)).unwrap();
     crate::scan_checkpoint::ensure(&c).unwrap();
     install(&c, &value(3));
     let tx = c.transaction().unwrap();
     let captured = capture(&tx).unwrap();
     tx.commit().unwrap();
-    c.execute_batch("UPDATE metadata SET catalog_revision=2;UPDATE scan_checkpoint SET revision=1,contents=NULL,job_id=NULL").unwrap();
+    c.execute_batch("UPDATE metadata SET catalog_revision=2;UPDATE scan_checkpoint SET revision=1,contents=NULL,job_id=NULL")
+        .unwrap();
     let previous = finish(captured, || Ok(())).unwrap();
     assert_eq!(
         (

@@ -170,7 +170,7 @@ pub(super) fn ensure(c: &Connection) -> Result<(), String> {
             sql(c.query_row(
                 "SELECT schema_version FROM source_snapshot_namespace WHERE singleton=1",
                 [],
-                |r| r.get::<_, i64>(0),
+                |r| { r.get::<_, i64>(0) },
             ))?,
             1 | 2
         )
@@ -201,7 +201,11 @@ CREATE TABLE IF NOT EXISTS source_snapshot_stage_entry(snapshot_id TEXT NOT NULL
     Ok(())
 }
 fn has_checked_content(c: &Connection) -> Result<bool, String> {
-    sql(c.query_row("SELECT EXISTS(SELECT 1 FROM pragma_table_info('source_snapshot_entry') WHERE name='checked_content_hash')", [], |r| r.get(0)))
+    sql(c.query_row(
+        "SELECT EXISTS(SELECT 1 FROM pragma_table_info('source_snapshot_entry') WHERE name='checked_content_hash')",
+        [],
+        |r| r.get(0),
+    ))
 }
 fn present(c: &Connection) -> Result<bool, String> {
     let exists: bool = sql(c.query_row(
@@ -214,7 +218,7 @@ fn present(c: &Connection) -> Result<bool, String> {
             sql(c.query_row(
                 "SELECT schema_version FROM source_snapshot_namespace WHERE singleton=1",
                 [],
-                |r| r.get::<_, i64>(0),
+                |r| { r.get::<_, i64>(0) },
             ))?,
             1 | 2
         )
@@ -259,7 +263,7 @@ fn permission(
                             == definition["allowHttp"].as_bool().unwrap_or(false)
                 })
             });
-        if !canonical && !(definition["kind"] == "url" && provider) {
+        if !(canonical || definition["kind"] == "url" && provider) {
             return Err("source-snapshot-source-refused".into());
         }
         digest(&json!([
@@ -374,7 +378,11 @@ pub(super) fn record_activation_evidence_in_transaction(
     if !has_mapping {
         return Ok(());
     }
-    let (id, entry_id, expected): (String, String, String) = sql(c.query_row("SELECT source_id,entry_id,source_revision FROM source_activation_row WHERE manifest_id=?1 AND ordinal=?2", params![manifest, original_index as i64], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?))))?;
+    let (id, entry_id, expected): (String, String, String) = sql(c.query_row(
+        "SELECT source_id,entry_id,source_revision FROM source_activation_row WHERE manifest_id=?1 AND ordinal=?2",
+        params![manifest, original_index as i64],
+        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+    ))?;
     ensure(c)?;
     let expected_revision = crate::scan_checkpoint::revision(&expected)?;
     let historical = revision(c, &id)? != expected_revision;
@@ -554,7 +562,10 @@ fn finalize_identities(
             return Err(ERR.into());
         }
         channel["id"] = json!(id);
-        sql(c.execute("UPDATE source_snapshot_stage_entry SET entry_id=?3,channel=?4 WHERE snapshot_id=?1 AND entry_id=?2",params![s.id,old,id,channel.to_string()]))?;
+        sql(c.execute(
+            "UPDATE source_snapshot_stage_entry SET entry_id=?3,channel=?4 WHERE snapshot_id=?1 AND entry_id=?2",
+            params![s.id, old, id, channel.to_string()],
+        ))?;
         count += 1;
     }
     drop(statement);
@@ -666,7 +677,7 @@ impl PairStore {
             let address = digest(&channel["urls"])?;
             let endpoint = digest(&channel["urls"][0])?;
             let (provider, metadata) = identity_keys(&s.source_id, &channel)?;
-            let inserted=sql(tx.execute(
+            let inserted = sql(tx.execute(
                 "INSERT INTO source_snapshot_stage_entry VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9) ON CONFLICT(snapshot_id,entry_id) DO NOTHING",
                 params![
                     s.id,
@@ -783,7 +794,11 @@ impl PairStore {
             });
         }
         let rev = revision(&tx, id)?;
-        let(total,missing):(i64,i64)=sql(tx.query_row("SELECT count(*),coalesce(sum(available=0),0) FROM source_snapshot_entry WHERE source_id=?1",[id],|r|Ok((r.get(0)?,r.get(1)?))))?;
+        let (total, missing): (i64, i64) = sql(tx.query_row(
+            "SELECT count(*),coalesce(sum(available=0),0) FROM source_snapshot_entry WHERE source_id=?1",
+            [id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        ))?;
         let pending: Option<String> = sql(tx
             .query_row(
                 "SELECT id FROM source_snapshot_stage WHERE source_id=?1",
@@ -873,7 +888,7 @@ impl PairStore {
         for row in rows {
             check()?;
             let (id, ordinal, content_hash, address_hash, raw) = sql(row)?;
-            if ordinal < 0 || ordinal >= 100000 {
+            if !(0..100000).contains(&ordinal) {
                 return Err(ERR.into());
             }
             let channel: Value = serde_json::from_str(&raw).map_err(|_| ERR)?;
@@ -904,48 +919,5 @@ impl PairStore {
             after_ordinal,
             exhausted,
         })
-    }
-    /// Native receipt owner only: callers cannot submit an invented proof through
-    /// a generic source-stage RPC. Existing health validation remains authoritative.
-    pub(crate) fn record_source_snapshot_evidence(
-        &self,
-        id: &str,
-        entry_id: &str,
-        expected_revision: &str,
-        record: &crate::health_storage::Record,
-        mut check: impl FnMut() -> Result<(), String>,
-    ) -> Result<(), String> {
-        let validated = crate::health_storage::encode(std::slice::from_ref(record))?;
-        let value = serde_json::to_value(record).map_err(|_| ERR)?;
-        check()?;
-        let mut c = connect_background(&self.root.join(DB), false)?;
-        self.backup_with_check(&c, &mut check)?;
-        let tx = sql(c.transaction_with_behavior(TransactionBehavior::Immediate))?;
-        ensure(&tx)?;
-        if revision(&tx, id)? != crate::scan_checkpoint::revision(expected_revision)? {
-            return Err("source-snapshot-revision-stale".into());
-        }
-        let(definition,channel):(String,String)=sql(tx.query_row("SELECT s.definition,e.channel FROM source_snapshot_source s JOIN source_snapshot_entry e ON e.source_id=s.source_id WHERE s.source_id=?1 AND e.entry_id=?2 AND e.available=1",params![id,entry_id],|r|Ok((r.get(0)?,r.get(1)?))))?;
-        let definition: Value = serde_json::from_str(&definition).map_err(|_| ERR)?;
-        let channel: Value = serde_json::from_str(&channel).map_err(|_| ERR)?;
-        let fingerprint = crate::health_storage::fingerprint(&definition, &channel, 0)?;
-        if value["sourceId"] != id
-            || value["channelId"] != entry_id
-            || value["checkedUrlOrdinal"] != 0
-            || value["targetFingerprint"] != fingerprint
-            || value["origin"] != "local"
-        {
-            return Err("source-snapshot-evidence-stale".into());
-        }
-        let grant = permission(
-            &tx,
-            &definition,
-            value["platform"].as_str().ok_or(ERR)?,
-            value["observerProfile"].as_str().ok_or(ERR)?,
-        )?;
-        sql(tx.execute("UPDATE source_snapshot_entry SET check_ms=?3,check_verdict=?4,check_permission=?5,check_address=address_hash,checked_content_hash=content_hash,evidence=?6 WHERE source_id=?1 AND entry_id=?2",params![id,entry_id,value["observedAt"].as_u64().ok_or(ERR)? as i64,value["verdict"].as_str().ok_or(ERR)?,grant,validated]))?;
-        check()?;
-        sql(tx.commit())?;
-        Ok(())
     }
 }

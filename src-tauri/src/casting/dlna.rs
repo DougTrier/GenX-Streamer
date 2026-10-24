@@ -412,7 +412,13 @@ mod tests {
                     "<ok/>".into()
                 };
                 actions.push(action);
-                write!(socket,"HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Type: text/xml\r\nConnection: close\r\n\r\n{}",response.len(),response).unwrap();
+                write!(
+                    socket,
+                    "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Type: text/xml\r\nConnection: close\r\n\r\n{}",
+                    response.len(),
+                    response
+                )
+                .unwrap();
             }
             assert!(stopped);
             actions

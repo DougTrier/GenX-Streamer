@@ -35,7 +35,12 @@ fn install(catalog: Value, preferences: Value, candidates: Vec<Value>) -> Fixtur
     let catalog: Value = serde_json::from_str(pair.catalog.as_ref().unwrap()).unwrap();
     let preferences: Value = serde_json::from_str(pair.preferences.as_ref().unwrap()).unwrap();
     let now = scan_now();
-    let definitions:Vec<_>=catalog["sources"].as_array().unwrap().iter().map(|s|json!({"source":s,"definitionFingerprint":scan_checkpoint::source_fingerprint(s).unwrap()})).collect();
+    let definitions: Vec<_> = catalog["sources"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|s| json!({"source":s,"definitionFingerprint":scan_checkpoint::source_fingerprint(s).unwrap()}))
+        .collect();
     let sources:Vec<_>=definitions.iter().map(|d|{
         let subset:Vec<_>=candidates.iter().filter(|c|c["sourceId"]==d["source"]["id"]).collect();
         json!({"sourceId":d["source"]["id"],"fingerprint":subset[0]["sourceFingerprint"],"status":"completed","inspected":subset.len(),"matched":subset.len(),"warnings":0})
@@ -414,7 +419,11 @@ fn stale_revisions_root_policy_and_forged_original_metadata_refuse_without_ack()
             "root" => root = 8,
             "catalog" | "health" => {
                 let c = connect(&f.store.root.join(DB), false).unwrap();
-                c.execute(&format!("UPDATE metadata SET {reason}_revision={reason}_revision+1 WHERE singleton=1"),[]).unwrap();
+                c.execute(
+                    &format!("UPDATE metadata SET {reason}_revision={reason}_revision+1 WHERE singleton=1"),
+                    [],
+                )
+                .unwrap();
             }
             "checkpoint" => {
                 let c = connect(&f.store.root.join(DB), false).unwrap();
@@ -534,7 +543,8 @@ fn window_fixture(total: usize, padding: bool) -> Fixture {
     );
     if padding {
         let c = connect(&f.store.root.join(DB), false).unwrap();
-        c.execute_batch("CREATE TABLE fixture_padding(bytes BLOB NOT NULL); INSERT INTO fixture_padding VALUES(zeroblob(67108864));").unwrap();
+        c.execute_batch("CREATE TABLE fixture_padding(bytes BLOB NOT NULL); INSERT INTO fixture_padding VALUES(zeroblob(67108864));")
+            .unwrap();
     }
     f
 }

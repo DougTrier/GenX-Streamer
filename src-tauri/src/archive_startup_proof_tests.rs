@@ -24,14 +24,26 @@ fn active() -> (tempfile::TempDir, Binding) {
     archive_provider_catalog::install(&tx).unwrap();
     let title = archive_catalog::opaque(&["archive-item-v1", "proof-fixture"]);
     let file = archive_catalog::opaque(&["archive-file-v1", "proof-fixture", "episode.mp4"]);
-    tx.execute("INSERT INTO archive_title_v1 VALUES(?1,'proof-fixture','Proof fixture','tv',1964,1,1,NULL,5,10,'proof fixture')",[&title]).unwrap();
-    tx.execute("INSERT INTO archive_file_v1 VALUES(?1,?2,'proof-fixture','episode.mp4','h.264','100',10.0,?3,'[]',10,1,0,NULL,'Episode')",params![file,title,"a".repeat(40)]).unwrap();
+    tx.execute(
+        "INSERT INTO archive_title_v1 VALUES(?1,'proof-fixture','Proof fixture','tv',1964,1,1,NULL,5,10,'proof fixture')",
+        [&title],
+    )
+    .unwrap();
+    tx.execute(
+        "INSERT INTO archive_file_v1 VALUES(?1,?2,'proof-fixture','episode.mp4','h.264','100',10.0,?3,'[]',10,1,0,NULL,'Episode')",
+        params![file, title, "a".repeat(40)],
+    )
+    .unwrap();
     tx.execute(
         "INSERT INTO archive_preferences_v1 VALUES(?1,'proof-fixture','Proof fixture',1964,1)",
         [&title],
     )
     .unwrap();
-    tx.execute("INSERT INTO archive_bookmark_v1 VALUES(?1,'proof-fixture','episode.mp4','100',?2,1000,10000,0,10)",params![file,"a".repeat(40)]).unwrap();
+    tx.execute(
+        "INSERT INTO archive_bookmark_v1 VALUES(?1,'proof-fixture','episode.mp4','100',?2,1000,10000,0,10)",
+        params![file, "a".repeat(40)],
+    )
+    .unwrap();
     tx.execute_batch("PRAGMA user_version=16;").unwrap();
     tx.commit().unwrap();
     let lease = lock_root(root.path()).unwrap();
@@ -106,7 +118,7 @@ fn new_lock_lifetime_never_reuses_a_previous_validation() {
     assert_eq!(validations(), 2);
 }
 
-fn prime<'a>(root: &Path, binding: &Binding) -> RootLock {
+fn prime(root: &Path, binding: &Binding) -> RootLock {
     let lease = lock_root(root).unwrap();
     verify_handoff_pair(&lease, binding, &mut || Ok(())).unwrap();
     assert!(lease.initialization_proof.lock().unwrap().is_some());
@@ -328,7 +340,8 @@ fn legitimate_namespace_revision_change_revalidates_and_returns_new_snapshot() {
         .clone();
     let mut c = connect(&dir.join(DB), false, false).unwrap();
     let tx = c.transaction().unwrap();
-    tx.execute_batch("UPDATE archive_bookmark_v1 SET position_ms=2000;UPDATE archive_bookmark_meta_v1 SET revision=revision+1;").unwrap();
+    tx.execute_batch("UPDATE archive_bookmark_v1 SET position_ms=2000;UPDATE archive_bookmark_meta_v1 SET revision=revision+1;")
+        .unwrap();
     finalize(&tx, false, &mut || Ok(())).unwrap();
     tx.commit().unwrap();
     mirror(&c, &dir.join(BACKUP), &mut || Ok(())).unwrap();

@@ -31,7 +31,10 @@ fn fixture(count: usize) -> (tempfile::TempDir, PairStore, Value, Value) {
             ("update", "UPDATE"),
             ("delete", "DELETE"),
         ] {
-            c.execute_batch(&format!("CREATE TRIGGER audit_{table}_{op} AFTER {event} ON {table} BEGIN INSERT INTO delta_audit VALUES('{table}','{op}');END;")).unwrap();
+            c.execute_batch(&format!(
+                "CREATE TRIGGER audit_{table}_{op} AFTER {event} ON {table} BEGIN INSERT INTO delta_audit VALUES('{table}','{op}');END;"
+            ))
+            .unwrap();
         }
     }
     (dir, store, catalog, preferences)

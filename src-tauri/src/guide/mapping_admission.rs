@@ -95,7 +95,11 @@ pub(crate) fn save(
     let saved_source = source(&tx, &mapping.guide_source_id)?;
     sql(tx.execute("INSERT INTO guide_mapping VALUES(?1,?2,?3,?4) ON CONFLICT(catalog_source_id,app_channel_id) DO UPDATE SET guide_source_id=excluded.guide_source_id,xmltv_channel_id=excluded.xmltv_channel_id",params![mapping.catalog_source_id,mapping.app_channel_id,mapping.guide_source_id,mapping.xmltv_channel_id]))?;
     db::advance(&tx)?;
-    let (catalog, guide):(i64,i64)=sql(tx.query_row("SELECT m.catalog_revision,g.revision FROM metadata m,guide_meta g WHERE m.singleton=1 AND g.singleton=1",[],|r|Ok((r.get(0)?,r.get(1)?))))?;
+    let (catalog, guide): (i64, i64) = sql(tx.query_row(
+        "SELECT m.catalog_revision,g.revision FROM metadata m,guide_meta g WHERE m.singleton=1 AND g.singleton=1",
+        [],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    ))?;
     let receipt = Receipt {
         schema_version: 1,
         mapping,
@@ -121,7 +125,11 @@ pub(crate) fn verify(
 ) -> Result<db::GuideSource, String> {
     root(receipt)?;
     let m = &receipt.mapping;
-    let (catalog,guide):(i64,i64)=sql(c.query_row("SELECT m.catalog_revision,g.revision FROM metadata m,guide_meta g WHERE m.singleton=1 AND g.singleton=1",[],|r|Ok((r.get(0)?,r.get(1)?))))?;
+    let (catalog, guide): (i64, i64) = sql(c.query_row(
+        "SELECT m.catalog_revision,g.revision FROM metadata m,guide_meta g WHERE m.singleton=1 AND g.singleton=1",
+        [],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    ))?;
     if catalog.to_string() != receipt.catalog_revision
         || (strict_guide && guide != receipt.guide_revision)
     {
@@ -260,7 +268,10 @@ mod tests {
     fn target_status_never_borrows_unrelated_or_expired_programmes() {
         let mut c = fixture();
         let r = saved(&mut c);
-        c.execute_batch("INSERT INTO guide_program VALUES('guide','other',100,10000),('guide','selected',50,100),('guide','selected',50,NULL)").unwrap();
+        c.execute_batch(
+            "INSERT INTO guide_program VALUES('guide','other',100,10000),('guide','selected',50,100),('guide','selected',50,NULL)",
+        )
+        .unwrap();
         assert!(!status(&c, &r, 4, 100).unwrap().listed);
         c.execute_batch("INSERT INTO guide_program VALUES('guide','selected',100,200)")
             .unwrap();

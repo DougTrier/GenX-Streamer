@@ -62,7 +62,9 @@ fn legacy_projection(c: &mut Connection) {
     }
     let tx = c.transaction().unwrap();
     let mut read = tx.prepare("SELECT c.id,s.allow_http,s.content_kind,s.media_mime,u.url FROM channel c JOIN source s ON s.id=c.source_id JOIN channel_url u ON u.channel_id=c.id ORDER BY c.id,u.ordinal").unwrap();
-    let rows: Vec<(String, i64, Option<String>, Option<String>, String)> = read
+    // (channel id, allow HTTP, content kind, media type, URL)
+    type UrlRow = (String, i64, Option<String>, Option<String>, String);
+    let rows: Vec<UrlRow> = read
         .query_map([], |r| {
             Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))
         })
@@ -96,7 +98,8 @@ fn legacy_catalog_labels_upgrade_once_with_verified_backup_and_preserve_all_cano
     let (root, store) = fixture();
     let before = store.read_pair().unwrap();
     let mut c = connect(&root.path().join(DB), false).unwrap();
-    c.execute_batch("INSERT INTO guide_mapping VALUES('legacy','a','guide','golazo'),('inspected','b','guide','golazo');").unwrap();
+    c.execute_batch("INSERT INTO guide_mapping VALUES('legacy','a','guide','golazo'),('inspected','b','guide','golazo');")
+        .unwrap();
     let initial = page(&store, "Golazo");
     legacy_projection(&mut c);
     assert_eq!(visible_groups(&c), 2);
@@ -220,7 +223,9 @@ fn direct_media_grants_and_ordered_fallbacks_remain_distinct_without_name_mergin
             source["mediaMime"] = json!(mime);
         }
         catalog["sources"].as_array_mut().unwrap().push(source);
-        catalog["channels"].as_array_mut().unwrap().push(json!({"id":id,"sourceId":id,"providerId":"Golazo.us@SD","name":"Golazo Network (720p)","category":"Sports","urls":urls}));
+        catalog["channels"].as_array_mut().unwrap().push(
+            json!({"id":id,"sourceId":id,"providerId":"Golazo.us@SD","name":"Golazo Network (720p)","category":"Sports","urls":urls}),
+        );
     }
     let mut preferences: Value =
         serde_json::from_str(&store.read("preferences").unwrap().unwrap()).unwrap();
@@ -244,12 +249,14 @@ fn favorite_category_removal_and_guide_mapping_partitions_remain_live() {
     c.execute_batch("INSERT INTO removed VALUES('b',0)")
         .unwrap();
     assert_eq!(visible_groups(&c), 1);
-    c.execute_batch("DELETE FROM favorite;DELETE FROM removed;INSERT INTO channel_category_override VALUES('a','News',0)").unwrap();
+    c.execute_batch("DELETE FROM favorite;DELETE FROM removed;INSERT INTO channel_category_override VALUES('a','News',0)")
+        .unwrap();
     assert_eq!(visible_groups(&c), 2);
     c.execute_batch("INSERT INTO channel_category_override VALUES('b','News',1)")
         .unwrap();
     assert_eq!(visible_groups(&c), 1);
-    c.execute_batch("DELETE FROM channel_category_override;INSERT INTO guide_mapping VALUES('legacy','a','guide','one')").unwrap();
+    c.execute_batch("DELETE FROM channel_category_override;INSERT INTO guide_mapping VALUES('legacy','a','guide','one')")
+        .unwrap();
     assert_eq!(visible_groups(&c), 2);
     c.execute_batch("INSERT INTO guide_mapping VALUES('inspected','b','guide','one')")
         .unwrap();

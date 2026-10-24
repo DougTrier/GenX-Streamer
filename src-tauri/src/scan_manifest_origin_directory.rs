@@ -132,7 +132,11 @@ pub(crate) fn derive_rows(metadata: &[Value], entries: &[Entry]) -> Result<Vec<O
         .collect()
 }
 fn present(c: &Connection) -> Result<bool, String> {
-    let exists:bool=sql(c.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='scan_manifest_origin_namespace')",[],|r|r.get(0)))?;
+    let exists: bool = sql(c.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='scan_manifest_origin_namespace')",
+        [],
+        |r| r.get(0),
+    ))?;
     if exists {
         let version: i64 = sql(c.query_row(
             "SELECT schema_version FROM scan_manifest_origin_namespace WHERE singleton=1",
@@ -217,7 +221,10 @@ fn append(
             ],
         ))?;
     }
-    sql(c.execute("UPDATE scan_manifest_origin_directory SET revision=revision+1,next_index=next_index+?1 WHERE manifest_id=?2 AND revision=?3",params![rows.len() as i64,id,d.revision]))?;
+    sql(c.execute(
+        "UPDATE scan_manifest_origin_directory SET revision=revision+1,next_index=next_index+?1 WHERE manifest_id=?2 AND revision=?3",
+        params![rows.len() as i64, id, d.revision],
+    ))?;
     header(c, id)
 }
 pub(super) fn append_capture(c: &Connection, id: &str, rows: &[OriginRow]) -> Result<(), String> {
@@ -311,7 +318,10 @@ fn directory_digest(binding: &str, rows: &[OriginRow]) -> [u8; 32] {
     digest.finalize().into()
 }
 fn capsule_plain(hash: &[u8; 32], count: usize) -> Result<Vec<u8>, String> {
-    serde_json::to_vec(&json!({"schemaVersion":1,"candidateCount":count,"directoryHash":hash.iter().map(|byte|format!("{byte:02x}")).collect::<String>()})).map_err(|_|ORIGIN_ERR.into())
+    serde_json::to_vec(
+        &json!({"schemaVersion":1,"candidateCount":count,"directoryHash":hash.iter().map(|byte|format!("{byte:02x}")).collect::<String>()}),
+    )
+    .map_err(|_| ORIGIN_ERR.into())
 }
 fn prepare(
     c: &Connection,

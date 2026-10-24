@@ -227,13 +227,15 @@ fn readonly_preflight_preserves_crossfeed_ambiguity_and_then_detects_actual_chan
     let before = std::fs::read(&path).unwrap();
     let receipt = preflight_connection(
         &read,
-        "7",
-        &[a.clone(), b.clone()],
-        &[],
-        None,
-        Outcome::not_requested(),
+        ConnectionRequest {
+            expected_catalog_revision: "7",
+            sources: &[a.clone(), b.clone()],
+            aliases: &[],
+            authority: None,
+            outcome: Outcome::not_requested(),
+            automatic: false,
+        },
         &|| false,
-        false,
     )
     .unwrap()
     .unwrap();
@@ -245,13 +247,15 @@ fn readonly_preflight_preserves_crossfeed_ambiguity_and_then_detects_actual_chan
     assert_eq!(std::fs::read(&path).unwrap(), before);
     assert!(preflight_connection(
         &read,
-        "7",
-        &[a],
-        &[],
-        None,
-        Outcome::not_requested(),
-        &|| false,
-        false
+        ConnectionRequest {
+            expected_catalog_revision: "7",
+            sources: &[a],
+            aliases: &[],
+            authority: None,
+            outcome: Outcome::not_requested(),
+            automatic: false
+        },
+        &|| false
     )
     .unwrap()
     .is_none());
@@ -259,13 +263,15 @@ fn readonly_preflight_preserves_crossfeed_ambiguity_and_then_detects_actual_chan
     assert_eq!(
         preflight_connection(
             &read,
-            "6",
-            &[b.clone()],
-            &[],
-            None,
-            Outcome::not_requested(),
-            &|| false,
-            false
+            ConnectionRequest {
+                expected_catalog_revision: "6",
+                sources: std::slice::from_ref(&b),
+                aliases: &[],
+                authority: None,
+                outcome: Outcome::not_requested(),
+                automatic: false
+            },
+            &|| false
         )
         .unwrap_err(),
         "catalog-revision-stale"
@@ -275,13 +281,15 @@ fn readonly_preflight_preserves_crossfeed_ambiguity_and_then_detects_actual_chan
     assert_eq!(
         preflight_connection(
             &read,
-            "7",
-            &[stale],
-            &[],
-            None,
-            Outcome::not_requested(),
-            &|| false,
-            false
+            ConnectionRequest {
+                expected_catalog_revision: "7",
+                sources: &[stale],
+                aliases: &[],
+                authority: None,
+                outcome: Outcome::not_requested(),
+                automatic: false
+            },
+            &|| false
         )
         .unwrap_err(),
         "guide-stale-revision"
@@ -306,13 +314,15 @@ fn readonly_preflight_retains_existing_choices_and_current_automatic_permission(
     .unwrap();
     let receipt = preflight_connection(
         &c,
-        "7",
-        &[a.clone(), b],
-        &[],
-        None,
-        Outcome::not_requested(),
+        ConnectionRequest {
+            expected_catalog_revision: "7",
+            sources: &[a.clone(), b],
+            aliases: &[],
+            authority: None,
+            outcome: Outcome::not_requested(),
+            automatic: true,
+        },
         &|| false,
-        true,
     )
     .unwrap()
     .unwrap();
@@ -329,39 +339,45 @@ fn readonly_preflight_retains_existing_choices_and_current_automatic_permission(
     assert_eq!(
         preflight_connection(
             &c,
-            "7",
-            &[a.clone()],
-            &[],
-            None,
-            Outcome::not_requested(),
-            &|| false,
-            true
+            ConnectionRequest {
+                expected_catalog_revision: "7",
+                sources: std::slice::from_ref(&a),
+                aliases: &[],
+                authority: None,
+                outcome: Outcome::not_requested(),
+                automatic: true
+            },
+            &|| false
         )
         .unwrap_err(),
         "guide-refresh-disabled"
     );
     assert!(preflight_connection(
         &c,
-        "7",
-        &[a.clone()],
-        &[],
-        None,
-        Outcome::not_requested(),
-        &|| false,
-        false
+        ConnectionRequest {
+            expected_catalog_revision: "7",
+            sources: std::slice::from_ref(&a),
+            aliases: &[],
+            authority: None,
+            outcome: Outcome::not_requested(),
+            automatic: false
+        },
+        &|| false
     )
     .unwrap()
     .is_some());
     assert_eq!(
         preflight_connection(
             &c,
-            "7",
-            &[a],
-            &[],
-            None,
-            Outcome::not_requested(),
-            &|| true,
-            false
+            ConnectionRequest {
+                expected_catalog_revision: "7",
+                sources: &[a],
+                aliases: &[],
+                authority: None,
+                outcome: Outcome::not_requested(),
+                automatic: false
+            },
+            &|| true
         )
         .unwrap_err(),
         "guide-cancelled"
@@ -522,8 +538,10 @@ fn alias_fixture(c: &Connection) -> (CachedSource, ReviewedAliases) {
         provenance_location: "https://raw.githubusercontent.com/iptv-org/epg/master/sites/pluto.tv/pluto.tv_us.channels.xml".into(),
         provenance_sha256: "dc1eaca8b90b1d227850f81fb02793c74a804c473eb26dd674cd1eaa8084c89e".into(),
         pairs: vec![super::super::reviewed_aliases::AliasPair {
-            catalog_source_id: "catalog".into(), app_channel_id: "pga".into(),
-            provider_id: "PGATour.us@SD".into(), xmltv_channel_id: "5de94dacb394a300099fa22a".into(),
+            catalog_source_id: "catalog".into(),
+            app_channel_id: "pga".into(),
+            provider_id: "PGATour.us@SD".into(),
+            xmltv_channel_id: "5de94dacb394a300099fa22a".into(),
         }],
     };
     (source, descriptor)

@@ -216,7 +216,15 @@ fn channel_id(letter: char) -> String {
     format!("account-{ACCOUNT}-{}", letter.to_string().repeat(64))
 }
 /// (letter, name, group, epg id, removed, favorite)
-const CHANNELS: &[(char, &str, &str, Option<&str>, bool, bool)] = &[
+type ChannelRow = (
+    char,
+    &'static str,
+    &'static str,
+    Option<&'static str>,
+    bool,
+    bool,
+);
+const CHANNELS: &[ChannelRow] = &[
     (
         'a',
         "FOX 32 Chicago",

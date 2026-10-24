@@ -190,7 +190,10 @@ fn backup_verification_large_fixture_reports_owned_handshake_overhead_and_full_c
         let prior = &phase_before["backupPhases"][name];
         let calls = current["count"].as_u64().unwrap() - prior["count"].as_u64().unwrap();
         assert_eq!(calls, 1);
-        measured.insert(name.into(), json!({"count":calls,"totalMs":current["totalMs"].as_f64().unwrap()-prior["totalMs"].as_f64().unwrap()}));
+        measured.insert(
+            name.into(),
+            json!({"count":calls,"totalMs":current["totalMs"].as_f64().unwrap()-prior["totalMs"].as_f64().unwrap()}),
+        );
     }
     println!(
         "{}",

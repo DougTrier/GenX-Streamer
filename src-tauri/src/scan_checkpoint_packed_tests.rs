@@ -124,9 +124,10 @@ fn packed_advance_atomic_publication_health_and_reopen_retains_immutable_review(
     let fingerprint =
         crate::health_storage::fingerprint(&catalog["sources"][0], &catalog["channels"][0], 0)
             .unwrap();
-    let health=json!({"schemaVersion":1,"records":[{"schemaVersion":1,"channelId":"saved-id","sourceId":"public","checkedUrlOrdinal":0,
+    let health = json!({"schemaVersion":1,"records":[{"schemaVersion":1,"channelId":"saved-id","sourceId":"public","checkedUrlOrdinal":0,
         "targetFingerprint":fingerprint,"platform":"windows","observerProfile":"resource-v1","observedAt":scan_now(),"verdict":"Reachable",
-        "evidence":{"kind":"recognized-media-response"},"origin":"local"}]}).to_string();
+        "evidence":{"kind":"recognized-media-response"},"origin":"local"}]})
+    .to_string();
     let before = store.read_snapshot().unwrap();
     let receipt = store
         .write_pair_with_scan(
@@ -376,7 +377,9 @@ fn packed_late_checkpoint_sql_failure_rolls_back_catalog_health_and_progress() {
     let before = store.read_snapshot().unwrap();
     let cp = stored(&store);
     let mut connection = connect(&store.root.join(DB), false).unwrap();
-    connection.execute_batch("CREATE TRIGGER reject_packed_progress BEFORE UPDATE ON scan_checkpoint BEGIN SELECT RAISE(ABORT,'fixture'); END;").unwrap();
+    connection
+        .execute_batch("CREATE TRIGGER reject_packed_progress BEFORE UPDATE ON scan_checkpoint BEGIN SELECT RAISE(ABORT,'fixture'); END;")
+        .unwrap();
     let delta = advance(
         &packed,
         value["observations"].as_array().unwrap().clone(),

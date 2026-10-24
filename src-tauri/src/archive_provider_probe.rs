@@ -179,7 +179,9 @@ fn verified_moov_payload(
     }
     Ok(&bytes[header..])
 }
-fn children(mut bytes: &[u8]) -> Result<Vec<([u8; 4], &[u8])>, String> {
+/// MP4 boxes: each box's four-byte type and its contents.
+type Boxes<'a> = Vec<([u8; 4], &'a [u8])>;
+fn children(mut bytes: &[u8]) -> Result<Boxes<'_>, String> {
     let mut result = Vec::new();
     while !bytes.is_empty() {
         let (h, k, n) = box_header(bytes)?;

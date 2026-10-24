@@ -594,15 +594,6 @@ impl Store {
         self.pair
             .prepare_scan_resume_page(fence, job_id, digest, original_index, check)
     }
-    pub(crate) fn finish_scan_resume_page(
-        &self,
-        prepared: crate::storage_transaction::resume_page::PreparedResumePage,
-        plaintext: Vec<u8>,
-        check: impl FnMut() -> Result<(), String>,
-    ) -> Result<crate::scan_candidate_manifest::AuthenticatedPage, String> {
-        self.pair
-            .finish_scan_resume_page(prepared, plaintext, check)
-    }
     pub(crate) fn finish_cached_scan_resume_page(
         &self,
         prepared: crate::storage_transaction::resume_page::PreparedResumePage,

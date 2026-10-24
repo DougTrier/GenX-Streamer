@@ -252,7 +252,14 @@ fn main() {
         let over = times.iter().filter(|&&t| t > budget).count();
         println!(
             "{label:>4}: n={:5} mean {:7.0} us  p50 {:6} p95 {:6} p99 {:6} max {:6} us  over budget {:4} ({:.2}%)",
-            times.len(), mean, at(0.5), at(0.95), at(0.99), times[times.len() - 1], over, 100.0 * over as f64 / times.len() as f64
+            times.len(),
+            mean,
+            at(0.5),
+            at(0.95),
+            at(0.99),
+            times[times.len() - 1],
+            over,
+            100.0 * over as f64 / times.len() as f64
         );
     };
     report("all", all.iter().map(|&(t, _)| t).collect());

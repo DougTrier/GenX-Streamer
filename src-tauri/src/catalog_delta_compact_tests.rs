@@ -260,7 +260,11 @@ fn caller_actual_compact_commit_rolls_back_trigger_failure_and_retains_late_ack(
     let request = super::super::pair_reuse_tests::batch(&catalog, &prefs, true);
     let before = store.read_snapshot().unwrap();
     let connection = connect(&dir.path().join(DB), false).unwrap();
-    connection.execute_batch("CREATE TRIGGER reject_compact BEFORE INSERT ON channel WHEN NEW.id='new' BEGIN SELECT RAISE(ABORT,'controlled');END;").unwrap();
+    connection
+        .execute_batch(
+            "CREATE TRIGGER reject_compact BEFORE INSERT ON channel WHEN NEW.id='new' BEGIN SELECT RAISE(ABORT,'controlled');END;",
+        )
+        .unwrap();
     assert_eq!(
         store.commit_scan_batch(&request, || Ok(())).unwrap_err(),
         "sqlite-operation-failed"

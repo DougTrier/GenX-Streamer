@@ -13,8 +13,10 @@
 // limitations under the License.
 
 //! Renderer death is terminal for the current native epoch. Never resets owners in place.
+#[cfg(any(target_os = "android", test))]
 use std::sync::Mutex;
 
+#[cfg(any(target_os = "android", test))]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 enum Phase {
     Alive,
@@ -29,6 +31,7 @@ pub(crate) struct Bootstrap {
     recovered_renderer: bool,
 }
 
+#[cfg(any(target_os = "android", test))]
 pub(crate) struct Owner {
     phase: Mutex<Phase>,
     #[cfg(target_os = "android")]
@@ -36,6 +39,7 @@ pub(crate) struct Owner {
     #[cfg(target_os = "android")]
     registration: Mutex<Option<tauri::async_runtime::JoinHandle<()>>>,
 }
+#[cfg(any(target_os = "android", test))]
 impl Default for Owner {
     fn default() -> Self {
         Self {
@@ -47,6 +51,7 @@ impl Default for Owner {
         }
     }
 }
+#[cfg(any(target_os = "android", test))]
 impl Owner {
     fn begin(&self) -> bool {
         let Ok(mut phase) = self.phase.lock() else {

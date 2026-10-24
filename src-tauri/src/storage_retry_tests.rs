@@ -26,11 +26,15 @@ fn target(path: &Path, existing: bool) -> Result<StorageTarget, String> {
 }
 fn seeded(path: &Path) -> Store {
     let store = Store::new(path.to_owned(), "explicit-directory".into()).unwrap();
-    store.write_guarded(
-        r#"{"schemaVersion":1,"sources":[],"channels":[]}"#,
-        r#"{"schemaVersion":1,"sources":[],"favorites":[],"removedChannels":[],"volume":0.5,"muted":false,"panelWidth":300.0}"#,
-        None, (None, None), || Ok(()),
-    ).unwrap();
+    store
+        .write_guarded(
+            r#"{"schemaVersion":1,"sources":[],"channels":[]}"#,
+            r#"{"schemaVersion":1,"sources":[],"favorites":[],"removedChannels":[],"volume":0.5,"muted":false,"panelWidth":300.0}"#,
+            None,
+            (None, None),
+            || Ok(()),
+        )
+        .unwrap();
     store
 }
 fn digest(path: &Path) -> Vec<u8> {

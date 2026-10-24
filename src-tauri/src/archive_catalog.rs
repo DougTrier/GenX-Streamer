@@ -180,7 +180,11 @@ pub(crate) fn remove(
                     [],
                     |r| r.get::<_, i64>(0),
                 ))? as usize;
-                receipt.cleared_progress=sql(tx.query_row("SELECT (SELECT count(*) FROM archive_progress_v1)+(SELECT count(*) FROM archive_item_progress_v1)",[],|r|r.get::<_,i64>(0)))? as usize;
+                receipt.cleared_progress = sql(tx.query_row(
+                    "SELECT (SELECT count(*) FROM archive_progress_v1)+(SELECT count(*) FROM archive_item_progress_v1)",
+                    [],
+                    |r| r.get::<_, i64>(0),
+                ))? as usize;
                 for table in [
                     "archive_item_progress_v1",
                     "archive_file_v1",
@@ -217,7 +221,10 @@ pub(crate) fn remove(
                     if opaque(&["archive-item-v1", &id]) != *reference {
                         return Err("archive-removal-scope-invalid".into());
                     }
-                    sql(tx.execute("INSERT INTO archive_removal_v1 VALUES('title',?1,?2,?1,?3,NULL,?4) ON CONFLICT(scope,reference) DO NOTHING",params![reference,id,name,next]))?;
+                    sql(tx.execute(
+                        "INSERT INTO archive_removal_v1 VALUES('title',?1,?2,?1,?3,NULL,?4) ON CONFLICT(scope,reference) DO NOTHING",
+                        params![reference, id, name, next],
+                    ))?;
                     receipt.removed_files = sql(tx.query_row(
                         "SELECT count(*) FROM archive_file_v1 WHERE title_ref=?1",
                         [reference],
@@ -229,10 +236,10 @@ pub(crate) fn remove(
                         |r| r.get::<_, i64>(0),
                     ))? as usize;
                     receipt.removed_favorites = sql(tx.query_row(
-                    "SELECT count(*) FROM archive_preferences_v1 WHERE title_ref=?1 AND favorite=1",
-                    [reference],
-                    |r| r.get::<_, i64>(0),
-                ))? as usize;
+                        "SELECT count(*) FROM archive_preferences_v1 WHERE title_ref=?1 AND favorite=1",
+                        [reference],
+                        |r| r.get::<_, i64>(0),
+                    ))? as usize;
                     sql(tx.execute(
                         "DELETE FROM archive_preferences_v1 WHERE title_ref=?1",
                         [reference],
@@ -255,13 +262,22 @@ pub(crate) fn remove(
                     {
                         return Err("archive-removal-scope-invalid".into());
                     }
-                    sql(tx.execute("INSERT INTO archive_removal_v1 VALUES('file',?1,?2,?3,?4,?5,?6) ON CONFLICT(scope,reference) DO NOTHING",params![reference,id,title,display,name,next]))?;
+                    sql(tx.execute(
+                        "INSERT INTO archive_removal_v1 VALUES('file',?1,?2,?3,?4,?5,?6) ON CONFLICT(scope,reference) DO NOTHING",
+                        params![reference, id, title, display, name, next],
+                    ))?;
                     receipt.removed_files = sql(
                         tx.execute("DELETE FROM archive_file_v1 WHERE file_ref=?1", [reference])
                     )?;
                     changed = true;
                 } else {
-                    let saved:Option<String>=sql(tx.query_row("SELECT title_ref FROM archive_removal_v1 WHERE scope='file' AND reference=?1",[reference],|r|r.get(0)).optional())?;
+                    let saved: Option<String> = sql(tx
+                        .query_row(
+                            "SELECT title_ref FROM archive_removal_v1 WHERE scope='file' AND reference=?1",
+                            [reference],
+                            |r| r.get(0),
+                        )
+                        .optional())?;
                     if saved.as_deref() != Some(requested_title) {
                         return Err("archive-removal-scope-invalid".into());
                     }
@@ -368,7 +384,13 @@ pub(crate) fn set_favorite(
         return Err("archive-revision-stale".into());
     }
     let live:Option<(String,String,Option<i64>)>=sql(tx.query_row("SELECT item_id,title,release_year FROM archive_title_v1 t WHERE title_ref=?1 AND EXISTS(SELECT 1 FROM archive_file_v1 f WHERE f.title_ref=t.title_ref AND f.eligible=1)",[&r.title_ref],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?))).optional())?;
-    let saved:Option<(String,String,Option<i64>,bool)>=sql(tx.query_row("SELECT item_id,title,release_year,favorite FROM archive_preferences_v1 WHERE title_ref=?1",[&r.title_ref],|row|Ok((row.get(0)?,row.get(1)?,row.get(2)?,row.get(3)?))).optional())?;
+    let saved: Option<(String, String, Option<i64>, bool)> = sql(tx
+        .query_row(
+            "SELECT item_id,title,release_year,favorite FROM archive_preferences_v1 WHERE title_ref=?1",
+            [&r.title_ref],
+            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get(3)?)),
+        )
+        .optional())?;
     let metadata = match (live, saved.as_ref()) {
         (Some(metadata), _) => metadata,
         (None, Some((id, title, year, _))) if !r.value => (id.clone(), title.clone(), *year),
@@ -383,7 +405,10 @@ pub(crate) fn set_favorite(
         result_revision = expected
             .checked_add(1)
             .ok_or("archive-revision-exhausted")?;
-        sql(tx.execute("INSERT INTO archive_preferences_v1 VALUES(?1,?2,?3,?4,?5) ON CONFLICT(title_ref) DO UPDATE SET favorite=excluded.favorite",params![r.title_ref,metadata.0,metadata.1,metadata.2,r.value]))?;
+        sql(tx.execute(
+            "INSERT INTO archive_preferences_v1 VALUES(?1,?2,?3,?4,?5) ON CONFLICT(title_ref) DO UPDATE SET favorite=excluded.favorite",
+            params![r.title_ref, metadata.0, metadata.1, metadata.2, r.value],
+        ))?;
         catalog_bounds(&tx)?;
         if sql(tx.execute(
             "UPDATE archive_catalog_meta_v1 SET revision=?1 WHERE singleton=1 AND revision=?2",
@@ -1582,7 +1607,13 @@ pub(crate) fn progress(c: &Connection, q: &ProgressQuery) -> Result<ProgressRepl
     let tx = sql(c.unchecked_transaction())?;
     let rev = current(&tx)?;
     let hash = search_scope_hash(&q.query, q.decade);
-    let saved:Option<(u32,bool,Option<i64>)>=sql(tx.query_row("SELECT next_page,complete,retry_after_ms FROM archive_progress_v1 WHERE year=?1 AND query_hash=?2",params![q.year.unwrap_or(0),hash],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?))).optional())?;
+    let saved: Option<(u32, bool, Option<i64>)> = sql(tx
+        .query_row(
+            "SELECT next_page,complete,retry_after_ms FROM archive_progress_v1 WHERE year=?1 AND query_hash=?2",
+            params![q.year.unwrap_or(0), hash],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .optional())?;
     let (next, complete, retry) = saved.unwrap_or((1, false, None));
     let count: i64 = sql(tx.query_row("SELECT count(*) FROM archive_title_v1", [], |r| r.get(0)))?;
     if !(0..=1400).contains(&count) {
@@ -1689,11 +1720,25 @@ pub(crate) struct ItemCapture {
     pub downloads: i64,
     pub page: PreparedPage,
 }
+const FILE_PROGRESS_SQL: &str = "SELECT t.title_ref,t.title,t.kind,t.release_year,p.provider_count,p.next_offset,(SELECT count(*) FROM archive_file_v1 f WHERE f.item_id=t.item_id AND f.eligible=1),p.capacity,t.search_text FROM archive_item_progress_v1 p JOIN archive_title_v1 t ON t.item_id=p.item_id WHERE p.item_id=?1";
 pub(crate) fn file_progress(c: &Connection, id: &str) -> Result<FileProgress, String> {
-    let (mut progress, aliases): (FileProgress, String) = sql(c.query_row("SELECT t.title_ref,t.title,t.kind,t.release_year,p.provider_count,p.next_offset,(SELECT count(*) FROM archive_file_v1 f WHERE f.item_id=t.item_id AND f.eligible=1),p.capacity,t.search_text FROM archive_item_progress_v1 p JOIN archive_title_v1 t ON t.item_id=p.item_id WHERE p.item_id=?1",[id],|r| {
-        let count:u32=r.get(4)?;let next:u32=r.get(5)?;
-        Ok((FileProgress {title_ref:r.get(0)?,title:r.get(1)?,kind:r.get(2)?,original_year:r.get(3)?,provider_file_count:count,next_offset:next,available_file_count:r.get(6)?,complete:next==count,capacity_reached:r.get(7)?},r.get(8)?))
-    }))?;
+    let (mut progress, aliases): (FileProgress, String) =
+        sql(c.query_row(FILE_PROGRESS_SQL, [id], |r| {
+            let count: u32 = r.get(4)?;
+            let next: u32 = r.get(5)?;
+            let progress = FileProgress {
+                title_ref: r.get(0)?,
+                title: r.get(1)?,
+                kind: r.get(2)?,
+                original_year: r.get(3)?,
+                provider_file_count: count,
+                next_offset: next,
+                available_file_count: r.get(6)?,
+                complete: next == count,
+                capacity_reached: r.get(7)?,
+            };
+            Ok((progress, r.get(8)?))
+        }))?;
     match content_type(decode_search_metadata(&aliases)?.as_ref()) {
         ContentType::Tv => progress.kind = "tv".to_owned(),
         ContentType::Movie | ContentType::Short => progress.kind = "movie".to_owned(),
@@ -1906,7 +1951,13 @@ fn prepare_at(
     if restart && page == 1 {
         return Ok(());
     }
-    let saved:Option<(String,u32,bool,Option<i64>)>=sql(c.query_row("SELECT query_hash,next_page,complete,retry_after_ms FROM archive_progress_v1 WHERE year=?1",[year],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?))).optional())?;
+    let saved: Option<(String, u32, bool, Option<i64>)> = sql(c
+        .query_row(
+            "SELECT query_hash,next_page,complete,retry_after_ms FROM archive_progress_v1 WHERE year=?1",
+            [year],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+        )
+        .optional())?;
     match saved {
         Some((hash, next, complete, _)) if hash == query_hash && (complete || page != next) => {
             Err("archive-progress-stale".into())
@@ -1948,31 +1999,38 @@ pub struct StepReceipt {
     #[serde(skip)]
     pub(crate) files_admitted: usize,
 }
+/// Which search results page a step commits: its year filter, page number,
+/// query fingerprint, and whether the search starts over.
+#[derive(Clone, Copy)]
+pub(crate) struct SearchPage<'a> {
+    pub year: Option<i64>,
+    pub page: u32,
+    pub query_hash: &'a str,
+    pub restart: bool,
+}
 pub(crate) fn commit(
     c: &mut Connection,
     expected: &str,
-    year: Option<i64>,
-    page: u32,
-    query_hash: &str,
-    restart: bool,
+    search: SearchPage<'_>,
     step: PreparedStep,
     check: &mut dyn FnMut() -> Result<(), String>,
 ) -> Result<StepReceipt, String> {
-    commit_view(
-        c, expected, year, page, query_hash, restart, step, None, check,
-    )
+    commit_view(c, expected, search, step, None, check)
 }
 pub(crate) fn commit_view(
     c: &mut Connection,
     expected: &str,
-    year: Option<i64>,
-    page: u32,
-    query_hash: &str,
-    restart: bool,
+    search: SearchPage<'_>,
     step: PreparedStep,
     view: Option<(&str, Option<i64>, &DiscoveryView)>,
     check: &mut dyn FnMut() -> Result<(), String>,
 ) -> Result<StepReceipt, String> {
+    let SearchPage {
+        year,
+        page,
+        query_hash,
+        restart,
+    } = search;
     check()?;
     let tx = sql(c.transaction_with_behavior(TransactionBehavior::Immediate))?;
     if step.item_page {
@@ -2048,7 +2106,11 @@ pub(crate) fn commit_view(
             )? {
                 continue;
             }
-            let exists:bool=sql(tx.query_row("SELECT EXISTS(SELECT 1 FROM archive_file_v1 WHERE item_id=?1 AND file_name=?2 AND eligible=1)",params![t.item_id,f.name],|r|r.get(0)))?;
+            let exists: bool = sql(tx.query_row(
+                "SELECT EXISTS(SELECT 1 FROM archive_file_v1 WHERE item_id=?1 AND file_name=?2 AND eligible=1)",
+                params![t.item_id, f.name],
+                |r| r.get(0),
+            ))?;
             if page.is_some() && !exists && available >= 1000 {
                 if let Some(p) = page.as_mut() {
                     p.capacity = true;
@@ -2068,7 +2130,11 @@ pub(crate) fn commit_view(
         if let Some(partial) = &page {
             install_page(&tx, &t.item_id, partial)?;
             if partial.curation_year.is_some() {
-                let originals:i64=sql(tx.query_row("SELECT count(DISTINCT original_identity) FROM archive_file_v1 WHERE item_id=?1 AND eligible=1",[&t.item_id],|r|r.get(0)))?;
+                let originals: i64 = sql(tx.query_row(
+                    "SELECT count(DISTINCT original_identity) FROM archive_file_v1 WHERE item_id=?1 AND eligible=1",
+                    [&t.item_id],
+                    |r| r.get(0),
+                ))?;
                 if t.kind != "tv" || originals >= 2 {
                     sql(tx.execute(
                         "UPDATE archive_title_v1 SET curated=1 WHERE item_id=?1",
@@ -2084,7 +2150,10 @@ pub(crate) fn commit_view(
         }
     }
     sql(tx.execute("DELETE FROM archive_title_v1 WHERE NOT EXISTS(SELECT 1 FROM archive_file_v1 f WHERE f.title_ref=archive_title_v1.title_ref AND f.eligible=1) AND NOT EXISTS(SELECT 1 FROM archive_item_progress_v1 p WHERE p.item_id=archive_title_v1.item_id)",[]))?;
-    sql(tx.execute("UPDATE archive_title_v1 SET curated=0 WHERE release_year IS NULL OR release_year NOT BETWEEN 1960 AND 1999",[]))?;
+    sql(tx.execute(
+        "UPDATE archive_title_v1 SET curated=0 WHERE release_year IS NULL OR release_year NOT BETWEEN 1960 AND 1999",
+        [],
+    ))?;
     sql(tx.execute("UPDATE archive_title_v1 SET curated=0 WHERE title_ref IN(SELECT title_ref FROM (SELECT title_ref,ROW_NUMBER() OVER(PARTITION BY release_year ORDER BY downloads DESC,item_id) AS n FROM archive_title_v1 WHERE curated=1) WHERE n>10)",[]))?;
     sql(tx.execute(
         "DELETE FROM archive_title_v1 WHERE curated=0 AND searched=0 AND NOT EXISTS(SELECT 1 FROM archive_preferences_v1 p WHERE p.title_ref=archive_title_v1.title_ref AND p.favorite=1) AND NOT EXISTS(SELECT 1 FROM archive_item_progress_v1 i WHERE i.item_id=archive_title_v1.item_id)",
@@ -2200,10 +2269,12 @@ mod tests {
         commit(
             &mut c,
             "0",
-            None,
-            1,
-            "query",
-            false,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: false,
+            },
             step(vec![title("chosen", Some(1964), 1)]),
             &mut || Ok(()),
         )
@@ -2343,10 +2414,12 @@ mod tests {
         commit(
             &mut c,
             "0",
-            None,
-            1,
-            "query",
-            false,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: false,
+            },
             step(vec![chosen, title("other", Some(1965), 2)]),
             &mut || Ok(()),
         )
@@ -2415,10 +2488,12 @@ mod tests {
         let receipt = commit(
             &mut c,
             "3",
-            None,
-            1,
-            "query",
-            true,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: true,
+            },
             step(vec![title("chosen", Some(1964), 99)]),
             &mut || Ok(()),
         )
@@ -2440,10 +2515,12 @@ mod tests {
         commit(
             &mut c,
             "0",
-            None,
-            1,
-            "query",
-            false,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: false,
+            },
             step(vec![title("chosen", Some(1964), 1)]),
             &mut || Ok(()),
         )
@@ -2489,10 +2566,12 @@ mod tests {
         commit(
             &mut c,
             "3",
-            None,
-            1,
-            "query",
-            true,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: true,
+            },
             step(vec![title("chosen", Some(1964), 1)]),
             &mut || Ok(()),
         )
@@ -2516,10 +2595,12 @@ mod tests {
         commit(
             &mut c,
             "0",
-            None,
-            1,
-            "query",
-            false,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: false,
+            },
             step(vec![title("chosen", Some(1964), 1)]),
             &mut || Ok(()),
         )
@@ -2544,10 +2625,12 @@ mod tests {
         let receipt = commit(
             &mut c,
             "3",
-            None,
-            1,
-            "query",
-            true,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: true,
+            },
             step(vec![title("chosen", Some(1964), 1)]),
             &mut || Ok(()),
         )
@@ -2561,10 +2644,12 @@ mod tests {
         let receipt = commit(
             &mut c,
             "4",
-            None,
-            1,
-            "query",
-            true,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: true,
+            },
             step(vec![partial]),
             &mut || Ok(()),
         )
@@ -2583,10 +2668,12 @@ mod tests {
         commit(
             &mut c,
             "0",
-            None,
-            1,
-            "query",
-            false,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: false,
+            },
             step(vec![chosen]),
             &mut || Ok(()),
         )
@@ -2655,7 +2742,7 @@ mod tests {
             "3"
         );
         assert!(
-            matches!(commit(&mut c,"2",None,1,"query",true,step(vec![title("stale",Some(1964),1)]),&mut ||Ok(())),Err(e) if e=="archive-revision-stale")
+            matches!(commit(&mut c, "2", SearchPage { year: None, page: 1, query_hash: "query", restart: true }, step(vec![title("stale",Some(1964),1)]), &mut ||Ok(())),Err(e) if e=="archive-revision-stale")
         );
     }
     #[test]
@@ -2667,8 +2754,37 @@ mod tests {
         let preferences=serde_json::json!({"schemaVersion":1,"sources":sources,"favorites":["live"],"removedChannels":["missing-live"],"volume":0.5,"muted":false,"panelWidth":300.0}).to_string();
         store.write_pair(&catalog, &preferences).unwrap();
         let live = store.read_snapshot().unwrap();
-        store.with_guide_write(|c|{let mut chosen=title("chosen",Some(1964),1);chosen.partial=Some(page(64,None));commit(c,"0",None,1,"query",false,step(vec![chosen]),&mut ||Ok(()))?;set_favorite(c,&FavoriteRequest {schema_version:1,request_id:"fixture".into(),title_ref:opaque(&["archive-item-v1","chosen"]),expected_revision:"1".into(),value:true},&mut ||Ok(()))?;
-            c.execute_batch("INSERT INTO guide_source(id,name,location,kind,allow_http,revision,updated_ms,published_revision) VALUES('guide','Fixture','https://example.invalid/guide','url',0,1,1000,1);INSERT INTO guide_channel VALUES('guide','xmlid','[\"Fixture\"]','fixture');INSERT INTO guide_program(guide_source_id,ordinal,channel_id,start_ms,stop_ms,title,search_text) VALUES('guide',0,'xmlid',1000,2000,'Fixture program','fixture program');DROP TABLE public_archive_variant_v1;DROP TABLE public_archive_item_v1;DROP TABLE public_archive_preference_v1;DROP TABLE public_archive_removal_v1;DROP TABLE public_archive_checkpoint_v1;DROP TABLE archive_bookmark_v1;DROP TABLE archive_bookmark_meta_v1;DROP TABLE archive_removal_v1;PRAGMA user_version=13;").map_err(|_|"fixture-failed".to_owned())?;Ok(())}).unwrap();
+        // A version-13 database: guide data present, later archive tables not yet created.
+        let version_13 = "INSERT INTO guide_source(id,name,location,kind,allow_http,revision,updated_ms,published_revision) VALUES('guide','Fixture','https://example.invalid/guide','url',0,1,1000,1);INSERT INTO guide_channel VALUES('guide','xmlid','[\"Fixture\"]','fixture');INSERT INTO guide_program(guide_source_id,ordinal,channel_id,start_ms,stop_ms,title,search_text) VALUES('guide',0,'xmlid',1000,2000,'Fixture program','fixture program');DROP TABLE public_archive_variant_v1;DROP TABLE public_archive_item_v1;DROP TABLE public_archive_preference_v1;DROP TABLE public_archive_removal_v1;DROP TABLE public_archive_checkpoint_v1;DROP TABLE archive_bookmark_v1;DROP TABLE archive_bookmark_meta_v1;DROP TABLE archive_removal_v1;PRAGMA user_version=13;";
+        store
+            .with_guide_write(|c| {
+                let mut chosen = title("chosen", Some(1964), 1);
+                chosen.partial = Some(page(64, None));
+                commit(
+                    c,
+                    "0",
+                    SearchPage {
+                        year: None,
+                        page: 1,
+                        query_hash: "query",
+                        restart: false,
+                    },
+                    step(vec![chosen]),
+                    &mut || Ok(()),
+                )?;
+                let favorite = FavoriteRequest {
+                    schema_version: 1,
+                    request_id: "fixture".into(),
+                    title_ref: opaque(&["archive-item-v1", "chosen"]),
+                    expected_revision: "1".into(),
+                    value: true,
+                };
+                set_favorite(c, &favorite, &mut || Ok(()))?;
+                c.execute_batch(version_13)
+                    .map_err(|_| "fixture-failed".to_owned())?;
+                Ok(())
+            })
+            .unwrap();
         drop(store);
         let reopened =
             crate::storage_transaction::PairStore::new(root.path().to_path_buf()).unwrap();
@@ -2745,7 +2861,8 @@ mod tests {
             drop(store);
             let c = Connection::open(root.path().join(crate::storage_transaction::DB)).unwrap();
             if version == 13 {
-                c.execute_batch("DROP TABLE archive_removal_v1;DROP TABLE archive_item_progress_v1;PRAGMA user_version=13;").unwrap();
+                c.execute_batch("DROP TABLE archive_removal_v1;DROP TABLE archive_item_progress_v1;PRAGMA user_version=13;")
+                    .unwrap();
             } else {
                 c.execute_batch("DROP TABLE archive_removal_v1;").unwrap();
             }
@@ -2767,10 +2884,12 @@ mod tests {
         commit(
             &mut c,
             "0",
-            None,
-            1,
-            "query",
-            false,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: false,
+            },
             step(vec![record]),
             &mut || Ok(()),
         )
@@ -2811,10 +2930,12 @@ mod tests {
         commit(
             &mut c,
             "0",
-            None,
-            1,
-            "query",
-            false,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: false,
+            },
             step(vec![title("large", Some(1964), 1)]),
             &mut || Ok(()),
         )
@@ -2828,10 +2949,12 @@ mod tests {
         let receipt = commit(
             &mut c,
             "1",
-            None,
-            1,
-            "query",
-            true,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: true,
+            },
             step(vec![first]),
             &mut || Ok(()),
         )
@@ -2857,9 +2980,18 @@ mod tests {
         second.all_file_names = vec!["page-two.mp4".into()];
         let mut prepared = step(vec![second]);
         prepared.item_page = true;
-        let receipt = commit(&mut c, "2", None, 1, "unused", false, prepared, &mut || {
-            Ok(())
-        })
+        let receipt = commit(
+            &mut c,
+            "2",
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "unused",
+                restart: false,
+            },
+            prepared,
+            &mut || Ok(()),
+        )
         .unwrap();
         assert_eq!(receipt.file_page_progress.unwrap().next_offset, 128);
         assert_eq!(receipt.files_admitted, 1);
@@ -2870,7 +3002,7 @@ mod tests {
         let mut prepared = step(vec![stale]);
         prepared.item_page = true;
         assert!(
-            matches!(commit(&mut c,"3",None,1,"unused",false,prepared,&mut ||Ok(())),Err(e) if e=="archive-item-progress-stale")
+            matches!(commit(&mut c, "3", SearchPage { year: None, page: 1, query_hash: "unused", restart: false }, prepared, &mut ||Ok(())),Err(e) if e=="archive-item-progress-stale")
         );
         assert_eq!(current(&c).unwrap(), 3);
         assert_eq!(file_progress(&c, "large").unwrap().next_offset, 128);
@@ -2880,9 +3012,18 @@ mod tests {
         final_page.all_file_names.clear();
         let mut prepared = step(vec![final_page]);
         prepared.item_page = true;
-        let receipt = commit(&mut c, "3", None, 1, "unused", false, prepared, &mut || {
-            Ok(())
-        })
+        let receipt = commit(
+            &mut c,
+            "3",
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "unused",
+                restart: false,
+            },
+            prepared,
+            &mut || Ok(()),
+        )
         .unwrap();
         assert!(receipt.file_page_progress.unwrap().complete);
         assert_eq!(receipt.confirmed_dead, 0);
@@ -2916,10 +3057,12 @@ mod tests {
         commit(
             &mut c,
             "0",
-            None,
-            1,
-            "query",
-            false,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: false,
+            },
             step(vec![pending]),
             &mut || Ok(()),
         )
@@ -2960,17 +3103,26 @@ mod tests {
         let mut prepared = step(vec![next]);
         prepared.item_page = true;
         let mut calls = 0;
-        assert!(
-            commit(&mut c, "1", None, 1, "unused", false, prepared, &mut || {
+        assert!(commit(
+            &mut c,
+            "1",
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "unused",
+                restart: false
+            },
+            prepared,
+            &mut || {
                 calls += 1;
                 if calls == 3 {
                     Err("canceled".into())
                 } else {
                     Ok(())
                 }
-            })
-            .is_err()
-        );
+            }
+        )
+        .is_err());
         assert_eq!(current(&c).unwrap(), 1);
         assert_eq!(file_progress(&c, "pending").unwrap().next_offset, 64);
         assert_eq!(
@@ -2987,10 +3139,12 @@ mod tests {
         let receipt = commit(
             &mut c,
             "0",
-            Some(1964),
-            1,
-            "query",
-            false,
+            SearchPage {
+                year: Some(1964),
+                page: 1,
+                query_hash: "query",
+                restart: false,
+            },
             step(titles),
             &mut || Ok(()),
         )
@@ -3021,10 +3175,12 @@ mod tests {
         let receipt = commit(
             &mut c,
             "0",
-            None,
-            1,
-            "query",
-            false,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: false,
+            },
             step(vec![
                 title("older", Some(1928), 1),
                 title("unknown", None, 2),
@@ -3094,10 +3250,12 @@ mod tests {
         commit(
             &mut c,
             "0",
-            None,
-            1,
-            "Cartoon",
-            false,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "Cartoon",
+                restart: false,
+            },
             step(items),
             &mut || Ok(()),
         )
@@ -3171,10 +3329,12 @@ mod tests {
         commit(
             &mut c,
             "0",
-            None,
-            1,
-            "Gilligan",
-            false,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "Gilligan",
+                restart: false,
+            },
             step(vec![t]),
             &mut || Ok(()),
         )
@@ -3270,10 +3430,12 @@ mod tests {
         commit(
             &mut c,
             "0",
-            None,
-            1,
-            "Cartoon",
-            false,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "Cartoon",
+                restart: false,
+            },
             step(items),
             &mut || Ok(()),
         )
@@ -3313,10 +3475,12 @@ mod tests {
         commit(
             &mut c,
             "0",
-            None,
-            1,
-            "query",
-            false,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: false,
+            },
             step(vec![first, title("second", Some(1964), 2)]),
             &mut || Ok(()),
         )
@@ -3486,10 +3650,12 @@ mod tests {
         commit(
             &mut c,
             "0",
-            None,
-            1,
-            "query",
-            false,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: false,
+            },
             step(vec![
                 language_title("en-us", "US provider claim", &["en-US"], 1),
                 language_title("en-gb", "UK provider claim", &["en-GB"], 2),
@@ -3571,10 +3737,12 @@ mod tests {
         commit(
             &mut c,
             "0",
-            None,
-            1,
-            "query",
-            false,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: false,
+            },
             step(vec![
                 language_title("favorite", "Cartoon extra", &["spa"], 1),
                 language_title("exact", "Cartoon", &["spa"], 2),
@@ -3625,10 +3793,12 @@ mod tests {
         commit(
             &mut c,
             "0",
-            None,
-            1,
-            "query",
-            false,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: false,
+            },
             step(vec![
                 language_title("english-a", "Z title", &["en"], 5),
                 language_title("english-b", "A title", &["English"], 5),
@@ -3680,10 +3850,12 @@ mod tests {
         commit(
             &mut c,
             "0",
-            None,
-            1,
-            "query",
-            false,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: false,
+            },
             step(titles),
             &mut || Ok(()),
         )
@@ -3747,10 +3919,12 @@ mod tests {
         commit(
             &mut c,
             "0",
-            None,
-            1,
-            phrase,
-            false,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: phrase,
+                restart: false,
+            },
             step(vec![
                 search_title(
                     "description",
@@ -3832,10 +4006,12 @@ mod tests {
         commit(
             &mut c,
             "0",
-            Some(1968),
-            1,
-            "",
-            false,
+            SearchPage {
+                year: Some(1968),
+                page: 1,
+                query_hash: "",
+                restart: false,
+            },
             step(vec![
                 search_title("high", "Zulu", Some(1968), 300, ""),
                 search_title("middle", "Alpha", Some(1968), 200, ""),
@@ -3847,10 +4023,12 @@ mod tests {
         commit(
             &mut c,
             "1",
-            Some(1970),
-            1,
-            "",
-            false,
+            SearchPage {
+                year: Some(1970),
+                page: 1,
+                query_hash: "",
+                restart: false,
+            },
             step(vec![search_title(
                 "later",
                 "Earlier Alphabet",
@@ -3899,10 +4077,12 @@ mod tests {
         commit(
             &mut c,
             "0",
-            None,
-            1,
-            "query",
-            false,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: false,
+            },
             step(vec![
                 search_title("unicode-b", "ÉCOLE du cinéma", Some(1964), 1, ""),
                 search_title("unicode-a", "École du cinéma", Some(1964), 900, ""),
@@ -3958,10 +4138,12 @@ mod tests {
         commit(
             &mut c,
             "0",
-            None,
-            1,
-            "query",
-            false,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: false,
+            },
             step(vec![
                 title("sixties", Some(1969), 1),
                 title("seventies", Some(1970), 2),
@@ -4021,10 +4203,12 @@ mod tests {
         commit(
             &mut c,
             "0",
-            None,
-            1,
-            "query",
-            false,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: false,
+            },
             step(vec![title("chosen", Some(1964), 1)]),
             &mut || Ok(()),
         )
@@ -4067,21 +4251,57 @@ mod tests {
         let mut retry = step(Vec::new());
         retry.transient_failures = 1;
         retry.next_page = Some(1);
-        commit(&mut c, "2", None, 1, "query", true, retry, &mut || Ok(())).unwrap();
+        commit(
+            &mut c,
+            "2",
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: true,
+            },
+            retry,
+            &mut || Ok(()),
+        )
+        .unwrap();
         assert!(c
             .query_row("SELECT favorite FROM archive_preferences_v1", [], |r| r
                 .get::<_, bool>(0))
             .unwrap());
         let mut refresh = step(vec![title("chosen", Some(1964), 99)]);
         refresh.observed_ms = 2_000_000;
-        commit(&mut c, "3", None, 1, "query", true, refresh, &mut || Ok(())).unwrap();
+        commit(
+            &mut c,
+            "3",
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: true,
+            },
+            refresh,
+            &mut || Ok(()),
+        )
+        .unwrap();
         assert!(c
             .query_row("SELECT favorite FROM archive_preferences_v1", [], |r| r
                 .get::<_, bool>(0))
             .unwrap());
         let mut dead = step(Vec::new());
         dead.deleted.push("chosen".into());
-        commit(&mut c, "4", None, 1, "query", true, dead, &mut || Ok(())).unwrap();
+        commit(
+            &mut c,
+            "4",
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: true,
+            },
+            dead,
+            &mut || Ok(()),
+        )
+        .unwrap();
         assert!(c
             .query_row("SELECT favorite FROM archive_preferences_v1", [], |r| r
                 .get::<_, bool>(0))
@@ -4102,10 +4322,12 @@ mod tests {
         commit(
             &mut c,
             "0",
-            Some(1964),
-            1,
-            "query",
-            false,
+            SearchPage {
+                year: Some(1964),
+                page: 1,
+                query_hash: "query",
+                restart: false,
+            },
             step(vec![title("chosen", Some(1964), 1)]),
             &mut || Ok(()),
         )
@@ -4121,10 +4343,12 @@ mod tests {
         commit(
             &mut c,
             "2",
-            Some(1964),
-            1,
-            "query",
-            true,
+            SearchPage {
+                year: Some(1964),
+                page: 1,
+                query_hash: "query",
+                restart: true,
+            },
             step(
                 (0..10)
                     .map(|i| title(&format!("new-{i}"), Some(1964), 100 + i))
@@ -4166,10 +4390,12 @@ mod tests {
         let result = commit(
             &mut c,
             "0",
-            Some(1964),
-            1,
-            "query",
-            false,
+            SearchPage {
+                year: Some(1964),
+                page: 1,
+                query_hash: "query",
+                restart: false,
+            },
             step(vec![title("held", Some(1964), 1)]),
             &mut || {
                 calls += 1;
@@ -4201,10 +4427,12 @@ mod tests {
         commit(
             &mut c,
             "0",
-            Some(1964),
-            1,
-            "query",
-            false,
+            SearchPage {
+                year: Some(1964),
+                page: 1,
+                query_hash: "query",
+                restart: false,
+            },
             step(vec![title("retained", Some(1964), 1)]),
             &mut || Ok(()),
         )
@@ -4215,10 +4443,12 @@ mod tests {
         let receipt = commit(
             &mut c,
             "1",
-            Some(1964),
-            1,
-            "query",
-            true,
+            SearchPage {
+                year: Some(1964),
+                page: 1,
+                query_hash: "query",
+                restart: true,
+            },
             failed,
             &mut || Ok(()),
         )
@@ -4244,10 +4474,12 @@ mod tests {
         commit(
             &mut c,
             "0",
-            None,
-            1,
-            "query",
-            false,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: false,
+            },
             step(vec![title("selected", Some(1928), 1)]),
             &mut || Ok(()),
         )
@@ -4257,10 +4489,12 @@ mod tests {
         commit(
             &mut c,
             "1",
-            None,
-            1,
-            "other-query",
-            false,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "other-query",
+                restart: false,
+            },
             step(vec![title("unrelated", None, 2)]),
             &mut || Ok(()),
         )
@@ -4291,10 +4525,12 @@ mod tests {
         commit(
             &mut c,
             "0",
-            None,
-            1,
-            "query",
-            false,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: false,
+            },
             step(vec![title("selected", None, 1)]),
             &mut || Ok(()),
         )
@@ -4305,10 +4541,12 @@ mod tests {
         let result = commit(
             &mut c,
             "1",
-            None,
-            1,
-            "query",
-            true,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: true,
+            },
             step(vec![fresh]),
             &mut || Ok(()),
         )
@@ -4347,7 +4585,9 @@ mod tests {
     }
     #[test]
     fn archive_observed_concert_cartoon_tag_is_not_animation_but_named_browse_remain() {
-        let metadata = observed_search_metadata(include_str!("../../tests/fixtures/archive-search-metadata/kdhxmo-Opera_Bell_Band_50_000_000_Live_at_KDHX_7_20_21.json"));
+        let metadata = observed_search_metadata(include_str!(
+            "../../tests/fixtures/archive-search-metadata/kdhxmo-Opera_Bell_Band_50_000_000_Live_at_KDHX_7_20_21.json"
+        ));
         assert!(metadata.subjects.lines().any(|label| label == "cartoon"));
         let aliases = encode_search_metadata(&metadata).unwrap();
         for query in ["Cartoon", "cartoons", "animation", "animated"] {
@@ -4403,7 +4643,9 @@ mod tests {
     }
     #[test]
     fn archive_observed_title_keywords_cannot_override_incidental_context() {
-        let concert = observed_search_metadata(include_str!("../../tests/fixtures/archive-search-metadata/mmtvnh-Merrimack_Middle_School_Band_-_Cartoon_Symphony_2023.json"));
+        let concert = observed_search_metadata(include_str!(
+            "../../tests/fixtures/archive-search-metadata/mmtvnh-Merrimack_Middle_School_Band_-_Cartoon_Symphony_2023.json"
+        ));
         let alias = encode_search_metadata(&concert).unwrap();
         assert_eq!(
             match_basis(&concert.title, &alias, "Cartoon.mp4", "Cartoon").unwrap(),
@@ -4457,10 +4699,24 @@ mod tests {
     #[test]
     fn archive_observed_type_classifier_is_shared_not_a_collection_or_title_guess() {
         for (raw, expected) in [
-            (include_str!("../../tests/fixtures/archive-search-metadata/GilligansIsland1.00.json"), ContentType::Tv),
-            (include_str!("../../tests/fixtures/archive-search-metadata/thenewadventuresofgilligans1.json"), ContentType::Tv),
-            (include_str!("../../tests/fixtures/archive-search-metadata/NightOfTheLivingDead-MPEG.json"), ContentType::Movie),
-            (include_str!("../../tests/fixtures/archive-search-metadata/mmtvnh-Merrimack_Middle_School_Band_-_Cartoon_Symphony_2023.json"), ContentType::Unknown),
+            (
+                include_str!("../../tests/fixtures/archive-search-metadata/GilligansIsland1.00.json"),
+                ContentType::Tv,
+            ),
+            (
+                include_str!("../../tests/fixtures/archive-search-metadata/thenewadventuresofgilligans1.json"),
+                ContentType::Tv,
+            ),
+            (
+                include_str!("../../tests/fixtures/archive-search-metadata/NightOfTheLivingDead-MPEG.json"),
+                ContentType::Movie,
+            ),
+            (
+                include_str!(
+                    "../../tests/fixtures/archive-search-metadata/mmtvnh-Merrimack_Middle_School_Band_-_Cartoon_Symphony_2023.json"
+                ),
+                ContentType::Unknown,
+            ),
         ] {
             assert_eq!(content_type(Some(&observed_search_metadata(raw))), expected);
         }
@@ -4489,13 +4745,27 @@ mod tests {
     #[test]
     fn archive_observed_animation_taxonomy_and_subjects_are_genre_not_playability_proof() {
         for (raw, expected) in [
-            (include_str!("../../tests/fixtures/archive-search-metadata/Popeye_forPresident.json"), "subject"),
-            (include_str!("../../tests/fixtures/archive-search-metadata/BettyBoopCartoons.json"), "title"),
-            (include_str!("../../tests/fixtures/archive-search-metadata/BugsBunnyCaseOfTheMissingHare.json"), "genre"),
+            (
+                include_str!("../../tests/fixtures/archive-search-metadata/Popeye_forPresident.json"),
+                "subject",
+            ),
+            (
+                include_str!("../../tests/fixtures/archive-search-metadata/BettyBoopCartoons.json"),
+                "title",
+            ),
+            (
+                include_str!("../../tests/fixtures/archive-search-metadata/BugsBunnyCaseOfTheMissingHare.json"),
+                "genre",
+            ),
         ] {
             let metadata = observed_search_metadata(raw);
             let aliases = encode_search_metadata(&metadata).unwrap();
-            assert_eq!(match_basis(&metadata.title, &aliases, "", "Cartoon").unwrap(), Some(expected), "{}", metadata.title);
+            assert_eq!(
+                match_basis(&metadata.title, &aliases, "", "Cartoon").unwrap(),
+                Some(expected),
+                "{}",
+                metadata.title
+            );
             assert_eq!(match_basis(&metadata.title, &aliases, "", "Gilligan").unwrap(), None);
         }
         let metadata = SearchMetadata {
@@ -4540,10 +4810,12 @@ mod tests {
         let legacy = commit(
             &mut c,
             "0",
-            None,
-            1,
-            "query",
-            false,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: false,
+            },
             step(initial),
             &mut || Ok(()),
         )
@@ -4559,10 +4831,12 @@ mod tests {
         let receipt = commit_view(
             &mut c,
             "1",
-            None,
-            1,
-            "query",
-            true,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: true,
+            },
             step(vec![language_title("old00", "Gilligan 00", &["eng"], 1)]),
             Some(("Gilligan", None, &english)),
             &mut || Ok(()),
@@ -4575,10 +4849,12 @@ mod tests {
         let receipt = commit_view(
             &mut c,
             "2",
-            None,
-            1,
-            "query",
-            true,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: true,
+            },
             step(vec![language_title(
                 "foreign",
                 "Gilligan foreign",
@@ -4596,10 +4872,12 @@ mod tests {
         let receipt = commit_view(
             &mut c,
             "3",
-            None,
-            1,
-            "query",
-            true,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: true,
+            },
             step(vec![language_title(
                 "new",
                 "Gilligan ZZZ beyond first fifty",
@@ -4626,10 +4904,12 @@ mod tests {
         let receipt = commit_view(
             &mut c,
             "4",
-            None,
-            1,
-            "query",
-            true,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: true,
+            },
             replacement,
             Some(("Gilligan", None, &english)),
             &mut || Ok(()),
@@ -4673,10 +4953,12 @@ mod tests {
             let receipt = commit_view(
                 &mut c,
                 "0",
-                None,
-                1,
-                "query",
-                false,
+                SearchPage {
+                    year: None,
+                    page: 1,
+                    query_hash: "query",
+                    restart: false,
+                },
                 step(vec![language_title("new", "Gilligan", &[], 1)]),
                 Some(("Gilligan", decade, &view)),
                 &mut || Ok(()),
@@ -4693,10 +4975,12 @@ mod tests {
         assert!(commit_view(
             &mut c,
             "1",
-            None,
-            1,
-            "query",
-            false,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: false
+            },
             step(vec![]),
             Some(("Gilligan", None, &view)),
             &mut || Ok(())
@@ -4709,10 +4993,12 @@ mod tests {
         assert!(commit_view(
             &mut c,
             "0",
-            None,
-            1,
-            "query",
-            false,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: false
+            },
             step(vec![]),
             Some(("Gilligan", None, &invalid)),
             &mut || Ok(())
@@ -4722,10 +5008,12 @@ mod tests {
         assert!(commit_view(
             &mut c,
             "0",
-            None,
-            1,
-            "query",
-            false,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: false
+            },
             step(vec![language_title("new", "Gilligan", &["eng"], 1)]),
             Some(("Gilligan", None, &view)),
             &mut || {
@@ -4777,10 +5065,12 @@ mod tests {
         commit(
             &mut c,
             "0",
-            None,
-            1,
-            "query",
-            false,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: false,
+            },
             step(vec![item]),
             &mut || Ok(()),
         )
@@ -4800,10 +5090,12 @@ mod tests {
         commit(
             &mut c,
             "0",
-            None,
-            1,
-            "query",
-            false,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: false,
+            },
             step(items),
             &mut || Ok(()),
         )
@@ -4859,10 +5151,12 @@ mod tests {
         let receipt = commit_view(
             &mut c,
             "0",
-            None,
-            1,
-            "query",
-            false,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: false,
+            },
             step(vec![item]),
             Some(("Gilligan", None, &view)),
             &mut || Ok(()),
@@ -4904,10 +5198,12 @@ mod tests {
         commit(
             &mut c,
             "0",
-            None,
-            1,
-            "query",
-            false,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "query",
+                restart: false,
+            },
             step(vec![title("legacy", None, 1)]),
             &mut || Ok(()),
         )
@@ -4955,7 +5251,10 @@ mod tests {
     }
     #[test]
     fn archive_relevance_v9_legacy_pet_keeps_saved_records_but_not_incidental_name_results() {
-        let observed: serde_json::Value=serde_json::from_str(include_str!("../../tests/fixtures/archive-search-metadata/Humane_Society_of_St._Lucie_County_Adopt-a-Pet_-_Gilligan.json")).unwrap();
+        let observed: serde_json::Value = serde_json::from_str(include_str!(
+            "../../tests/fixtures/archive-search-metadata/Humane_Society_of_St._Lucie_County_Adopt-a-Pet_-_Gilligan.json"
+        ))
+        .unwrap();
         let mut legacy = title("legacy-pet", Some(2014), 99);
         legacy.title = observed["metadata"]["title"].as_str().unwrap().into();
         // Old mixed aliases cannot establish any typed subject/language claim.
@@ -4964,10 +5263,12 @@ mod tests {
         commit(
             &mut c,
             "0",
-            None,
-            1,
-            "Gilligan",
-            false,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "Gilligan",
+                restart: false,
+            },
             step(vec![
                 legacy,
                 language_title("show", "Gilligan's Island", &["eng"], 1),
@@ -5023,10 +5324,12 @@ mod tests {
         commit(
             &mut c,
             "0",
-            None,
-            1,
-            "Gilligan Island",
-            false,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "Gilligan Island",
+                restart: false,
+            },
             step(vec![
                 language_title("spanish", "Gilligan Island", &["spa"], 1000),
                 language_title("english-possessive", "Gilligan's Island", &["eng"], 1),
@@ -5171,10 +5474,12 @@ mod tests {
         commit(
             &mut c,
             "0",
-            None,
-            1,
-            "Gilligan",
-            false,
+            SearchPage {
+                year: None,
+                page: 1,
+                query_hash: "Gilligan",
+                restart: false,
+            },
             step(vec![pet, show]),
             &mut || Ok(()),
         )

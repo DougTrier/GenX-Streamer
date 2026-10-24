@@ -448,6 +448,59 @@ fn parse_xml_checked(
     })
 }
 
+pub(crate) async fn acquire(owner: Arc<Context>) -> Result<Acquisition, String> {
+    owner.check()?;
+    let deadline = Instant::now() + Duration::from_secs(20);
+    let guard = checked(async { Ok(SINGLE_FLIGHT.lock().await) }, &owner, deadline).await;
+    owner.check()?;
+    let mut guard = match guard {
+        Ok(guard) => guard,
+        Err(code) => {
+            return Ok(Acquisition {
+                authority: None,
+                outcome: Outcome::unavailable(code),
+            })
+        }
+    };
+    if let Some(crosswalk) = guard.as_ref() {
+        return Ok(Acquisition {
+            authority: Some(crosswalk.clone()),
+            outcome: Outcome::available(crosswalk, true),
+        });
+    }
+    let result = fetch(&owner, deadline).await;
+    owner.check()?;
+    let bytes = match result {
+        Ok(bytes) => bytes,
+        Err(code) => {
+            return Ok(Acquisition {
+                authority: None,
+                outcome: Outcome::unavailable(code),
+            })
+        }
+    };
+    let parse_owner = owner.clone();
+    // Always join actual CPU parsing, even after cancellation or an IPC observer
+    // disappearing. No SQLite/root lease is held through fetch or parsing.
+    let result =
+        tauri::async_runtime::spawn_blocking(move || parse(&bytes, &parse_owner, deadline)).await;
+    owner.check()?;
+    let result = result.unwrap_or(Err("guide-crosswalk-parser-unavailable"));
+    match result {
+        Ok(value) => {
+            let value = Arc::new(value);
+            *guard = Some(value.clone());
+            Ok(Acquisition {
+                authority: Some(value.clone()),
+                outcome: Outcome::available(&value, false),
+            })
+        }
+        Err(code) => Ok(Acquisition {
+            authority: None,
+            outcome: Outcome::unavailable(code),
+        }),
+    }
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -554,7 +607,8 @@ mod tests {
             "<channel site=\"pluto.tv\" xmltv_id=\"BadIdentity\" site_id=\"aaaaaaaaaaaaaaaaaaaaaaaa\"/>".into(),
             "<channel site=\"pluto.tv\" site=\"pluto.tv\" xmltv_id=\"Conflict.us@SD\" site_id=\"aaaaaaaaaaaaaaaaaaaaaaaa\"/>".into(),
         ] {
-            let mut rows = prior.to_vec(); rows.push(invalid);
+            let mut rows = prior.to_vec();
+            rows.push(invalid);
             assert!(parsed(&document(&rows)).is_err());
         }
     }
@@ -563,11 +617,14 @@ mod tests {
     fn guide_crosswalk_xml_schema_and_row_limits_remain_refusals() {
         let good = record("One.us@SD", &"a".repeat(24));
         for malformed in [
-            format!("<wrong>{good}</wrong>"), format!("<channels>{good}</broken>"),
+            format!("<wrong>{good}</wrong>"),
+            format!("<channels>{good}</broken>"),
             format!("<channels><nested>{good}</nested></channels>"),
             format!("<!DOCTYPE channels [<!ENTITY external SYSTEM \"file:///never-opened\">]><channels>{good}</channels>"),
             format!("<channels>{good}<?instruction forbidden?></channels>"),
-        ] { assert!(parsed(malformed.as_bytes()).is_err()); }
+        ] {
+            assert!(parsed(malformed.as_bytes()).is_err());
+        }
         assert_eq!(
             parsed(&document(&vec![good; ROWS + 1])).err(),
             Some("guide-crosswalk-too-large")
@@ -635,58 +692,5 @@ mod tests {
             assert_eq!(value["canonicalIdentities"], 0);
             assert_eq!(value["cacheHit"], false);
         }
-    }
-}
-pub(crate) async fn acquire(owner: Arc<Context>) -> Result<Acquisition, String> {
-    owner.check()?;
-    let deadline = Instant::now() + Duration::from_secs(20);
-    let guard = checked(async { Ok(SINGLE_FLIGHT.lock().await) }, &owner, deadline).await;
-    owner.check()?;
-    let mut guard = match guard {
-        Ok(guard) => guard,
-        Err(code) => {
-            return Ok(Acquisition {
-                authority: None,
-                outcome: Outcome::unavailable(code),
-            })
-        }
-    };
-    if let Some(crosswalk) = guard.as_ref() {
-        return Ok(Acquisition {
-            authority: Some(crosswalk.clone()),
-            outcome: Outcome::available(crosswalk, true),
-        });
-    }
-    let result = fetch(&owner, deadline).await;
-    owner.check()?;
-    let bytes = match result {
-        Ok(bytes) => bytes,
-        Err(code) => {
-            return Ok(Acquisition {
-                authority: None,
-                outcome: Outcome::unavailable(code),
-            })
-        }
-    };
-    let parse_owner = owner.clone();
-    // Always join actual CPU parsing, even after cancellation or an IPC observer
-    // disappearing. No SQLite/root lease is held through fetch or parsing.
-    let result =
-        tauri::async_runtime::spawn_blocking(move || parse(&bytes, &parse_owner, deadline)).await;
-    owner.check()?;
-    let result = result.unwrap_or(Err("guide-crosswalk-parser-unavailable"));
-    match result {
-        Ok(value) => {
-            let value = Arc::new(value);
-            *guard = Some(value.clone());
-            Ok(Acquisition {
-                authority: Some(value.clone()),
-                outcome: Outcome::available(&value, false),
-            })
-        }
-        Err(code) => Ok(Acquisition {
-            authority: None,
-            outcome: Outcome::unavailable(code),
-        }),
     }
 }

@@ -64,7 +64,12 @@ async fn fixture(alternative_http: bool) -> Fixture {
         json!({"key":format!("key-{i}"),"sourceId":id,"sourceFingerprint":format!("capture-{id}"),"sessionRevision":"session","channel":{"sourceId":id,"providerId":format!("provider-{i}"),"name":format!("Distinct Station {i}"),"category":"News","urls":urls}})
     }).collect();
     let now = now().unwrap();
-    let definitions: Vec<_> = sources.as_array().unwrap().iter().map(|source| json!({"source":source,"definitionFingerprint":scan_checkpoint::source_fingerprint(source).unwrap()})).collect();
+    let definitions: Vec<_> = sources
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|source| json!({"source":source,"definitionFingerprint":scan_checkpoint::source_fingerprint(source).unwrap()}))
+        .collect();
     let mut raw = json!({"schemaVersion":1,"jobId":"probe-reuse-fixture","createdAtMs":now,"catalogRevision":"1","sourceDefinitions":definitions,"budgetMs":20000,"platform":"android","observerProfile":"fixture","review":{"sessionRevision":"session","query":"","status":"completed","sources":[{"sourceId":"a","fingerprint":"capture-a","status":"completed","inspected":1,"matched":1,"warnings":0},{"sourceId":"b","fingerprint":"capture-b","status":"completed","inspected":2,"matched":2,"warnings":0}],"candidates":candidates,"counts":{"inspected":3,"matched":3,"failedSources":0,"canceledSources":0}},"observations":[],"publishedKeys":[]});
     raw["policyFingerprint"] =
         json!(scan_checkpoint::policy_fingerprint(&raw, &preferences).unwrap());

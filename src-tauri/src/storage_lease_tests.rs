@@ -656,15 +656,27 @@ fn malformed_captured_health_refuses_even_when_writer_repairs_after_snapshot() {
 fn captured_health_encoding_limit_is_refused_after_transaction_release() {
     let root = tempfile::tempdir().unwrap();
     let store = seeded(root.path());
-    store.with_guide_write(|c| {
-        let tx = c.transaction().unwrap();
-        tx.execute_batch("UPDATE metadata SET health_present=1").unwrap();
-        let id = "\\".repeat(9600);
-        for n in 0..1100 {
-            tx.execute("INSERT INTO channel_health VALUES(?1,?2,'windows','fixture','source',?3,1,'Reachable','local',?4)",rusqlite::params![format!("{id}{n}"),0,"a".repeat(64),r#"{"kind":"http","status":200,"contentRecognized":true}"#]).unwrap();
-        }
-        tx.commit().unwrap(); Ok(())
-    }).unwrap();
+    store
+        .with_guide_write(|c| {
+            let tx = c.transaction().unwrap();
+            tx.execute_batch("UPDATE metadata SET health_present=1").unwrap();
+            let id = "\\".repeat(9600);
+            for n in 0..1100 {
+                tx.execute(
+                    "INSERT INTO channel_health VALUES(?1,?2,'windows','fixture','source',?3,1,'Reachable','local',?4)",
+                    rusqlite::params![
+                        format!("{id}{n}"),
+                        0,
+                        "a".repeat(64),
+                        r#"{"kind":"http","status":200,"contentRecognized":true}"#
+                    ],
+                )
+                .unwrap();
+            }
+            tx.commit().unwrap();
+            Ok(())
+        })
+        .unwrap();
     let mut after_capture = false;
     let result = store.read_snapshot_after_capture(|| {
         after_capture = true;

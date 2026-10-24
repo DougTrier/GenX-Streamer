@@ -59,6 +59,7 @@ fn revisions(c: &Connection, root_generation: u64) -> Result<Fence, String> {
     })
 }
 impl PairStore {
+    #[cfg(test)]
     pub(crate) fn prepare_scan_resume_admission(
         &self,
         expected_catalog: &str,

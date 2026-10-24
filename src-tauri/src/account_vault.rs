@@ -86,15 +86,16 @@ pub struct Put {
 }
 impl Drop for Put {
     fn drop(&mut self) {
-        for field in [
+        for value in [
             &mut self.server_url,
             &mut self.username,
             &mut self.password,
             &mut self.playlist_url,
-        ] {
-            if let Some(value) = field {
-                value.zeroize();
-            }
+        ]
+        .into_iter()
+        .flatten()
+        {
+            value.zeroize();
         }
     }
 }
@@ -179,11 +180,6 @@ pub struct SealedPut {
     prepared: PreparedPut,
     path: PathBuf,
 }
-impl SealedPut {
-    pub fn secret_reference(&self) -> &str {
-        &self.prepared.metadata.secret_ref
-    }
-}
 pub struct Commit {
     pub metadata: Metadata,
     // Native-only obsolete file; safe cleanup after releasing storage leases.
@@ -236,18 +232,41 @@ pub fn initialize(c: &Connection) -> Result<(), String> {
     sql(c.execute_batch(SCHEMA))
 }
 fn present(c: &Connection) -> Result<bool, String> {
-    sql(c.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='account_vault_meta_v1')", [], |row| row.get(0)))
+    sql(c.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='account_vault_meta_v1')",
+        [],
+        |row| row.get(0),
+    ))
 }
 fn metadata(c: &Connection, id: &str) -> Result<Option<Metadata>, String> {
-    sql(c.query_row("SELECT id,name,kind,server_origin,allow_http,revision,secret_ref FROM account_vault_meta_v1 WHERE id=?1", [id], |row| {
-        let kind: String = row.get(2)?;
-        let revision: i64 = row.get(5)?;
-        if revision <= 0 { return Err(rusqlite::Error::InvalidQuery); }
-        Ok(Metadata { schema_version: 1, id: row.get(0)?, name: row.get(1)?,
-            kind: match kind.as_str() { "xtream" => Kind::Xtream, "playlist" => Kind::Playlist, _ => return Err(rusqlite::Error::InvalidQuery) },
-            server_origin: row.get(3)?, allow_http: row.get(4)?, revision: revision as u64,
-            secret_ref: row.get(6)?, requires_sign_in: false })
-    }).optional())
+    sql(c
+        .query_row(
+            "SELECT id,name,kind,server_origin,allow_http,revision,secret_ref FROM account_vault_meta_v1 WHERE id=?1",
+            [id],
+            |row| {
+                let kind: String = row.get(2)?;
+                let revision: i64 = row.get(5)?;
+                if revision <= 0 {
+                    return Err(rusqlite::Error::InvalidQuery);
+                }
+                Ok(Metadata {
+                    schema_version: 1,
+                    id: row.get(0)?,
+                    name: row.get(1)?,
+                    kind: match kind.as_str() {
+                        "xtream" => Kind::Xtream,
+                        "playlist" => Kind::Playlist,
+                        _ => return Err(rusqlite::Error::InvalidQuery),
+                    },
+                    server_origin: row.get(3)?,
+                    allow_http: row.get(4)?,
+                    revision: revision as u64,
+                    secret_ref: row.get(6)?,
+                    requires_sign_in: false,
+                })
+            },
+        )
+        .optional())
 }
 pub fn list(c: &Connection) -> Result<Vec<Metadata>, String> {
     if !present(c)? {
@@ -491,10 +510,20 @@ pub fn commit_put(
         ON CONFLICT(id) DO UPDATE SET revision=excluded.revision,active=1",
         params![m.id, m.revision as i64],
     ))?;
-    sql(tx.execute("INSERT INTO account_vault_meta_v1(id,name,kind,server_origin,allow_http,revision,secret_ref) VALUES(?1,?2,?3,?4,?5,?6,?7)
+    sql(tx.execute(
+        "INSERT INTO account_vault_meta_v1(id,name,kind,server_origin,allow_http,revision,secret_ref) VALUES(?1,?2,?3,?4,?5,?6,?7)
         ON CONFLICT(id) DO UPDATE SET name=excluded.name,kind=excluded.kind,server_origin=excluded.server_origin,
         allow_http=excluded.allow_http,revision=excluded.revision,secret_ref=excluded.secret_ref",
-        params![m.id,m.name,m.kind.label(),m.server_origin,m.allow_http,m.revision as i64,m.secret_ref]))?;
+        params![
+            m.id,
+            m.name,
+            m.kind.label(),
+            m.server_origin,
+            m.allow_http,
+            m.revision as i64,
+            m.secret_ref
+        ],
+    ))?;
     // Previously issued resolution handles are revoked by the same transaction.
     sql(tx.execute(
         "DELETE FROM account_vault_references_v1 WHERE account_id=?1",
@@ -718,7 +747,8 @@ mod tests {
     use super::*;
     fn request() -> Put {
         serde_json::from_value(serde_json::json!({"schemaVersion":1,"name":"Fixture","kind":"playlist",
-            "playlistUrl":"https://fixture.invalid/private-marker/channel?token=fixture-secret","allowHttp":false})).unwrap()
+            "playlistUrl":"https://fixture.invalid/private-marker/channel?token=fixture-secret","allowHttp":false}))
+        .unwrap()
     }
     #[test]
     fn whole_url_is_secret_and_transport_grant_is_distinct() {
@@ -810,6 +840,9 @@ mod tests {
             serde_json::json!({"schemaVersion":1,"accountId":"a".repeat(32),"expectedRevision":1})
         )
         .is_err());
-        assert!(serde_json::from_value::<Remove>(serde_json::json!({"schemaVersion":1,"accountId":"a".repeat(32),"expectedRevision":"01"})).is_err());
+        assert!(serde_json::from_value::<Remove>(
+            serde_json::json!({"schemaVersion":1,"accountId":"a".repeat(32),"expectedRevision":"01"})
+        )
+        .is_err());
     }
 }

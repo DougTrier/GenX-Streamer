@@ -89,7 +89,10 @@ fn guide_on_source_off_plans_and_claims_daily_independently() {
 #[test]
 fn guide_off_source_on_does_not_claim_or_create_attempt_state() {
     let (mut c, source, _) = fixture();
-    c.execute_batch("UPDATE metadata SET automatic_guide_updates=0;UPDATE preference SET source_refresh_cadence='hourly',auto_source_refresh=1;").unwrap();
+    c.execute_batch(
+        "UPDATE metadata SET automatic_guide_updates=0;UPDATE preference SET source_refresh_cadence='hourly',auto_source_refresh=1;",
+    )
+    .unwrap();
     assert!(plan(&c, 2 * DAY).unwrap().sources.is_empty());
     assert_eq!(
         claim(&mut c, &source.id, source.revision, 2 * DAY).unwrap_err(),
@@ -119,7 +122,8 @@ fn legacy_absence_and_null_remain_enabled_but_invalid_values_refuse() {
     c.execute_batch("ALTER TABLE metadata DROP COLUMN automatic_guide_updates;")
         .unwrap();
     assert_eq!(next_after_success(&c, 2000).unwrap(), 2000 + DAY);
-    c.execute_batch("ALTER TABLE metadata ADD COLUMN automatic_guide_updates INTEGER;UPDATE metadata SET automatic_guide_updates=2;").unwrap();
+    c.execute_batch("ALTER TABLE metadata ADD COLUMN automatic_guide_updates INTEGER;UPDATE metadata SET automatic_guide_updates=2;")
+        .unwrap();
     assert_eq!(
         plan(&c, 2000).err().unwrap(),
         "guide-refresh-invalid-policy"

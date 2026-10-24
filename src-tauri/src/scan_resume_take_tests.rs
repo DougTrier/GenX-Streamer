@@ -492,7 +492,7 @@ async fn actual_pages_cache_only_selected_rows_and_authenticate_origin() {
                 episode.plan.verify_original(
                     cached.reservation.ordinal,
                     &cached.metadata,
-                    &vec![cached.row.candidate["channel"]["urls"][0]
+                    &[cached.row.candidate["channel"]["urls"][0]
                         .as_str()
                         .unwrap()
                         .to_owned()],
@@ -669,7 +669,10 @@ async fn cache_budget_failure_and_malformed_request_do_not_leak_reservations() {
             Ok(())
         })
         .unwrap();
-    assert!(serde_json::from_value::<Take>(json!({"schemaVersion":1,"planId":"fixture-plan","limit":16,"blockedOrigins":[],"unexpected":true})).is_err());
+    assert!(serde_json::from_value::<Take>(
+        json!({"schemaVersion":1,"planId":"fixture-plan","limit":16,"blockedOrigins":[],"unexpected":true})
+    )
+    .is_err());
     assert!(origin(&"A".repeat(64)).is_err());
     assert!(origin(&"0".repeat(63)).is_err());
     registry.close("fixture-plan").await.unwrap();
@@ -949,7 +952,10 @@ async fn timing_opt_in_requires_supported_version_and_window_and_releases_on_can
     );
     registry.close(&r.plan_id).await.unwrap();
     for timing in [json!(1.5), json!(-1), json!("1"), json!(256)] {
-        assert!(serde_json::from_value::<Take>(json!({"schemaVersion":2,"planId":"fixture-plan","limit":16,"blockedOrigins":[],"takeTimingVersion":timing})).is_err());
+        assert!(serde_json::from_value::<Take>(
+            json!({"schemaVersion":2,"planId":"fixture-plan","limit":16,"blockedOrigins":[],"takeTimingVersion":timing})
+        )
+        .is_err());
     }
 }
 

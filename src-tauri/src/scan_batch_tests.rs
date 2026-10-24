@@ -172,7 +172,9 @@ fn compact_batch_cancel_and_sql_failure_rollback_and_postcommit_cancel_keeps_ack
     );
     assert_eq!(store.read_snapshot().unwrap(), before);
     let connection = connect(&store.root.join(DB), false).unwrap();
-    connection.execute_batch("CREATE TRIGGER batch_disk_error BEFORE INSERT ON channel BEGIN SELECT RAISE(ABORT,'controlled failure'); END;").unwrap();
+    connection
+        .execute_batch("CREATE TRIGGER batch_disk_error BEFORE INSERT ON channel BEGIN SELECT RAISE(ABORT,'controlled failure'); END;")
+        .unwrap();
     assert!(store.commit_scan_batch(&request, || Ok(())).is_err());
     assert_eq!(store.read_snapshot().unwrap(), before);
     connection

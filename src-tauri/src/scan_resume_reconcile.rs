@@ -16,7 +16,6 @@
 //! Only <=64 positively checked, authenticated candidates enter this module; negative checks
 //! remain checkpoint observations and never manufacture canonical catalog/health identities.
 use crate::scan_batch::Patch;
-use serde::Serialize;
 use serde_json::{json, Value};
 use std::collections::{HashMap, HashSet};
 use unicode_normalization::UnicodeNormalization;
@@ -35,17 +34,10 @@ pub(crate) struct Selected<'a> {
     pub candidate: &'a Value,
     pub observation: &'a Value,
 }
-#[derive(Serialize, Debug, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub(crate) struct Mapping {
-    pub original_index: usize,
-    pub channel_id: String,
-}
 pub(crate) struct Prepared {
     pub catalog_patch: Patch,
     pub next_preferences: Value,
     pub incoming_health: Vec<Value>,
-    pub mappings: Vec<Mapping>,
 }
 fn array<'a>(v: &'a Value, key: &str) -> Result<&'a Vec<Value>, String> {
     v[key].as_array().ok_or_else(|| ERR.into())
@@ -282,7 +274,6 @@ pub(crate) fn prepare(
         return Err(ERR.into());
     }
     let mut health_by_index = HashMap::new();
-    let mut mappings = Vec::new();
     for policy in context.source_policies {
         let source = normalize_source(policy.get("source").ok_or(ERR)?);
         let sid = string(&source, "id")?;
@@ -418,10 +409,6 @@ pub(crate) fn prepare(
             let observed = row.observation;
             health_by_index.insert(row.original_index,json!({"schemaVersion":1,"channelId":id,"sourceId":sid,"checkedUrlOrdinal":0,"targetFingerprint":fingerprint,
                 "platform":context.platform,"observerProfile":context.observer_profile,"observedAt":observed["observedAt"],"verdict":observed["verdict"],"evidence":observed["evidence"],"origin":"local"}));
-            mappings.push(Mapping {
-                original_index: row.original_index,
-                channel_id: id.clone(),
-            });
             updates.insert(id, channel);
         }
         if let Some(i) = sources.iter().position(|s| s["id"] == sid) {
@@ -475,7 +462,6 @@ pub(crate) fn prepare(
         },
         next_preferences,
         incoming_health,
-        mappings,
     })
 }
 #[cfg(test)]

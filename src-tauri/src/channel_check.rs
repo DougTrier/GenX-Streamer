@@ -437,7 +437,8 @@ mod tests {
     use super::*;
     fn db() -> Connection {
         let c = Connection::open_in_memory().unwrap();
-        c.execute_batch("CREATE TABLE channel(id TEXT PRIMARY KEY);INSERT INTO channel VALUES('a'),('b'),('c');").unwrap();
+        c.execute_batch("CREATE TABLE channel(id TEXT PRIMARY KEY);INSERT INTO channel VALUES('a'),('b'),('c');")
+            .unwrap();
         c
     }
     fn batch(items: &[(&str, &str)]) -> Record {
@@ -609,7 +610,11 @@ mod tests {
         assert!(row("triaged").is_none());
         assert!(read(&c, 0).unwrap().slow_channels.is_empty());
         // A Slow pass: what answered is marked Slow, what failed is not.
-        c.execute("UPDATE source_snapshot_entry SET check_verdict='Reachable',evidence=NULL,check_ms=?1 WHERE entry_id='e7'", [now]).unwrap();
+        c.execute(
+            "UPDATE source_snapshot_entry SET check_verdict='Reachable',evidence=NULL,check_ms=?1 WHERE entry_id='e7'",
+            [now],
+        )
+        .unwrap();
         let tx = c.transaction().unwrap();
         let recorded = record_from_scan(&tx, now - 10, now, true).unwrap();
         tx.commit().unwrap();

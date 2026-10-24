@@ -477,14 +477,6 @@ impl AccountPlaybackProxy {
             .map(|s| s.generation)
             .map_err(|_| "account-proxy-state".into())
     }
-    pub(crate) fn renew(&self) -> Result<(), String> {
-        let mut state = self.state.lock().map_err(|_| "account-proxy-state")?;
-        if !state.active() || self.task.as_ref().is_none_or(JoinHandle::is_finished) {
-            return Err("account-proxy-expired".into());
-        }
-        state.renewed = Instant::now();
-        Ok(())
-    }
     pub(crate) async fn stop(&mut self) -> Result<(), String> {
         let _ = self.cancel.send(true);
         if self.join_failed {
@@ -640,10 +632,8 @@ fn parse_request(bytes: &[u8], state: &State) -> Result<Request, &'static str> {
             .split_once(':')
             .ok_or("account-proxy-request-refused")?;
         let value = value.trim();
-        if key.eq_ignore_ascii_case("host") {
-            if host.replace(value).is_some() {
-                return Err("account-proxy-request-refused");
-            }
+        if key.eq_ignore_ascii_case("host") && host.replace(value).is_some() {
+            return Err("account-proxy-request-refused");
         }
         if key.eq_ignore_ascii_case("origin") {
             if origin.is_some() || !cors(value) {
@@ -1892,9 +1882,7 @@ mod start_path_tests {
                     } else {
                         format!("http://127.0.0.1:{stream_port}/stream/1.ts")
                     };
-                    let reply = format!(
-                        "HTTP/1.1 302 Found\r\nLocation: {location}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
-                    );
+                    let reply = format!("HTTP/1.1 302 Found\r\nLocation: {location}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
                     let _ = socket.write_all(reply.as_bytes()).await;
                 });
             }

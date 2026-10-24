@@ -285,6 +285,7 @@ impl Scheduler {
         Ok(())
     }
     /// Actual committed proof must precede this call; caller cannot expose a rebase IPC.
+    #[cfg(test)]
     pub(crate) fn acknowledge(&mut self, ids: &[String]) -> Result<(), String> {
         self.acknowledge_and_requeue_publish(ids, &[])
     }
@@ -337,6 +338,7 @@ impl Scheduler {
     pub(crate) fn exhausted(&self) -> bool {
         self.heads.is_empty()
     }
+    #[cfg(test)]
     pub(crate) fn next_eligible_at(&self, now: u64) -> Option<u64> {
         self.heads
             .iter()
@@ -369,6 +371,7 @@ impl Scheduler {
         })
         .transpose()
     }
+    #[cfg(test)]
     pub(crate) fn close(&mut self) -> Result<(), String> {
         if self.held.values().any(|r| r.state == State::Active) {
             return Err("scan-resume-probe-unjoined".into());
@@ -430,7 +433,7 @@ mod tests {
         scheduler.start_probe(&first.id).unwrap();
         scheduler.finish_probe(&first.id, 0, 0).unwrap();
         assert!(scheduler
-            .acknowledge_and_requeue_publish(&[first.id.clone()], &[1])
+            .acknowledge_and_requeue_publish(std::slice::from_ref(&first.id), &[1])
             .is_err());
         scheduler
             .acknowledge_and_requeue_publish(&[first.id], &[0])
@@ -518,7 +521,7 @@ mod tests {
         let c = s.reserve(1, &[], 350, &mut random).unwrap().pop().unwrap();
         s.start_probe(&c.id).unwrap();
         // Deferring the finished sibling must not free a third slot.
-        s.defer(&[a.id.clone()]).unwrap();
+        s.defer(std::slice::from_ref(&a.id)).unwrap();
         assert!(s.reserve(1, &[], 700, &mut random).unwrap().is_empty());
         assert!(s.close().is_err());
         s.finish_probe(&b.id, 700, 0).unwrap();
@@ -536,7 +539,7 @@ mod tests {
         let r = s.reserve(1, &[], 0, &mut random).unwrap().pop().unwrap();
         s.start_probe(&r.id).unwrap();
         assert!(s.close().is_err());
-        assert!(s.release(&[r.id.clone()]).is_err());
+        assert!(s.release(std::slice::from_ref(&r.id)).is_err());
         s.finish_probe(&r.id, 1000, 7000).unwrap();
         assert_eq!(s.next_eligible_at(1000), Some(8000));
         assert!(s.reserve(1, &[], 7999, &mut random).unwrap().is_empty());

@@ -64,6 +64,9 @@ impl Owner {
             Store::open_target,
         )
     }
+    // Test seam: `start` passes the real readiness signal and store opener;
+    // tests inject their own `ready` and `open`.
+    #[allow(clippy::too_many_arguments)]
     fn start_with<R, F>(
         &self,
         store: Arc<StoreOwner>,
@@ -208,7 +211,7 @@ mod tests {
         sync::{atomic::AtomicUsize, mpsc},
         time::Duration,
     };
-    fn fixture() -> (
+    type Fixture = (
         tempfile::TempDir,
         Arc<StoreOwner>,
         InitialTicket,
@@ -216,7 +219,8 @@ mod tests {
         Arc<AtomicBool>,
         Arc<WorkOwner>,
         Arc<Owner>,
-    ) {
+    );
+    fn fixture() -> Fixture {
         let dir = tempfile::tempdir().unwrap();
         let seed = Store::new(dir.path().to_owned(), "test".into()).unwrap();
         seed.write_guarded(r#"{"schemaVersion":1,"sources":[],"channels":[]}"#,

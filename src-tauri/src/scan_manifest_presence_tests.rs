@@ -127,7 +127,8 @@ fn checkpoint_presence_large_payload_native_opcode_and_timing_probe() {
     for sql in [CURRENT, TYPEOF, WHERE] {
         let c =
             Connection::open_with_flags(&path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
-        c.execute_batch("PRAGMA trusted_schema=OFF;PRAGMA foreign_keys=ON;PRAGMA cache_size=-2048;PRAGMA mmap_size=0;").unwrap();
+        c.execute_batch("PRAGMA trusted_schema=OFF;PRAGMA foreign_keys=ON;PRAGMA cache_size=-2048;PRAGMA mmap_size=0;")
+            .unwrap();
         let mut statement = c.prepare(sql).unwrap();
         let mut samples = Vec::new();
         for _ in 0..16 {
@@ -155,7 +156,8 @@ fn checkpoint_presence_large_payload_native_opcode_and_timing_probe() {
             .into_iter()
             .filter(|r| r.0 == "Column")
             .collect();
-        measurements.push(serde_json::json!({"sql":sql,"medianMs":samples[8],"minMs":samples[0],"iterations":16,"columnOpcodesP1P2P3P5":columns}));
+        measurements
+            .push(serde_json::json!({"sql":sql,"medianMs":samples[8],"minMs":samples[0],"iterations":16,"columnOpcodesP1P2P3P5":columns}));
     }
     println!(
         "NATIVE_PRESENCE_PROBE {}",

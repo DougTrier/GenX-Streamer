@@ -778,7 +778,10 @@ mod tests {
         let owner = tokio::spawn(async move {
             let (mut socket, _) = listener.accept().await.unwrap();
             read_fixture_headers(&mut socket).await;
-            socket.write_all(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n10\r\n0123456789abcdef\r\n").await.unwrap();
+            socket
+                .write_all(b"HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n10\r\n0123456789abcdef\r\n")
+                .await
+                .unwrap();
             // No terminating chunk is sent. Consumer must get data without whole-body buffering.
             let mut byte = [0; 1];
             tokio::time::timeout(Duration::from_secs(3), socket.read(&mut byte))
@@ -833,7 +836,11 @@ mod tests {
 
     #[tokio::test]
     async fn actual_chunked_manifest_media_and_absolute_deadline_are_bounded() {
-        let (response,owner)=response_fixture("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nContent-Type: application/vnd.apple.mpegurl\r\n\r\n",vec![vec![b'x';65536];33]).await;
+        let (response, owner) = response_fixture(
+            "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\nContent-Type: application/vnd.apple.mpegurl\r\n\r\n",
+            vec![vec![b'x'; 65536]; 33],
+        )
+        .await;
         let opened = OpenedUpstream::from_test_response(response).await.unwrap();
         assert_eq!(
             opened.read_manifest().await.unwrap_err(),

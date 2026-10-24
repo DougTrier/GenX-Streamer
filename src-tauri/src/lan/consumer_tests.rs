@@ -311,10 +311,14 @@ async fn actual_tls_four_stalled_requests_do_not_starve_second_viewer_or_control
     let control_client = client.clone();
     let control_address = info.address.clone();
     let control = tokio::spawn(async move {
-        control_client.post(format!("{control_address}/control"))
-            .header("Origin", &control_address).header("Cookie", controller)
+        control_client
+            .post(format!("{control_address}/control"))
+            .header("Origin", &control_address)
+            .header("Cookie", controller)
             .body(serde_json::to_vec(&serde_json::json!({"sequence":1,"revision":publication.revision,"action":"pause"})).unwrap())
-            .send().await.unwrap()
+            .send()
+            .await
+            .unwrap()
     });
     let command = tokio::time::timeout(Duration::from_secs(2), async {
         loop {

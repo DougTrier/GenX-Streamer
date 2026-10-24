@@ -980,7 +980,10 @@ mod tests {
             "{\"error\":\"private\"}",
             "[\"not media\"]",
         ] {
-            let reply=format!("HTTP/1.1 200 OK\r\nContent-Type: video/mp4\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len());
+            let reply = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: video/mp4\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
             let (url, server) = health_fixture(reply.into_bytes(), Duration::ZERO).await;
             assert_eq!(
                 health_inspect(&url, true, 20_000).await.unwrap().kind,
@@ -989,7 +992,11 @@ mod tests {
             server.await.unwrap();
         }
         let body = b"\x00\x00\x00\x18ftypisom";
-        let mut reply=format!("HTTP/1.1 200 OK\r\nContent-Type: video/mp4\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",body.len()).into_bytes();
+        let mut reply = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: video/mp4\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+            body.len()
+        )
+        .into_bytes();
         reply.extend_from_slice(body);
         let (url, server) = health_fixture(reply, Duration::ZERO).await;
         assert_eq!(
@@ -998,7 +1005,10 @@ mod tests {
         );
         server.await.unwrap();
         let body = "#EXTM3U\n#EXT-X-TARGETDURATION:6\n#EXTINF:6,\nchunk\n";
-        let reply=format!("HTTP/1.1 200 OK\r\nContent-Type: video/mp4\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",body.len());
+        let reply = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: video/mp4\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        );
         let (url, server) = health_fixture(reply.into_bytes(), Duration::ZERO).await;
         assert_eq!(
             health_inspect(&url, true, 20_000).await.unwrap().kind,
@@ -1017,7 +1027,10 @@ mod tests {
             let (mut stream, _) = listener.accept().await.unwrap();
             let mut request = [0; 4096];
             assert!(stream.read(&mut request).await.unwrap() > 0);
-            stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Type: video/mp4\r\nContent-Length: 13\r\nConnection: close\r\n\r\n<").await.unwrap();
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Type: video/mp4\r\nContent-Length: 13\r\nConnection: close\r\n\r\n<")
+                .await
+                .unwrap();
             ready_tx.send(()).unwrap();
             release_rx.await.unwrap();
             stream.write_all(b"html></html>").await.unwrap();
@@ -1039,7 +1052,10 @@ mod tests {
             let (mut stream, _) = listener.accept().await.unwrap();
             let mut request = [0; 4096];
             assert!(stream.read(&mut request).await.unwrap() > 0);
-            stream.write_all(b"HTTP/1.1 429 Too Many Requests\r\nRetry-After: 7\r\nContent-Length: 1000000\r\nConnection: keep-alive\r\n\r\n").await.unwrap();
+            stream
+                .write_all(b"HTTP/1.1 429 Too Many Requests\r\nRetry-After: 7\r\nContent-Length: 1000000\r\nConnection: keep-alive\r\n\r\n")
+                .await
+                .unwrap();
             assert_eq!(
                 tokio::time::timeout(Duration::from_secs(1), stream.read(&mut request))
                     .await
@@ -1064,7 +1080,10 @@ mod tests {
         assert!(inspected.mime.is_none());
         task.await.unwrap();
         for length in [128, 129] {
-            let reply=format!("HTTP/1.1 503 Unavailable\r\nRetry-After: {}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n","9".repeat(length));
+            let reply = format!(
+                "HTTP/1.1 503 Unavailable\r\nRetry-After: {}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                "9".repeat(length)
+            );
             let (url, server) = health_fixture(reply.into_bytes(), Duration::ZERO).await;
             let status = health_inspect(&url, true, 45_000).await.unwrap();
             assert_eq!(status.status, 503);
@@ -1086,7 +1105,10 @@ mod tests {
             let (mut stream, _) = listener.accept().await.unwrap();
             let mut request = [0; 4096];
             assert!(stream.read(&mut request).await.unwrap() > 0);
-            stream.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 20971521\r\nConnection: keep-alive\r\n\r\n").await.unwrap();
+            stream
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 20971521\r\nConnection: keep-alive\r\n\r\n")
+                .await
+                .unwrap();
             let mut prefix = vec![b' '; 65_536];
             prefix[..8].copy_from_slice(b"#EXTM3U\n");
             let disconnected = |error: &std::io::Error| {
@@ -1197,13 +1219,22 @@ mod tests {
                 .unwrap_err(),
             "url-policy-refused"
         );
-        let(url,server)=health_fixture(b"HTTP/1.1 302 Found\r\nLocation: file:///private/secret\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_vec(),Duration::ZERO).await;
+        let (url, server) = health_fixture(
+            b"HTTP/1.1 302 Found\r\nLocation: file:///private/secret\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_vec(),
+            Duration::ZERO,
+        )
+        .await;
         // Unsupported-scheme redirects are returned without following by reqwest.
         let refused = health_inspect(&url, true, 20_000).await.unwrap();
         assert_eq!(refused.status, 302);
         assert!(refused.kind.is_none());
         server.await.unwrap();
-        let (url,server)=health_fixture(b"HTTP/1.1 302 Found\r\nLocation: http://user:secret@127.0.0.1:9/private\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_vec(),Duration::ZERO).await;
+        let (url, server) = health_fixture(
+            b"HTTP/1.1 302 Found\r\nLocation: http://user:secret@127.0.0.1:9/private\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+                .to_vec(),
+            Duration::ZERO,
+        )
+        .await;
         assert_eq!(
             health_inspect(&url, true, 20_000).await.unwrap_err(),
             "redirect-refused"
@@ -1296,7 +1327,8 @@ mod tests {
 
     #[tokio::test(flavor = "current_thread")]
     async fn denied_redirect_never_follows_file_scheme() {
-        let (url, thread) = fixture(b"HTTP/1.1 302 Found\r\nLocation: file:///private/secret\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
+        let (url, thread) =
+            fixture(b"HTTP/1.1 302 Found\r\nLocation: file:///private/secret\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
         assert!(fetch(&url, true).await.is_err());
         thread.join().unwrap();
     }
@@ -1412,14 +1444,21 @@ mod tests {
             envelope(error),
             serde_json::json!({"category":"connectivity-failure","phase":"connect"})
         );
-        let (url, server) = health_fixture(b"HTTP/1.1 429 Busy\r\nRetry-After: 7\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_vec(), Duration::ZERO).await;
+        let (url, server) = health_fixture(
+            b"HTTP/1.1 429 Busy\r\nRetry-After: 7\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".to_vec(),
+            Duration::ZERO,
+        )
+        .await;
         let error = inspect_playback(&url, true).await.err().unwrap();
         assert_eq!(
             envelope(error),
             serde_json::json!({"category":"http","phase":"headers","status":429,"retryAfter":"7"})
         );
         server.await.unwrap();
-        let reply = format!("HTTP/1.1 503 Busy\r\nRetry-After: {}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n", "9".repeat(129));
+        let reply = format!(
+            "HTTP/1.1 503 Busy\r\nRetry-After: {}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+            "9".repeat(129)
+        );
         let (url, server) = health_fixture(reply.into_bytes(), Duration::ZERO).await;
         assert_eq!(
             envelope(inspect_playback(&url, true).await.err().unwrap()),

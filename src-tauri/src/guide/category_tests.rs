@@ -19,7 +19,8 @@ fn xml(categories: &str) -> String {
 }
 #[test]
 fn actual_xml_entities_language_and_unknown_are_preserved() {
-    let feed=parse_guide(xml("<category lang='en'>Action &amp; Adventure</category><category lang='fr'>Mystère</category>").as_bytes()).unwrap();
+    let feed =
+        parse_guide(xml("<category lang='en'>Action &amp; Adventure</category><category lang='fr'>Mystère</category>").as_bytes()).unwrap();
     let c = &feed.programs[0].categories;
     assert_eq!(c.len(), 2);
     assert_eq!(c[0].text, "Action & Adventure");

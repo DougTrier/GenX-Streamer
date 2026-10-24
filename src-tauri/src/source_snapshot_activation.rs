@@ -555,7 +555,7 @@ impl PairStore {
                     for row in rows {
                         check()?;
                         let (entry, ordinal, raw, address) = sql(row)?;
-                        if raw.len() > 1024 * 1024 || ordinal < 0 || ordinal >= 100000 {
+                        if raw.len() > 1024 * 1024 || !(0..100000).contains(&ordinal) {
                             return Err(ERR.into());
                         }
                         count += 1;

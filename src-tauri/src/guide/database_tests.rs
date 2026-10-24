@@ -729,7 +729,13 @@ fn suggestions_migration_backfills_atomically_and_refuses_invalid_names() {
             .candidate_count,
         1
     );
-    let plan:String=f.c.query_row("EXPLAIN QUERY PLAN SELECT channel_id FROM guide_channel_name WHERE guide_source_id='g' AND normalized_name='channel a'",[],|r|r.get(3)).unwrap();
+    let plan: String =
+        f.c.query_row(
+            "EXPLAIN QUERY PLAN SELECT channel_id FROM guide_channel_name WHERE guide_source_id='g' AND normalized_name='channel a'",
+            [],
+            |r| r.get(3),
+        )
+        .unwrap();
     assert!(plan.contains("guide_channel_name_exact"));
 }
 #[test]
@@ -874,7 +880,7 @@ fn commit_and_match_preserves_stream_variants_existing_mappings_and_exact_id_sco
         f.c.query_row(
             "SELECT count(*) FROM channel WHERE id IN ('duplicate-1','duplicate-2')",
             [],
-            |r| r.get::<_, i64>(0)
+            |r| { r.get::<_, i64>(0) }
         )
         .unwrap(),
         2
@@ -895,7 +901,8 @@ fn commit_and_match_preserves_stream_variants_existing_mappings_and_exact_id_sco
 #[test]
 fn commit_and_match_cancellation_and_stale_revision_roll_back_schedule_and_mapping_together() {
     let mut f = fixture();
-    f.c.execute_batch("ALTER TABLE channel ADD COLUMN provider_id TEXT;UPDATE channel SET provider_id='xml-a' WHERE id='app-a';").unwrap();
+    f.c.execute_batch("ALTER TABLE channel ADD COLUMN provider_id TEXT;UPDATE channel SET provider_id='xml-a' WHERE id='app-a';")
+        .unwrap();
     install(&mut f.c, "g", "Old");
     let flag = AtomicBool::new(false);
     assert!(
@@ -929,8 +936,12 @@ fn daily_guide_attempt_claim_is_durable_scoped_and_does_not_publish_on_failure()
     use crate::guide::refresh;
     let mut f = fixture();
     // Refresh evaluates real catalog-source ownership, unlike guide-only query fixtures.
-    f.c.execute_batch("CREATE TABLE source(id TEXT PRIMARY KEY);INSERT INTO source VALUES('catalog-a'),('catalog-b');").unwrap();
-    f.c.execute_batch("CREATE TABLE preference(singleton INTEGER PRIMARY KEY,auto_source_refresh INTEGER);INSERT INTO preference VALUES(1,1);").unwrap();
+    f.c.execute_batch("CREATE TABLE source(id TEXT PRIMARY KEY);INSERT INTO source VALUES('catalog-a'),('catalog-b');")
+        .unwrap();
+    f.c.execute_batch(
+        "CREATE TABLE preference(singleton INTEGER PRIMARY KEY,auto_source_refresh INTEGER);INSERT INTO preference VALUES(1,1);",
+    )
+    .unwrap();
     install(&mut f.c, "g", "Old");
     let due = 3000 + 86_400_000;
     assert_eq!(refresh::plan(&f.c, 0).unwrap().sources[0].next_due_ms, due);
@@ -1194,7 +1205,8 @@ fn guide_daily_permission_is_independent_of_channel_cadence_and_reuses_attempt()
     use crate::guide::refresh;
     let mut f = fixture();
     // Refresh evaluates real catalog-source ownership, unlike guide-only query fixtures.
-    f.c.execute_batch("CREATE TABLE source(id TEXT PRIMARY KEY);INSERT INTO source VALUES('catalog-a'),('catalog-b');").unwrap();
+    f.c.execute_batch("CREATE TABLE source(id TEXT PRIMARY KEY);INSERT INTO source VALUES('catalog-a'),('catalog-b');")
+        .unwrap();
     f.c.execute_batch("CREATE TABLE preference(singleton INTEGER PRIMARY KEY,source_refresh_cadence TEXT);INSERT INTO preference VALUES(1,'hourly');ALTER TABLE metadata ADD COLUMN automatic_guide_updates INTEGER;UPDATE metadata SET automatic_guide_updates=1;PRAGMA user_version=8;").unwrap();
     install(&mut f.c, "g", "Old");
     let due = 3000 + 86_400_000;
@@ -1245,7 +1257,8 @@ fn daily_guide_claim_ignores_monthly_channel_cadence_and_retains_last_good() {
     use chrono::{TimeZone, Utc};
     let mut f = fixture();
     // Refresh evaluates real catalog-source ownership, unlike guide-only query fixtures.
-    f.c.execute_batch("CREATE TABLE source(id TEXT PRIMARY KEY);INSERT INTO source VALUES('catalog-a'),('catalog-b');").unwrap();
+    f.c.execute_batch("CREATE TABLE source(id TEXT PRIMARY KEY);INSERT INTO source VALUES('catalog-a'),('catalog-b');")
+        .unwrap();
     f.c.execute_batch("CREATE TABLE preference(singleton INTEGER PRIMARY KEY,source_refresh_cadence TEXT);INSERT INTO preference VALUES(1,'monthly');PRAGMA user_version=8;").unwrap();
     let jan31 = Utc
         .with_ymd_and_hms(2023, 1, 31, 12, 34, 56)
@@ -1338,9 +1351,26 @@ fn reviewed_fixture() -> (
     let mut data = feed("New PGA");
     data.channels[0].id = "5de94dacb394a300099fa22a".into();
     data.programs[0].channel_id = data.channels[0].id.clone();
-    let aliases=ReviewedAliases{schema_version:1,guide_location:src.location,provenance_location:"https://raw.githubusercontent.com/iptv-org/epg/master/sites/pluto.tv/pluto.tv_us.channels.xml".into(),provenance_sha256:"dc1eaca8b90b1d227850f81fb02793c74a804c473eb26dd674cd1eaa8084c89e".into(),pairs:vec![
-        AliasPair{catalog_source_id:"catalog-a".into(),app_channel_id:"app-a".into(),provider_id:"PGATour.us@SD".into(),xmltv_channel_id:data.channels[0].id.clone()},
-        AliasPair{catalog_source_id:"catalog-b".into(),app_channel_id:"app-b".into(),provider_id:"PGATour.us@SD".into(),xmltv_channel_id:data.channels[0].id.clone()}]};
+    let aliases = ReviewedAliases {
+        schema_version: 1,
+        guide_location: src.location,
+        provenance_location: "https://raw.githubusercontent.com/iptv-org/epg/master/sites/pluto.tv/pluto.tv_us.channels.xml".into(),
+        provenance_sha256: "dc1eaca8b90b1d227850f81fb02793c74a804c473eb26dd674cd1eaa8084c89e".into(),
+        pairs: vec![
+            AliasPair {
+                catalog_source_id: "catalog-a".into(),
+                app_channel_id: "app-a".into(),
+                provider_id: "PGATour.us@SD".into(),
+                xmltv_channel_id: data.channels[0].id.clone(),
+            },
+            AliasPair {
+                catalog_source_id: "catalog-b".into(),
+                app_channel_id: "app-b".into(),
+                provider_id: "PGATour.us@SD".into(),
+                xmltv_channel_id: data.channels[0].id.clone(),
+            },
+        ],
+    };
     (f, aliases, data)
 }
 #[test]

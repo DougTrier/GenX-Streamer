@@ -17,13 +17,16 @@ use super::*;
 
 fn fixture() -> Connection {
     let c = Connection::open_in_memory().unwrap();
-    c.execute_batch("CREATE TABLE scan_manifest(id TEXT,job_id TEXT,review_digest TEXT,state INTEGER);
+    c.execute_batch(
+        "CREATE TABLE scan_manifest(id TEXT,job_id TEXT,review_digest TEXT,state INTEGER);
         CREATE TABLE source_activation_row(manifest_id TEXT,ordinal INTEGER,source_id TEXT,source_revision TEXT);
         CREATE TABLE source_snapshot_source(source_id TEXT,revision INTEGER);
         CREATE TABLE source_snapshot_entry(source_id TEXT,ordinal INTEGER,channel TEXT,available INTEGER);
         INSERT INTO scan_manifest VALUES('manifest','job','digest',1);
         INSERT INTO source_activation_row VALUES('manifest',0,'s','1');
-        INSERT INTO source_snapshot_source VALUES('s',1);").unwrap();
+        INSERT INTO source_snapshot_source VALUES('s',1);",
+    )
+    .unwrap();
     c
 }
 fn channel(provider: &str, name: &str) -> Value {

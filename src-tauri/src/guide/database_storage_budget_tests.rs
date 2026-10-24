@@ -58,7 +58,13 @@ fn snapshot(c: &Connection) -> Value {
         .unwrap()
         .collect::<rusqlite::Result<Vec<_>>>()
         .unwrap();
-    let validators: (String,i64,Option<String>,Option<String>,i64) = c.query_row("SELECT fingerprint,published_revision,etag,last_modified,checked_ms FROM guide_http_cache WHERE source_id='g'", [], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?))).unwrap();
+    let validators: (String, i64, Option<String>, Option<String>, i64) = c
+        .query_row(
+            "SELECT fingerprint,published_revision,etag,last_modified,checked_ms FROM guide_http_cache WHERE source_id='g'",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
+        )
+        .unwrap();
     serde_json::json!({"sources":list_sources(c).unwrap(),"mappings":list_mappings(c).unwrap(),"programs":rows,"validators":validators,"revision":database_revision(c).unwrap()})
 }
 

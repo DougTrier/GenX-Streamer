@@ -197,9 +197,9 @@ fn plain_id(raw: &str) -> bool {
 
 /// Xtream API credentials for an account: the login itself, or a provider
 /// `get.php?username=...&password=...` playlist link (same account).
-pub(crate) fn credentials(
-    secret: &Secret,
-) -> Result<(Zeroizing<String>, Zeroizing<String>, Zeroizing<String>), String> {
+/// An Xtream server address, user name and password.
+pub(crate) type Credentials = (Zeroizing<String>, Zeroizing<String>, Zeroizing<String>);
+pub(crate) fn credentials(secret: &Secret) -> Result<Credentials, String> {
     match secret {
         Secret::Xtream {
             server_url,
@@ -707,6 +707,23 @@ pub(crate) async fn account_series_info(
     .await
 }
 
+/// Cheap recheck for an active VOD session: the account still exists at the
+/// same revision (removal or edit stops playback). No secret is decrypted.
+pub(crate) async fn verify(
+    owner: Arc<Context>,
+    account_id: String,
+    revision: u64,
+) -> Result<(), String> {
+    owner
+        .storage_with_generation(None, move |store, generation, check| {
+            store.with_guide_read(|c| {
+                account_vault::prepare_resolve(c, &account_id, revision, generation, check)
+                    .map(|_| ())
+            })
+        })
+        .await
+        .map(|_| ())
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -850,22 +867,4 @@ mod tests {
         assert_eq!(episodes[1].duration_seconds, Some(1500));
         assert_eq!(episodes[2].extension, None);
     }
-}
-
-/// Cheap recheck for an active VOD session: the account still exists at the
-/// same revision (removal or edit stops playback). No secret is decrypted.
-pub(crate) async fn verify(
-    owner: Arc<Context>,
-    account_id: String,
-    revision: u64,
-) -> Result<(), String> {
-    owner
-        .storage_with_generation(None, move |store, generation, check| {
-            store.with_guide_read(|c| {
-                account_vault::prepare_resolve(c, &account_id, revision, generation, check)
-                    .map(|_| ())
-            })
-        })
-        .await
-        .map(|_| ())
 }

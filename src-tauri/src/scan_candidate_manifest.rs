@@ -63,7 +63,11 @@ fn random_id() -> Result<String, String> {
     Ok(bytes.iter().map(|b| format!("{b:02x}")).collect())
 }
 fn present(c: &Connection) -> Result<bool, String> {
-    let exists:bool=sql(c.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='scan_manifest_namespace')", [], |r| r.get(0)))?;
+    let exists: bool = sql(c.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='scan_manifest_namespace')",
+        [],
+        |r| r.get(0),
+    ))?;
     if exists {
         let version: i64 = sql(c.query_row(
             "SELECT schema_version FROM scan_manifest_namespace WHERE singleton=1",
@@ -243,11 +247,14 @@ pub(crate) fn check_cas(
     }
     Ok(())
 }
+/// The scan job and digest a replacement manifest is bound to, and whether
+/// it may proceed.
+pub(crate) type ReplacementGuard = (Option<String>, Option<String>, bool);
 pub(crate) fn replacement_guard(
     c: &Connection,
     manifest_id: &str,
     context: &Context<'_>,
-) -> Result<Option<(Option<String>, Option<String>, bool)>, String> {
+) -> Result<Option<ReplacementGuard>, String> {
     // Autocommit callers also need one coherent snapshot across every guard seek.
     // Existing checked write/read transactions retain their own snapshot/lease.
     if c.is_autocommit() {
@@ -262,8 +269,12 @@ fn replacement_guard_in_snapshot(
     c: &Connection,
     manifest_id: &str,
     context: &Context<'_>,
-) -> Result<Option<(Option<String>, Option<String>, bool)>, String> {
-    if !sql(c.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='scan_manifest_replacement')", [], |r| r.get::<_, bool>(0)))? {
+) -> Result<Option<ReplacementGuard>, String> {
+    if !sql(c.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='scan_manifest_replacement')",
+        [],
+        |r| r.get::<_, bool>(0),
+    ))? {
         return Ok(None);
     }
     let binding = sql(c.query_row("SELECT prior_job_id,prior_review_digest,catalog_revision,checkpoint_revision,allow_unfinished FROM scan_manifest_replacement WHERE manifest_id=?1", [manifest_id], |r| Ok((r.get::<_, Option<String>>(0)?, r.get::<_, Option<String>>(1)?, r.get::<_, i64>(2)?, r.get::<_, i64>(3)?, r.get::<_, bool>(4)?))).optional())?;
@@ -275,9 +286,15 @@ fn replacement_guard_in_snapshot(
     if identity != (job.clone(), digest.clone()) {
         return Err("scan-checkpoint-job-stale".into());
     }
-    if sql(c.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='source_activation_row')", [], |r| r.get::<_, bool>(0)))? {
+    if sql(c.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='source_activation_row')",
+        [],
+        |r| r.get::<_, bool>(0),
+    ))? {
         let stale = activation_guard::stale(c, manifest_id)?;
-        if stale { return Err("source-snapshot-revision-stale".into()); }
+        if stale {
+            return Err("source-snapshot-revision-stale".into());
+        }
     }
     Ok(Some((job, digest, allow)))
 }
@@ -366,7 +383,7 @@ fn begin_inner(
         None
     };
     if let Some(raw) = prior.checkpoint.as_ref().filter(|_| replacement.is_none()) {
-        let previous: Value = serde_json::from_str(&raw).map_err(|_| ERR)?;
+        let previous: Value = serde_json::from_str(raw).map_err(|_| ERR)?;
         if previous["schemaVersion"] != 3
             || previous["reviewDigest"] != seed["reviewDigest"]
             || previous != seed
@@ -738,7 +755,7 @@ fn seal_metadata(c: &Connection, request: &Seal, context: &Context<'_>) -> Resul
     if old.header.next_index != old.header.candidate_count {
         return Err("scan-manifest-incomplete".into());
     }
-    let mut pages=sql(c.prepare("SELECT start_index,item_count FROM scan_manifest_page WHERE manifest_id=?1 ORDER BY start_index"))?;
+    let mut pages = sql(c.prepare("SELECT start_index,item_count FROM scan_manifest_page WHERE manifest_id=?1 ORDER BY start_index"))?;
     let rows = sql(pages.query_map([&request.manifest_id], |r| {
         Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?))
     }))?;
@@ -760,7 +777,13 @@ pub(crate) fn seal(c: &Connection, request: &Seal) -> Result<(), String> {
     if revision == i64::MAX {
         return Err("scan-manifest-revision-stale".into());
     }
-    if sql(c.execute("UPDATE scan_manifest SET state=1,revision=revision+1 WHERE id=?1 AND state=0 AND revision=?2",params![request.manifest_id,revision]))?!=1{return Err("scan-manifest-revision-stale".into());}
+    if sql(c.execute(
+        "UPDATE scan_manifest SET state=1,revision=revision+1 WHERE id=?1 AND state=0 AND revision=?2",
+        params![request.manifest_id, revision],
+    ))? != 1
+    {
+        return Err("scan-manifest-revision-stale".into());
+    }
     Ok(())
 }
 fn current_job(
@@ -883,7 +906,21 @@ pub(crate) fn read_page(
     {
         return Err("scan-manifest-job-stale".into());
     }
-    let (count,binding,plain_hash,ciphertext)=sql(c.query_row("SELECT item_count,binding,plain_hash,ciphertext FROM scan_manifest_page WHERE manifest_id=?1 AND start_index=?2",params![request.manifest_id,request.start_index as i64],|r|Ok((r.get::<_,i64>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,Vec<u8>>(3)?))).optional())?.ok_or("scan-manifest-page-absent")?;
+    let (count, binding, plain_hash, ciphertext) = sql(c
+        .query_row(
+            "SELECT item_count,binding,plain_hash,ciphertext FROM scan_manifest_page WHERE manifest_id=?1 AND start_index=?2",
+            params![request.manifest_id, request.start_index as i64],
+            |r| {
+                Ok((
+                    r.get::<_, i64>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, String>(2)?,
+                    r.get::<_, Vec<u8>>(3)?,
+                ))
+            },
+        )
+        .optional())?
+    .ok_or("scan-manifest-page-absent")?;
     if count <= 0
         || count > 64
         || binding.len() > BINDING_LIMIT
@@ -985,7 +1022,9 @@ pub(crate) fn verify_cached_read(
     if !exact {
         return Err("scan-manifest-authentication-failed".into());
     }
-    let mut statement=sql(c.prepare("SELECT ordinal,metadata FROM scan_manifest_candidate WHERE manifest_id=?1 AND ordinal>=?2 AND ordinal<?3 ORDER BY ordinal"))?;
+    let mut statement = sql(c.prepare(
+        "SELECT ordinal,metadata FROM scan_manifest_candidate WHERE manifest_id=?1 AND ordinal>=?2 AND ordinal<?3 ORDER BY ordinal",
+    ))?;
     let mut rows = sql(statement.query(params![
         request.manifest_id,
         image.start_index as i64,
@@ -1019,7 +1058,8 @@ pub(crate) fn verify_cached_read(
         .map(|n| format!("?{n}"))
         .collect::<Vec<_>>()
         .join(",");
-    let query=format!("SELECT ordinal,contents FROM scan_manifest_category WHERE manifest_id=?1 AND ordinal IN({placeholders}) ORDER BY ordinal");
+    let query =
+        format!("SELECT ordinal,contents FROM scan_manifest_category WHERE manifest_id=?1 AND ordinal IN({placeholders}) ORDER BY ordinal");
     let mut args = vec![rusqlite::types::Value::Text(request.manifest_id.clone())];
     args.extend(
         categories

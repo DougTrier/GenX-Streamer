@@ -41,9 +41,13 @@ fn digest_file(path: &Path) -> String {
 // Every table except the five explicitly changed by Guide retention must keep
 // its exact row multiset. This includes channel headers, mappings and user data.
 fn protected(c: &Connection) -> BTreeMap<String, (usize, String)> {
-    let tables = c.prepare("SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
-        .unwrap().query_map([], |r| r.get::<_, String>(0)).unwrap()
-        .collect::<rusqlite::Result<Vec<_>>>().unwrap();
+    let tables = c
+        .prepare("SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name")
+        .unwrap()
+        .query_map([], |r| r.get::<_, String>(0))
+        .unwrap()
+        .collect::<rusqlite::Result<Vec<_>>>()
+        .unwrap();
     let mut result = BTreeMap::new();
     for table in tables {
         if matches!(

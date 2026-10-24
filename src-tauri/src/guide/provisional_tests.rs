@@ -236,7 +236,13 @@ fn proposed_guide_catalog_removal_and_source_removal_fences_are_not_overwritten(
 #[test]
 fn proposed_guide_transaction_failure_rolls_back_descriptor_and_schedule() {
     let (_root, store) = fixture();
-    store.with_guide_write(|c|db::sql(c.execute_batch("CREATE TRIGGER refuse_proposed_program BEFORE INSERT ON guide_program BEGIN SELECT RAISE(ABORT,'fixture refusal');END;"))).unwrap();
+    store
+        .with_guide_write(|c| {
+            db::sql(c.execute_batch(
+                "CREATE TRIGGER refuse_proposed_program BEFORE INSERT ON guide_program BEGIN SELECT RAISE(ABORT,'fixture refusal');END;",
+            ))
+        })
+        .unwrap();
     let r = request(&store, false);
     assert!(publish(&store, &r, &feed(), &AtomicBool::new(false)).is_err());
     assert_eq!(source_count(&store), 0);

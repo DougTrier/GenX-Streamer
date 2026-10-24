@@ -178,7 +178,7 @@ pub(crate) fn parse(
     let mut events = 0u32;
     loop {
         events = events.wrapping_add(1);
-        if events % 4096 == 0 {
+        if events.is_multiple_of(4096) {
             check()?;
         }
         buf.clear();
@@ -322,10 +322,10 @@ pub(crate) fn parse(
                             "desc" if p.description.is_none() && !text.is_empty() => {
                                 p.description = Some(text)
                             }
-                            "category" => {
-                                if category::admit(&mut p.categories, text, language).is_err() {
-                                    p.bad = true;
-                                }
+                            "category"
+                                if category::admit(&mut p.categories, text, language).is_err() =>
+                            {
+                                p.bad = true;
                             }
                             _ => {}
                         }
@@ -524,7 +524,15 @@ pub(crate) fn commit(
         "INSERT INTO account_guide_v1(account_id,account_revision,revision,fetched_ms,programs,channels,skipped)
          VALUES(?1,?2,?3,?4,?5,?6,?7) ON CONFLICT(account_id) DO UPDATE SET account_revision=?2,revision=?3,
          fetched_ms=?4,programs=?5,channels=?6,skipped=?7",
-        params![account, account_revision, status.revision, fetched_ms, status.programs, channels, status.skipped],
+        params![
+            account,
+            account_revision,
+            status.revision,
+            fetched_ms,
+            status.programs,
+            channels,
+            status.skipped
+        ],
     ))?;
     sql(tx.execute(
         "DELETE FROM account_guide_program_v1 WHERE account_id=?1",
@@ -656,9 +664,8 @@ pub(crate) fn listed(
     }
     // The database narrows by letters; each word must then start a word of the
     // title or description ("nfl" is not "conflict"), as in the Free TV guide.
-    let mut sql_text = format!(
-        "SELECT epg_id,title,COALESCE(description,'') FROM account_guide_program_v1 WHERE account_id=?1 AND {OVERLAP}"
-    );
+    let mut sql_text =
+        format!("SELECT epg_id,title,COALESCE(description,'') FROM account_guide_program_v1 WHERE account_id=?1 AND {OVERLAP}");
     for i in 0..words.len() {
         sql_text.push_str(&format!(
             " AND instr(lower(title)||char(10)||lower(COALESCE(description,'')),?{})>0",

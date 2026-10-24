@@ -442,8 +442,13 @@ mod receiver_tests {
                 let message = protocol::decode(&body).unwrap();
                 assert_eq!(message.payload["type"], expected);
                 if expected == "GET_STATUS" {
-                    let reply = protocol::encode("receiver-0", &message.source, protocol::RECEIVER,
-                        &json!({"type":"RECEIVER_STATUS","requestId":message.payload["requestId"],"status":{"volume":{"level":0.5}}})).unwrap();
+                    let reply = protocol::encode(
+                        "receiver-0",
+                        &message.source,
+                        protocol::RECEIVER,
+                        &json!({"type":"RECEIVER_STATUS","requestId":message.payload["requestId"],"status":{"volume":{"level":0.5}}}),
+                    )
+                    .unwrap();
                     stream.write_all(&reply).await.unwrap();
                 }
             }

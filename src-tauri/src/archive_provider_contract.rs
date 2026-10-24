@@ -86,7 +86,10 @@ pub(crate) struct ProviderCreatedClaim {
 }
 pub(crate) fn provider_created_value(value: &str) -> bool {
     static DATE: std::sync::OnceLock<regex::Regex> = std::sync::OnceLock::new();
-    let shape = DATE.get_or_init(|| regex::Regex::new(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-5][0-9](?:\.[0-9]{1,9})?(?:Z|[+-][0-9]{2}:[0-9]{2})$").expect("constant provider date shape"));
+    let shape = DATE.get_or_init(|| {
+        regex::Regex::new(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-5][0-9](?:\.[0-9]{1,9})?(?:Z|[+-][0-9]{2}:[0-9]{2})$")
+            .expect("constant provider date shape")
+    });
     use chrono::Datelike;
     plain(value, 64)
         && shape.is_match(value)

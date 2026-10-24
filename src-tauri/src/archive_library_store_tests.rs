@@ -25,8 +25,16 @@ fn legacy() -> Connection {
     archive_provider_catalog::install(&tx).unwrap();
     let title = archive_catalog::opaque(&["archive-item-v1", "fixture"]);
     let file = archive_catalog::opaque(&["archive-file-v1", "fixture", "episode.mp4"]);
-    tx.execute("INSERT INTO archive_title_v1 VALUES(?1,'fixture','Fixture episode','tv',1964,1,1,NULL,5,10,'legacy text')",[&title]).unwrap();
-    tx.execute("INSERT INTO archive_file_v1 VALUES(?1,?2,'fixture','episode.mp4','h.264','100',10.0,?3,'[]',10,1,0,'disc.iso','Episode')",params![file,title,"a".repeat(40)]).unwrap();
+    tx.execute(
+        "INSERT INTO archive_title_v1 VALUES(?1,'fixture','Fixture episode','tv',1964,1,1,NULL,5,10,'legacy text')",
+        [&title],
+    )
+    .unwrap();
+    tx.execute(
+        "INSERT INTO archive_file_v1 VALUES(?1,?2,'fixture','episode.mp4','h.264','100',10.0,?3,'[]',10,1,0,'disc.iso','Episode')",
+        params![file, title, "a".repeat(40)],
+    )
+    .unwrap();
     tx.execute(
         "INSERT INTO archive_preferences_v1 VALUES(?1,'fixture','Fixture episode',1964,1)",
         [&title],
@@ -45,7 +53,11 @@ fn legacy() -> Connection {
         ],
     )
     .unwrap();
-    tx.execute("INSERT INTO archive_bookmark_v1 VALUES(?1,'fixture','episode.mp4','100',?2,1000,10000,0,10)",params![file,"a".repeat(40)]).unwrap();
+    tx.execute(
+        "INSERT INTO archive_bookmark_v1 VALUES(?1,'fixture','episode.mp4','100',?2,1000,10000,0,10)",
+        params![file, "a".repeat(40)],
+    )
+    .unwrap();
     tx.execute(
         "INSERT INTO archive_progress_v1 VALUES(0,?1,3,0,12345)",
         ["b".repeat(64)],
@@ -94,7 +106,14 @@ fn legacy() -> Connection {
     )
     .unwrap();
     // Whitespace is deliberately retained byte-for-byte, not reserialized.
-    tx.execute("INSERT INTO public_archive_checkpoint_v1 VALUES(?1,'loc',?2)",params!["e".repeat(64),"{ \"cursor\": null, \"next_cursor\": null, \"pending\": [], \"started\": true, \"complete\": true, \"retry_after_ms\": null }"]).unwrap();
+    tx.execute(
+        "INSERT INTO public_archive_checkpoint_v1 VALUES(?1,'loc',?2)",
+        params![
+            "e".repeat(64),
+            "{ \"cursor\": null, \"next_cursor\": null, \"pending\": [], \"started\": true, \"complete\": true, \"retry_after_ms\": null }"
+        ],
+    )
+    .unwrap();
     tx.execute_batch("UPDATE archive_catalog_meta_v1 SET revision=7;UPDATE archive_bookmark_meta_v1 SET revision=3;CREATE TABLE untouched(value TEXT);INSERT INTO untouched VALUES('keep');PRAGMA user_version=16;").unwrap();
     tx.commit().unwrap();
     c
@@ -520,7 +539,8 @@ fn actual_quickcheck_cancel_and_guard_unwind_join_worker_without_replacement() {
     let before = image(root.path());
     let path = root.path().join("quick-fixture.sqlite3");
     let c = connect(&path, true, false).unwrap();
-    c.execute_batch("CREATE TABLE padding(id INTEGER PRIMARY KEY,value TEXT); CREATE INDEX padding_value ON padding(value); BEGIN;").unwrap();
+    c.execute_batch("CREATE TABLE padding(id INTEGER PRIMARY KEY,value TEXT); CREATE INDEX padding_value ON padding(value); BEGIN;")
+        .unwrap();
     {
         let mut insert = c.prepare("INSERT INTO padding VALUES(?1,?2)").unwrap();
         for n in 0..10_000 {
@@ -805,7 +825,8 @@ fn quick_stride_fixture() -> (tempfile::TempDir, PathBuf) {
     let root = tempfile::tempdir().unwrap();
     let path = root.path().join("stride-fixture.sqlite3");
     let c = connect(&path, true, false).unwrap();
-    c.execute_batch("CREATE TABLE padding(id INTEGER PRIMARY KEY,value TEXT);CREATE INDEX padding_value ON padding(value);BEGIN;").unwrap();
+    c.execute_batch("CREATE TABLE padding(id INTEGER PRIMARY KEY,value TEXT);CREATE INDEX padding_value ON padding(value);BEGIN;")
+        .unwrap();
     {
         let mut insert = c.prepare("INSERT INTO padding VALUES(?1,?2)").unwrap();
         for n in 0..20_000 {

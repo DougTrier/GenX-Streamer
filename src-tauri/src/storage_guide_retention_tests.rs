@@ -98,7 +98,9 @@ fn images(root: &Path) -> (Vec<u8>, Vec<u8>) {
 fn non_guide(c: &Connection) -> String {
     use rusqlite::types::ValueRef;
     let mut hash = Sha256::new();
-    let mut tables=c.prepare("SELECT name,sql FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'guide_%' ORDER BY name").unwrap();
+    let mut tables = c
+        .prepare("SELECT name,sql FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'guide_%' ORDER BY name")
+        .unwrap();
     let all: Vec<(String, Option<String>)> = tables
         .query_map([], |r| Ok((r.get(0)?, r.get(1)?)))
         .unwrap()

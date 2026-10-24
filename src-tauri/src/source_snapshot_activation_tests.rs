@@ -44,7 +44,9 @@ fn global_priority_keeps_packed_metadata_and_url_reference_indices_aligned() {
         (2, "foreign-second"),
     ];
     candidates.sort_by_key(|(priority, _)| *priority);
-    let mut statement = c.prepare("SELECT ROW_NUMBER() OVER(ORDER BY priority,ordinal)-1,entry_id FROM selected ORDER BY priority,ordinal").unwrap();
+    let mut statement = c
+        .prepare("SELECT ROW_NUMBER() OVER(ORDER BY priority,ordinal)-1,entry_id FROM selected ORDER BY priority,ordinal")
+        .unwrap();
     let rows = statement
         .query_map([], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?)))
         .unwrap();

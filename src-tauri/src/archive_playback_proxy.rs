@@ -323,6 +323,7 @@ async fn open(
     }
     Err(ERR.into())
 }
+#[cfg(test)]
 fn response_length(
     response: &reqwest::Response,
     range: Option<(u64, u64)>,
@@ -664,7 +665,11 @@ async fn client(socket: TcpStream, state: Arc<Mutex<State>>, mut cancel: watch::
     if result.is_some_and(|r| r.is_err()) && !sent {
         // Never reflect URLs, remote headers or login/error bodies. Once media
         // headers crossed, only close: a second HTTP response would corrupt it.
-        let _=tokio::time::timeout(DEADLINE,writer.write_all(b"HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n")).await;
+        let _ = tokio::time::timeout(
+            DEADLINE,
+            writer.write_all(b"HTTP/1.1 502 Bad Gateway\r\nContent-Length: 0\r\nCache-Control: no-store\r\nConnection: close\r\n\r\n"),
+        )
+        .await;
     }
 }
 async fn serve(
@@ -947,7 +952,8 @@ mod tests {
     fn decoder_http_requires_exact_capability_host_origin_and_single_range() {
         let state = state(Arc::new(|| Box::pin(async { Ok(()) })));
         let state = state.lock().unwrap();
-        let valid=b"HEAD /archive/cap/file.mp4 HTTP/1.1\r\nHost: 127.0.0.1:1234\r\nRange: bytes=2-7\r\nOrigin: http://tauri.localhost\r\n\r\n";
+        let valid =
+            b"HEAD /archive/cap/file.mp4 HTTP/1.1\r\nHost: 127.0.0.1:1234\r\nRange: bytes=2-7\r\nOrigin: http://tauri.localhost\r\n\r\n";
         let parsed = parse(valid, &state).unwrap();
         assert!(parsed.head);
         assert_eq!(parsed.range, Some((2, 7)));
@@ -956,7 +962,9 @@ mod tests {
             "GET /archive/cap/file.mp4 HTTP/1.1\r\nHost: example.invalid\r\n\r\n",
             "GET /archive/cap/file.mp4 HTTP/1.1\r\nHost: 127.0.0.1:1234\r\nOrigin: https://example.invalid\r\n\r\n",
             "GET /archive/cap/file.mp4 HTTP/1.1\r\nHost: 127.0.0.1:1234\r\nRange: bytes=0-1,5-6\r\n\r\n",
-        ]{assert!(parse(request.as_bytes(),&state).is_err());}
+        ] {
+            assert!(parse(request.as_bytes(), &state).is_err());
+        }
     }
     #[tokio::test]
     async fn decoder_disconnect_releases_client_and_retains_actual_authority_join() {
@@ -1102,13 +1110,13 @@ mod tests {
         let public: SocketAddr = "8.8.8.8:443".parse().unwrap();
         assert_eq!(checked_addresses([public]).unwrap(), vec![public]);
         assert_eq!(
-            checked_addresses(std::iter::repeat(public).take(128))
+            checked_addresses(std::iter::repeat_n(public, 128))
                 .unwrap()
                 .len(),
             128
         );
         assert_eq!(
-            checked_addresses(std::iter::repeat(public).take(129)).unwrap_err(),
+            checked_addresses(std::iter::repeat_n(public, 129)).unwrap_err(),
             "archive-proxy-dns-address-limit"
         );
         assert_eq!(checked_addresses([]).unwrap_err(), "archive-proxy-dns");

@@ -233,7 +233,10 @@ fn invalid_scope_and_actual_sql_failure_roll_back_without_partial_index_changes(
         tx.rollback().unwrap();
         assert_eq!(projection(&c), before);
     }
-    c.execute_batch("CREATE TRIGGER refuse_projection BEFORE UPDATE ON catalog_projection BEGIN SELECT RAISE(ABORT,'controlled failure');END;").unwrap();
+    c.execute_batch(
+        "CREATE TRIGGER refuse_projection BEFORE UPDATE ON catalog_projection BEGIN SELECT RAISE(ABORT,'controlled failure');END;",
+    )
+    .unwrap();
     let tx = c.transaction().unwrap();
     tx.execute(
         "UPDATE channel SET name='Changed' WHERE id='channel-000000'",

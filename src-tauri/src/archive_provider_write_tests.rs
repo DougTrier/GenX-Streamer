@@ -190,8 +190,10 @@ fn public_writer_changed_cursor_backs_up_then_commits_real_progress() {
 fn public_writer_retry_timestamp_change_is_not_noop() {
     let (root, store) = fixture();
     let before = files(root.path());
-    let mut next = catalog::Cursor::default();
-    next.retry_after_ms = Some(12345);
+    let next = catalog::Cursor {
+        retry_after_ms: Some(12345),
+        ..Default::default()
+    };
     let _observe = stop_backup();
     assert_eq!(
         commit_acquired(&store, "7", SCOPE, &[acquired(next)], &mut || Ok(()))

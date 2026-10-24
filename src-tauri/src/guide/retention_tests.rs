@@ -191,7 +191,8 @@ fn removed_and_missing_catalog_mappings_do_not_retain_programs_or_destroy_choice
     saved(&c, "removed", "exact");
     c.execute("INSERT INTO removed VALUES('removed')", [])
         .unwrap();
-    c.execute_batch("INSERT INTO guide_mapping VALUES('catalog','removed','g','exact'),('catalog','missing','g','manual');").unwrap();
+    c.execute_batch("INSERT INTO guide_mapping VALUES('catalog','removed','g','exact'),('catalog','missing','g','manual');")
+        .unwrap();
     let r = request(&c);
     db::replace_guide_projected(&mut c, &r, &feed(), now(), &AtomicBool::new(false)).unwrap();
     assert_eq!(rows(&c), 0);
@@ -386,7 +387,11 @@ fn cleanup_batch_cancellation_and_stale_scope_preserve_every_source() {
 #[test]
 fn unsupported_future_policy_is_dedicated_refusal() {
     let c = fixture();
-    c.execute("INSERT INTO guide_projection_v1 VALUES('g',99,1,0,-7200000,691200000,?1,'not-required',?1,0,0,0,1)",["0".repeat(64)]).unwrap();
+    c.execute(
+        "INSERT INTO guide_projection_v1 VALUES('g',99,1,0,-7200000,691200000,?1,'not-required',?1,0,0,0,1)",
+        ["0".repeat(64)],
+    )
+    .unwrap();
     assert_eq!(
         validate(&c).unwrap_err(),
         "guide-projection-policy-unsupported"

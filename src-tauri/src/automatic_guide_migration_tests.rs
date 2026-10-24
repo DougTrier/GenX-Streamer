@@ -203,10 +203,12 @@ fn stale_cas_and_precommit_failure_cannot_change_disabled_choice() {
                 None,
                 (Some(&before.catalog_revision), None),
                 None,
-                |phase| if phase == Phase::BeforeCommit {
-                    Err("fixture-canceled".into())
-                } else {
-                    Ok(())
+                |phase| {
+                    if phase == Phase::BeforeCommit {
+                        Err("fixture-canceled".into())
+                    } else {
+                        Ok(())
+                    }
                 }
             )
             .unwrap_err(),

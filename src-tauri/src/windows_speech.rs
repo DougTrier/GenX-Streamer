@@ -124,7 +124,7 @@ impl WindowsSpeech {
         if job.done.load(Ordering::Acquire) {
             self.release(&job)?;
         }
-        result.map(|text|json!({"requestId":id,"text":text,"provider":"windows-sapi-local","cloudPossible":false}))
+        result.map(|text| json!({"requestId":id,"text":text,"provider":"windows-sapi-local","cloudPossible":false}))
     }
     pub fn background(&self) {
         if let Some(job) = &self.state.lock().unwrap().active {

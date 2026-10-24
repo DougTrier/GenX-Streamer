@@ -125,7 +125,9 @@ pub(crate) fn stale(c: &Connection, manifest: &str) -> Result<bool, String> {
     // legacy nullable/typeless three-valued SQL semantics, including NULL revs.
     let mut source: RawValue = sql(c.query_row(
         "SELECT MIN(source_id) FROM source_activation_row INDEXED BY source_activation_revision_guard_v1 WHERE manifest_id=?1",
-        [manifest], raw))?;
+        [manifest],
+        raw,
+    ))?;
     let mut groups = 0usize;
     while !matches!(source, RawValue::Null) {
         // Valid activation requests contain at most 100 selected sources. A

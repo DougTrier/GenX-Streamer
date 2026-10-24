@@ -50,7 +50,10 @@ async fn one_pre_response_close_retry_responds_or_preserves_final_failure() {
                 requests += 1;
                 if index == 1 && healthy {
                     let body = ts();
-                    socket.write_all(format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len()).as_bytes()).await.unwrap();
+                    socket
+                        .write_all(format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len()).as_bytes())
+                        .await
+                        .unwrap();
                     socket.write_all(&body).await.unwrap();
                 }
                 socket.shutdown().await.unwrap();
@@ -220,10 +223,18 @@ async fn deadline_and_cancel_drop_owned_retry_delay_without_dispatch_or_metadata
     let (send, receiver) = tokio::sync::oneshot::channel();
     let mut pending = Box::pin(canceled.wait_header_retry());
     // Poll the real owned sleep before cancellation; then destroy it at settlement.
-    tokio::select! { biased; _=&mut pending=>panic!("retry delay completed before cancellation"), _=tokio::task::yield_now()=>{} }
+    tokio::select! {
+        biased; _=&mut pending => panic!("retry delay completed before cancellation"),
+        _=tokio::task::yield_now() => {
+        }
+    }
     send.send(()).unwrap();
     // Same select/drop ownership as inspect_media_resources; no detached retry task.
-    tokio::select! { biased; _=receiver=>{}, _=&mut pending=>panic!("canceled retry delay completed") }
+    tokio::select! {
+        biased; _=receiver => {
+        }
+        _=&mut pending => panic!("canceled retry delay completed"),
+    }
     drop(pending);
     assert_eq!(canceled.count, 1);
     assert_eq!(canceled.header_retry_count, 0);
@@ -666,7 +677,10 @@ async fn rate_limit_is_one_request_with_safe_retry_after_and_invalid_ranges_refu
         let (mut socket, _) = listener.accept().await.unwrap();
         let mut request = [0; 1024];
         assert!(socket.read(&mut request).await.unwrap() > 0);
-        socket.write_all(b"HTTP/1.1 429 Busy\r\nRetry-After: 60\r\nContent-Length: 0\r\nConnection: close\r\n\r\n").await.unwrap();
+        socket
+            .write_all(b"HTTP/1.1 429 Busy\r\nRetry-After: 60\r\nContent-Length: 0\r\nConnection: close\r\n\r\n")
+            .await
+            .unwrap();
     });
     let r = inspect(&url, true, "r".into(), 20_000).await.unwrap();
     assert_eq!(r.http_status, Some(429));
@@ -704,7 +718,14 @@ async fn request_ceiling_manifest_limit_and_binary_sample_are_bounded_without_tr
     for (path, next) in [("/root", "m1"), ("/m1", "m2"), ("/m2", "video")] {
         routes.insert(path.into(),(200,format!("#EXTM3U\n#EXT-X-STREAM-INF:BANDWIDTH=1,CODECS=\"avc1.test\",AUDIO=\"a\"\n{next}\n#EXT-X-MEDIA:TYPE=AUDIO,GROUP-ID=\"a\",URI=\"audio\"\n").into_bytes(),None));
     }
-    routes.insert("/video".into(),(200,b"#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"key\"\n#EXT-X-MAP:URI=\"map\"\n#EXTINF:2,\nsegment\n".to_vec(),None));
+    routes.insert(
+        "/video".into(),
+        (
+            200,
+            b"#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"key\"\n#EXT-X-MAP:URI=\"map\"\n#EXTINF:2,\nsegment\n".to_vec(),
+            None,
+        ),
+    );
     routes.insert("/key".into(), (200, vec![1; 16], None));
     routes.insert("/map".into(), (200, vec![1; 32], None));
     routes.insert("/segment".into(), (200, vec![1; 32], None));
@@ -820,13 +841,7 @@ async fn triage_ends_a_late_first_answer_and_the_full_check_still_passes_it() {
                     let body = ts();
                     // The triaged client may have gone; a failed write is expected then.
                     let _ = socket
-                        .write_all(
-                            format!(
-                                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-                                body.len()
-                            )
-                            .as_bytes(),
-                        )
+                        .write_all(format!("HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n", body.len()).as_bytes())
                         .await;
                     let _ = socket.write_all(&body).await;
                     let _ = socket.shutdown().await;

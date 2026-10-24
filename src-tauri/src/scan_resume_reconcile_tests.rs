@@ -99,20 +99,15 @@ fn actual_ts_complete_publication_output_parity() {
             case["name"]
         );
         assert_eq!(case, &unchanged);
-        assert_eq!(
-            prepared.mappings.len(),
-            case["selected"].as_array().unwrap().len()
-        );
-        for mapping in prepared.mappings {
-            assert!(batch
-                .incoming_health
-                .iter()
-                .any(|h| h["channelId"] == mapping.channel_id));
-            assert!(case["selected"]
+        // One health record per selected row, each for a channel in the catalog.
+        let selected = case["selected"].as_array().unwrap();
+        assert_eq!(batch.incoming_health.len(), selected.len());
+        for health in &batch.incoming_health {
+            assert!(expanded["channels"]
                 .as_array()
                 .unwrap()
                 .iter()
-                .any(|s| s["originalIndex"] == mapping.original_index));
+                .any(|c| c["id"] == health["channelId"]));
         }
     }
 }

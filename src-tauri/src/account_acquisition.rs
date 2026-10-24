@@ -57,7 +57,6 @@ pub(crate) struct PreparedCatalog {
     pub skipped: usize,
     pub supplied_guide: Option<Zeroizing<String>>,
     pub max_connections: Option<u32>,
-    pub active_connections: Option<u32>,
 }
 // Retains known credential/token markers while checking provider display fields.
 // Refuse tainted fields; never silently publish a reversible redaction or URL.
@@ -424,7 +423,6 @@ struct Auth {
     /// so playback can try it once (account_playback_owner::choose).
     alternate: Option<String>,
     max: Option<u32>,
-    active: Option<u32>,
 }
 fn login(bytes: &[u8], now_ms: u64) -> Result<Auth, String> {
     // The JSON value stays entirely inside native parsing and is never logged.
@@ -471,11 +469,12 @@ fn login(bytes: &[u8], now_ms: u64) -> Result<Auth, String> {
         None | Some(Value::Null) => (None, None),
         _ => return Err("account-output-formats-invalid".into()),
     };
+    // Only validated: a malformed connection count marks a broken login reply.
+    number(user.get("active_cons"), 1000)?;
     Ok(Auth {
         format,
         alternate,
         max: number(user.get("max_connections"), 1000)?.map(|v| v as u32),
-        active: number(user.get("active_cons"), 1000)?.map(|v| v as u32),
     })
 }
 /// An Xtream live address: base path kept, each part one escaped segment.
@@ -535,16 +534,23 @@ fn categories(
     }
     Ok(result)
 }
+/// What every live-channel row of one account is read against: the account,
+/// where its playlist came from, the provider sign-in, the category names and
+/// how names are displayed.
+#[derive(Clone, Copy)]
+struct LiveContext<'a> {
+    account: &'a str,
+    origin: &'a str,
+    base: &'a str,
+    username: &'a str,
+    password: &'a str,
+    auth: &'a Auth,
+    cats: &'a HashMap<String, String>,
+    policy: &'a DisplayPolicy,
+}
 fn xtream_entries(
     bytes: &[u8],
-    account: &str,
-    origin: &str,
-    base: &str,
-    username: &str,
-    password: &str,
-    auth: &Auth,
-    cats: &HashMap<String, String>,
-    policy: &DisplayPolicy,
+    live: LiveContext<'_>,
     owner: &Context,
     deadline: Instant,
 ) -> Result<(Vec<PreparedEntry>, usize), String> {
@@ -560,9 +566,7 @@ fn xtream_entries(
         check(owner, deadline)?;
         // One bad row never costs the good channels (XC-014): it is counted
         // and left out. Only account-level problems stop the import.
-        match live_row(
-            row, account, origin, base, username, password, auth, cats, policy,
-        )? {
+        match live_row(row, live)? {
             Some(entry) if ids.insert(entry.provider_id.clone().unwrap_or_default()) => {
                 result.push(entry)
             }
@@ -576,18 +580,17 @@ fn xtream_entries(
 }
 /// One live row: `Ok(None)` when the row itself is unusable, `Err` only for
 /// what concerns the whole account (no stream format, unusable sign-in path).
-#[allow(clippy::too_many_arguments)]
-fn live_row(
-    row: &Value,
-    account: &str,
-    origin: &str,
-    base: &str,
-    username: &str,
-    password: &str,
-    auth: &Auth,
-    cats: &HashMap<String, String>,
-    policy: &DisplayPolicy,
-) -> Result<Option<PreparedEntry>, String> {
+fn live_row(row: &Value, live: LiveContext<'_>) -> Result<Option<PreparedEntry>, String> {
+    let LiveContext {
+        account,
+        origin,
+        base,
+        username,
+        password,
+        auth,
+        cats,
+        policy,
+    } = live;
     if row
         .get("stream_type")
         .and_then(Value::as_str)
@@ -775,6 +778,9 @@ pub(crate) async fn guide_address(
         }
     }
 }
+/// A parsed provider playlist: its channel entries, the guide address it
+/// supplies (if any) and how many unusable rows were left out (XC-014).
+type ParsedPlaylist = (Vec<PreparedEntry>, Option<Zeroizing<String>>, usize);
 fn playlist(
     bytes: &[u8],
     account: &str,
@@ -782,7 +788,7 @@ fn playlist(
     policy: &DisplayPolicy,
     owner: &Context,
     deadline: Instant,
-) -> Result<(Vec<PreparedEntry>, Option<Zeroizing<String>>, usize), String> {
+) -> Result<ParsedPlaylist, String> {
     let text = std::str::from_utf8(bytes)
         .map_err(|_| "account-playlist-encoding-invalid")?
         .trim_start_matches('\u{feff}');
@@ -967,7 +973,6 @@ pub(crate) async fn acquire(
                 skipped,
                 supplied_guide: guide,
                 max_connections: None,
-                active_connections: None,
             }
         }
         Secret::Xtream {
@@ -1035,22 +1040,19 @@ pub(crate) async fn acquire(
             let user = Zeroizing::new(username.clone());
             let pass = Zeroizing::new(password.clone());
             let max = auth.max;
-            let active = auth.active;
             let (entries, skipped) = tauri::async_runtime::spawn_blocking(move || {
                 let cats = categories(&category_bytes, &policy, &parse_owner, deadline)?;
-                xtream_entries(
-                    &bytes,
-                    &parse_account,
-                    &parse_origin,
-                    &base,
-                    &user,
-                    &pass,
-                    &auth,
-                    &cats,
-                    &policy,
-                    &parse_owner,
-                    deadline,
-                )
+                let live = LiveContext {
+                    account: &parse_account,
+                    origin: &parse_origin,
+                    base: &base,
+                    username: &user,
+                    password: &pass,
+                    auth: &auth,
+                    cats: &cats,
+                    policy: &policy,
+                };
+                xtream_entries(&bytes, live, &parse_owner, deadline)
             })
             .await
             .map_err(|_| "account-parser-failed")??;
@@ -1061,7 +1063,6 @@ pub(crate) async fn acquire(
                 skipped,
                 supplied_guide: Some(Zeroizing::new(guide.to_string())),
                 max_connections: max,
-                active_connections: active,
             }
         }
     };
@@ -1260,7 +1261,6 @@ mod tolerance_tests {
             format: Some("ts".into()),
             alternate: None,
             max: None,
-            active: None,
         }
     }
     fn parse(rows: &str) -> Result<(Vec<PreparedEntry>, usize), String> {
@@ -1273,16 +1273,20 @@ mod tolerance_tests {
         let (_root, context, _playback, _work, _requests) =
             crate::scan_manifest_work::bookmark_context_fixture();
         let cats: HashMap<String, String> = [("1".to_string(), "US| NFL PPV".to_string())].into();
+        let auth = auth();
+        let live = LiveContext {
+            account: "account",
+            origin: "http://tv.fixture.example",
+            base: "http://tv.fixture.example",
+            username: "fixtureuser",
+            password: "fixturepass",
+            auth: &auth,
+            cats: &cats,
+            policy: &policy,
+        };
         xtream_entries(
             rows.as_bytes(),
-            "account",
-            "http://tv.fixture.example",
-            "http://tv.fixture.example",
-            "fixtureuser",
-            "fixturepass",
-            &auth(),
-            &cats,
-            &policy,
+            live,
             &context,
             Instant::now() + Duration::from_secs(20),
         )
@@ -1341,7 +1345,7 @@ mod tolerance_tests {
 #[cfg(test)]
 mod playlist_tolerance_tests {
     use super::*;
-    fn parse(text: &str) -> Result<(Vec<PreparedEntry>, Option<Zeroizing<String>>, usize), String> {
+    fn parse(text: &str) -> Result<ParsedPlaylist, String> {
         let secret = Secret::Playlist {
             url: "http://tv.fixture.example/get.php?username=fixtureuser&password=fixturepass&type=m3u_plus".into(),
         };

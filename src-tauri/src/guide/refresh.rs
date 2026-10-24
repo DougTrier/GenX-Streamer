@@ -138,11 +138,22 @@ fn fingerprint(source: &GuideSource) -> Result<String, String> {
     ))
 }
 fn attempted(c: &Connection, source: &GuideSource) -> Result<Option<i64>, String> {
-    let exists:bool=db::sql(c.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='guide_refresh_state')",[],|r|r.get(0)))?;
+    let exists: bool = db::sql(c.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type='table' AND name='guide_refresh_state')",
+        [],
+        |r| r.get(0),
+    ))?;
     if !exists {
         return Ok(None);
     }
-    db::sql(c.query_row("SELECT attempted_ms FROM guide_refresh_state WHERE source_id=?1 AND fingerprint=?2 AND schema_version=1",params![source.id,fingerprint(source)?],|r|r.get(0)).optional())
+    db::sql(
+        c.query_row(
+            "SELECT attempted_ms FROM guide_refresh_state WHERE source_id=?1 AND fingerprint=?2 AND schema_version=1",
+            params![source.id, fingerprint(source)?],
+            |r| r.get(0),
+        )
+        .optional(),
+    )
 }
 fn candidate(
     c: &Connection,

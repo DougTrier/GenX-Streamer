@@ -763,7 +763,9 @@ fn relay_refuses_unrewritable_uri_syntax_and_unsupported_dynamic_manifests() {
     ] {
         assert!(!supported_manifest(text));
     }
-    assert!(supported_manifest("#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"key?a=secret\"\n#EXT-X-MAP:URI=\"init.mp4\"\nsegment.ts"));
+    assert!(supported_manifest(
+        "#EXTM3U\n#EXT-X-KEY:METHOD=AES-128,URI=\"key?a=secret\"\n#EXT-X-MAP:URI=\"init.mp4\"\nsegment.ts"
+    ));
 }
 
 #[tokio::test]
