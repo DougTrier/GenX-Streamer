@@ -34,6 +34,8 @@ test('Native About uses platform version, refuses repeated pending clicks, and r
     Reflect.set(window, '__TAURI_INTERNALS__', {
       invoke: (command: string, args: unknown) => {
         if (command === 'plugin:app|version') return Promise.resolve('7.8.9');
+        // This copy's details (a read when About opens, not a support link).
+        if (command === 'app_identity') return Promise.reject('identity-unavailable');
         calls.push({ command, args });
         return new Promise((_resolve, reject) => Reflect.set(window, '__rejectSupport', reject));
       },

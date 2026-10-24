@@ -101,26 +101,37 @@ test('Settings offers Send app to a friend in its header, opening every way to s
   await expect(settings).toBeVisible();
 });
 
-for (const width of [360, 1280])
-  test(`the Settings header keeps its title, Send app and Close on one row at ${width}px`, async ({
+for (const [width, textScale] of [
+  [360, 1],
+  [1280, 1],
+  [320, 2],
+  [640, 2],
+] as const)
+  test(`the Settings header keeps its title whole and Send app clear of Close at ${width}px, ${textScale * 100}% text`, async ({
     page,
   }) => {
     await page.setViewportSize({ width, height: 720 });
     await page.goto('/');
     await expect(page.locator('#app')).toHaveAttribute('data-ready', 'true');
+    if (textScale !== 1)
+      await page.evaluate((scale) => {
+        document.documentElement.style.fontSize = `${16 * scale}px`;
+      }, textScale);
     await page.locator('#settings-button').click();
     const head = page.locator('#settings-dialog .dialog-head');
-    const boxes = await Promise.all(
-      [
-        head.locator('h2'),
-        head.locator('#send-app-button'),
-        head.getByRole('button', { name: 'Close settings' }),
-      ].map((locator) => locator.boundingBox()),
-    );
-    const [title, send, close] = boxes.map((box) => box!);
-    expect(send.x).toBeGreaterThanOrEqual(title.x + title.width);
-    expect(close.x).toBeGreaterThanOrEqual(send.x + send.width);
-    expect(Math.abs(send.y + send.height / 2 - (close.y + close.height / 2))).toBeLessThan(8);
+    const title = (await head.locator('h2').boundingBox())!;
+    const send = (await head.locator('#send-app-button').boundingBox())!;
+    const close = (await head.getByRole('button', { name: 'Close settings' }).boundingBox())!;
+    const lineHeight = await head
+      .locator('h2')
+      .evaluate((h2) => parseFloat(getComputedStyle(h2).lineHeight) || h2.clientHeight);
+    // The title stays on one line.
+    expect(title.height).toBeLessThan(lineHeight * 1.6);
+    const overlap = (a: typeof title, b: typeof title) =>
+      a.x < b.x + b.width && b.x < a.x + a.width && a.y < b.y + b.height && b.y < a.y + a.height;
+    expect(overlap(send, title)).toBe(false);
+    expect(overlap(send, close)).toBe(false);
     const headBox = (await head.boundingBox())!;
-    expect(close.x + close.width).toBeLessThanOrEqual(headBox.x + headBox.width + 1);
+    for (const box of [title, send, close])
+      expect(box.x + box.width).toBeLessThanOrEqual(headBox.x + headBox.width + 1);
   });

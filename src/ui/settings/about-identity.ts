@@ -38,7 +38,10 @@ export function describeIdentity(identity: AppIdentity): { summary: string; stat
   return { summary, status };
 }
 
-export function mountAboutIdentity(container: HTMLElement): () => void {
+export function mountAboutIdentity(container: HTMLElement): {
+  load: () => void;
+  dispose: () => void;
+} {
   container.innerHTML = `
     <h3 class="about-section-title">This copy</h3>
     <p class="about-identity-summary">Version details are shown in the installed app.</p>
@@ -53,23 +56,30 @@ export function mountAboutIdentity(container: HTMLElement): () => void {
   const button = container.querySelector<HTMLButtonElement>('.about-identity-checksum')!;
   const sha = container.querySelector<HTMLElement>('.about-identity-sha')!;
   let disposed = false;
-  void appIdentity().then(
-    (identity) => {
-      if (disposed || !identity) return;
-      const text = describeIdentity(identity);
-      summary.textContent = text.summary;
-      status.textContent = text.status;
-      status.hidden = false;
-      if (identity.signers.length) {
-        signer.textContent = `Signing certificate SHA-256: ${identity.signers.map(fingerprintText).join(', ')}`;
-        signer.hidden = false;
-      }
-      actions.hidden = false;
-    },
-    () => {
-      if (!disposed) summary.textContent = 'This copy’s details are unavailable right now.';
-    },
-  );
+  let loaded = false;
+  /** Read when About opens (never at start-up). */
+  const load = () => {
+    if (loaded || disposed) return;
+    loaded = true;
+    void appIdentity().then(
+      (identity) => {
+        if (disposed || !identity) return;
+        const text = describeIdentity(identity);
+        summary.textContent = text.summary;
+        status.textContent = text.status;
+        status.hidden = false;
+        if (identity.signers.length) {
+          signer.textContent = `Signing certificate SHA-256: ${identity.signers.map(fingerprintText).join(', ')}`;
+          signer.hidden = false;
+        }
+        actions.hidden = false;
+      },
+      () => {
+        loaded = false;
+        if (!disposed) summary.textContent = 'This copy’s details are unavailable right now.';
+      },
+    );
+  };
   const show = () => {
     button.disabled = true;
     sha.hidden = false;
@@ -88,8 +98,11 @@ export function mountAboutIdentity(container: HTMLElement): () => void {
       });
   };
   button.addEventListener('click', show);
-  return () => {
-    disposed = true;
-    button.removeEventListener('click', show);
+  return {
+    load,
+    dispose: () => {
+      disposed = true;
+      button.removeEventListener('click', show);
+    },
   };
 }

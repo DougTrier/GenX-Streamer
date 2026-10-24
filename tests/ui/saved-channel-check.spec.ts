@@ -221,6 +221,8 @@ async function fixture(
       if (command === 'read_viewing_settings')
         return { schemaVersion: 1, hideAdult: true, accountBuffers: {} };
       if (command === 'vpn_status') return { connected: false };
+      // Share links: GenX was not opened with a link.
+      if (command === 'take_incoming_link') return null;
       unknown.push(command);
       throw new Error('controlled-command-unavailable');
     },

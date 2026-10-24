@@ -235,7 +235,8 @@ export function mountAbout(root: HTMLElement, opener: HTMLButtonElement): () => 
       dialog.querySelector<HTMLButtonElement>('.about-send-app'),
     ]),
   );
-  removers.push(mountAboutIdentity(dialog.querySelector<HTMLElement>('.about-identity')!));
+  const identity = mountAboutIdentity(dialog.querySelector<HTMLElement>('.about-identity')!);
+  removers.push(identity.dispose);
   removers.push(
     mountAboutUpdate(dialog.querySelector<HTMLElement>('.about-update')!, {
       // Restart after an update is an ordinary exit (Settings → Exit app).
@@ -301,6 +302,7 @@ export function mountAbout(root: HTMLElement, opener: HTMLButtonElement): () => 
     status.textContent = '';
     if (disposed || dialog.open) return;
     select(tabs[0]!);
+    identity.load();
     dialog.showModal();
   };
   const close = () => dialog.close();

@@ -16,13 +16,30 @@
 
 /* Send app to a friend (docs/share-links.md): the Settings header's button
    and its page of ways to send GenX Streamer, in the shared pop-up look. */
+#settings-dialog .dialog-head {
+  /* Measured in text units, so larger text counts as a narrower header. */
+  container-type: inline-size;
+  flex-wrap: wrap;
+  row-gap: 8px;
+}
+#settings-dialog .dialog-head > h2 {
+  white-space: nowrap;
+}
 #settings-dialog .dialog-head .send-app-button {
   margin-left: auto;
   white-space: nowrap;
 }
-@media (max-width: 480px) {
+@container (max-width: 34em) {
   #settings-dialog .dialog-head .send-app-long {
     display: none;
+  }
+}
+/* No room beside the title: its own row under it, Close stays at the top. */
+@container (max-width: 14em) {
+  #settings-dialog .dialog-head .send-app-button {
+    order: 3;
+    flex-basis: 100%;
+    margin-left: 0;
   }
 }
 #send-app-dialog {

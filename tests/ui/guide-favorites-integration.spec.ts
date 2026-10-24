@@ -305,6 +305,8 @@ async function fixture(page: Page) {
         return { schemaVersion: 1, hideAdult: true, accountBuffers: {} };
       // The header's VPN shield: no VPN on this controlled device.
       if (command === 'vpn_status') return { connected: false };
+      // Share links: GenX was not opened with a link.
+      if (command === 'take_incoming_link') return null;
       unknown.push(command);
       throw new Error('controlled-command-unavailable');
     },

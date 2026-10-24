@@ -57,14 +57,18 @@ const clock = (ms: number) => {
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 };
 
-/** `allowed`: this copy may serve its own app file (an official release on Android). */
-export function mountNearbyShare(card: HTMLElement, allowed: Promise<boolean>): () => void {
+/**
+ * The nearby card; `activate` (when Pass It Along first opens, never at
+ * start-up) reads the session and shows the card if this copy may serve its
+ * own app file (`allowed`: an official release on Android).
+ */
+export function mountNearbyShare(card: HTMLElement): {
+  activate: (allowed: Promise<boolean>) => void;
+  dispose: () => void;
+} {
   let disposed = false;
   card.hidden = true;
-  if (!nearbyAvailable()) return () => undefined;
-  void allowed.then((yes) => {
-    if (!disposed) card.hidden = !yes;
-  });
+  if (!nearbyAvailable()) return { activate: () => undefined, dispose: () => undefined };
   card.innerHTML = `
     <h3>Share with everyone nearby</h3>
     <p class="send-app-detail">Friends on the same Wi-Fi scan the code with their camera and download GenX Streamer from this device. No store, link or internet needed. It stops after 10 minutes.</p>
@@ -154,11 +158,20 @@ export function mountNearbyShare(card: HTMLElement, allowed: Promise<boolean>): 
         pending = false;
       });
   });
-  const stopListening = onNearbyChanged(() => void refresh());
-  void refresh();
-  return () => {
-    disposed = true;
-    stopTimer();
-    stopListening();
+  let stopListening: (() => void) | null = null;
+  return {
+    activate(allowed) {
+      if (stopListening || disposed) return;
+      stopListening = onNearbyChanged(() => void refresh());
+      void refresh();
+      void allowed.then((yes) => {
+        if (!disposed) card.hidden = !yes;
+      });
+    },
+    dispose() {
+      disposed = true;
+      stopTimer();
+      stopListening?.();
+    },
   };
 }

@@ -312,7 +312,7 @@ test('About shows which copy this is and its checksum on request', async ({ page
   await page.evaluate(async () => {
     const modulePath = '/src/ui/settings/about-identity.ts';
     const { mountAboutIdentity } = await import(modulePath);
-    mountAboutIdentity(document.getElementById('app')!);
+    mountAboutIdentity(document.getElementById('app')!).load();
   });
   const app = page.locator('#app');
   await expect(app.locator('.about-identity-summary')).toHaveText(

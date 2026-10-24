@@ -131,12 +131,21 @@ export function mountSendApp(
   linkField.value = DOWNLOAD_PAGE;
   // Only an official release copy sends its own app file (Windows: always;
   // Android: release-signed, one APK). Development copies send the link or QR.
-  const fileAllowed = appIdentity().then(maySendAppFile, () => false);
-  void fileAllowed.then((allowed) => {
-    if (disposed) return;
-    fileOption.hidden = !allowed;
-    dialog.querySelector<HTMLElement>('.send-app-development')!.hidden = allowed || !android;
-  });
+  // Read when the page first opens, never at start-up.
+  let fileAllowed: Promise<boolean> | null = null;
+  const activate = () => {
+    if (fileAllowed) return;
+    fileAllowed = appIdentity().then(maySendAppFile, () => false);
+    nearby.activate(fileAllowed);
+    void fileAllowed.then((allowed) => {
+      if (disposed) return;
+      fileOption.hidden = !allowed;
+      dialog.querySelector<HTMLElement>('.send-app-development')!.hidden = allowed || !android;
+      // The first choice is the app itself when this copy may send it.
+      const link = dialog.querySelector<HTMLButtonElement>('.send-app-link-button')!;
+      if (allowed && dialog.open && document.activeElement === link) fileButton.focus();
+    });
+  };
   if (android || desktop) {
     fileOption.querySelector('h3')!.textContent = android
       ? 'Send the app, phone to phone'
@@ -171,9 +180,8 @@ export function mountSendApp(
         pending = false;
       });
   };
-  const removers: (() => void)[] = [
-    mountNearbyShare(dialog.querySelector<HTMLElement>('.send-app-nearby')!, fileAllowed),
-  ];
+  const nearby = mountNearbyShare(dialog.querySelector<HTMLElement>('.send-app-nearby')!);
+  const removers: (() => void)[] = [nearby.dispose];
   const listen = (button: HTMLButtonElement, handler: () => void) => {
     button.addEventListener('click', handler);
     removers.push(() => button.removeEventListener('click', handler));
@@ -223,6 +231,7 @@ export function mountSendApp(
     listen(opener, () => {
       if (disposed || dialog.open) return;
       status.textContent = '';
+      activate();
       dialog.showModal();
       (fileOption.hidden
         ? dialog.querySelector<HTMLButtonElement>('.send-app-link-button')!
