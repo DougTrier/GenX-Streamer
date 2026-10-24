@@ -20,13 +20,11 @@ import { createBrowserAudioTracks } from './browser-audio-tracks';
 import { createBrowserAudioHealth } from './browser-audio-health';
 export { AUDIO_HEALTH_CHANGE, readAudioHealth } from './browser-audio-health';
 export { AUDIO_TRACKS_CHANGE, readAudioTracks, setAudioTrack } from './browser-audio-tracks';
-import { classifyHttpFailure, classifyTransportFailure } from '../playback/failure';
 import { createOwnedAbortSignals } from './abort';
 import { createAdaptiveBuffer, learnedLiveBuffer } from '../playback/adaptive-buffer';
 import {
   REPLAY_RATES,
   replayWindowFrom,
-  validDecodedProgress,
   VOD_POSITION_LIMIT,
   type DecodedSample,
   type LiveReplayEngine,
@@ -35,11 +33,10 @@ import type {
   EngineEvent,
   EngineFactory,
   PlaybackEngine,
-  PlaybackFailure,
   ChannelSelection,
 } from '../playback/controller';
-import { readConfiguredSource, SourceRequestError, type ConfiguredSource } from '../sources';
-import { isTauri } from '@tauri-apps/api/core';
+import { readConfiguredSource, type ConfiguredSource } from '../sources';
+
 import { createNativeHlsSession, type NativeMediaTransport } from './native-hls-loader';
 import { transportVideoFormat } from '../playback/transport-video';
 import { startTiming } from '../playback/start-timing';
@@ -48,18 +45,14 @@ import {
   playbackResourceOwners,
   type ResourceOwners,
 } from '../playback/resource-owners';
-/** Radio servers label ADTS AAC/MP3 with legacy names the WebView does not recognize. */
-const STANDARD_MIME: Readonly<Record<string, string>> = {
-  'audio/aacp': 'audio/aac',
-  'audio/x-aac': 'audio/aac',
-  'audio/mp3': 'audio/mpeg',
-};
+import { createBrowserEngineStart } from './browser-engine-start';
+import { createSharedContext } from '../application/shared-context';
 export type PlaybackSourceReader = (url: string, signal: AbortSignal) => Promise<ConfiguredSource>;
-const mediaAttachmentOwners = new WeakMap<
+export const mediaAttachmentOwners = new WeakMap<
   HTMLVideoElement,
   { token: object; anonymous: boolean }
 >();
-const captionOwners = new WeakMap<HTMLVideoElement, object>();
+export const captionOwners = new WeakMap<HTMLVideoElement, object>();
 export interface VideoQualitySnapshot {
   auto: boolean;
   videoWidth: number | null;
@@ -84,16 +77,11 @@ export interface VideoQualitySnapshot {
     }>
   >;
 }
-/** Start timing is measurement only: a malformed event must never reach playback. */
-const measure = (work: () => void): void => {
-  try {
-    work();
-  } catch {
-    // The stage is simply not recorded.
-  }
-};
-const qualityReaders = new WeakMap<HTMLVideoElement, () => Readonly<VideoQualitySnapshot> | null>();
-const qualitySetters = new WeakMap<HTMLVideoElement, (index: number | null) => boolean>();
+export const qualityReaders = new WeakMap<
+  HTMLVideoElement,
+  () => Readonly<VideoQualitySnapshot> | null
+>();
+export const qualitySetters = new WeakMap<HTMLVideoElement, (index: number | null) => boolean>();
 export const VIDEO_QUALITY_CHANGE = 'video-quality-change';
 export function setVideoQuality(video: HTMLVideoElement, index: number | null): boolean {
   try {
@@ -110,7 +98,7 @@ export function readVideoQuality(video: HTMLVideoElement): Readonly<VideoQuality
     return null;
   }
 }
-const browserSourceReader: PlaybackSourceReader = (url, signal) =>
+export const browserSourceReader: PlaybackSourceReader = (url, signal) =>
   readConfiguredSource(url, false, signal);
 export interface BrowserEngineOptions {
   allowHttp?: (selectionUrl: string) => boolean;
@@ -195,6 +183,85 @@ export function createBrowserEngine(
   inspect: PlaybackSourceReader = browserSourceReader,
   options: BrowserEngineOptions = {},
 ): PlaybackEngine {
+  // What the parts of createBrowserEngine in other modules share with it: each value
+  // is read when a part uses it; the second list holds the ones parts assign.
+  const shared = createSharedContext(
+    {
+      adaptive: () => adaptive,
+      adaptiveChannel: () => adaptiveChannel,
+      attachmentToken: () => attachmentToken,
+      audio: () => audio,
+      audioHealth: () => audioHealth,
+      buffer: () => buffer,
+      cancelInitialization: () => cancelInitialization,
+      captionOwner: () => captionOwner,
+      decodedSample: () => decodedSample,
+      decodeFailure: () => decodeFailure,
+      desiredPaused: () => desiredPaused,
+      dispose: () => dispose,
+      disposed: () => disposed,
+      disposeOnAbort: () => disposeOnAbort,
+      endHold: () => endHold,
+      finiteMode: () => finiteMode,
+      framePeriod: () => framePeriod,
+      frameSample: () => frameSample,
+      hls: () => hls,
+      hlsListeners: () => hlsListeners,
+      hold: () => hold,
+      initialization: () => initialization,
+      inspect: () => inspect,
+      inspectFragment: () => inspectFragment,
+      listen: () => listen,
+      livePlayed: () => livePlayed,
+      nativeSession: () => nativeSession,
+      notifyQuality: () => notifyQuality,
+      options: () => options,
+      ownedAbort: () => ownedAbort,
+      owners: () => owners,
+      pendingSeek: () => pendingSeek,
+      play: () => play,
+      previousDecoded: () => previousDecoded,
+      previousTime: () => previousTime,
+      qualityReader: () => qualityReader,
+      qualitySetter: () => qualitySetter,
+      readyToPlay: () => readyToPlay,
+      releaseAbortListener: () => releaseAbortListener,
+      releaseHls: () => releaseHls,
+      releaseTsPlayer: () => releaseTsPlayer,
+      replay: () => replay,
+      report: () => report,
+      resetCaptions: () => resetCaptions,
+      signal: () => signal,
+      signalOwner: () => signalOwner,
+      tsPlayer: () => tsPlayer,
+      unsupported: () => unsupported,
+      video: () => video,
+    },
+    {
+      adaptive: (value: typeof adaptive) => (adaptive = value),
+      adaptiveChannel: (value: typeof adaptiveChannel) => (adaptiveChannel = value),
+      buffer: (value: typeof buffer) => (buffer = value),
+      cancelInitialization: (value: typeof cancelInitialization) => (cancelInitialization = value),
+      finiteMode: (value: typeof finiteMode) => (finiteMode = value),
+      framePeriod: (value: typeof framePeriod) => (framePeriod = value),
+      frameSample: (value: typeof frameSample) => (frameSample = value),
+      hls: (value: typeof hls) => (hls = value),
+      livePlayed: (value: typeof livePlayed) => (livePlayed = value),
+      nativeSession: (value: typeof nativeSession) => (nativeSession = value),
+      previousDecoded: (value: typeof previousDecoded) => (previousDecoded = value),
+      previousTime: (value: typeof previousTime) => (previousTime = value),
+      readyToPlay: (value: typeof readyToPlay) => (readyToPlay = value),
+      releaseAbortListener: (value: typeof releaseAbortListener) => (releaseAbortListener = value),
+      releaseHls: (value: typeof releaseHls) => (releaseHls = value),
+      releaseTsPlayer: (value: typeof releaseTsPlayer) => (releaseTsPlayer = value),
+      signal: (value: typeof signal) => (signal = value),
+      signalOwner: (value: typeof signalOwner) => (signalOwner = value),
+      tsPlayer: (value: typeof tsPlayer) => (tsPlayer = value),
+    },
+  );
+  const browserEngineStart = createBrowserEngineStart(shared);
+  const { startPlayback } = browserEngineStart;
+
   const owners = options.owners ?? playbackResourceOwners;
   owners.cover('browser-engine');
   const releaseEngine = owners.acquire('browserEngines');
@@ -709,523 +776,7 @@ export function createBrowserEngine(
     }
   };
   return {
-    async start(selection: ChannelSelection, abortSignal: AbortSignal): Promise<void> {
-      if (disposed || abortSignal.aborted) {
-        await dispose();
-        return;
-      }
-      if (selection.crossOrigin !== undefined && selection.crossOrigin !== 'anonymous') {
-        unsupported();
-        return;
-      }
-      const previousAttachment = mediaAttachmentOwners.get(video);
-      if (selection.crossOrigin === 'anonymous') video.crossOrigin = 'anonymous';
-      else if (previousAttachment?.anonymous && video.crossOrigin === 'anonymous')
-        video.removeAttribute('crossorigin');
-      mediaAttachmentOwners.set(video, {
-        token: attachmentToken,
-        anonymous: selection.crossOrigin === 'anonymous',
-      });
-      signalOwner = createOwnedAbortSignals([abortSignal, ownedAbort.signal], owners);
-      finiteMode = selection.playMode === 'on-demand';
-      buffer = liveBufferProfile(selection.buffer).profile;
-      endHold(false);
-      livePlayed = false;
-      adaptiveChannel = selection.id;
-      adaptive = finiteMode
-        ? null
-        : createAdaptiveBuffer(buffer, learnedLiveBuffer.get(selection.id));
-      signal = signalOwner.signal;
-      signal.addEventListener('abort', disposeOnAbort, { once: true });
-      releaseAbortListener = owners.acquire('abortListeners');
-      captionOwners.set(video, captionOwner);
-      qualityReaders.set(video, qualityReader);
-      qualitySetters.set(video, qualitySetter);
-      audioHealth.activate();
-      audio.activate();
-      notifyQuality();
-      resetCaptions();
-      let url: URL;
-      try {
-        url = new URL(selection.url);
-      } catch {
-        unsupported();
-        return;
-      }
-      if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password) {
-        unsupported();
-        return;
-      }
-      if (options.requestAllowed && options.requestAllowed(selection.url) !== true) {
-        report({
-          type: 'error',
-          failure: {
-            code: 'policy',
-            message: 'This playback session is no longer available. Choose the channel again.',
-            retryable: false,
-            phase: 'capability',
-          },
-        });
-        return;
-      }
-      // Bind the grant to the selected configured source, including its referenced
-      // manifests/keys/segments on other hosts. No per-segment catalog URL lookup.
-      const allowHttp = options.allowHttp?.(selection.url) === true;
-      if (url.protocol === 'http:' && !allowHttp) {
-        report({
-          type: 'error',
-          failure: {
-            code: 'access',
-            message:
-              'This source needs explicit permission to use HTTP. Update its source settings or choose an HTTPS stream.',
-            retryable: false,
-          },
-        });
-        return;
-      }
-      const confirmed = selection as ChannelSelection & {
-        mediaKind?: 'hls' | 'media';
-        mediaMime?: string;
-      };
-      let source: ConfiguredSource;
-      try {
-        source = confirmed.mediaKind
-          ? { kind: confirmed.mediaKind, mime: confirmed.mediaMime }
-          : await initialization.run('initializationWaits', () =>
-              inspect === browserSourceReader
-                ? readConfiguredSource(url.href, allowHttp, signal!)
-                : inspect(url.href, signal!),
-            );
-      } catch (error) {
-        if (disposed || abortSignal.aborted) return;
-        report({
-          type: 'error',
-          failure:
-            error instanceof SourceRequestError
-              ? classifyHttpFailure(error.status, error.retryAfter)
-              : classifyTransportFailure(error),
-        });
-        return;
-      }
-      if (disposed || abortSignal.aborted) return;
-      if (source.kind !== 'hls' && source.kind !== 'media') {
-        unsupported();
-        return;
-      }
-      // Live MPEG-TS has no native element support; it plays through mpegts.js.
-      const transportStream =
-        source.kind === 'media' && source.mime === 'video/mp2t' && !finiteMode;
-      if (
-        source.kind === 'media' &&
-        source.mime &&
-        !transportStream &&
-        !video.canPlayType(STANDARD_MIME[source.mime] ?? source.mime)
-      ) {
-        unsupported();
-        return;
-      }
-      report({ type: 'capability', mediaKind: source.kind, mediaMime: source.mime });
-      startTiming.mark('source-known');
-      startTiming.fact('source-checked', !confirmed.mediaKind);
-      // Measurement only: first decoded frame, first frame on screen, first play.
-      listen('loadeddata', () => startTiming.mark('first-decodable-frame'));
-      listen('playing', () => startTiming.mark('playing-event'));
-      if (typeof video.requestVideoFrameCallback === 'function')
-        video.requestVideoFrameCallback((at, frame) => {
-          if (!disposed && !signal?.aborted)
-            startTiming.mark('first-visible-frame', frame.expectedDisplayTime || at);
-        });
-      previousTime = video.currentTime;
-      listen('timeupdate', () => {
-        audioHealth.sample();
-        const current = video.currentTime;
-        if (
-          !video.paused &&
-          !video.seeking &&
-          video.readyState >= 2 &&
-          current > previousTime + 0.01
-        ) {
-          livePlayed = true;
-          report({ type: 'progress' });
-        }
-        // Frame period at normal speed, for one-picture replay steps.
-        if (!replay && !video.paused && !video.seeking && video.playbackRate === 1) {
-          try {
-            const frames = video.getVideoPlaybackQuality?.().totalVideoFrames;
-            if (Number.isSafeInteger(frames)) {
-              const media = current - (frameSample?.media ?? current);
-              const count = frames! - (frameSample?.frames ?? frames!);
-              if (frameSample && media >= 0.5 && media <= 5 && count > 0)
-                framePeriod = media / count;
-              if (!frameSample || media >= 0.5 || media < 0)
-                frameSample = { media: current, frames: frames! };
-            }
-          } catch {
-            frameSample = null;
-          }
-        }
-        // Replay pictures are not live decoding health.
-        const next = replay ? null : decodedSample();
-        if (previousDecoded && next) {
-          const evidence = {
-            kind: 'decoded' as const,
-            before: previousDecoded.sample,
-            after: next.sample,
-            elapsedMilliseconds: next.at - previousDecoded.at,
-          };
-          if (validDecodedProgress(evidence)) report({ type: 'decoded-progress', evidence });
-        }
-        previousDecoded = next;
-        previousTime = current;
-      });
-      listen('volumechange', () => audioHealth.sample());
-      listen('seeking', () => {
-        previousDecoded = null;
-        frameSample = null;
-        previousTime = video.currentTime;
-      });
-      listen('seeked', () => {
-        const pending = pendingSeek;
-        if (
-          pending &&
-          !video.seeking &&
-          Number.isFinite(video.currentTime) &&
-          Math.abs(video.currentTime - pending.target) <= 0.1
-        )
-          pending.finish('seeked');
-      });
-      listen('pause', () => {
-        previousDecoded = null;
-      });
-      listen('waiting', () => {
-        previousDecoded = null;
-        report({ type: 'buffering' });
-        hold();
-      });
-      listen('stalled', () => {
-        previousDecoded = null;
-        report({ type: 'buffering' });
-      });
-      listen('ended', () => {
-        // On-demand: finished. Live: the source closed the stream (providers
-        // drop long sessions); the controller reconnects within its bounds.
-        report({ type: 'ended' });
-      });
-      listen('error', () => {
-        if (video.error?.code === 4) unsupported();
-        else if (video.error?.code === 3) decodeFailure();
-        else report({ type: 'error', failure: classifyHttpFailure(0) });
-      });
-      const isHls = source.kind === 'hls';
-      const nativeHls = !!video.canPlayType('application/vnd.apple.mpegurl');
-      if (isHls && (!nativeHls || options.preferNativeHls === false)) {
-        let Library: typeof Hls | null;
-        try {
-          // Import cannot be canceled, but this owner's wait can. Late module
-          // completion must never attach media after disposal or supersession.
-          Library = await initialization.run(
-            'initializationWaits',
-            () =>
-              new Promise<typeof Hls | null>((resolve, reject) => {
-                let releaseWaitListener: (() => void) | null = null;
-                const canceled = (): void => {
-                  signal?.removeEventListener('abort', canceled);
-                  releaseWaitListener?.();
-                  resolve(null);
-                };
-                signal?.addEventListener('abort', canceled, { once: true });
-                releaseWaitListener = owners.acquire('abortListeners');
-                if (signal?.aborted) {
-                  canceled();
-                  return;
-                }
-                const load =
-                  options.loadHls ?? (() => import('hls.js').then((module) => module.default));
-                void Promise.resolve()
-                  .then(load)
-                  .then(
-                    (library) => {
-                      signal?.removeEventListener('abort', canceled);
-                      releaseWaitListener?.();
-                      resolve(library);
-                    },
-                    (error: unknown) => {
-                      signal?.removeEventListener('abort', canceled);
-                      releaseWaitListener?.();
-                      reject(error);
-                    },
-                  );
-              }),
-          );
-        } catch {
-          report({
-            type: 'error',
-            failure: {
-              code: 'unsupported',
-              message:
-                'The playback component could not load. Restart the application or choose another stream.',
-              retryable: false,
-            },
-          });
-          return;
-        }
-        if (!Library || disposed || signal?.aborted) return;
-        startTiming.mark('library-ready');
-        if (!Library.isSupported()) {
-          if (nativeHls) {
-            audio.attachNative();
-            video.src = url.href;
-            video.load();
-            readyToPlay = true;
-            audio.refresh();
-            notifyQuality();
-            await play();
-            return;
-          }
-          unsupported();
-          return;
-        }
-        // All retries belong to the controller's one bounded episode, never hidden library loops.
-        const noRetry = {
-          maxTimeToFirstByteMs: 8000,
-          maxLoadTimeMs: 15000,
-          timeoutRetry: null,
-          errorRetry: null,
-        };
-        if (isTauri() || options.nativeTransport)
-          nativeSession = createNativeHlsSession({
-            allowHttp: () => allowHttp,
-            inspectFragment,
-            requestAllowed: options.requestAllowed,
-            transport: options.nativeTransport,
-            owners,
-          });
-        hls = new Library({
-          enableWorker: true,
-          // Admit the manifest first so the initial request uses the user's
-          // highest-available default rather than a preliminary Auto estimate.
-          autoStartLoad: false,
-          // Fast start / balanced / extra smooth: seconds of media held ahead,
-          // and how many segments behind the live edge playback starts.
-          ...liveBufferProfile(buffer).hls,
-          backBufferLength: HLS_BACK_BUFFER_SECONDS,
-          ...(nativeSession ? { loader: nativeSession.Loader } : {}),
-          manifestLoadPolicy: { default: noRetry },
-          playlistLoadPolicy: { default: noRetry },
-          fragLoadPolicy: { default: noRetry },
-          keyLoadPolicy: { default: noRetry },
-          steeringManifestLoadPolicy: { default: noRetry },
-        });
-        releaseHls = owners.acquire('hlsInstances');
-        audio.attachHls(hls, Library.Events);
-        for (const [event, observe] of [
-          [Library.Events.BUFFER_CODECS, audioHealth.codecs],
-          [Library.Events.BUFFER_CREATED, audioHealth.buffers],
-        ] as const) {
-          hls.on(event, (_name: unknown, data: unknown) => observe(data));
-          hlsListeners.push(owners.acquire('hlsListeners'));
-        }
-        hls.on(Library.Events.LEVEL_SWITCHED, notifyQuality);
-        hlsListeners.push(owners.acquire('hlsListeners'));
-        hls.on(Library.Events.FRAG_BUFFERED, (_name, data) => {
-          measure(() => {
-            if (data.frag.type === 'main') startTiming.mark('first-segment-buffered');
-          });
-          notifyQuality();
-        });
-        hlsListeners.push(owners.acquire('hlsListeners'));
-        // Measurement only: request, first byte and end of the manifest and the
-        // first segment (the native loader reports its own first-byte time).
-        hls.on(Library.Events.MANIFEST_LOADED, (_name, data) =>
-          measure(() => {
-            startTiming.mark('manifest-request', data.stats.loading.start);
-            startTiming.mark('manifest-first-byte', data.stats.loading.first);
-            startTiming.mark('manifest-loaded', data.stats.loading.end);
-            startTiming.fact('manifest-levels', data.levels.length);
-          }),
-        );
-        hls.on(Library.Events.LEVEL_LOADED, (_name, data) =>
-          measure(() => {
-            startTiming.mark('playlist-loaded', data.stats.loading.end);
-            startTiming.fact('playlist-segments', data.details.fragments.length);
-            startTiming.fact('target-duration', data.details.targetduration);
-          }),
-        );
-        hls.on(Library.Events.FRAG_LOADED, (_name, data) =>
-          measure(() => {
-            if (data.frag.type !== 'main') return;
-            const loading = data.frag.stats.loading;
-            startTiming.mark('first-segment-request', loading.start);
-            startTiming.mark('first-segment-first-byte', loading.first);
-            startTiming.mark('first-segment-loaded', loading.end);
-            startTiming.fact('first-segment-bytes', data.frag.stats.loaded);
-            startTiming.fact('first-segment-seconds', data.frag.duration);
-          }),
-        );
-        hlsListeners.push(...[1, 2, 3].map(() => owners.acquire('hlsListeners')));
-        hls.on(Library.Events.ERROR, (_event, data) => {
-          audioHealth.fault(data);
-          if (!data.fatal) return;
-          if (
-            data.details === 'manifestIncompatibleCodecsError' ||
-            data.details === 'bufferIncompatibleCodecsError'
-          )
-            unsupported();
-          else if (data.type === Library.ErrorTypes.MEDIA_ERROR) decodeFailure();
-          else {
-            const status = data.response?.code ?? 0;
-            const details = data.networkDetails as unknown;
-            const transportError =
-              details && typeof details === 'object' && 'playbackTransportError' in details
-                ? details.playbackTransportError
-                : data.response?.text;
-            const failure: PlaybackFailure = status
-              ? classifyHttpFailure(status, readRetryAfter(details))
-              : /timeout/i.test(data.details) && !transportError
-                ? { ...classifyTransportFailure('timeout'), evidence: 'opaque', phase: 'unknown' }
-                : classifyTransportFailure(transportError);
-            report({ type: 'error', failure });
-          }
-        });
-        hlsListeners.push(owners.acquire('hlsListeners'));
-        // A MediaSource may not be attached yet. Calling play before the manifest
-        // can cause a false unsupported-format rejection on an otherwise valid HLS.
-        await initialization.run(
-          'initializationWaits',
-          () =>
-            new Promise<void>((resolve) => {
-              let started = false;
-              let releaseWaitListener: (() => void) | null = null;
-              const canceled = (): void => {
-                signal?.removeEventListener('abort', canceled);
-                releaseWaitListener?.();
-                cancelInitialization = null;
-                resolve();
-              };
-              cancelInitialization = canceled;
-              signal?.addEventListener('abort', canceled, { once: true });
-              releaseWaitListener = owners.acquire('abortListeners');
-              hls!.on(Library.Events.MANIFEST_PARSED, () => {
-                if (started || disposed || signal?.aborted) return;
-                started = true;
-                if (qualityReaders.get(video) !== qualityReader) {
-                  canceled();
-                  return;
-                }
-                // HLS has already filtered unsupported codecs from these actual
-                // levels. Invalid/missing metadata does not invent a rendition.
-                let highest = -1;
-                let best: number[] = [];
-                for (const [index, level] of (hls?.levels ?? []).entries()) {
-                  const positive = (value: unknown): number =>
-                    typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : 0;
-                  const score = [
-                    positive(level.height),
-                    positive(level.bitrate),
-                    positive(level.width),
-                  ];
-                  if (!score.some((value) => value > 0)) continue;
-                  if (
-                    highest < 0 ||
-                    score.some(
-                      (value, part) =>
-                        value > best[part]! &&
-                        score.slice(0, part).every((prior, earlier) => prior === best[earlier]),
-                    )
-                  ) {
-                    highest = index;
-                    best = score;
-                  }
-                }
-                if (highest >= 0) hls!.nextLevel = highest;
-                readyToPlay = true;
-                audio.refresh();
-                notifyQuality();
-                if (!desiredPaused) hls!.startLoad(-1);
-                void play().finally(canceled);
-              });
-              hlsListeners.push(owners.acquire('hlsListeners'));
-              hls!.attachMedia(video);
-              hls!.loadSource(url.href);
-            }),
-        );
-      } else if (transportStream) {
-        let library: typeof Mpegts | null;
-        try {
-          library = await initialization.run('initializationWaits', () =>
-            Promise.race([
-              (options.loadMpegts ?? (() => import('mpegts.js').then((m) => m.default)))(),
-              new Promise<null>((resolve) => {
-                if (signal?.aborted) resolve(null);
-                signal?.addEventListener('abort', () => resolve(null), { once: true });
-              }),
-            ]),
-          );
-        } catch {
-          report({
-            type: 'error',
-            failure: {
-              code: 'unsupported',
-              message:
-                'The playback component could not load. Restart the application or choose another stream.',
-              retryable: false,
-            },
-          });
-          return;
-        }
-        if (!library || disposed || signal?.aborted) return;
-        if (!library.isSupported() || !library.getFeatureList().mseLivePlayback) {
-          unsupported();
-          return;
-        }
-        // Retries stay with the controller's bounded episode, never hidden library loops.
-        const player = library.createPlayer(
-          { type: 'mpegts', isLive: true, url: url.href },
-          {
-            enableWorker: true,
-            lazyLoad: false,
-            // Smooth over latency: keep a cushion like a set-top player instead of
-            // jumping forward to the live edge (which skips audio and video).
-            enableStashBuffer: true,
-            stashInitialSize: liveBufferProfile(buffer).mpegtsStash,
-            liveBufferLatencyChasing: false,
-            liveSync: false,
-            autoCleanupSourceBuffer: true,
-            ...MPEGTS_BACK_BUFFER,
-          },
-        );
-        tsPlayer = player;
-        releaseTsPlayer = owners.acquire('hlsInstances');
-        player.on(library.Events.ERROR, (type: string, details: string) => {
-          if (tsPlayer !== player || disposed) return;
-          if (type === library!.ErrorTypes.MEDIA_ERROR) {
-            if (
-              details === library!.ErrorDetails.MEDIA_CODEC_UNSUPPORTED ||
-              details === library!.ErrorDetails.MEDIA_FORMAT_UNSUPPORTED
-            )
-              unsupported();
-            else decodeFailure();
-          } else report({ type: 'error', failure: classifyTransportFailure('network-failure') });
-        });
-        // Measurement only: the stream's description has been parsed.
-        player.on(library.Events.MEDIA_INFO, () => startTiming.mark('media-info'));
-        audio.attachNative();
-        player.attachMediaElement(video);
-        player.load();
-        readyToPlay = true;
-        audio.refresh();
-        notifyQuality();
-        await play();
-      } else {
-        audio.attachNative();
-        video.src = url.href;
-        video.load();
-        readyToPlay = true;
-        audio.refresh();
-        notifyQuality();
-        await play();
-      }
-    },
+    start: startPlayback,
     pause: () => {
       previousDecoded = null;
       desiredPaused = true;
