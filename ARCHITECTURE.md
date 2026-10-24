@@ -34,8 +34,9 @@ commands are registered in `src-tauri/src/lib.rs` (`generate_handler!`).
 
 | Folder | Owns |
 | --- | --- |
-| `main.ts` | The composition root: creates the long-lived owners and connects them to the interface. |
+| `main.ts` | The composition root: creates the long-lived owners in start-up order, holds the state they share (catalog, settings, the current library and page) and wires them together. |
 | `application/` | Workflows that span several areas: scans and their resume, imports, account browsing, guide capture, start-up recovery. |
+| `application/*-controller.ts`, `player-view.ts`, `genxtra-navigation.ts` | The application's main areas, each created by `main.ts` with an explicit environment (a typed list of the shared state it reads and writes): `scan-controller` (channel scans), `guide-controller` (automatic program guide), `import-controller` (adding and refreshing channels), `channel-health-controller` (saved-channel checks), `player-view` (the picture panel and transport), `genxtra-navigation` (remote keys in GenXtra). |
 | `catalog/` | The channel catalog model, M3U playlist parsing (in a worker, page by page) and validation. |
 | `discovery/` | Finding channels: online source search, the scan pipeline, health checks, the reviewed provider registry. |
 | `sources/` | Saved sources and the media checks run before a source is trusted. |
@@ -73,7 +74,7 @@ Most modules are flat files named by area prefix:
 | `web_page.rs`, `../page-scripts/` | The in-app player for station websites. |
 | `close_owner.rs`, `renderer_*` | Orderly exit and WebView renderer recovery. |
 
-Tests sit next to the code as `*_tests.rs` files or `mod tests` blocks.
+Tests sit next to the code: larger suites in `<module>_tests.rs` files attached with `#[cfg(test)] #[path = "<module>_tests.rs"] mod tests;`, small ones in an inline `mod tests` block at the end of the file.
 `src-tauri/vendor/tao` is a vendored copy of the tao window library with
 GenX's patches listed in its `GENX-PATCHES.md`.
 
