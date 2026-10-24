@@ -214,6 +214,8 @@ export function tvFailure(code: string): string {
     case 'tv-pair-expired':
     case 'tv-pair-failed':
       return "Your TV didn't finish pairing.";
+    case 'tv-asleep':
+      return "Your TV didn't wake. Turn it on with its remote, then try again.";
     case 'nearby-no-network':
       return 'Connect this phone to the same Wi-Fi as your TV.';
     case 'share-app-development':

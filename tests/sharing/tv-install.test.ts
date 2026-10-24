@@ -221,6 +221,9 @@ describe('Install on TV', () => {
     );
     expect(tvFailure('tv-unavailable')).toBe("Couldn't connect.");
     expect(tvFailure('tv-pair-wrong-code')).toBe("That code didn't match.");
+    expect(tvFailure('tv-asleep')).toBe(
+      "Your TV didn't wake. Turn it on with its remote, then try again.",
+    );
     for (const step of [
       'sending',
       'choose',

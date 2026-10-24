@@ -27,9 +27,9 @@ import java.security.MessageDigest
  * written from its public protocol description: pairing on port 6467, the
  * remote on 6466, protocol buffers framed by a varint length. Only what Send
  * to TV needs: pairing, keeping the session alive, opening a link and
- * hearing which app is in front, and one Home press to wake the TV. Home is
- * the only key GenX ever sends, before any prompt exists; it cannot approve
- * anything (the person approves every install, TV-004).
+ * hearing which app is in front, and one Home press to wake a TV that says
+ * its screen is off (TV-010). Home is the only key GenX ever sends, before any
+ * prompt exists; it cannot approve anything (TV-004).
  */
 internal object TvWire {
   const val MAX_FRAME = 64 * 1024
@@ -187,7 +187,7 @@ internal object TvRemote {
   fun setActiveReply() = TvWire.bytes(2, TvWire.int(1, FEATURES))
   fun pingReply(value: Long) = TvWire.bytes(9, TvWire.int(1, value))
   fun openLink(link: String) = TvWire.bytes(90, TvWire.text(1, link))
-  /** KEYCODE_HOME, one short press: wakes a sleeping TV or ends its screensaver (TV-004). */
+  /** KEYCODE_HOME, one short press: sent only to a TV that reports its screen off (TV-010). */
   fun home() = TvWire.bytes(10, TvWire.int(1, 3) + TvWire.int(2, 3))
 
   fun read(data: ByteArray): TvEvent {

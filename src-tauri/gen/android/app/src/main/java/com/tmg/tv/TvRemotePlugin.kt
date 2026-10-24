@@ -203,11 +203,18 @@ class TvRemotePlugin(private val activity: Activity) : Plugin(activity) {
       val deadline = System.currentTimeMillis() + 6000
       while (!connected.ready && connected.open && System.currentTimeMillis() < deadline) Thread.sleep(50)
       if (!connected.ready) { connected.close(); throw IllegalStateException("tv-connect-failed") }
-      // Wake the TV (asleep: HDMI shows no signal; or in its screensaver) with one
-      // Home press, then wait for its screen, so the person sees every step.
-      connected.send(TvRemote.home())
-      val awake = System.currentTimeMillis() + 5000
-      while (connected.screenOn != true && connected.open && System.currentTimeMillis() < awake) Thread.sleep(50)
+      // TV-010: wake before installing. The TV reports its screen state right after
+      // setup; only when it says off (asleep, HDMI "No signal") does GenX press Home,
+      // once, then wait for the screen. A TV that stays dark is a plain, recoverable
+      // refusal; an awake TV is never pressed.
+      val told = System.currentTimeMillis() + 1500
+      while (connected.screenOn == null && connected.open && System.currentTimeMillis() < told) Thread.sleep(50)
+      if (connected.screenOn == false) {
+        connected.send(TvRemote.home())
+        val awake = System.currentTimeMillis() + 6000
+        while (connected.screenOn != true && connected.open && System.currentTimeMillis() < awake) Thread.sleep(50)
+        if (connected.screenOn != true) { connected.close(); throw IllegalStateException("tv-asleep") }
+      }
       invoke.resolveObject(status(connected))
     }
   }
