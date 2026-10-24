@@ -78,7 +78,7 @@ import { fetchAuxiliaryText } from './location/fetch';
 import { mountLibrarySwitcher } from './ui/library-switcher';
 import { readUnavailableSources } from './discovery/unavailable-sources';
 import { emptyOnlineDiscoveryText } from './ui/online-discovery-text';
-import { readPackSuggestions } from './guide/pack-suggestions';
+
 import { lookupSeriesIdentity } from './platform/series-identity';
 import { installGuideGrabberExport } from './ui/guide-grabber-settings';
 import {
@@ -86,10 +86,7 @@ import {
   parseProviderRegistry,
   serializeProviderRegistry,
 } from './discovery/provider-registry';
-import { automaticGuidePreferenceKey } from './application/automatic-guide-capture';
-import { captureAutomaticGuideInWorker } from './application/automatic-guide-capture-service';
-import { createAutomaticGuideBuilder } from './guide/automatic-build';
-import { prioritizeGuideProviders } from './guide/provider-order';
+
 import { installInAppSelects } from './ui/in-app-select';
 import { installMediaKeys } from './ui/media-keys';
 import { installDataTransfer } from './ui/data-transfer';
@@ -110,17 +107,12 @@ import { createFullscreenOwner } from './ui/fullscreen-owner';
 import { mountGeographyControls } from './ui/geography-controls';
 import { mountViewingChoices } from './ui/viewing-choices';
 import { mountSettingsNavigation, mountLocationDialog } from './ui/settings-navigation';
-import { createGuideHost } from './application/guide-host';
-import { discoverPlaylistGuides } from './guide/discovery';
-import { nativeGuide, readDailyGuidePlan, refreshDailyGuide } from './guide/native';
-import { createGuideMaintenance } from './application/guide-maintenance';
+
+import { readDailyGuidePlan, refreshDailyGuide } from './guide/native';
+
 import { mountVODStop } from './ui/vod-stop';
 import { createDailyGuideRefresh } from './guide/daily-refresh';
-import {
-  createAutomaticGuidePermissions,
-  previewPermittedAutomaticGuide,
-  type AutomaticGuidePermission,
-} from './guide/automatic-permissions';
+
 import { readVisibleGuide, type VisibleGuideChannel } from './guide/visible-native';
 import { createVisibleGuideOwner, type VisibleGuideScope } from './application/visible-guide';
 
@@ -187,7 +179,7 @@ import { startTiming } from './playback/start-timing';
 import { playbackFailureGuidance } from './playback/failure-guidance';
 import { mountChannelActions } from './ui/channel-actions';
 import { mountProviderManagement } from './ui/provider-management';
-import { createGuideCacheReady, createGuideAcquisitionAllowed } from './application/guide-cache';
+
 import {
   createViewingWakeOwner,
   createViewingForegroundAdmission,
@@ -205,7 +197,6 @@ import { playbackResourceOwners } from './playback/resource-owners';
 import {
   readRecord,
   readRecordPair,
-  readGuideCaptureSnapshot,
   writeRecord,
   writeRecordPair,
   writeHealth,
@@ -239,6 +230,7 @@ import {
 import './ui/dialog-polish.css';
 import { BoundedScanEntryRefusal, createScanController } from './application/scan-controller';
 import type { ContentLibrary } from './application/content-library';
+import { createGuideController } from './application/guide-controller';
 
 const bootstrapBoundary = createBootstrapBoundary();
 const rendererRecoveryPolicy = createRendererRecoveryPolicy(() =>
@@ -1546,379 +1538,61 @@ const speechSearch = mountSpeechSearch(
     },
   },
 );
-let automaticGuidePreferenceSnapshot = '';
-let automaticGuideSourceSnapshot = '';
-const automaticGuideSourceKey = (sources: readonly Source[]) =>
-  JSON.stringify(
-    sources.map((source) => [
-      source.id,
-      source.kind,
-      source.location,
-      source.allowHttp === true,
-      source.contentKind ?? null,
-    ]),
-  );
-let automaticGuideControlPending = 0;
-let automaticGuideRemovedSnapshot: readonly string[] = [];
-let automaticGuidePermissions: ReadonlyMap<string, AutomaticGuidePermission> = new Map();
-const automaticGuideScopeCurrent = () =>
-  automaticGuidePreferenceSnapshot === automaticGuidePreferenceKey(settings) &&
-  automaticGuideSourceSnapshot === automaticGuideSourceKey(catalog.sources) &&
-  automaticGuideRemovedSnapshot.length === settings.removedChannels.length &&
-  automaticGuideRemovedSnapshot.every((id, index) => id === settings.removedChannels[index]);
-let automaticGuideDiscovery: {
-  key: string;
-  result: Awaited<ReturnType<typeof discoverPlaylistGuides>>;
-  retryAtMs: number;
-} | null = null;
-function guideChanged(): void {
-  void visibleGuide?.refresh().catch(() => undefined);
-  guide.catalogChanged(true);
-  queueMicrotask(wakeDailyRefresh);
-}
-const guideHost = createGuideHost({
-  enableTimeline: isTauri(),
-  discover: (signal) =>
-    discoverPlaylistGuides(
-      structuredClone(catalog.sources),
-      (url, allowHttp, ownedSignal) => inspectSource(url, allowHttp, ownedSignal),
-      signal,
-      { registry: settings.reviewedGuideProviders },
-    ),
-  catalogRevision: () =>
-    element('app').dataset.ready === 'true' && !applicationClosing
-      ? persistedCatalogRevision
-      : null,
-  onChanged: guideChanged,
-  channels: () => {
-    const removed = new Set(settings.removedChannels);
-    const favorites = new Set(settings.favorites);
-    const category = createChannelCategoryResolver(settings);
-    return catalog.channels
-      .filter((channel) => !removed.has(channel.id))
-      .map((channel) => ({
-        ...channel,
-        category: category(channel),
-        favorite: favorites.has(channel.id),
-      }));
+const guideController = createGuideController({
+  get settings() {
+    return settings;
   },
-  selectedChannel: () =>
-    catalog.channels.find((channel) => channel.id === player.snapshot.selection?.id) ?? null,
-  watch: async (channel, signal) => {
-    signal.throwIfAborted();
-    const current = catalog.channels.find(
-      (entry) => entry.id === channel.id && entry.sourceId === channel.sourceId,
-    );
-    if (!current || settings.removedChannels.includes(current.id))
-      throw new Error('This channel is no longer available.');
-    await sharingBridge.select({ id: current.id, name: current.name, url: current.urls[0] });
+  get catalog() {
+    return catalog;
+  },
+  get visibleGuide() {
+    return visibleGuide;
+  },
+  get guide() {
+    return guide;
+  },
+  get wakeDailyRefresh() {
+    return wakeDailyRefresh;
+  },
+  get element() {
+    return element;
+  },
+  get applicationClosing() {
+    return applicationClosing;
+  },
+  get persistedCatalogRevision() {
+    return persistedCatalogRevision;
+  },
+  get player() {
+    return player;
+  },
+  get sharingBridge() {
+    return sharingBridge;
+  },
+  get catalogWrites() {
+    return catalogWrites;
+  },
+  get preferences() {
+    return preferences;
+  },
+  get diagnostics() {
+    return diagnostics;
+  },
+  get rendererRecoveryPolicy() {
+    return rendererRecoveryPolicy;
+  },
+  get nativeViewingForeground() {
+    return nativeViewingForeground;
+  },
+  get scanController() {
+    return scanController;
+  },
+  get sourceScan() {
+    return sourceScan;
   },
 });
-let lastCachedGuideConnection: {
-  key: string;
-  receipt: Awaited<ReturnType<typeof nativeGuide.connectCached>>;
-} | null = null;
-async function connectSavedGuideCaches(signal: AbortSignal, cacheOnly: boolean) {
-  await catalogWrites;
-  await preferences.settledSnapshot();
-  signal.throwIfAborted();
-  const capturedRemoved = [...settings.removedChannels];
-  const saved = await readGuideCaptureSnapshot(signal);
-  const fresh = await captureAutomaticGuideInWorker(
-    {
-      catalog: saved.catalog,
-      preferences: saved.preferences,
-      catalogRevision: saved.catalogRevision,
-    },
-    signal,
-  );
-  const scopeCurrent = () =>
-    fresh.preferenceKey === automaticGuidePreferenceKey(settings) &&
-    automaticGuideSourceKey(fresh.sources) === automaticGuideSourceKey(catalog.sources) &&
-    capturedRemoved.length === settings.removedChannels.length &&
-    capturedRemoved.every((id, index) => id === settings.removedChannels[index]);
-  if (
-    !scopeCurrent() ||
-    (cacheOnly && !fresh.automaticGuideUpdates) ||
-    (!cacheOnly &&
-      (fresh.preferenceKey !== automaticGuidePreferenceSnapshot ||
-        automaticGuideSourceKey(fresh.sources) !== automaticGuideSourceSnapshot))
-  )
-    throw new DOMException('Guide configuration changed.', 'AbortError');
-  const sources = await nativeGuide.sources();
-  const freshDiscoveryKey = JSON.stringify([
-    fresh.preferenceKey,
-    fresh.sources.map((source) => [source.id, source.kind, source.location, source.allowHttp]),
-  ]);
-  const permittedLocations = new Set([
-    ...sources.filter((source) => source.kind === 'url').map((source) => source.location),
-    ...fresh.registry.map((provider) => provider.location),
-    ...(automaticGuideDiscovery?.key === freshDiscoveryKey
-      ? automaticGuideDiscovery.result.candidates.map((candidate) => candidate.location)
-      : []),
-  ]);
-  const currentPermissions = createAutomaticGuidePermissions(sources);
-  const admitted = sources.filter(
-    (source) =>
-      source.kind === 'url' &&
-      permittedLocations.has(source.location) &&
-      currentPermissions.forLocation(source.location).status === 'configured',
-  );
-  const caches: {
-    id: string;
-    location: string;
-    expectedSourceRevision: number;
-    expectedPublishedRevision: number;
-  }[] = [];
-  for (const source of admitted) {
-    signal.throwIfAborted();
-    const coverage = await nativeGuide.coverage(source.id);
-    if (
-      coverage.publishedRevision === source.revision &&
-      coverage.sourceRevision === source.revision &&
-      coverage.channelCount > 0
-    )
-      caches.push({
-        id: source.id,
-        location: source.location,
-        expectedSourceRevision: source.revision,
-        expectedPublishedRevision: coverage.publishedRevision,
-      });
-  }
-  signal.throwIfAborted();
-  if (!scopeCurrent()) throw new DOMException('Guide configuration changed.', 'AbortError');
-  const scopeKey = JSON.stringify([
-    fresh.catalogRevision,
-    fresh.preferenceKey,
-    capturedRemoved,
-    caches.map((cache) => [
-      cache.id,
-      cache.expectedSourceRevision,
-      cache.expectedPublishedRevision,
-    ]),
-  ]);
-  // Retain only a bounded successful scope. Oversized scopes remain admitted
-  // and simply cannot use this optional no-op cache; failures are never cached.
-  const boundedScopeKey = scopeKey.length * 2 <= 2 * 1024 * 1024 ? scopeKey : null;
-  if (cacheOnly && boundedScopeKey !== null && lastCachedGuideConnection?.key === boundedScopeKey)
-    return lastCachedGuideConnection.receipt;
-  const requestId = crypto.randomUUID();
-  let cancellation: Promise<unknown> | null = null;
-  let cancellationFailed = false;
-  let completedResult: Awaited<ReturnType<typeof nativeGuide.connectCached>> | null = null;
-  const cancel = () => {
-    cancellation = invoke('cancel_playlist', { requestId }).catch(() => {
-      cancellationFailed = true;
-    });
-  };
-  signal.addEventListener('abort', cancel, { once: true });
-  try {
-    signal.throwIfAborted();
-    if (!scopeCurrent() || (!cacheOnly && !automaticGuideScopeCurrent()))
-      throw new DOMException('Guide configuration changed.', 'AbortError');
-    const result = await nativeGuide.connectCached(
-      fresh.catalogRevision,
-      caches,
-      fresh.aliases.filter((alias) =>
-        caches.some((cache) => cache.location === alias.guideLocation),
-      ),
-      requestId,
-      cacheOnly,
-    );
-    if (
-      result.catalogRevision !== fresh.catalogRevision ||
-      ![
-        result.matched,
-        result.unmatched,
-        result.ambiguous,
-        result.preservedMappings,
-        result.checkedSources,
-      ].every((count) => Number.isSafeInteger(count) && count >= 0 && count <= 100000)
-    )
-      throw new Error('The guide connection receipt is invalid.');
-    if (result.reviewedCrosswalk?.status === 'unavailable')
-      void diagnostics.emit({
-        operation: 'guide',
-        level: 'warning',
-        code: 'guide-identity-unavailable',
-      });
-    void visibleGuide?.refresh().catch(() => undefined);
-    guide.catalogChanged(true);
-    completedResult = result;
-    return result;
-  } finally {
-    signal.removeEventListener('abort', cancel);
-    await Promise.resolve(cancellation).then(() => {
-      if (cancellationFailed) throw new Error('Program guide cancellation could not be confirmed.');
-    });
-    if (completedResult && boundedScopeKey !== null && !signal.aborted && scopeCurrent())
-      lastCachedGuideConnection = { key: boundedScopeKey, receipt: completedResult };
-  }
-}
-const automaticGuides = createAutomaticGuideBuilder({
-  canRequest: () =>
-    rendererRecoveryPolicy.allowAutomaticWork() &&
-    settings.automaticGuideUpdates !== false &&
-    !automaticGuideControlPending,
-  canRun: () =>
-    isTauri() &&
-    !applicationClosing &&
-    nativeViewingForeground &&
-    element('app').dataset.ready === 'true',
-  isCurrent: (revision) =>
-    revision === persistedCatalogRevision &&
-    automaticGuidePreferenceSnapshot === automaticGuidePreferenceKey(settings) &&
-    automaticGuideRemovedSnapshot.length === settings.removedChannels.length &&
-    automaticGuideRemovedSnapshot.every((id, index) => id === settings.removedChannels[index]),
-  isScopeCurrent: automaticGuideScopeCurrent,
-  capture: async (signal, reportPhase) => {
-    await catalogWrites;
-    await preferences.settledSnapshot();
-    signal.throwIfAborted();
-    automaticGuideRemovedSnapshot = [...settings.removedChannels];
-    const saved = await readGuideCaptureSnapshot(signal);
-    signal.throwIfAborted();
-    const captured = await captureAutomaticGuideInWorker(
-      {
-        catalog: saved.catalog,
-        preferences: saved.preferences,
-        catalogRevision: saved.catalogRevision,
-      },
-      signal,
-    );
-    automaticGuidePreferenceSnapshot = captured.preferenceKey;
-    automaticGuideSourceSnapshot = automaticGuideSourceKey(captured.sources);
-    const discoveryKey = JSON.stringify([
-      captured.preferenceKey,
-      captured.sources.map((source) => [source.id, source.kind, source.location, source.allowHttp]),
-    ]);
-    reportPhase?.('reading-playlists');
-    const discovered =
-      automaticGuideDiscovery?.key === discoveryKey &&
-      automaticGuideDiscovery.retryAtMs > Date.now()
-        ? automaticGuideDiscovery.result
-        : await discoverPlaylistGuides(
-            [...captured.sources],
-            (url, allowHttp, ownedSignal) => inspectSource(url, allowHttp, ownedSignal),
-            signal,
-            { registry: [...captured.registry] },
-          );
-    signal.throwIfAborted();
-    automaticGuideDiscovery = {
-      key: discoveryKey,
-      result: discovered,
-      retryAtMs: discovered.outcomes.some((outcome) => outcome.status === 'failed')
-        ? Date.now() + 90_000
-        : Number.POSITIVE_INFINITY,
-    };
-    const configuredGuides = await nativeGuide.sources();
-    const savedGuidePermissions = createAutomaticGuidePermissions(configuredGuides);
-    signal.throwIfAborted();
-    const providerLocations = new Map(
-      discovered.candidates.map((candidate) => [
-        candidate.location,
-        { name: candidate.name, location: candidate.location },
-      ]),
-    );
-    for (const pack of await readPackSuggestions(nativeGuide.packSuggestions, signal))
-      if (!providerLocations.has(pack.location)) providerLocations.set(pack.location, pack);
-    for (const source of configuredGuides) {
-      if (
-        source.kind === 'url' &&
-        savedGuidePermissions.forLocation(source.location).status === 'configured'
-      )
-        providerLocations.set(source.location, { name: source.name, location: source.location });
-    }
-    const permissions = new Map(
-      [...providerLocations.values()].map((candidate) => [
-        candidate.location,
-        savedGuidePermissions.forLocation(candidate.location),
-      ]),
-    );
-    automaticGuidePermissions = permissions;
-    return {
-      catalogRevision: captured.catalogRevision,
-      channelCount: captured.channelCount,
-      discoveryFailed: discovered.outcomes.filter((outcome) => outcome.status === 'failed').length,
-      catalogCountries: captured.catalogCountries,
-      providers: prioritizeGuideProviders(
-        [...providerLocations.values()].map((candidate) => ({
-          name: candidate.name,
-          location: candidate.location,
-          allowHttp: permissions.get(candidate.location)!.allowHttp,
-          aliases: captured.aliases.find((aliases) => aliases.guideLocation === candidate.location),
-        })),
-        captured.preferredRegion?.country,
-        new Set(
-          discovered.candidates
-            .filter((candidate) => candidate.playlistNames.length > 0)
-            .map((candidate) => candidate.location),
-        ),
-      ),
-    };
-  },
-  preview: (provider, signal) => {
-    const permission = automaticGuidePermissions.get(provider.location);
-    if (!permission) throw new Error('Automatic program guide permission is unavailable.');
-    return previewPermittedAutomaticGuide(
-      permission,
-      provider.name,
-      {
-        sources: nativeGuide.sources,
-        previewSource: (sourceId, ownedSignal) => guideHost.preview({ sourceId }, ownedSignal),
-        previewProposedSource: (location, name, ownedSignal) =>
-          guideHost.previewProposedSource(location, name, ownedSignal),
-      },
-      signal,
-    );
-  },
-  cacheReady: createGuideCacheReady(nativeGuide),
-  acquisitionAllowed: createGuideAcquisitionAllowed(nativeGuide),
-  publishCache: async (preview, _provider, signal) => {
-    if (automaticGuidePreferenceSnapshot !== automaticGuidePreferenceKey(settings))
-      throw new DOMException('Guide configuration changed.', 'AbortError');
-    await guideHost.publishCachedPreview(preview.ticket, preview.sourceRevision, signal);
-  },
-  connectScopeLatest: (signal) => connectSavedGuideCaches(signal, false),
-  connectCacheOnly: (signal) => connectSavedGuideCaches(signal, true),
-  maintain: createGuideMaintenance({
-    scanning: () => scanController.automaticScanActive || sourceScan.snapshot().busy,
-    scopeCurrent: automaticGuideScopeCurrent,
-    changed: guideChanged,
-  }),
-  commitMatched: async (preview, revision, signal, provider) => {
-    signal.throwIfAborted();
-    const result = await guideHost.commitMatchedPreview(
-      preview.ticket,
-      preview.sourceRevision,
-      revision,
-      signal,
-      provider.aliases,
-    );
-    if (
-      !result ||
-      typeof result.committed !== 'boolean' ||
-      ![result.matched, result.unmatched].every(
-        (count) => Number.isSafeInteger(count) && count >= 0 && count <= 100_000,
-      )
-    )
-      throw new Error('The automatic program guide receipt is invalid.');
-    return result;
-  },
-  settlePreviews: () => guideHost.settleProposedPreviews(),
-  discard: (ticket) => guideHost.discardPreview(ticket),
-  onProgress: (progress) => {
-    guide.presentAutomaticProgress(progress);
-    const review =
-      progress.mappingConflictAssessment === 'complete' &&
-      typeof progress.preservedMappingConflicts === 'number' &&
-      progress.preservedMappingConflicts > 0
-        ? ` · ${progress.preservedMappingConflicts} channels have multiple matching guides; your current choices were kept`
-        : '';
-    element('source-refresh-status').textContent =
-      `Program guides: ${progress.attempted} of ${progress.total} sources checked · ${progress.failed} unavailable${review}`;
-  },
-});
+const { automaticGuides, guideHost } = guideController;
+
 type PrimaryPage = 'watch' | 'guide';
 let primaryPage: PrimaryPage = 'watch';
 let primaryIntent = 0;
@@ -2149,8 +1823,12 @@ const guide = mountGuide(primaryHost, {
   },
   buildForChannels: (signal) => {
     // Explicit Find retries discovery; automatic requests keep the retry cooldown.
-    if (automaticGuideDiscovery?.result.outcomes.some((outcome) => outcome.status === 'failed'))
-      automaticGuideDiscovery = null;
+    if (
+      guideController.automaticGuideDiscovery?.result.outcomes.some(
+        (outcome) => outcome.status === 'failed',
+      )
+    )
+      guideController.automaticGuideDiscovery = null;
     // The build belongs to the background guide owner. Leaving the Guide page stops
     // waiting for it; it neither cancels the build nor waits for it to settle.
     const build = automaticGuides.run();
@@ -4348,7 +4026,7 @@ const dailyGuideRefresh = createDailyGuideRefresh({
     rendererRecoveryPolicy.allowAutomaticWork() &&
     isTauri() &&
     settings.automaticGuideUpdates !== false &&
-    !automaticGuideControlPending &&
+    !guideController.automaticGuideControlPending &&
     element('app').dataset.ready === 'true' &&
     !document.hidden &&
     nativeViewingForeground &&
@@ -4392,13 +4070,13 @@ const automaticGuideUpdates = bootstrapBoundary.run('settings', () =>
   }),
 );
 async function withPausedGuideUpdates<T>(operation: () => Promise<T>): Promise<T> {
-  automaticGuideControlPending++;
+  guideController.automaticGuideControlPending++;
   try {
     await joinGuideWork([automaticGuides, dailyGuideRefresh]);
     return await operation();
   } finally {
-    automaticGuideControlPending--;
-    if (!automaticGuideControlPending && !applicationClosing) wakeDailyRefresh();
+    guideController.automaticGuideControlPending--;
+    if (!guideController.automaticGuideControlPending && !applicationClosing) wakeDailyRefresh();
   }
 }
 function requestCachedGuideConnection(): void {
@@ -5462,7 +5140,7 @@ async function initializeSaved(signal: AbortSignal, attempt: StartupAttempt): Pr
   clearArchiveResume();
   // Recovery can replace the canonical storage owner while revisions happen
   // to agree; a successful cache scope never crosses that re-initialization.
-  lastCachedGuideConnection = null;
+  guideController.lastCachedGuideConnection = null;
   let startupPair: Awaited<ReturnType<typeof readRecordPair>>;
   let startupState: Awaited<ReturnType<typeof decodeSavedHealthInWorker>>;
   try {
