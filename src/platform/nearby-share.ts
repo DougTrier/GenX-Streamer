@@ -33,6 +33,8 @@ export interface NearbyStatus {
   downloads: number;
   completed: number;
   ended: NearbyEnded | null;
+  /** Install on TV (docs/send-to-tv.md TV-006): what GenX on a TV reported. */
+  checkIn: 'same' | 'different' | null;
 }
 
 const count = (value: unknown) =>
@@ -52,6 +54,7 @@ function status(raw: unknown): NearbyStatus {
     downloads: count(r.downloads),
     completed: count(r.completed),
     ended: r.ended === 'guesses' || r.ended === 'network' ? r.ended : null,
+    checkIn: r.checkIn === 'same' || r.checkIn === 'different' ? r.checkIn : null,
   };
 }
 

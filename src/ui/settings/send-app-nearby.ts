@@ -170,6 +170,7 @@ export function mountNearbyShare(card: HTMLElement): {
         downloads: 0,
         completed: 0,
         ended: null,
+        checkIn: null,
       });
     }
   }

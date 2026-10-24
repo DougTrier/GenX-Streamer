@@ -125,6 +125,7 @@ use playback::native_video;
 use sharing::native_sharing;
 use sharing::nearby_download;
 pub use sharing::relay;
+use sharing::send_to_tv;
 use sharing::share_links;
 pub use sharing::sharing_policy;
 pub mod trier_video;
@@ -208,7 +209,8 @@ pub fn run() {
         .plugin(web_page::init())
         .plugin(native_video::init())
         .plugin(vpn_status::init())
-        .plugin(share_links::init());
+        .plugin(share_links::init())
+        .plugin(send_to_tv::init());
     builder
         .setup(|app| {
             use startup_milestones::{observe_root, root_mark, RootEvent};
@@ -527,6 +529,16 @@ pub fn run() {
             nearby_download::nearby_start,
             nearby_download::nearby_status,
             nearby_download::nearby_stop,
+            send_to_tv::tv_find,
+            send_to_tv::tv_pair_start,
+            send_to_tv::tv_pair_finish,
+            send_to_tv::tv_connect,
+            send_to_tv::tv_send_genx,
+            send_to_tv::tv_get_helper,
+            send_to_tv::tv_open_genx,
+            send_to_tv::tv_status,
+            send_to_tv::tv_disconnect,
+            send_to_tv::tv_forget,
             app_identity::app_identity,
             app_identity::app_checksum,
             app_update::update_check,

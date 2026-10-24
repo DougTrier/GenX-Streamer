@@ -859,6 +859,186 @@
       "label": "private network address",
       "sha256": "0b26c88911c46631ad565457c49eed111cd8a5984171fe6528040671517988bd",
       "reason": "reviewed 2026-10-24: generic RFC1918 example address in a nearby-sharing test or the user guide example, not a real device address"
+    },
+    {
+      "file": "docs/user-guide.md",
+      "label": "private network address",
+      "sha256": "d75cc9e384a475b3fc43fddb28f565cda23cfd054f155305df0acde170b142a2",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in an Install on TV test or the user guide example, not a real device address"
+    },
+    {
+      "file": "src-tauri/gen/android/app/src/test/java/com/tmg/tv/TvRemoteWireTest.kt",
+      "label": "private network address",
+      "sha256": "0ba0de0f3ec34cb0dfa46a0d90b99c668a7c1c49471ee1787ff664c9b579b32e",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in an Install on TV test or the user guide example, not a real device address"
+    },
+    {
+      "file": "src-tauri/gen/android/app/src/test/java/com/tmg/tv/TvRemoteWireTest.kt",
+      "label": "private network address",
+      "sha256": "593132d434b3de3c57dc6d82aa1a8829f67de52bd6faca8aead53b2708333edb",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in an Install on TV test or the user guide example, not a real device address"
+    },
+    {
+      "file": "src-tauri/gen/android/app/src/test/java/com/tmg/tv/TvRemoteWireTest.kt",
+      "label": "private network address",
+      "sha256": "c3730005903c631604e49e2f9910dd037851efb5ebc4a4fecefd1d5602183149",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in an Install on TV test or the user guide example, not a real device address"
+    },
+    {
+      "file": "src-tauri/gen/android/app/src/test/java/com/tmg/tv/TvRemoteWireTest.kt",
+      "label": "private network address",
+      "sha256": "e7b997e60a00ba284c8d51dfa7c2d0043a05a0c8d3d4830ccc01a1e9d749f752",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in an Install on TV test or the user guide example, not a real device address"
+    },
+    {
+      "file": "src-tauri/gen/android/app/src/test/java/com/tmg/tv/TvRemoteWireTest.kt",
+      "label": "private network address",
+      "sha256": "b283fcb450e3598d07bfb884f16b36bcdac340a87e715451860f1d01af75a155",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in an Install on TV test or the user guide example, not a real device address"
+    },
+    {
+      "file": "src-tauri/src/sharing/send_to_tv.rs",
+      "label": "private network address",
+      "sha256": "744550a6f543e37e95ab415232efd655006ab969895e3275cd42093db1c9bc20",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in an Install on TV test or the user guide example, not a real device address"
+    },
+    {
+      "file": "src-tauri/src/sharing/send_to_tv.rs",
+      "label": "private network address",
+      "sha256": "4220651001f522c445c2daf70926d798615fc0b7e8928b8962e836cdf4da33c9",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in an Install on TV test or the user guide example, not a real device address"
+    },
+    {
+      "file": "src-tauri/src/sharing/send_to_tv.rs",
+      "label": "private network address",
+      "sha256": "056badc22e87d3939d6c38a169e9daf646a01f8d358fe772f030a86bf68a76c9",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in an Install on TV test or the user guide example, not a real device address"
+    },
+    {
+      "file": "src-tauri/src/sharing/send_to_tv.rs",
+      "label": "private network address",
+      "sha256": "7d35f19dc6e972b3cac6dfeedff25479c49285beb78a1a20dfaa94c16eee0dfa",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in an Install on TV test or the user guide example, not a real device address"
+    },
+    {
+      "file": "src-tauri/src/sharing/send_to_tv.rs",
+      "label": "private network address",
+      "sha256": "1aaee5d8a9f1fc6436051b3a016b7e63a4f0a9f196a57d0dd545d49088bd1bed",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in an Install on TV test or the user guide example, not a real device address"
+    },
+    {
+      "file": "src-tauri/src/sharing/send_to_tv.rs",
+      "label": "private network address",
+      "sha256": "d64c386be99748b987281a4eed4711bbd9d87c97e9c260dcca269ba78839ad56",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in an Install on TV test or the user guide example, not a real device address"
+    },
+    {
+      "file": "src-tauri/src/sharing/send_to_tv.rs",
+      "label": "private network address",
+      "sha256": "7e5cf10ce6f5a99f2e2e11724dbbab9468566dde8c6ba95e5d58e745632fbbc0",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in an Install on TV test or the user guide example, not a real device address"
+    },
+    {
+      "file": "src-tauri/src/sharing/send_to_tv.rs",
+      "label": "private network address",
+      "sha256": "6eb7ba417b8dc6eac88ed93e92b1dc639b383dd166fcfac2e8da34db551cf378",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in an Install on TV test or the user guide example, not a real device address"
+    },
+    {
+      "file": "src-tauri/src/sharing/send_to_tv.rs",
+      "label": "private network address",
+      "sha256": "5265646a106f03e052eaaf6d369236dfe8cfa9a30325fdc702bd2a8ba4a1289d",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in an Install on TV test or the user guide example, not a real device address"
+    },
+    {
+      "file": "src-tauri/src/sharing/send_to_tv.rs",
+      "label": "private network address",
+      "sha256": "ae92cc17aaffa48f44138b3ae96b85d7a7c88321168817c76cdaad66ec6f4d84",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in an Install on TV test or the user guide example, not a real device address"
+    },
+    {
+      "file": "src-tauri/src/sharing/send_to_tv.rs",
+      "label": "private network address",
+      "sha256": "521f426a6a0f50ea13c250214f098162de5c22a17ae88250dac4e325b10c20f0",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in an Install on TV test or the user guide example, not a real device address"
+    },
+    {
+      "file": "tests/sharing/tv-install.test.ts",
+      "label": "private network address",
+      "sha256": "7fe4df5af4bb1ec01012ead42c625eef6a168a81d0d00e52ed57ad9a5e142b07",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in an Install on TV test or the user guide example, not a real device address"
+    },
+    {
+      "file": "tests/ui/share-links.spec.ts",
+      "label": "private network address",
+      "sha256": "7ca2aabff78fb821907841fc0d48e31da73f25dceb441fc7289b6afdbbe0f67c",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in an Install on TV test or the user guide example, not a real device address"
+    },
+    {
+      "file": "tests/ui/share-links.spec.ts",
+      "label": "private network address",
+      "sha256": "a0203ac6ac76078a484fb98a9631270d4709923fe3972d9582929e5a1154a21d",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in an Install on TV test or the user guide example, not a real device address"
+    },
+    {
+      "file": "src-tauri/gen/android/app/src/test/java/com/tmg/tv/TvRemoteWireTest.kt",
+      "label": "private network address",
+      "sha256": "08f70d5232795687e06d7517afad473f3d8ba1ec9e7143495a142693cdf45e38",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in an Install on TV test or doc example, not a real device address"
+    },
+    {
+      "file": "src-tauri/gen/android/app/src/test/java/com/tmg/tv/TvRemoteWireTest.kt",
+      "label": "private network address",
+      "sha256": "a9ceb170a43b1942c4c1b1cfc87c6e40f4f907ab970e89bbefe6e95e452ef9c6",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in an Install on TV test or doc example, not a real device address"
+    },
+    {
+      "file": "src-tauri/gen/android/app/src/test/java/com/tmg/tv/TvRemoteWireTest.kt",
+      "label": "private network address",
+      "sha256": "c9c12eab8a92eb9753429e575fd0bd7dfb62c78b9d01d6237567bf4149dd33d7",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in an Install on TV test or doc example, not a real device address"
+    },
+    {
+      "file": "src-tauri/gen/android/app/src/test/java/com/tmg/tv/TvRemoteWireTest.kt",
+      "label": "private network address",
+      "sha256": "7f41c6ffae8b707bfa3d70bacd6024137cc82f48a9189f9d4af62c7836a83626",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in an Install on TV test or doc example, not a real device address"
+    },
+    {
+      "file": "src-tauri/gen/android/app/src/test/java/com/tmg/tv/TvRemoteWireTest.kt",
+      "label": "private network address",
+      "sha256": "a4e134481fb1019284a79e28d982d8c8d77578cf38b03e3b3549ad08106d9d0f",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in an Install on TV test or doc example, not a real device address"
+    },
+    {
+      "file": "src-tauri/gen/android/app/src/test/java/com/tmg/tv/TvRemoteWireTest.kt",
+      "label": "private network address",
+      "sha256": "75b20f5c750956dafe244c3b0cf0293bb059b8e88b6cc669f81c785aaa852b48",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in an Install on TV test or doc example, not a real device address"
+    },
+    {
+      "file": "src-tauri/gen/android/app/src/test/java/com/tmg/tv/TvRemoteWireTest.kt",
+      "label": "private network address",
+      "sha256": "36c16cfc9d353a83b637ddf11e84cc9350e57aae8587036a6c72dd1246edd290",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in an Install on TV test or doc example, not a real device address"
+    },
+    {
+      "file": "src-tauri/src/sharing/send_to_tv.rs",
+      "label": "private network address",
+      "sha256": "a91c329e28f18da71754671de911d78d8cdbd202949f057c1f34e104eca56dc9",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in an Install on TV test or doc example, not a real device address"
+    },
+    {
+      "file": "src-tauri/src/sharing/send_to_tv.rs",
+      "label": "private network address",
+      "sha256": "562954b29fc3c2c4729086ff5b639f9c33013b61ef222aec3de4acfb6bcae48a",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in an Install on TV test or doc example, not a real device address"
+    },
+    {
+      "file": "tests/ui/share-links.spec.ts",
+      "label": "private network address",
+      "sha256": "e4f5bcdeaef33dbfcee8a5a735f8d9c4190b4374e809435e9ad3abbbcb6307f6",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in an Install on TV test or doc example, not a real device address"
     }
   ]
 }

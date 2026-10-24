@@ -80,6 +80,16 @@ struct Stats {
     downloads: AtomicU32,
     completed: AtomicU32,
     guesses: Guesses,
+    /// Install on TV's check (docs/send-to-tv.md TV-006): what GenX on the TV reported.
+    check_in: Mutex<Option<CheckIn>>,
+}
+
+/// A GenX copy's report of its installed file: the one shared here, or another.
+#[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) enum CheckIn {
+    Same,
+    Different,
 }
 
 struct Session {
@@ -115,6 +125,7 @@ pub(crate) struct NearbyStatus {
     pub downloads: u32,
     pub completed: u32,
     pub ended: Option<Ended>,
+    pub check_in: Option<CheckIn>,
 }
 
 impl NearbyOwner {
@@ -134,6 +145,7 @@ impl NearbyOwner {
                     downloads: session.stats.downloads.load(Ordering::SeqCst),
                     completed: session.stats.completed.load(Ordering::SeqCst),
                     ended: None,
+                    check_in: session.stats.check_in.lock().ok().and_then(|found| *found),
                 }
             }
             _ => NearbyStatus {
@@ -144,8 +156,13 @@ impl NearbyOwner {
                 downloads: 0,
                 completed: 0,
                 ended,
+                check_in: None,
             },
         }
+    }
+    /// The running session's address, if one is running.
+    pub(crate) fn current_url(&self) -> Option<String> {
+        self.status().url
     }
     /// Ends the session: no new connections; downloads under way may finish.
     pub(crate) fn stop(&self) {

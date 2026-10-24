@@ -23,6 +23,8 @@ use crate::sharing::compatibility::{self, Fit};
 pub(crate) enum Route {
     Page,
     File,
+    /// GenX on a TV reporting its installed file's SHA-256 (Install on TV, TV-006).
+    CheckIn(String),
     /// Digits that are not this session's code: a wrong guess, counted.
     WrongCode,
     NotFound,
@@ -62,6 +64,13 @@ pub(crate) fn request(head: &str, token: &str, file: &str) -> Request {
         Route::Page
     } else if path == format!("/{token}/{file}") {
         Route::File
+    } else if let Some(sha256) = path
+        .strip_prefix(&format!("/{token}/installed?sha256="))
+        .filter(|hex| {
+            hex.len() == 64 && hex.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+        })
+    {
+        Route::CheckIn(sha256.to_string())
     } else if !first.is_empty() && first != token && first.bytes().all(|b| b.is_ascii_digit()) {
         Route::WrongCode
     } else {
@@ -327,6 +336,17 @@ pub(crate) fn serve(
                     stats.completed.fetch_add(1, Ordering::SeqCst);
                 }
             }
+        }
+        Route::CheckIn(sha256) => {
+            let found = if sha256 == file.sha256 {
+                CheckIn::Same
+            } else {
+                CheckIn::Different
+            };
+            if let Ok(mut check_in) = stats.check_in.lock() {
+                *check_in = Some(found);
+            }
+            stream.write_all(response_head("204 No Content", "text/plain", 0, "").as_bytes())?;
         }
         Route::WrongCode => {
             stats.guesses.record(peer);

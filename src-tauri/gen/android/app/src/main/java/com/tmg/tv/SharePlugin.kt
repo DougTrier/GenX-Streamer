@@ -67,11 +67,37 @@ class SharePlugin(private val activity: Activity) : Plugin(activity) {
 
   private fun receive(intent: Intent?): Boolean {
     if (intent?.action != Intent.ACTION_VIEW) return false
+    // Install on TV's check (docs/send-to-tv.md TV-006): report this installed file's SHA-256.
+    TvCheckIn.reply(intent.dataString)?.let { reply ->
+      intent.data = null
+      val apk = activity.applicationInfo.sourceDir
+      Thread({ checkIn(reply, apk) }, "install-check").apply { isDaemon = true }.start()
+      return false
+    }
     val link = IncomingLink.admit(intent.dataString)
     intent.data = null
     if (link == null) return false
     pending = link
     return true
+  }
+
+  private fun checkIn(reply: String, apk: String) {
+    try {
+      val digest = java.security.MessageDigest.getInstance("SHA-256")
+      File(apk).inputStream().use { input ->
+        val buffer = ByteArray(1 shl 16)
+        while (true) { val n = input.read(buffer); if (n < 0) break; digest.update(buffer, 0, n) }
+      }
+      val sha256 = digest.digest().joinToString("") { "%02x".format(it) }
+      val address = TvCheckIn.report(reply, sha256) ?: return
+      val connection = java.net.URL(address).openConnection() as java.net.HttpURLConnection
+      connection.connectTimeout = 5000
+      connection.readTimeout = 5000
+      connection.instanceFollowRedirects = false
+      try { connection.responseCode } finally { connection.disconnect() }
+    } catch (_: Exception) {
+      // The phone then says plainly that the install could not be confirmed.
+    }
   }
 
   @Command

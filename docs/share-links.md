@@ -170,6 +170,13 @@ phone carries that copy's signature. A later release-signed build will not
 install over it; the receiver must uninstall first (which removes their saved
 channels: back up first).
 
+## Install on TV
+
+Android phones and tablets can put GenX on a Google TV or Android TV through
+the TV's built-in remote service: the person enters the code the TV shows and
+approves on the TV, and GenX opens its nearby file address there. See
+[send-to-tv.md](send-to-tv.md) (TV-001 to TV-008).
+
 ## Share with everyone nearby
 
 For a room full of friends (watching the game at home): GenX serves itself on

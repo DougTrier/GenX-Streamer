@@ -395,7 +395,8 @@ fn a_stopped_or_expired_session_reports_inactive() {
             visitors: 0,
             downloads: 0,
             completed: 0,
-            ended: None
+            ended: None,
+            check_in: None
         }
     );
 }
@@ -421,4 +422,41 @@ fn an_early_end_says_why_and_never_ends_a_newer_session() {
     *owner.session.lock().unwrap() = Some(session("http://192.168.1.20:8080/222222"));
     owner.end("http://192.168.1.20:8080/111111", Some(Ended::Network));
     assert!(owner.status().active);
+}
+
+#[test]
+fn genx_on_a_tv_reports_whether_it_runs_the_file_shared_here() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = file(dir.path());
+    let stats = Stats::default();
+    let other = "cd".repeat(32);
+    let ask = |path: String| format!("GET {path} HTTP/1.1\r\n\r\n");
+    let reply = exchange(
+        &ask(format!("/{TOKEN}/installed?sha256={other}")),
+        &file,
+        &stats,
+    );
+    assert!(String::from_utf8_lossy(&reply).starts_with("HTTP/1.1 204 No Content"));
+    assert_eq!(*stats.check_in.lock().unwrap(), Some(CheckIn::Different));
+    let sha = file.sha256.clone();
+    exchange(
+        &ask(format!("/{TOKEN}/installed?sha256={sha}")),
+        &file,
+        &stats,
+    );
+    assert_eq!(*stats.check_in.lock().unwrap(), Some(CheckIn::Same));
+    // Malformed reports and reports without the code are not check-ins (nor guesses).
+    for refused in [
+        format!("/{TOKEN}/installed?sha256=XYZ"),
+        format!("/{TOKEN}/installed"),
+        format!("/installed?sha256={other}"),
+    ] {
+        let reply = exchange(&ask(refused.clone()), &file, &stats);
+        assert!(
+            String::from_utf8_lossy(&reply).starts_with("HTTP/1.1 404"),
+            "{refused}"
+        );
+    }
+    assert_eq!(*stats.check_in.lock().unwrap(), Some(CheckIn::Same));
+    assert!(!stats.guesses.exhausted());
 }

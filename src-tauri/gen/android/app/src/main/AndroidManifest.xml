@@ -55,6 +55,15 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="genx" android:host="watch" />
             </intent-filter>
+            <!-- Install on TV (docs/send-to-tv.md TV-006): after the installer the phone
+                 opens genx://open?reply=<its nearby address> on the TV; GenX opens and
+                 reports its installed file's SHA-256 there, which proves the install. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="genx" android:host="open" />
+            </intent-filter>
         </activity>
 
         <!-- Websites run in their own process (docs/web-viewer-invariants.md W10). -->

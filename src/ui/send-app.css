@@ -176,3 +176,56 @@
   height: auto;
   border-radius: 8px;
 }
+
+/* Install on TV: one screen (TV-005): the steps, then only the current action. */
+#send-app-dialog .tv-steps {
+  margin: 4px 0 10px;
+  padding-left: 1.4em;
+}
+#send-app-dialog .tv-steps li {
+  margin: 2px 0;
+}
+#send-app-dialog .tv-now {
+  margin: 6px 0 10px;
+  font-size: 1.1em;
+  font-weight: 700;
+  color: var(--gx-text);
+}
+#send-app-dialog .tv-steps[hidden],
+#send-app-dialog .tv-now[hidden],
+#send-app-dialog .tv-list[hidden],
+#send-app-dialog .tv-code[hidden],
+#send-app-dialog .tv-buttons button[hidden],
+#send-app-dialog .tv-forget[hidden] {
+  display: none;
+}
+#send-app-dialog .tv-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+#send-app-dialog .tv-code {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+#send-app-dialog .tv-code input {
+  width: 7em;
+  font-size: 1.3em;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+}
+#send-app-dialog .tv-buttons {
+  display: flex;
+  gap: 8px;
+}
+#send-app-dialog .tv-forget {
+  margin-top: 10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--gx-muted, inherit);
+  font-size: 0.85em;
+  text-decoration: underline;
+}

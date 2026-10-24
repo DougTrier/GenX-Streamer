@@ -75,10 +75,17 @@ async function nativeRecorder(page: Page, answers: Record<string, unknown>) {
             },
           );
         }
+        // What the TV reports (Install on TV): set by the test as the TV would change.
+        if (command === 'tv_status')
+          return Promise.resolve(
+            Reflect.get(window, '__tv') ?? { connected: true, model: '', frontApp: '', changes: 0 },
+          );
         calls.push({ command, args });
         // A stopped session reads back as stopped, as the native layer reports it.
         if (command === 'nearby_stop') Reflect.set(window, '__nearby', undefined);
-        const answer = answers[command];
+        // A list answers one call each, in order.
+        const listed = answers[command];
+        const answer = Array.isArray(listed) ? listed.shift() : listed;
         return typeof answer === 'string' && answer.startsWith('reject:')
           ? Promise.reject(answer.slice('reject:'.length))
           : Promise.resolve(answer);
@@ -230,6 +237,112 @@ test.describe('on Android', () => {
         },
       ]);
   });
+  test('Install on TV pairs with the code on the TV and says installed only once GenX opened there', async ({
+    page,
+  }) => {
+    await fixture(page, 'send-to-tv');
+    await page.goto('/send-to-tv');
+    const tv = { connected: true, model: 'Google TV Streamer', frontApp: '', changes: 0 };
+    await nativeRecorder(page, {
+      app_identity: { ...androidIdentity, official: true, build: 'release' },
+      tv_find: { tvs: [{ name: 'Living Room TV', host: '192.168.1.30' }] },
+      tv_connect: ['reject:tv-not-paired', tv],
+      tv_pair_start: null,
+      tv_pair_finish: null,
+      tv_send_genx: tv,
+      tv_open_genx: tv,
+      tv_disconnect: null,
+      nearby_stop: null,
+    });
+    const setFront = (frontApp: string) =>
+      page.evaluate((status) => Reflect.set(window, '__tv', status), { ...tv, frontApp });
+    await setFront('com.google.android.apps.tv.launcherx');
+    const dialog = await mountSendApp(page);
+    const card = dialog.locator('.send-app-tv');
+    await expect(card.getByRole('heading', { name: 'Install on TV' })).toBeVisible();
+    await expect(card.locator('.tv-steps li')).toHaveText([
+      'Pick your TV.',
+      'Enter the code shown on your TV.',
+      'Approve on your TV.',
+    ]);
+    // Nothing reaches a TV until the person starts it.
+    expect(await page.evaluate(() => Reflect.get(window, '__calls'))).toEqual([]);
+    await card.getByRole('button', { name: 'Install on TV' }).click();
+    const now = card.locator('.tv-now');
+    await expect(now).toHaveText('Enter the code shown on your TV.');
+    await expect(card.locator('.tv-steps')).toBeHidden();
+    await card.getByRole('textbox', { name: 'Code shown on your TV' }).fill('3fa9c1');
+    await card.getByRole('button', { name: 'Pair' }).click();
+    await expect(now).toHaveText('Sending GenX Streamer…');
+    await setFront('com.esaba.downloader');
+    await expect(now).toHaveText('Sending GenX Streamer…');
+    await setFront('com.google.android.packageinstaller');
+    await expect(now).toHaveText('Please approve on your TV.');
+    // The installer closes: GenX asks the TV to open GenX, and only then says installed.
+    await setFront('com.esaba.downloader');
+    await expect(now).toHaveText('Checking your TV…');
+    // GenX in front is not enough: it must report the very file shared (TV-006).
+    await setFront('com.tmg.tv');
+    await page.waitForTimeout(1500);
+    await expect(now).toHaveText('Checking your TV…');
+    await page.evaluate(() =>
+      Reflect.set(window, '__nearby', {
+        active: true,
+        url: 'http://192.168.1.20:8080/482913',
+        expiresInMs: 500_000,
+        visitors: 1,
+        downloads: 1,
+        completed: 1,
+        ended: null,
+        checkIn: 'same',
+      }),
+    );
+    await expect(now).toHaveText('Ready! GenX Streamer is installed.');
+    await expect(card.getByRole('button', { name: 'Done' })).toBeVisible();
+    // One screen: the card fits without scrolling.
+    expect(await card.evaluate((element) => element.getBoundingClientRect().height)).toBeLessThan(
+      420,
+    );
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          (Reflect.get(window, '__calls') as { command: string }[]).map((call) => call.command),
+        ),
+      )
+      .toEqual([
+        'tv_find',
+        'tv_connect',
+        'tv_pair_start',
+        'tv_pair_finish',
+        'tv_connect',
+        'tv_send_genx',
+        'tv_open_genx',
+        'tv_disconnect',
+        'nearby_stop',
+      ]);
+    const calls = (await page.evaluate(() => Reflect.get(window, '__calls'))) as {
+      command: string;
+      args: unknown;
+    }[];
+    expect(calls[2].args).toEqual({ host: '192.168.1.30', name: 'Living Room TV' });
+    expect(calls[3].args).toEqual({ code: '3fa9c1' });
+  });
+  test('Install on TV says plainly when no TV is found, with one Try Again button', async ({
+    page,
+  }) => {
+    await fixture(page, 'send-to-tv-none');
+    await page.goto('/send-to-tv-none');
+    await nativeRecorder(page, {
+      app_identity: { ...androidIdentity, official: true, build: 'release' },
+      tv_find: { tvs: [] },
+    });
+    const dialog = await mountSendApp(page);
+    const card = dialog.locator('.send-app-tv');
+    await card.getByRole('button', { name: 'Install on TV' }).click();
+    await expect(card.locator('.tv-now')).toHaveText("Couldn't find a TV on this Wi-Fi.");
+    await expect(card.getByRole('button', { name: 'Try Again' })).toBeVisible();
+    await expect(card.getByRole('button', { name: 'Stop' })).toBeHidden();
+  });
   test('a development copy offers the link and QR code, never its own APK', async ({ page }) => {
     await fixture(page, 'send-app-android-dev');
     await page.goto('/send-app-android-dev');
@@ -238,6 +351,7 @@ test.describe('on Android', () => {
     await expect(dialog.locator('.send-app-development')).toBeVisible();
     await expect(dialog.locator('.send-app-file')).toBeHidden();
     await expect(dialog.locator('.send-app-nearby')).toBeHidden();
+    await expect(dialog.locator('.send-app-tv')).toBeHidden();
     await dialog.getByRole('button', { name: 'Show QR code' }).click();
     await expect(
       dialog.getByRole('img', { name: 'Code to open the GenX Streamer download page' }),

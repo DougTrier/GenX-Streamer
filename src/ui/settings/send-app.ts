@@ -24,6 +24,7 @@
  */
 import '../send-app.css';
 import { mountNearbyShare } from './send-app-nearby';
+import { mountSendToTv } from './send-app-tv';
 import { appIdentity, maySendAppFile } from '../../platform/app-identity';
 import { qrSvg } from '../../sharing/qr-code';
 import { isTauri } from '@tauri-apps/api/core';
@@ -96,6 +97,7 @@ export function mountSendApp(
           <p class="send-app-guidance"></p>
           <button type="button" class="primary send-app-file-button"></button>
         </section>
+        <section class="send-app-option send-app-tv" hidden></section>
         <section class="send-app-option send-app-nearby" hidden></section>
         <p class="send-app-development" hidden>Sending the app itself works from official releases. This copy is a development build, so send the link or the QR code instead.</p>
         <section class="send-app-option">
@@ -137,6 +139,8 @@ export function mountSendApp(
     if (fileAllowed) return;
     fileAllowed = appIdentity().then(maySendAppFile, () => false);
     nearby.activate(fileAllowed);
+    // Install on TV: Android phones and tablets send to a Google TV or Android TV.
+    if (android) toTv.activate(fileAllowed);
     void fileAllowed.then((allowed) => {
       if (disposed) return;
       fileOption.hidden = !allowed;
@@ -181,7 +185,8 @@ export function mountSendApp(
       });
   };
   const nearby = mountNearbyShare(dialog.querySelector<HTMLElement>('.send-app-nearby')!);
-  const removers: (() => void)[] = [nearby.dispose];
+  const toTv = mountSendToTv(dialog.querySelector<HTMLElement>('.send-app-tv')!);
+  const removers: (() => void)[] = [nearby.dispose, toTv.dispose];
   const listen = (button: HTMLButtonElement, handler: () => void) => {
     button.addEventListener('click', handler);
     removers.push(() => button.removeEventListener('click', handler));
