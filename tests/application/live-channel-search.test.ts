@@ -56,8 +56,7 @@ function fixture() {
   };
   const context = {
     element,
-    contentLibrary: 'live',
-    liveBrowseSuspended: false,
+    library: { contentLibrary: 'live', liveBrowseSuspended: false },
     browser: { search: (query: string) => calls.channelQueries.push(query) },
     libraryQueries: { live: '', genxtra: '' },
     playbackAction: (work: unknown) => work,
@@ -113,7 +112,7 @@ it('Guide opens on the grid and leaves the channel search text alone', () => {
 });
 it('background Live Enter cannot start a query or move focus', () => {
   const f = fixture();
-  f.context.liveBrowseSuspended = true;
+  f.context.library.liveBrowseSuspended = true;
   f.handlers.get('search:keydown')!({
     key: 'Enter',
     preventDefault() {

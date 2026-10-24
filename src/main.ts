@@ -24,22 +24,18 @@ import { createRendererRecoveryPolicy } from './application/renderer-recovery-po
 
 import { createSharingHost } from './application/sharing-host';
 import { createAccountPlayer, type AccountPlaybackChoice } from './application/account-player';
-import { createArchivePlayer, ArchiveFileRemovedError } from './application/archive-player';
+import { createArchivePlayer } from './application/archive-player';
 import { createArchiveBookmarks } from './platform/archive-bookmarks';
 import { createArchiveDownloads } from './application/archive-downloads';
 import { chooseArchiveResume } from './ui/archive-resume';
-import {
-  createArchiveDiscovery,
-  type ArchiveDiscoverySnapshot,
-} from './application/archive-discovery';
+
 import {
   createArchiveCatalog,
-  type ArchiveSelection,
   type ArchiveDecade,
   type ArchiveContentType,
 } from './platform/archive-catalog';
 import { mountArchiveSearch } from './ui/archive-search';
-import { archiveDiscoveryStatus } from './ui/archive-discovery-status';
+
 import { createOwnedAbortSignals } from './platform/abort';
 import { createAccountBrowser } from './application/account-browser';
 import { createPaidNowPlaying } from './application/paid-now-playing';
@@ -77,8 +73,6 @@ import { fetchAuxiliaryText } from './location/fetch';
 
 import { mountLibrarySwitcher } from './ui/library-switcher';
 
-import { lookupSeriesIdentity } from './platform/series-identity';
-
 import {
   defaultProviderRegistry,
   parseProviderRegistry,
@@ -106,9 +100,6 @@ import { mountViewingChoices } from './ui/viewing-choices';
 import { mountSettingsNavigation, mountLocationDialog } from './ui/settings-navigation';
 
 import { mountVODStop } from './ui/vod-stop';
-
-import { readVisibleGuide, type VisibleGuideChannel } from './guide/visible-native';
-import { createVisibleGuideOwner, type VisibleGuideScope } from './application/visible-guide';
 
 import { createPageInput } from './discovery/page-input';
 import { createSourceIndexService } from './discovery/source-index-service';
@@ -208,12 +199,18 @@ import {
 import './ui/dialog-polish.css';
 import { createScanController } from './application/scan-controller';
 import type { ContentLibrary } from './application/content-library';
-import type { PrimaryPage } from './application/primary-page';
+
 import { createGuideController } from './application/guide-controller';
 import { createChannelHealthController } from './application/channel-health-controller';
 import { createImportController } from './application/import-controller';
 import { createPlayerView } from './application/player-view';
 import { createGenxtraNavigation } from './application/genxtra-navigation';
+import { createLibraryState } from './application/library-state';
+import { createPageState } from './application/page-state';
+import { createVisibleGuideState } from './application/visible-guide-state';
+import { createVisibleGuideController } from './application/visible-guide-controller';
+import { createLibraryController } from './application/library-controller';
+import { createPageController } from './application/page-controller';
 
 const bootstrapBoundary = createBootstrapBoundary();
 const rendererRecoveryPolicy = createRendererRecoveryPolicy(() =>
@@ -330,22 +327,11 @@ let archivePlayer: ReturnType<typeof createArchivePlayer> | undefined;
 let localStreams: ReturnType<typeof mountLocalStreams> | undefined;
 // eslint-disable-next-line prefer-const
 let vodStopControl: ReturnType<typeof mountVODStop> | undefined;
-// eslint-disable-next-line prefer-const
 let archiveSearch: ReturnType<typeof mountArchiveSearch> | undefined;
 let archiveDownloads: ReturnType<typeof createArchiveDownloads> | undefined;
 let channelLogos: ReturnType<typeof createChannelLogos> | undefined;
-let contentLibrary: ContentLibrary = 'live';
+const library = createLibraryState();
 const libraryQueries: Record<ContentLibrary, string> = { live: '', genxtra: '' };
-let libraryIntent = 0;
-let archiveDecade: ArchiveDecade | null = null;
-let archiveContentType: ArchiveContentType | 'all' = 'all';
-let archiveFavoritesOnly = false;
-let archiveFilterGeneration = 0;
-let liveLibraryScroll = 0;
-let archiveStorageEpoch = 0;
-let archiveIndexRevision: string | null = null;
-let archiveResumeChoice: ArchiveSelection | null = null;
-let archiveBackgroundPaused = false;
 const archiveCatalog = createArchiveCatalog();
 // Bootstrap failure callbacks need the initialized optional binding above.
 // eslint-disable-next-line prefer-const
@@ -353,24 +339,23 @@ archiveDownloads = createArchiveDownloads({
   readyScope: archiveRuntimeScope,
   beforeRemove: async (downloadRef) => {
     if (archivePlayer?.selection?.downloadRef === downloadRef) await archivePlayer.stop();
-    if (archiveResumeChoice?.downloadRef === downloadRef) clearArchiveResume();
+    if (library.archiveResumeChoice?.downloadRef === downloadRef) clearArchiveResume();
   },
 });
 const liveBrowseJobs = new Map<AbortController, Promise<unknown>>();
-let liveBrowseSuspended = false;
 function archiveRuntimeScope(): string | null {
   if (!isTauri() || element('app').dataset.ready !== 'true') return null;
-  return applicationClosing ? null : `archive-storage-${archiveStorageEpoch}`;
+  return applicationClosing ? null : `archive-storage-${library.archiveStorageEpoch}`;
 }
 function archiveActiveScope(): string | null {
   const scope = archiveRuntimeScope();
   return scope &&
-    contentLibrary === 'genxtra' &&
-    primaryPage === 'watch' &&
+    library.contentLibrary === 'genxtra' &&
+    pageState.primaryPage === 'watch' &&
     !document.hidden &&
     nativeViewingForeground &&
     !backgroundSuspension
-    ? `${scope}:genxtra:${foregroundGeneration}:${archiveFilterGeneration}`
+    ? `${scope}:genxtra:${foregroundGeneration}:${library.archiveFilterGeneration}`
     : null;
 }
 function privatePlayback(selection: PlaybackSnapshot['selection']): boolean {
@@ -382,8 +367,8 @@ function privatePlayback(selection: PlaybackSnapshot['selection']): boolean {
   );
 }
 function clearArchiveResume(): void {
-  archiveResumeChoice = null;
-  archiveBackgroundPaused = false;
+  library.archiveResumeChoice = null;
+  library.archiveBackgroundPaused = false;
 }
 const playbackAllowsHttp = (url: string) =>
   archivePlayer?.allowsHttp(url) === true ||
@@ -712,7 +697,7 @@ archivePlayer = createArchivePlayer({
     if (!applicationClosing) notice(message);
   },
   readyScope: archiveRuntimeScope,
-  catalogRevision: () => archiveIndexRevision,
+  catalogRevision: () => library.archiveIndexRevision,
   beforeStart: async (signal) => {
     signal.throwIfAborted();
     admitForegroundPlayback();
@@ -967,7 +952,7 @@ const scanController = createScanController({
     return nativeViewingForeground;
   },
   get contentLibrary() {
-    return contentLibrary;
+    return library.contentLibrary;
   },
   get addChannelsEntryWork() {
     return addChannelsEntryWork;
@@ -1065,14 +1050,19 @@ element('find-sources-button').addEventListener('click', () => {
   element('settings-button').focus();
   websiteDiscovery.open(initialUrl);
 });
-let visibleGuide: ReturnType<typeof createVisibleGuideOwner> | null = null;
-let visibleGuideRows: readonly VisibleGuideChannel[] = [];
-let visibleGuideRequestedRows: readonly VisibleGuideChannel[] = [];
-let visibleGuideCatalog: CatalogRecord | null = null;
-let visibleGuideRemoved: readonly string[] | null = null;
-let visibleGuideIdentities = new Set<string>();
-let visibleGuideGeneration = 0;
-let visibleGuideKey: string | null = null;
+const visibleGuideState = createVisibleGuideState();
+// The guide-row controller is created further down, but the channel list can
+// ask for guide rows while it is still being set up. Until the controller
+// exists there is nothing to update, exactly as before it moved out of this
+// file (the guide owner did not exist yet then either).
+// eslint-disable-next-line prefer-const -- assigned once, below, and read before that
+let visibleGuideController: ReturnType<typeof createVisibleGuideController> | undefined;
+function updateVisibleGuide(): void {
+  visibleGuideController?.updateVisibleGuide();
+}
+function updateGuideForeground(): void {
+  visibleGuideController?.updateGuideForeground();
+}
 let catalogBrowseReady = false;
 const accountBrowser = createAccountBrowser({
   pageChanged: () => queueMicrotask(() => renderPlayer(player.snapshot)),
@@ -1139,14 +1129,14 @@ channelLogos = createChannelLogos({
     isTauri() &&
     element('app').dataset.ready === 'true' &&
     !applicationClosing &&
-    contentLibrary === 'live' &&
-    primaryPage === 'watch' &&
-    !liveBrowseSuspended &&
+    library.contentLibrary === 'live' &&
+    pageState.primaryPage === 'watch' &&
+    !library.liveBrowseSuspended &&
     !document.hidden &&
     nativeViewingForeground &&
     !accountBrowser.selectedAccount
       ? {
-          key: `${archiveStorageEpoch}:${persistedCatalogRevision}`,
+          key: `${library.archiveStorageEpoch}:${persistedCatalogRevision}`,
           revision: persistedCatalogRevision,
         }
       : null,
@@ -1173,7 +1163,7 @@ const browser = new ChannelBrowser(
   },
   {
     onVisibleGuideRows: (rows) => {
-      visibleGuideRows = rows.map((row) => ({ ...row }));
+      visibleGuideState.visibleGuideRows = rows.map((row) => ({ ...row }));
       updateVisibleGuide();
       paidNowPlaying?.setScope(rows);
     },
@@ -1184,21 +1174,21 @@ const browser = new ChannelBrowser(
           accountBrowser.selectedAccount ? accountBrowser.revision() : persistedCatalogRevision,
         ready: () =>
           element('app').dataset.ready === 'true' &&
-          contentLibrary === 'live' &&
-          !liveBrowseSuspended &&
+          library.contentLibrary === 'live' &&
+          !library.liveBrowseSuspended &&
           !document.hidden &&
           nativeViewingForeground &&
           (!!accountBrowser.selectedAccount || catalogBrowseReady),
         identity: () =>
-          `${libraryIntent}:` +
+          `${library.libraryIntent}:` +
           (accountBrowser.selectedAccount
             ? accountBrowser.identity()
             : `${catalogRevision}:${catalogBrowseViewRevision}`),
         query: (input, signal) => {
           if (
             element('app').dataset.ready !== 'true' ||
-            liveBrowseSuspended ||
-            contentLibrary !== 'live' ||
+            library.liveBrowseSuspended ||
+            library.contentLibrary !== 'live' ||
             applicationClosing ||
             document.hidden ||
             !nativeViewingForeground
@@ -1235,7 +1225,7 @@ const browser = new ChannelBrowser(
 );
 paidNowPlaying = createPaidNowPlaying({
   guide: createAccountGuide(),
-  account: () => (contentLibrary === 'live' ? accountBrowser.selectedAccount : null),
+  account: () => (library.contentLibrary === 'live' ? accountBrowser.selectedAccount : null),
   epgId: (id) => accountBrowser.selectionFor(id)?.channel.epgId ?? null,
   now: () => Date.now(),
   publish: (rows) => browser.setNowPlaying(rows),
@@ -1528,7 +1518,7 @@ const guideController = createGuideController({
     return catalog;
   },
   get visibleGuide() {
-    return visibleGuide;
+    return visibleGuideState.visibleGuide;
   },
   get guide() {
     return guide;
@@ -1574,179 +1564,58 @@ const guideController = createGuideController({
   },
 });
 const { automaticGuides, guideHost } = guideController;
-
-let primaryPage: PrimaryPage = 'watch';
-let primaryIntent = 0;
-let primaryTransitions: Promise<void> = Promise.resolve();
-type PrimaryTransitionStage =
-  | 'idle'
-  | 'queued'
-  | 'closing-guide'
-  | 'closing-search'
-  | 'refused'
-  | 'opening'
-  | 'completed'
-  | 'failed';
-type PrimaryTransitionReason =
-  | 'none'
-  | 'application-closing'
-  | 'superseded'
-  | 'document-hidden'
-  | 'native-background'
-  | 'operation-failed';
-let primaryTransitionStage: PrimaryTransitionStage = 'idle';
-let primaryTransitionReason: PrimaryTransitionReason = 'none';
-let primaryTransitionRevision = 0;
-let primaryTransitionActiveIntent = 0;
-let primaryTransitionRequestedIntent = 0;
-let primaryTransitionPending = 0;
-let primaryTransitionErrorCount = 0;
-function observePrimaryTransition(
-  stage: PrimaryTransitionStage,
-  reason: PrimaryTransitionReason = 'none',
-): void {
-  primaryTransitionStage = stage;
-  primaryTransitionReason = reason;
-  primaryTransitionRevision = Math.min(Number.MAX_SAFE_INTEGER, primaryTransitionRevision + 1);
-}
-const primaryHost = element('primary-view-host');
-let guideOpenedFrom = 'watch';
-/** While the Guide is open and something plays, the preview is a control:
- * OK, Enter or a click opens full screen; leaving full screen returns to the
- * Guide, and only Close guide returns to the normal view. */
-function updatePreviewControl(): void {
-  const screen = element('screen');
-  const app = element('app');
-  const selectable =
-    app.dataset.guidePanel === 'open' &&
-    app.dataset.playerIdle !== 'true' &&
-    !app.classList.contains('viewing-fullscreen');
-  if (selectable) {
-    screen.tabIndex = 0;
-    screen.setAttribute('role', 'button');
-    screen.setAttribute('aria-label', 'Watch full screen');
-    screen.title = 'Watch full screen';
-  } else {
-    if (document.activeElement === screen) screen.blur();
-    screen.removeAttribute('tabindex');
-    screen.removeAttribute('role');
-    screen.removeAttribute('aria-label');
-    screen.removeAttribute('title');
-  }
-}
-function selectPreview(event: Event): void {
-  if (element('screen').getAttribute('role') !== 'button') return;
-  event.preventDefault();
-  element('fullscreen-button').click();
-}
-element('screen').addEventListener('click', selectPreview);
-element('screen').addEventListener('keydown', (event) => {
-  if (event.key === 'Enter' || event.key === ' ') selectPreview(event);
+const pageState = createPageState();
+const pageController = createPageController({
+  get pageState() {
+    return pageState;
+  },
+  get element() {
+    return element;
+  },
+  get libraries() {
+    return libraries;
+  },
+  get library() {
+    return library;
+  },
+  get applicationClosing() {
+    return applicationClosing;
+  },
+  get guide() {
+    return guide;
+  },
+  get paidGuide() {
+    return paidGuide;
+  },
+  get archiveSearch() {
+    return archiveSearch;
+  },
+  get archiveDiscovery() {
+    return archiveDiscovery;
+  },
+  get nativeViewingForeground() {
+    return nativeViewingForeground;
+  },
+  get accountBrowser() {
+    return accountBrowser;
+  },
+  get libraryQueries() {
+    return libraryQueries;
+  },
 });
-function presentPrimaryPage(page: PrimaryPage): void {
-  primaryPage = page;
-  // The guide opens in the right panel under a small playing picture; the
-  // channel list and the library tabs stay as they are.
-  primaryHost.hidden = page === 'watch';
-  const app = element('app');
-  const wasOpen = app.dataset.guidePanel === 'open';
-  app.dataset.guidePanel = page === 'guide' ? 'open' : 'closed';
-  // Phones show one panel: the guide takes it, and closing returns to the
-  // panel it was opened from (the channel row holds the Guide button).
-  // Outside the phone's separate screens the Guide always opens from the channel row.
-  if (page === 'guide' && !wasOpen)
-    guideOpenedFrom = app.classList.contains('compact-content')
-      ? (app.dataset.compactView ?? 'watch')
-      : 'channels';
-  const compact = page === 'guide' ? 'watch' : wasOpen ? guideOpenedFrom : null;
-  if (compact) {
-    app.dataset.compactView = compact;
-    element<HTMLSelectElement>('compact-view').value = compact;
-  }
-  libraries?.present(contentLibrary === 'live');
-  updatePreviewControl();
-  element('genxtra-button').setAttribute(
-    'aria-pressed',
-    String(page === 'watch' && contentLibrary === 'genxtra'),
-  );
-  element('guide-button').setAttribute('aria-pressed', String(page === 'guide'));
-  element<HTMLButtonElement>('guide-button').disabled = contentLibrary === 'genxtra';
-}
-function switchPrimaryPage(page: PrimaryPage, query = ''): Promise<void> {
-  const intent = ++primaryIntent;
-  primaryTransitionRequestedIntent = intent;
-  primaryTransitionPending++;
-  if (!primaryTransitionActiveIntent) observePrimaryTransition('queued');
-  const work = primaryTransitions.then(async () => {
-    primaryTransitionActiveIntent = intent;
-    try {
-      if (applicationClosing) {
-        observePrimaryTransition('refused', 'application-closing');
-        return;
-      }
-      observePrimaryTransition('closing-guide');
-      await guide.close();
-      await paidGuide.hide();
-      observePrimaryTransition('closing-search');
-      if (page !== 'watch') {
-        await archiveSearch?.suspend({ preserveSelection: true });
-        await archiveDiscovery.suspend();
-      }
-      const reason: PrimaryTransitionReason =
-        intent !== primaryIntent
-          ? 'superseded'
-          : applicationClosing
-            ? 'application-closing'
-            : document.hidden
-              ? 'document-hidden'
-              : !nativeViewingForeground
-                ? 'native-background'
-                : 'none';
-      if (reason !== 'none') {
-        observePrimaryTransition('refused', reason);
-        return;
-      }
-      observePrimaryTransition('opening');
-      const paidAccount = page === 'guide' ? accountBrowser.selectedAccount : null;
-      if (paidAccount) {
-        // Paid TV: the provider's own guide. Its download continues in the
-        // panel; the transition queue never waits for the network.
-        presentPrimaryPage('guide');
-        void paidGuide.show({ ...paidAccount });
-        paidGuide.focus();
-      } else if (page === 'guide') await guide.open(query);
-      else {
-        presentPrimaryPage('watch');
-        element('guide-button').focus({ preventScroll: true });
-        if (contentLibrary === 'genxtra') await archiveSearch?.resume(libraryQueries.genxtra);
-      }
-      observePrimaryTransition('completed');
-    } catch (error) {
-      primaryTransitionErrorCount = Math.min(
-        Number.MAX_SAFE_INTEGER,
-        primaryTransitionErrorCount + 1,
-      );
-      observePrimaryTransition('failed', 'operation-failed');
-      throw error;
-    } finally {
-      primaryTransitionPending--;
-      primaryTransitionActiveIntent = 0;
-    }
-  });
-  primaryTransitions = work.catch(() => undefined);
-  return work;
-}
+const { primaryHost, switchPrimaryPage, presentPrimaryPage, updatePreviewControl } = pageController;
+
 const guideChannelLogos = createChannelLogos({
   readyScope: () =>
     isTauri() &&
     element('app').dataset.ready === 'true' &&
     !applicationClosing &&
-    primaryPage === 'guide' &&
+    pageState.primaryPage === 'guide' &&
     !document.hidden &&
     nativeViewingForeground &&
     !accountBrowser.selectedAccount
       ? {
-          key: `${archiveStorageEpoch}:${persistedCatalogRevision}`,
+          key: `${library.archiveStorageEpoch}:${persistedCatalogRevision}`,
           revision: persistedCatalogRevision,
         }
       : null,
@@ -1800,7 +1669,7 @@ const guide = mountGuide(primaryHost, {
     });
   },
   closed: async () => {
-    if (primaryPage === 'guide') presentPrimaryPage('watch');
+    if (pageState.primaryPage === 'guide') presentPrimaryPage('watch');
   },
   buildForChannels: (signal) => {
     // Explicit Find retries discovery; automatic requests keep the retry cooldown.
@@ -1821,543 +1690,123 @@ const guide = mountGuide(primaryHost, {
     });
   },
 });
-function recordArchiveRevision(revision: string): void {
-  if (
-    archiveRuntimeScope() !== null &&
-    (archiveIndexRevision === null || BigInt(revision) >= BigInt(archiveIndexRevision))
-  )
-    archiveIndexRevision = revision;
-}
-function renderArchiveDiscovery(snapshot: Readonly<ArchiveDiscoverySnapshot>): void {
-  const status = element('genxtra-discovery-progress');
-  const presentation = archiveDiscoveryStatus(snapshot, { nowEpochMs: Date.now() });
-  status.hidden =
-    contentLibrary !== 'genxtra' ||
-    snapshot.query !== element<HTMLInputElement>('search').value.trim() ||
-    snapshot.decade !== archiveDecade ||
-    presentation.hidden;
-  status.textContent = status.hidden ? '' : presentation.text;
-  // Full counters remain optional metadata, rather than a second visible status block.
-  status.dataset.discoveryDetails = status.hidden ? '' : presentation.details;
-  if (!status.hidden) archiveSearch?.searchProgress(snapshot.query, snapshot.examined);
-}
-const publicProviderDiagnosticStates = new Map<string, string>();
-const archiveDiscovery = createArchiveDiscovery({
-  catalog: archiveCatalog,
-  readyScope: archiveRuntimeScope,
-  progress: renderArchiveDiscovery,
-  committed: (receipt) => recordArchiveRevision(receipt.revision),
-  publicCommitted: (receipt) => {
-    recordArchiveRevision(receipt.revision);
-    const unavailableCodes = {
-      loc: 'application-archive-loc-unavailable',
-      nasa: 'application-archive-nasa-unavailable',
-      commons: 'application-archive-commons-unavailable',
-    } as const;
-    for (const provider of receipt.providers) {
-      const state = `${provider.state}:${provider.reason ?? ''}`;
-      const previous = publicProviderDiagnosticStates.get(provider.providerId);
-      publicProviderDiagnosticStates.set(provider.providerId, state);
-      if (previous === state) continue;
-      if (provider.state === 'configuration-required' && provider.providerId === 'commons')
-        void diagnostics.emit({
-          operation: 'application',
-          level: 'warning',
-          code: 'application-archive-commons-identification-required',
-        });
-      else if (provider.state === 'failed' || provider.state === 'waiting')
-        void diagnostics.emit({
-          operation: 'application',
-          level: 'warning',
-          code: unavailableCodes[provider.providerId],
-        });
-    }
+const libraryController = createLibraryController({
+  get archiveRuntimeScope() {
+    return archiveRuntimeScope;
+  },
+  get library() {
+    return library;
+  },
+  get element() {
+    return element;
+  },
+  get archiveSearch() {
+    return archiveSearch;
+  },
+  set archiveSearch(value) {
+    archiveSearch = value;
+  },
+  get archiveCatalog() {
+    return archiveCatalog;
+  },
+  get diagnostics() {
+    return diagnostics;
+  },
+  get archiveDownloads() {
+    return archiveDownloads;
+  },
+  get clearArchiveResume() {
+    return clearArchiveResume;
+  },
+  get archivePlayer() {
+    return archivePlayer;
+  },
+  get player() {
+    return player;
+  },
+  get archiveActiveScope() {
+    return archiveActiveScope;
+  },
+  get playbackAction() {
+    return playbackAction;
+  },
+  get libraryQueries() {
+    return libraryQueries;
+  },
+  get vodDock() {
+    return vodDock;
+  },
+  get categoryMenu() {
+    return categoryMenu;
+  },
+  get televisionSelects() {
+    return televisionSelects;
+  },
+  get presentPrimaryPage() {
+    return presentPrimaryPage;
+  },
+  get pageState() {
+    return pageState;
+  },
+  get liveBrowseJobs() {
+    return liveBrowseJobs;
+  },
+  get channelLogos() {
+    return channelLogos;
+  },
+  get applicationClosing() {
+    return applicationClosing;
+  },
+  get nativeViewingForeground() {
+    return nativeViewingForeground;
+  },
+  get backgroundSuspension() {
+    return backgroundSuspension;
+  },
+  get renderCatalog() {
+    return renderCatalog;
+  },
+  get browser() {
+    return browser;
+  },
+  get preferences() {
+    return preferences;
+  },
+  get transferBusy() {
+    return transferBusy;
+  },
+  get settings() {
+    return settings;
+  },
+  set settings(value) {
+    settings = value;
+  },
+  get notice() {
+    return notice;
+  },
+  get guide() {
+    return guide;
+  },
+  get sourceScan() {
+    return sourceScan;
   },
 });
-archiveSearch = mountArchiveSearch(element('genxtra-library'), {
-  downloads: archiveDownloads,
-  seriesLookup: lookupSeriesIdentity,
-  onPlaySaved: async (entry, revision, signal) => {
-    clearArchiveResume();
-    await archivePlayer!.selectSaved(entry, revision, signal);
-  },
-  detailsContainer: element('archive-details'),
-  playbackActive: () =>
-    player.snapshot.selection !== null &&
-    player.snapshot.state !== 'idle' &&
-    player.snapshot.state !== 'disposed',
-  onTitleSelected: () => {
-    if (element('app').classList.contains('compact-content')) {
-      element<HTMLSelectElement>('compact-view').value = 'watch';
-      element('compact-view').dispatchEvent(new Event('change'));
-    }
-  },
-  managementContainer:
-    document.querySelector<HTMLElement>('[data-settings-panel="sources"]') ?? undefined,
-  onRemove: async (target, expectedRevision, signal) => {
-    const scope = archiveRuntimeScope();
-    const check = () => {
-      signal.throwIfAborted();
-      if (scope === null || archiveRuntimeScope() !== scope)
-        throw new DOMException('Canceled', 'AbortError');
-    };
-    check();
-    // Join discovery originals, including late durable receipts, before mutation.
-    // If discovery advanced the revision, native CAS refuses this stale choice.
-    await archiveDiscovery.suspend();
-    check();
-    const matches = (choice: ArchiveSelection) =>
-      !choice.downloadRef &&
-      (target.kind === 'library' ||
-        (choice.titleRef === target.titleRef &&
-          (target.kind === 'title' || choice.fileRef === target.fileRef)));
-    const selected = archivePlayer!.selection;
-    if (selected && matches(selected)) await archivePlayer!.stop();
-    if (archiveResumeChoice && matches(archiveResumeChoice)) clearArchiveResume();
-    check();
-    const receipt = await archiveCatalog.remove(
-      target,
-      { schemaVersion: 1, expectedRevision, explicitAction: true },
-      signal,
-    );
-    // COMMIT truth survives a late abort, but never crosses a replaced storage root.
-    if (archiveRuntimeScope() === scope) recordArchiveRevision(receipt.revision);
-    return receipt;
-  },
-  input: element<HTMLInputElement>('search'),
-  catalog: archiveCatalog,
-  readyScope: archiveActiveScope,
-  queryOptions: () => ({
-    decade: archiveDecade,
-    favoritesOnly: archiveFavoritesOnly,
-    contentType: archiveContentType,
-  }),
-  clearFilters: () =>
-    playbackAction(
-      changeArchiveFilter(() => {
-        archiveDecade = null;
-        archiveContentType = 'all';
-        libraryQueries.genxtra = '';
-        element<HTMLInputElement>('search').value = '';
-        element('clear-search').hidden = true;
-      }),
-    ),
-  artwork: (request, signal) => archiveCatalog.artwork(request, signal),
-  pendingFiles: (expectedRevision, offset, query, signal, languageMode, contentType) =>
-    archiveCatalog.itemFilesProgress(
-      {
-        schemaVersion: 1,
-        expectedRevision,
-        offset,
-        pageSize: 5,
-        query,
-        decade: archiveDecade,
-        favoritesOnly: archiveFavoritesOnly,
-        languageMode,
-        contentType: contentType ?? archiveContentType,
-      },
-      signal,
-    ),
-  loadFiles: async (progress, expectedRevision, signal) => {
-    const receipt = await archiveCatalog.itemFilesStep(
-      {
-        schemaVersion: 1,
-        titleRef: progress.titleRef,
-        expectedRevision,
-        expectedOffset: progress.nextOffset,
-        explicitAction: true,
-      },
-      signal,
-    );
-    recordArchiveRevision(receipt.revision);
-    return receipt;
-  },
-  onSelect: async (selection, signal) => {
-    recordArchiveRevision(selection.expectedRevision);
-    clearArchiveResume();
-    try {
-      await archivePlayer!.select(selection, signal);
-    } catch (error) {
-      if (error instanceof ArchiveFileRemovedError) {
-        recordArchiveRevision(error.receipt.revision);
-        throw new Error('This file was confirmed unavailable and removed from playable results.', {
-          cause: error,
-        });
-      }
-      throw error;
-    }
-  },
-  onFavorite: async (title, expectedRevision, value, signal) => {
-    const receipt = await archiveCatalog.setFavorite(
-      { schemaVersion: 1, titleRef: title.titleRef, expectedRevision, value },
-      signal,
-    );
-    recordArchiveRevision(receipt.revision);
-    return receipt;
-  },
-  discover: async (query, signal, intent, view) => {
-    const result = await archiveDiscovery.discover(
-      query,
-      signal,
-      intent ?? 'search',
-      archiveDecade,
-      view,
-    );
-    recordArchiveRevision(result.revision);
-    return result;
-  },
-});
-Object.defineProperty(window, '__GENX_ARCHIVE_ARTWORK__', {
-  get: () => archiveSearch?.artworkSnapshot() ?? null,
-});
-function presentLibrary(): void {
-  const extra = contentLibrary === 'genxtra';
-  element('app').dataset.contentLibrary = contentLibrary;
-  vodDock.render(
-    player.snapshot.selection ? player.snapshot.selection.playMode === 'on-demand' : extra,
-  );
-  element('genxtra-library').hidden = !extra;
-  archiveSearch?.syncDetails();
-  if (!extra) element('archive-details').hidden = true;
-  element('genxtra-browse-filters').hidden = !extra;
-  element('genxtra-filter-status').hidden = !extra;
-  element('genxtra-discovery-progress').hidden =
-    !extra || archiveDiscovery.snapshot.state === 'idle';
-  const liveFilters = element('channel-list').parentElement?.querySelector<HTMLElement>(
-    '.browse-options .filters',
-  );
-  if (liveFilters) {
-    // The category list (category-menu.ts) owns hidden on TV and Windows.
-    liveFilters.dataset.libraryHidden = String(extra);
-    if (categoryMenu) categoryMenu.sync();
-    else liveFilters.hidden = extra;
-  }
-  element('search').setAttribute(
-    'aria-label',
-    extra ? 'Search saved GenXtra shows and movies' : 'Search channels and programs',
-  );
-  element('search-programs').title = extra
-    ? 'Search shows and movies online'
-    : 'Find channels online';
-  element<HTMLInputElement>('search').placeholder = extra
-    ? 'Search shows and movies'
-    : 'Search channels or programs';
-  element('search-programs').setAttribute(
-    'aria-label',
-    extra ? 'Search GenXtra online' : 'Find channels online',
-  );
-  element('genxtra-filter-status').textContent =
-    `${archiveDecade === 2020 ? '20s+' : archiveDecade ? `${String(archiveDecade).slice(2)}s` : 'All years'}${archiveFavoritesOnly ? ' · Favorites' : ''} · Source-listed years`;
-  element<HTMLSelectElement>('genxtra-kind-select').value = archiveFavoritesOnly
-    ? 'favorites'
-    : archiveContentType;
-  element<HTMLSelectElement>('genxtra-decade-select').value =
-    archiveDecade === null ? 'all' : String(archiveDecade);
-  televisionSelects?.refresh();
-  presentPrimaryPage(primaryPage);
-  if (player.snapshot.state === 'idle' && !player.snapshot.selection && !archiveBackgroundPaused) {
-    element('overlay-title').textContent = extra
-      ? 'Your next favorite show.'
-      : 'Your next favorite channel.';
-    element('overlay-message').textContent = extra
-      ? 'Browse a decade, or search for shows and movies.'
-      : 'Choose a channel, or use channel search to discover more.';
-  }
-  renderArchiveDiscovery(archiveDiscovery.snapshot);
-}
-async function joinLiveBrowse(): Promise<void> {
-  for (const owner of liveBrowseJobs.keys()) owner.abort();
-  const results = await Promise.allSettled([...liveBrowseJobs.values(), channelLogos?.suspend()]);
-  if (
-    results.some(
-      (result) =>
-        result.status === 'rejected' &&
-        !(result.reason instanceof DOMException && result.reason.name === 'AbortError'),
-    )
-  )
-    throw new Error('Channel browsing cleanup could not be confirmed.');
-}
-const libraryOperationNames = [
-  'guide',
-  'archive-search',
-  'archive-discovery',
-  'source-entry',
-  'source-scan',
-  'live-browse',
-  'archive-read',
-  'source-resume',
-] as const;
-type LibraryOperationName = (typeof libraryOperationNames)[number];
-let libraryTransitionStage:
-  | 'idle'
-  | 'queued'
-  | 'draining'
-  | 'opening'
-  | 'saving'
-  | 'restoring'
-  | 'completed'
-  | 'refused'
-  | 'failed' = 'idle';
-let libraryTransitionActive = 0,
-  libraryTransitionPending = 0,
-  libraryTransitionErrors = 0,
-  libraryTransitionRevision = 0;
-const libraryPendingDrains = new Set<LibraryOperationName>(),
-  libraryFailedDrains = new Set<LibraryOperationName>();
-function observeLibrary(stage: typeof libraryTransitionStage): void {
-  libraryTransitionStage = stage;
-  libraryTransitionRevision = Math.min(Number.MAX_SAFE_INTEGER, libraryTransitionRevision + 1);
-}
-function trackLibraryOperation(
-  name: LibraryOperationName,
-  task: () => Promise<unknown> | void,
-): Promise<void> {
-  libraryPendingDrains.add(name);
-  libraryTransitionRevision = Math.min(Number.MAX_SAFE_INTEGER, libraryTransitionRevision + 1);
-  return Promise.resolve()
-    .then(task)
-    .then(
-      () => undefined,
-      (error) => {
-        libraryFailedDrains.add(name);
-        throw error;
-      },
-    )
-    .finally(() => {
-      libraryPendingDrains.delete(name);
-      libraryTransitionRevision = Math.min(Number.MAX_SAFE_INTEGER, libraryTransitionRevision + 1);
-    });
-}
-Object.defineProperty(window, '__GENX_LIBRARY_TRANSITION__', {
-  configurable: false,
-  get: () =>
-    Object.freeze({
-      schemaVersion: 1,
-      generation: libraryIntent,
-      revision: libraryTransitionRevision,
-      stage: libraryTransitionStage,
-      active: libraryTransitionActive !== 0,
-      activeIntent: libraryTransitionActive,
-      pending: libraryTransitionPending > 0,
-      queued: libraryTransitionPending > (libraryTransitionActive ? 1 : 0),
-      errorCount: libraryTransitionErrors,
-      pendingPreferenceWrites: libraryPersistenceJobs.size,
-      activePreferenceWrites: libraryPersistenceActive,
-      preferenceErrorCount: libraryPersistenceErrors,
-      unsavedLibraryChoice: libraryPersistenceUnsaved,
-      pendingDrains: Object.freeze(
-        libraryOperationNames.filter((name) => libraryPendingDrains.has(name)),
-      ),
-      failedDrains: Object.freeze(
-        libraryOperationNames.filter((name) => libraryFailedDrains.has(name)),
-      ),
-    }),
-});
-async function restoreLibraryPane(previous: ContentLibrary, intent: number): Promise<void> {
-  if (intent !== libraryIntent || applicationClosing) return;
-  contentLibrary = previous;
-  const active =
-    element('app').dataset.ready === 'true' &&
-    !document.hidden &&
-    nativeViewingForeground &&
-    !backgroundSuspension;
-  liveBrowseSuspended = previous !== 'live' || !active;
-  document.querySelector<HTMLElement>('.browser')!.inert = !active;
-  presentPrimaryPage('watch');
-  element<HTMLInputElement>('search').value = libraryQueries[previous];
-  element('clear-search').hidden = !libraryQueries[previous];
-  presentLibrary();
-  if (!active) return;
-  if (previous === 'live') {
-    renderCatalog();
-    browser.search(libraryQueries.live);
-    element('channel-list').scrollTop = liveLibraryScroll;
-  } else
-    await trackLibraryOperation('archive-read', () =>
-      archiveSearch!.resume(libraryQueries.genxtra),
-    );
-}
-// Presentation and durable settings have distinct owners. A SQLite backup may
-// take time; its actual write remains retained without occupying navigation.
-let libraryPersistenceChoice = 0;
-let libraryPersistenceActive = 0;
-let libraryPersistenceErrors = 0;
-let libraryPersistenceUnsaved = false;
-const libraryPersistenceJobs = new Set<Promise<void>>();
-function persistLibraryChoice(next: ContentLibrary): void {
-  const choice = ++libraryPersistenceChoice;
-  const epoch = archiveStorageEpoch;
-  libraryPersistenceUnsaved = true;
-  let admitted = false;
-  const work = preferences
-    .update(
-      (draft) => {
-        draft.contentLibrary = next;
-      },
-      async () => {
-        if (choice !== libraryPersistenceChoice || epoch !== archiveStorageEpoch || transferBusy)
-          return false;
-        admitted = true;
-        libraryPersistenceActive++;
-        return true;
-      },
-    )
-    .then((saved) => {
-      // A late COMMIT is durable truth. Updating metadata must never re-present
-      // an obsolete pane or run applySettings behind a newer user selection.
-      if (epoch === archiveStorageEpoch) settings = saved;
-      if (choice === libraryPersistenceChoice && epoch === archiveStorageEpoch)
-        libraryPersistenceUnsaved = false;
-    })
-    .catch((error: unknown) => {
-      if (
-        error instanceof DOMException &&
-        error.name === 'AbortError' &&
-        (choice !== libraryPersistenceChoice || epoch !== archiveStorageEpoch)
-      )
-        return;
-      libraryPersistenceErrors = Math.min(Number.MAX_SAFE_INTEGER, libraryPersistenceErrors + 1);
-      void diagnostics.emit({ operation: 'storage', level: 'error', code: 'storage-failed' });
-      if (
-        choice === libraryPersistenceChoice &&
-        epoch === archiveStorageEpoch &&
-        !applicationClosing
-      )
-        notice(
-          'Your library choice wasn’t saved. Both tabs remain available; switch tabs to retry saving.',
-        );
-    })
-    .finally(() => {
-      if (admitted) libraryPersistenceActive--;
-      libraryPersistenceJobs.delete(work);
-      libraryTransitionRevision = Math.min(Number.MAX_SAFE_INTEGER, libraryTransitionRevision + 1);
-    });
-  libraryPersistenceJobs.add(work);
-  libraryTransitionRevision = Math.min(Number.MAX_SAFE_INTEGER, libraryTransitionRevision + 1);
-}
-async function joinLibraryPersistence(): Promise<void> {
-  // Queued latest choices are owned too. Neither background nor Exit abandons
-  // the original settings invoke or its native backup/publication work.
-  while (libraryPersistenceJobs.size) await Promise.allSettled([...libraryPersistenceJobs]);
-}
-function switchLibrary(next: ContentLibrary, persist = true, focus = true): Promise<void> {
-  if (
-    next === contentLibrary &&
-    primaryPage === 'watch' &&
-    !libraryTransitionActive &&
-    libraryTransitionPending === 0 &&
-    !applicationClosing &&
-    element('app').dataset.ready === 'true' &&
-    !element('app').inert &&
-    !document.querySelector<HTMLElement>('.browser')!.inert
-  )
-    return Promise.resolve();
-  const opener = document.activeElement,
-    intent = ++libraryIntent;
-  liveBrowseSuspended = true;
-  document.querySelector<HTMLElement>('.browser')!.inert = true;
-  primaryIntent++;
-  libraryTransitionPending++;
-  if (!libraryTransitionActive) observeLibrary('queued');
-  const work = primaryTransitions.then(async () => {
-    libraryTransitionActive = intent;
-    libraryFailedDrains.clear();
-    const previous = contentLibrary;
-    try {
-      if (applicationClosing || element('app').dataset.ready !== 'true') {
-        observeLibrary('refused');
-        await restoreLibraryPane(previous, intent);
-        return;
-      }
-      libraryQueries[previous] = element<HTMLInputElement>('search').value;
-      if (previous === 'live') liveLibraryScroll = element('channel-list').scrollTop;
-      observeLibrary('draining');
-      // Every admitted drain settles before refusal/failure can restore a pane.
-      const drains = await Promise.allSettled([
-        trackLibraryOperation('guide', () => guide.close()),
-        trackLibraryOperation('archive-search', () =>
-          archiveSearch!.suspend({ preserveSelection: true }),
-        ),
-        trackLibraryOperation('archive-discovery', () => archiveDiscovery.suspend()),
-        // Channel discovery and scans are background work: they keep running across
-        // page switches (they never use the player) and pause only when the app does.
-        trackLibraryOperation('live-browse', () => joinLiveBrowse()),
-      ]);
-      if (drains.some((result) => result.status === 'rejected'))
-        throw new Error('Library cleanup failed.');
-      if (
-        intent !== libraryIntent ||
-        applicationClosing ||
-        document.hidden ||
-        !nativeViewingForeground
-      ) {
-        observeLibrary('refused');
-        await restoreLibraryPane(previous, intent);
-        return;
-      }
-      observeLibrary('opening');
-      contentLibrary = next;
-      liveBrowseSuspended = next !== 'live';
-      document.querySelector<HTMLElement>('.browser')!.inert = false;
-      presentPrimaryPage('watch');
-      element<HTMLInputElement>('search').value = libraryQueries[next];
-      element('clear-search').hidden = !libraryQueries[next];
-      presentLibrary();
-      if (next === 'genxtra')
-        await trackLibraryOperation('archive-read', () =>
-          archiveSearch!.resume(libraryQueries.genxtra),
-        );
-      else {
-        renderCatalog();
-        browser.search(libraryQueries.live);
-        element('channel-list').scrollTop = liveLibraryScroll;
-        await trackLibraryOperation('source-resume', () => sourceScan.resume());
-      }
-      if (intent !== libraryIntent || applicationClosing) {
-        observeLibrary('refused');
-        await restoreLibraryPane(previous, intent);
-        return;
-      }
-      if (persist) persistLibraryChoice(next);
-      if (focus && document.activeElement === opener)
-        element(next === 'genxtra' ? 'genxtra-button' : 'live-tv-button').focus({
-          preventScroll: true,
-        });
-      observeLibrary('completed');
-    } catch {
-      libraryTransitionErrors = Math.min(Number.MAX_SAFE_INTEGER, libraryTransitionErrors + 1);
-      observeLibrary('restoring');
-      try {
-        await restoreLibraryPane(previous, intent);
-      } finally {
-        observeLibrary('failed');
-      }
-      throw new Error(
-        'The library switch could not finish. Your previous library is available; select the tab again to retry.',
-      );
-    } finally {
-      libraryTransitionPending--;
-      libraryTransitionActive = 0;
-    }
-  });
-  primaryTransitions = work.catch(() => undefined);
-  return work;
-}
+const {
+  recordArchiveRevision,
+  switchLibrary,
+  archiveDiscovery,
+  changeArchiveFilter,
+  renderArchiveDiscovery,
+  joinLiveBrowse,
+  joinLibraryPersistence,
+  presentLibrary,
+} = libraryController;
 
-async function changeArchiveFilter(change: () => void): Promise<void> {
-  if (contentLibrary !== 'genxtra' || applicationClosing) return;
-  change();
-  archiveFilterGeneration++;
-  await archiveDiscovery.suspend();
-  if (contentLibrary !== 'genxtra' || applicationClosing) return;
-  presentLibrary();
-  await archiveSearch!.query(libraryQueries.genxtra);
-}
 element('genxtra-decade-select').addEventListener('change', () =>
   playbackAction(
     changeArchiveFilter(() => {
       const value = element<HTMLSelectElement>('genxtra-decade-select').value;
-      archiveDecade = value === 'all' ? null : (Number(value) as ArchiveDecade);
+      library.archiveDecade = value === 'all' ? null : (Number(value) as ArchiveDecade);
     }),
   ),
 );
@@ -2365,8 +1814,10 @@ element('genxtra-kind-select').addEventListener('change', () =>
   playbackAction(
     changeArchiveFilter(() => {
       const value = element<HTMLSelectElement>('genxtra-kind-select').value;
-      archiveFavoritesOnly = value === 'favorites';
-      archiveContentType = archiveFavoritesOnly ? 'all' : (value as ArchiveContentType | 'all');
+      library.archiveFavoritesOnly = value === 'favorites';
+      library.archiveContentType = library.archiveFavoritesOnly
+        ? 'all'
+        : (value as ArchiveContentType | 'all');
     }),
   ),
 );
@@ -2424,88 +1875,50 @@ Object.defineProperty(window, '__GENX_PRIMARY_TRANSITION__', {
   get: () =>
     Object.freeze({
       schemaVersion: 1,
-      revision: primaryTransitionRevision,
-      stage: primaryTransitionStage,
-      reason: primaryTransitionReason,
-      activeIntent: primaryTransitionActiveIntent,
-      requestedIntent: primaryTransitionRequestedIntent,
-      pending: primaryTransitionPending > 0,
-      queued: primaryTransitionPending > (primaryTransitionActiveIntent ? 1 : 0),
-      errorCount: primaryTransitionErrorCount,
+      revision: pageState.primaryTransitionRevision,
+      stage: pageState.primaryTransitionStage,
+      reason: pageState.primaryTransitionReason,
+      activeIntent: pageState.primaryTransitionActiveIntent,
+      requestedIntent: pageState.primaryTransitionRequestedIntent,
+      pending: pageState.primaryTransitionPending > 0,
+      queued:
+        pageState.primaryTransitionPending > (pageState.primaryTransitionActiveIntent ? 1 : 0),
+      errorCount: pageState.primaryTransitionErrorCount,
       nativeForeground: nativeViewingForeground,
       documentHidden: document.hidden,
       closing: applicationClosing,
     }),
 });
-function updateGuideForeground(): void {
-  const foreground = nativeViewingForeground && !document.hidden && !applicationClosing;
-  browser.setGuideForeground(foreground);
-  void guide.setForeground(foreground).catch(() => undefined);
-  void visibleGuide?.setForeground(foreground).catch(() => undefined);
-}
-visibleGuide = createVisibleGuideOwner({
-  fetch: readVisibleGuide,
-  cancel: (requestId) => invoke('cancel_playlist', { requestId }),
-  available: () => isTauri() && element('app').dataset.ready === 'true' && !applicationClosing,
-  isCurrent: (scope) =>
-    scope.generation === visibleGuideGeneration &&
-    scope.catalogRevision === persistedCatalogRevision &&
-    !applicationClosing &&
-    element('app').dataset.ready === 'true',
+visibleGuideController = createVisibleGuideController({
+  get nativeViewingForeground() {
+    return nativeViewingForeground;
+  },
+  get applicationClosing() {
+    return applicationClosing;
+  },
+  get browser() {
+    return browser;
+  },
+  get guide() {
+    return guide;
+  },
+  get visibleGuideState() {
+    return visibleGuideState;
+  },
+  get element() {
+    return element;
+  },
+  get persistedCatalogRevision() {
+    return persistedCatalogRevision;
+  },
+  get catalog() {
+    return catalog;
+  },
+  get settings() {
+    return settings;
+  },
 });
-visibleGuide.subscribe((snapshot) => {
-  if (snapshot.status === 'idle') {
-    browser.setGuideRows([]);
-    return;
-  }
-  const summary = snapshot.summary;
-  const status = snapshot.status;
-  browser.setGuideRows(
-    visibleGuideRequestedRows.map((row, index) => ({
-      ...row,
-      status,
-      summary: summary?.rows[index] ?? null,
-    })),
-  );
-});
-function updateVisibleGuide(): void {
-  if (!visibleGuide) return;
-  const ready =
-    element('app').dataset.ready === 'true' &&
-    !applicationClosing &&
-    element('channel-list').getClientRects().length > 0;
-  if (visibleGuideCatalog !== catalog || visibleGuideRemoved !== settings.removedChannels) {
-    visibleGuideCatalog = catalog;
-    visibleGuideRemoved = settings.removedChannels;
-    const removed = new Set(settings.removedChannels);
-    visibleGuideIdentities = new Set(
-      catalog.channels
-        .filter((channel) => !removed.has(channel.id))
-        .map((channel) => JSON.stringify([channel.sourceId, channel.id])),
-    );
-  }
-  const rows = ready
-    ? visibleGuideRows.filter((row) =>
-        visibleGuideIdentities.has(JSON.stringify([row.catalogSourceId, row.appChannelId])),
-      )
-    : [];
-  const key = rows.length ? JSON.stringify([persistedCatalogRevision, rows]) : null;
-  if (key === visibleGuideKey) return;
-  visibleGuideKey = key;
-  visibleGuideGeneration++;
-  visibleGuideRequestedRows = rows;
-  const scope: VisibleGuideScope | null =
-    rows.length > 0 && rows.length <= 64
-      ? {
-          channels: rows,
-          catalogRevision: persistedCatalogRevision,
-          generation: visibleGuideGeneration,
-        }
-      : null;
-  void visibleGuide.setScope(scope).catch(() => undefined);
-  if (rows.length > 64)
-    browser.setGuideRows(rows.map((row) => ({ ...row, status: 'capacity', summary: null })));
-}
+
 updateGuideForeground();
 updateVisibleGuide();
 // The Guide covers the library its row belongs to: Free TV's guide page, or
@@ -2519,11 +1932,11 @@ element('search').addEventListener(
   (event) => {
     if (
       event.key === 'Enter' &&
-      (contentLibrary === 'genxtra' || !liveBrowseSuspended) &&
+      (library.contentLibrary === 'genxtra' || !library.liveBrowseSuspended) &&
       element<HTMLInputElement>('search').value.trim()
     ) {
       event.preventDefault();
-      if (contentLibrary === 'genxtra') {
+      if (library.contentLibrary === 'genxtra') {
         playbackAction(archiveSearch!.searchOnline());
         return;
       }
@@ -2536,10 +1949,10 @@ element('search').addEventListener(
 );
 const genxtraNavigationOwner = createGenxtraNavigation({
   get contentLibrary() {
-    return contentLibrary;
+    return library.contentLibrary;
   },
   get primaryPage() {
-    return primaryPage;
+    return pageState.primaryPage;
   },
   get fullscreenOwner() {
     return fullscreenOwner;
@@ -2557,13 +1970,21 @@ document.addEventListener('keydown', genxtraNavigation, true);
 const removeMediaKeys = installMediaKeys({
   togglePause: () => {
     if (playerView.liveReplay?.active()) return playerView.liveReplay.togglePause();
-    if (player.snapshot.state === 'paused' || archiveBackgroundPaused || backgroundLiveChoice)
+    if (
+      player.snapshot.state === 'paused' ||
+      library.archiveBackgroundPaused ||
+      backgroundLiveChoice
+    )
       return resumeLocalPlayback();
     playbackAction(pauseLocalPlayback());
   },
   play: () => {
     if (playerView.liveReplay?.active()) return playerView.liveReplay.setPaused(false);
-    if (player.snapshot.state === 'paused' || archiveBackgroundPaused || backgroundLiveChoice)
+    if (
+      player.snapshot.state === 'paused' ||
+      library.archiveBackgroundPaused ||
+      backgroundLiveChoice
+    )
       return resumeLocalPlayback();
     if (player.snapshot.selection && ['failed', 'idle'].includes(player.snapshot.state))
       return retryLocalPlayback();
@@ -2582,7 +2003,7 @@ const removeMediaKeys = installMediaKeys({
     });
   },
   channel: (direction) => {
-    if (contentLibrary === 'live') browser.selectAdjacent(direction);
+    if (library.contentLibrary === 'live') browser.selectAdjacent(direction);
   },
   back: () => handleBack(),
   // On-demand videos go back 10 s; live channels start an instant replay.
@@ -2601,7 +2022,7 @@ async function pauseLocalPlayback(): Promise<void> {
 const accountVodSelected = () => !!player.snapshot.selection?.id.startsWith('vod:');
 async function stopLocalPlayback(): Promise<void> {
   backgroundLiveChoice = null;
-  if (archivePlayer?.selection || archiveResumeChoice) {
+  if (archivePlayer?.selection || library.archiveResumeChoice) {
     clearArchiveResume();
     await archivePlayer!.stop();
   } else if (accountVodSelected()) {
@@ -2625,8 +2046,8 @@ async function resumeLocalPlayback(): Promise<void> {
     await player.resume();
     return;
   }
-  if (archiveResumeChoice) {
-    const choice = archiveResumeChoice;
+  if (library.archiveResumeChoice) {
+    const choice = library.archiveResumeChoice;
     clearArchiveResume();
     await archivePlayer!.select(choice);
     return;
@@ -2640,7 +2061,7 @@ async function resumeLocalPlayback(): Promise<void> {
 }
 async function retryLocalPlayback(): Promise<void> {
   if (backgroundLiveChoice) return resumeLocalPlayback();
-  const archived = archivePlayer?.selection ?? archiveResumeChoice;
+  const archived = archivePlayer?.selection ?? library.archiveResumeChoice;
   if (archived) {
     clearArchiveResume();
     await archivePlayer!.select(archived);
@@ -2668,7 +2089,7 @@ function renderCatalog(): void {
   guide.catalogChanged();
   const removed = new Set(settings.removedChannels);
   const category = createChannelCategoryResolver(settings);
-  if (contentLibrary === 'live')
+  if (library.contentLibrary === 'live')
     browser.update(
       catalog.channels
         .filter((channel) => !removed.has(channel.id))
@@ -2971,7 +2392,7 @@ const playerView = createPlayerView({
     return vodDock;
   },
   get contentLibrary() {
-    return contentLibrary;
+    return library.contentLibrary;
   },
   get applicationClosing() {
     return applicationClosing;
@@ -2989,7 +2410,7 @@ const playerView = createPlayerView({
     return backgroundSuspension;
   },
   get primaryPage() {
-    return primaryPage;
+    return pageState.primaryPage;
   },
   get notice() {
     return notice;
@@ -3013,10 +2434,10 @@ const playerView = createPlayerView({
     return backgroundLiveChoice;
   },
   get archiveBackgroundPaused() {
-    return archiveBackgroundPaused;
+    return library.archiveBackgroundPaused;
   },
   get archiveResumeChoice() {
-    return archiveResumeChoice;
+    return library.archiveResumeChoice;
   },
   get updatePreviewControl() {
     return updatePreviewControl;
@@ -3084,7 +2505,7 @@ const { renderPlayer, vodRewind, renderVODTransport, disposeVODTransport, playba
 
 element('genxtra-button').addEventListener('click', () => playbackAction(switchLibrary('genxtra')));
 element('search-programs').addEventListener('click', () => {
-  if (contentLibrary === 'genxtra') playbackAction(archiveSearch!.searchOnline());
+  if (library.contentLibrary === 'genxtra') playbackAction(archiveSearch!.searchOnline());
   // Paid channels come from the account's own import, never the public scan.
   else if (accountBrowser.selectedAccount) {
     element('settings-button').click();
@@ -3093,9 +2514,9 @@ element('search-programs').addEventListener('click', () => {
 });
 element('search').addEventListener('input', () => {
   const query = element<HTMLInputElement>('search').value;
-  libraryQueries[contentLibrary] = query;
-  if (contentLibrary === 'genxtra') renderArchiveDiscovery(archiveDiscovery.snapshot);
-  if (contentLibrary === 'live') browser.search(query);
+  libraryQueries[library.contentLibrary] = query;
+  if (library.contentLibrary === 'genxtra') renderArchiveDiscovery(archiveDiscovery.snapshot);
+  if (library.contentLibrary === 'live') browser.search(query);
   element('search-programs').hidden = false;
   element('clear-search').hidden = query.length === 0;
 });
@@ -3103,9 +2524,11 @@ element('clear-search').addEventListener('click', () => {
   const search = element<HTMLInputElement>('search');
   search.value = '';
   search.dispatchEvent(new Event('input', { bubbles: true }));
-  if (contentLibrary === 'genxtra' && element('app').dataset.deviceKind === 'tv')
+  if (library.contentLibrary === 'genxtra' && element('app').dataset.deviceKind === 'tv')
     remoteEditMode.navigate(search);
-  element(contentLibrary === 'live' ? 'channel-list' : 'search').focus({ preventScroll: true });
+  element(library.contentLibrary === 'live' ? 'channel-list' : 'search').focus({
+    preventScroll: true,
+  });
 });
 const categorySelector = element<HTMLSelectElement>('compact-filter');
 const chooseCategory = (filter: ChannelFilter): void => {
@@ -3243,10 +2666,10 @@ const importController = createImportController({
     return sourceScan;
   },
   get contentLibrary() {
-    return contentLibrary;
+    return library.contentLibrary;
   },
   get primaryPage() {
-    return primaryPage;
+    return pageState.primaryPage;
   },
   get addChannelsEntryController() {
     return addChannelsEntryController;
@@ -3321,7 +2744,7 @@ const importController = createImportController({
     return guideController;
   },
   get visibleGuide() {
-    return visibleGuide;
+    return visibleGuideState.visibleGuide;
   },
   get guide() {
     return guide;
@@ -3403,12 +2826,12 @@ playerView.liveReplay = installLiveReplay(document, {
 player.subscribe(() => playerView.liveReplay?.render());
 element('pause-button').addEventListener('click', () => {
   if (playerView.liveReplay?.active()) return playerView.liveReplay.togglePause();
-  if (player.snapshot.state === 'paused' || archiveBackgroundPaused || backgroundLiveChoice)
+  if (player.snapshot.state === 'paused' || library.archiveBackgroundPaused || backgroundLiveChoice)
     playbackAction(resumeLocalPlayback());
   else playbackAction(pauseLocalPlayback());
 });
 element('retry-button').addEventListener('click', () => {
-  if (player.snapshot.selection || archiveResumeChoice || backgroundLiveChoice)
+  if (player.snapshot.selection || library.archiveResumeChoice || backgroundLiveChoice)
     playbackAction(retryLocalPlayback());
 });
 element('picture-resume').addEventListener('click', () => element('pause-button').click());
@@ -3494,7 +2917,7 @@ const channelHealth = createChannelHealthController({
     catalogBrowseViewRevision = value;
   },
   get contentLibrary() {
-    return contentLibrary;
+    return library.contentLibrary;
   },
   get accountBrowser() {
     return accountBrowser;
@@ -3581,14 +3004,14 @@ function suspendForegroundWork(): Promise<void> {
   if (backgroundSuspension) return backgroundSuspension;
   let suspensionConfirmed = false;
   foregroundGeneration++;
-  libraryIntent++;
-  liveBrowseSuspended = true;
+  library.libraryIntent++;
+  library.liveBrowseSuspended = true;
   document.querySelector<HTMLElement>('.browser')!.inert = true;
   playerView.vodSeekGeneration++;
   renderVODTransport();
   if (archivePlayer?.selection) {
-    archiveResumeChoice = archivePlayer.selection;
-    archiveBackgroundPaused = true;
+    library.archiveResumeChoice = archivePlayer.selection;
+    library.archiveBackgroundPaused = true;
   }
   const publicSnapshot = sharingBridge.host.snapshot();
   const pendingAccount = pendingAccountPlayback;
@@ -3620,7 +3043,7 @@ function suspendForegroundWork(): Promise<void> {
   // Every queued startup is joined, including allocations without a selection.
   const accountSuspension = accountPlayer!.suspend();
   for (const controller of publicGroupControllers) controller.abort();
-  primaryIntent++;
+  pageState.primaryIntent++;
   collectionAbort?.abort();
   addChannelsEntryController?.abort();
   for (const sourceId of activeSources.keys()) refresh.cancel(sourceId);
@@ -3641,7 +3064,7 @@ function suspendForegroundWork(): Promise<void> {
     accountControls.suspend(),
     accountSuspension,
     cancelOnlineSourceEntry(),
-    primaryTransitions,
+    pageState.primaryTransitions,
     joinLibraryPersistence(),
     dailyRefresh.suspend(),
     dailyGuideRefresh.suspend(),
@@ -3653,7 +3076,7 @@ function suspendForegroundWork(): Promise<void> {
     websiteDiscovery.suspend(),
     guide.suspend(),
     eventHistory.suspend(),
-    visibleGuide?.suspend(),
+    visibleGuideState.visibleGuide?.suspend(),
     removeDataTransfer.suspend(),
     pageInput.cancel(),
   ])
@@ -3748,7 +3171,7 @@ async function handleBack(): Promise<void> {
   // Full screen from the Guide's preview leaves to the Guide, not past it.
   if (
     !modal &&
-    primaryPage === 'guide' &&
+    pageState.primaryPage === 'guide' &&
     (fullscreenOwner.active || fullscreenOwner.busy || document.fullscreenElement)
   ) {
     await fullscreenOwner.set(false);
@@ -3778,7 +3201,7 @@ async function handleBack(): Promise<void> {
 document.addEventListener('keydown', (event) => {
   if (
     event.key === 'Escape' &&
-    primaryPage !== 'watch' &&
+    pageState.primaryPage !== 'watch' &&
     !document.querySelector('dialog[open]:not([data-primary-page])')
   ) {
     event.preventDefault();
@@ -3820,10 +3243,10 @@ function resumeForegroundScan(): void {
       if (applicationClosing || document.hidden || !nativeViewingForeground) return;
       document.querySelector<HTMLElement>('.browser')!.inert = false;
       await archiveDownloads!.resume();
-      if (contentLibrary === 'genxtra') {
-        if (primaryPage === 'watch') await archiveSearch!.resume(libraryQueries.genxtra);
+      if (library.contentLibrary === 'genxtra') {
+        if (pageState.primaryPage === 'watch') await archiveSearch!.resume(libraryQueries.genxtra);
       } else {
-        liveBrowseSuspended = false;
+        library.liveBrowseSuspended = false;
         renderCatalog();
         await sourceScan.resume();
       }
@@ -3905,7 +3328,7 @@ window.addEventListener('pagehide', () => {
   const archiveStop = archivePlayer?.stop();
   void archiveStop?.catch(() => undefined);
   applicationClosing = true;
-  libraryIntent++;
+  library.libraryIntent++;
   document.removeEventListener('keydown', genxtraNavigation, true);
   void disposeVODTransport().catch(() => undefined);
   void archiveSearch!.dispose().catch(() => undefined);
@@ -3948,7 +3371,7 @@ window.addEventListener('pagehide', () => {
   geographyControls.dispose();
   viewingChoices?.dispose();
   void guide.dispose().catch(() => undefined);
-  void visibleGuide?.dispose().catch(() => undefined);
+  void visibleGuideState.visibleGuide?.dispose().catch(() => undefined);
   void sourceScan.dispose().catch(() => undefined);
   void cancelOnlineSourceEntry()
     .then(async () => {
@@ -3985,9 +3408,9 @@ const closeOwner = createCloseOwner({
       if (archiveCloseStop === capturedStop) archiveCloseStop = null;
     });
     applicationClosing = true;
-    libraryIntent++;
+    library.libraryIntent++;
     for (const controller of publicGroupControllers) controller.abort();
-    primaryIntent++;
+    pageState.primaryIntent++;
     televisionSelects?.dispose();
     channelActions.dispose();
     void fullscreenOwner.close().catch(() => undefined);
@@ -4071,11 +3494,11 @@ const closeOwner = createCloseOwner({
     () => websiteDiscovery.dispose(),
     () => pageInput.cancel(),
     async () => {
-      await primaryTransitions;
+      await pageState.primaryTransitions;
       await joinLibraryPersistence();
       await guide.dispose();
     },
-    () => visibleGuide?.dispose(),
+    () => visibleGuideState.visibleGuide?.dispose(),
     () => removeDataTransfer(),
     () => removeCasting(),
     () => sharingPanel?.dispose(),
@@ -4242,8 +3665,8 @@ function initialize(retryStorage = false): Promise<void> {
 async function initializeSaved(signal: AbortSignal, attempt: StartupAttempt): Promise<void> {
   await rendererRecoveryPolicy.initialize();
   signal.throwIfAborted();
-  archiveStorageEpoch++;
-  archiveIndexRevision = null;
+  library.archiveStorageEpoch++;
+  library.archiveIndexRevision = null;
   clearArchiveResume();
   // Recovery can replace the canonical storage owner while revisions happen
   // to agree; a successful cache scope never crosses that re-initialization.
@@ -4285,8 +3708,8 @@ async function initializeSaved(signal: AbortSignal, attempt: StartupAttempt): Pr
     notice(`Saved channels need attention. ${friendlyError(error)}`);
   }
   // Select the saved library before applying settings can admit indexed browsing.
-  contentLibrary = settings.contentLibrary === 'genxtra' ? 'genxtra' : 'live';
-  liveBrowseSuspended = contentLibrary !== 'live';
+  library.contentLibrary = settings.contentLibrary === 'genxtra' ? 'genxtra' : 'live';
+  library.liveBrowseSuspended = library.contentLibrary !== 'live';
   // Admit indexed browsing only after the paired catalog and preferences are available.
   catalogBrowseReady = true;
   await attempt.run('apply-settings', () => applySettings());
@@ -4358,15 +3781,15 @@ async function initializeSaved(signal: AbortSignal, attempt: StartupAttempt): Pr
     // guide or scan owners here can wait on this same bootstrap completing.
     presentPrimaryPage('watch');
     presentLibrary();
-    element<HTMLInputElement>('search').value = libraryQueries[contentLibrary];
-    element('clear-search').hidden = !libraryQueries[contentLibrary];
+    element<HTMLInputElement>('search').value = libraryQueries[library.contentLibrary];
+    element('clear-search').hidden = !libraryQueries[library.contentLibrary];
     document.querySelector<HTMLElement>('.browser')!.inert = false;
     element('app').inert = false;
     element('app').dataset.ready = 'true';
     queueMicrotask(() => {
       if (archiveRuntimeScope()) playbackAction(archiveDownloads!.resume());
     });
-    if (contentLibrary === 'live') {
+    if (library.contentLibrary === 'live') {
       renderCatalog();
       browser.search(libraryQueries.live);
     } else

@@ -2201,7 +2201,8 @@ test('actual main TV dropdown routing reaches both selectors and toolbar while o
 test('actual main status retains optional counters and immediately hides previous-query progress', async ({
   page,
 }) => {
-  await page.route('**/src/main.ts*', async (route) => {
+  // The archive status renderer lives in the library controller (moved out of main.ts).
+  await page.route('**/src/application/library-controller.ts*', async (route) => {
     const response = await route.fetch();
     const code = await response.text();
     const marker = 'const archiveDiscovery = createArchiveDiscovery({';
