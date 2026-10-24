@@ -29,19 +29,38 @@ product requirements are in [Engineering Spec.MD](Engineering%20Spec.MD).
 The interface never talks to the network or disk directly for app data: it
 calls typed wrappers in `src/platform/`, which call native commands. About 200
 commands are registered in `src-tauri/src/lib.rs` (`generate_handler!`); they live
-in `src-tauri/src/commands/` and in the area modules.
+in `src-tauri/src/commands/` and in the component modules.
+
+## Components
+
+The code is organized by the components below; each has a guide in
+[docs/components/](docs/components/README.md) with its folders in every layer,
+where to start reading, its rules and its test commands.
+
+| Component | Interface (`src/`) | Native (`src-tauri/src/`) |
+| --- | --- | --- |
+| [Channel Catalog](docs/components/channel-catalog.md) | `catalog/`, `search/`, `location/`, `preferences/`, `application/catalog/`, `application/health/`, `ui/channels/` | `catalog/`, `database/` |
+| [Source Discovery](docs/components/source-discovery.md) | `discovery/`, `sources/`, `application/discovery/`, `ui/scan/` | `discovery/` |
+| [Playback Engine](docs/components/playback-engine.md) | `playback/`, `application/playback/`, `ui/player/`, `platform/browser-engine*.ts` | `playback/` |
+| [Trier MPEG](docs/components/trier-mpeg.md) | — | `trier_video/` |
+| [GenXtra](docs/components/genxtra.md) | `application/genxtra/`, `ui/genxtra/`, `platform/archive-*.ts` | `genxtra/` |
+| [Program Guide (EPG)](docs/components/program-guide.md) | `guide/`, `application/guide/`, `ui/guide/` | `guide/` |
+| [Browser](docs/components/browser.md) | — | `browser/` (and `src-tauri/page-scripts/`) |
+| [Paid TV accounts](docs/components/paid-tv-accounts.md) | `application/accounts/`, `ui/accounts/`, `platform/account-*.ts` | `accounts/` |
+| [LAN sharing and casting](docs/components/sharing-and-casting.md) | `sharing/`, `casting/`, `application/sharing/` | `sharing/` |
+| [Platform adapters](docs/components/platform-adapters.md) | `platform/`, `diagnostics/` | `lib.rs`, `commands/`, `lifecycle.rs`, `platform/` |
+| [UI components](docs/components/ui-components.md) | `main.ts`, `application/shell/`, `ui/` | — |
 
 ## Interface: `src/`
 
 | Folder | Owns |
 | --- | --- |
-| `main.ts` | The composition root: creates the long-lived owners in start-up order, holds the state they share (catalog, settings, the current library and page) and wires them together. |
-| `application/` | Workflows that span several areas: scans and their resume, imports, account browsing, guide capture, start-up recovery. |
-| `application/*-controller.ts`, `player-view.ts`, `genxtra-navigation.ts` | The application's main areas, each created by `main.ts` with an explicit environment (a typed list of the shared state it reads and writes): `scan-controller` (channel scans), `guide-controller` (automatic program guide), `import-controller` (adding and refreshing channels), `channel-health-controller` (saved-channel checks), `player-view` (the picture panel and transport), `genxtra-navigation` (remote keys in GenXtra). |
+| `main.ts` | The composition root: builds the shared application context (`app`, one line per shared value) and creates every area in start-up order. |
+| `application/<component>/` | The application's areas, grouped by component. Each area is a factory, `createX(app)` or `installX(app)`, that declares in its own environment type the part of the shared context it uses: for example `discovery/scan-controller.ts` (channel scans), `guide/guide-controller.ts` (automatic program guide), `discovery/import-controller.ts` (adding and refreshing channels), `health/channel-health-controller.ts` (saved-channel checks), `playback/player-view.ts` (the picture panel and transport), `shell/startup.ts` and `shell/close-controller.ts`. |
 | `catalog/` | The channel catalog model, M3U playlist parsing (in a worker, page by page) and validation. |
 | `discovery/` | Finding channels: online source search, the scan pipeline, health checks, the reviewed provider registry. |
 | `sources/` | Saved sources and the media checks run before a source is trusted. |
-| `playback/` | The player controller (one session at a time), HLS through hls.js, the adaptive live buffer, start timing. |
+| `playback/` | The player controller (one session at a time), its engines, the adaptive live buffer, start timing. |
 | `guide/` | The program guide: building it from XMLTV, matching listings to channels, timeline data. |
 | `search/` | Channel and program search, category aliases, voice search. |
 | `location/` | Countries, regions and their order. |
@@ -51,33 +70,35 @@ in `src-tauri/src/commands/` and in the area modules.
 | `preferences/` | The settings model and its validation. |
 | `platform/` | Typed wrappers around native commands, one file per native area. |
 | `diagnostics/` | The redacted event history. |
-| `ui/` | Screens and components (plain DOM, no framework) and their stylesheets. `shell.ts` is the static layout, `remote-navigation.ts` the D-pad and keyboard focus engine, `dialog-polish.css` the shared pop-up look. |
+| `ui/<screen>/` | Screens and components (plain DOM, no framework), one folder per screen or area: `shell/` (the static layout `shell.ts`, `remote-navigation.ts` the D-pad and keyboard focus engine), `scan/`, `guide/`, `genxtra/`, `accounts/`, `player/`, `channels/`, `settings/`. |
+| `ui/*.css` | The stylesheets, imported by `main.ts` in cascade order; `dialog-polish.css` is the shared pop-up look. |
 
 ## Native layer: `src-tauri/src/`
 
-Most modules are flat files named by area prefix:
-
-| Prefix or folder | Owns |
+| Folder or file | Owns |
 | --- | --- |
-| `lib.rs` | Tauri set-up (`run`), the shared native state and the list of registered commands (`generate_handler!`). |
-| `commands/` | The commands the interface calls, one file per area: `accounts`, `archive`, `casting`, `scan`, `sources`, `storage`, `viewing`. Most delegate to the area modules below. |
+| `lib.rs` | Tauri set-up (`run`), the shared native state and the list of registered commands (`generate_handler!`). It re-exports every component module under its own name, so code refers to them as `crate::<module>`. |
+| `commands/` | The commands the interface calls, one file per area: `accounts`, `archive`, `casting`, `scan`, `sources`, `storage`, `viewing`. Most delegate to the component modules. |
 | `lifecycle.rs` | Orderly exit: the close attempt, draining owned work, shutdown and the exit commands. |
-| `account_*` | Paid TV (Xtream-style) accounts: the credential vault, catalog, guide, video on demand and the playback relay. |
-| `archive_*` | GenXtra, the public archive library: providers (Internet Archive, Library of Congress, NASA, Wikimedia Commons), catalog, downloads, playback proxy. |
-| `catalog_*`, `channel_*` | Catalog queries, projections, deltas, groups, categories, logos and channel checks. |
-| `scan_*` | Channel scans: batches, checkpoints and resumable manifests. |
-| `source_snapshot*` | Atomic activation of refreshed source data. |
-| `storage*` | SQLite storage: transactions, backups, recovery, leases, budgets. |
-| `guide/` | XMLTV parsing, the guide database, channel matching (crosswalk), refresh. |
-| `casting/` | Chromecast and DLNA: discovery, protocols, the receiver relay. |
-| `lan/` | The LAN viewing server and its viewer page. |
-| `relay.rs`, `network*.rs`, `requests.rs` | The local media relay and network policy (every destination is validated). |
-| `native_*` | Native playback, speech, sharing, guide and shutdown commands. |
+| `accounts/` | Paid TV (Xtream-style) accounts: the credential vault, catalog, guide, video on demand and the playback proxy. |
+| `genxtra/` | GenXtra, the public archive library: providers (Internet Archive, Library of Congress, NASA, Wikimedia Commons), catalog, downloads, playback proxy. |
+| `catalog/` | Catalog queries and projections, groups, logos, favorites, channel health. |
+| `database/` | SQLite storage: transactions (`PairStore`), backups, recovery, leases, budgets, start-up checks. |
+| `discovery/` | Channel scans: batches, windows, checkpoints and resumable manifests, stream checks, the source directory. |
+| `guide/` | XMLTV parsing, the guide database, channel matching (crosswalk), refresh, the guide commands. |
+| `playback/` | The Android native players, transport-stream audio alignment, viewing settings, keeping the screen awake. |
+| `sharing/` | `lan/` the LAN viewing server and its viewer page, `casting/` Chromecast and DLNA, `relay.rs` the public-only media relay, `sharing_policy.rs`. |
+| `browser/` | The in-app player for station websites (`web_page.rs`, with `../page-scripts/`) and the fixed support pages. |
+| `platform/` | Close and shutdown owners, device capabilities, speech, VPN status, renderer recovery, diagnostics, start-up milestones, the request registry. |
 | `trier_video/` | Trier MPEG Video, GenX's own MPEG-2 video decoder ([design](docs/trier-mpeg-video.md)). |
-| `web_page.rs`, `../page-scripts/` | The in-app player for station websites. |
-| `close_owner.rs`, `renderer_*` | Orderly exit and WebView renderer recovery. |
 
-Tests sit next to the code: larger suites in `<module>_tests.rs` files attached with `#[cfg(test)] #[path = "<module>_tests.rs"] mod tests;`, small ones in an inline `mod tests` block at the end of the file.
+A large module keeps its file and puts its parts in a folder of the same name
+(`database/storage_transaction.rs` and `database/storage_transaction/*.rs`),
+each starting with `use super::*;`. Tests sit next to the code: larger suites
+in `<module>_tests.rs` files attached with
+`#[cfg(test)] #[path = "<module>_tests.rs"] mod tests;` (the largest split by
+topic into a `tests/` folder beside the module), small ones in an inline
+`mod tests` block at the end of the file.
 `src-tauri/vendor/tao` is a vendored copy of the tao window library with
 GenX's patches listed in its `GENX-PATCHES.md`.
 
@@ -92,6 +113,12 @@ GenX's patches listed in its `GENX-PATCHES.md`.
 | `ViewingPlugin.kt`, `ViewingLifecycleOwner.kt`, `ViewingWakePolicy.kt` | Screen-on, lifecycle and support links. |
 | `NativeSpeech.kt` | Voice search. |
 | `TelevisionCapability.kt`, `TelevisionShellFocusOwner.kt`, `BackOwnership.kt` | TV detection, remote focus and the Back key. |
+
+## File size
+
+Files stay at about 800 lines, with 1,000 as the ceiling, so that each can be
+read and changed without tools. [CONTRIBUTING.md](CONTRIBUTING.md) shows how
+the large ones were split, for when another one grows.
 
 ## Rules the code follows
 
@@ -127,7 +154,7 @@ stop installed copies from updating.
 
 | Where | What |
 | --- | --- |
-| `tests/<area>/` | Unit and component tests (Vitest), many in a real browser. |
+| `tests/<area>/` | Unit and component tests (Vitest), many in a real browser. A large suite keeps its shared setup in a `*.fixture.ts` module and its tests in topic files. |
 | `tests/ui/` | Interface tests (Playwright) against the real application source. |
 | `tests/native/` | Acceptance runs against a packaged Windows build, with isolated data folders and owned fixtures. |
 | `tests/tooling/` | Tests of the build, release and verification scripts (Node and Python). |

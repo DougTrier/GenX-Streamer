@@ -14,6 +14,8 @@
 
 //! Storage: the SQLite database behind the catalog, the guide and GenXtra.
 //! Transactions, backups and recovery, leases, budgets and start-up checks.
+//!
+//! Guide for contributors: docs/components/channel-catalog.md.
 
 pub(crate) mod storage;
 #[allow(

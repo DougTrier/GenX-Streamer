@@ -15,6 +15,8 @@
 //! Platform adapters: what differs between Windows and Android. Close and
 //! shutdown ownership, device capabilities, speech, VPN status, renderer
 //! recovery, diagnostics, start-up milestones and the request registry.
+//!
+//! Guide for contributors: docs/components/platform-adapters.md.
 
 #[cfg(any(target_os = "android", test))]
 #[cfg_attr(

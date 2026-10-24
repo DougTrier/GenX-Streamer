@@ -14,6 +14,8 @@
 
 //! LAN sharing and casting: the sharing server and its pairing, Chromecast
 //! and DLNA casting, the public-only relay and the sharing policy.
+//!
+//! Guide for contributors: docs/components/sharing-and-casting.md.
 
 pub mod casting;
 pub mod lan;

@@ -22,6 +22,8 @@
 //! each with the time stamp of the data it came from. Damaged data never
 //! panics: a bad slice is concealed from the reference picture and decoding
 //! continues with the next slice.
+//!
+//! Guide for contributors: docs/components/trier-mpeg.md.
 #![allow(clippy::needless_range_loop)]
 #[cfg(target_os = "android")]
 mod android;

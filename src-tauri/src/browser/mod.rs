@@ -14,6 +14,8 @@
 
 //! Browser: web pages the app opens. A website's own player in the viewing
 //! area, kept apart from the app, and the fixed donation and author pages.
+//!
+//! Guide for contributors: docs/components/browser.md.
 
 pub(crate) mod donation;
 pub(crate) mod web_page;

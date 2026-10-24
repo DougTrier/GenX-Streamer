@@ -15,6 +15,8 @@
 //! Playback Engine (native side): the Android native players for live and
 //! on-demand video, transport-stream audio alignment, viewing settings and
 //! keeping the screen awake.
+//!
+//! Guide for contributors: docs/components/playback-engine.md.
 
 pub(crate) mod native_live;
 pub(crate) mod native_video;

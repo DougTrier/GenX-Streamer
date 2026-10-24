@@ -14,6 +14,8 @@
 
 //! GenXtra: the public-domain archive library. Discovery from the archive
 //! providers, the local catalog, artwork, bookmarks, downloads and playback.
+//!
+//! Guide for contributors: docs/components/genxtra.md.
 
 pub(crate) mod archive_artwork;
 pub(crate) mod archive_bookmarks;

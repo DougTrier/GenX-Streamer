@@ -14,6 +14,8 @@
 
 //! Channel Catalog: the saved channel list as the app reads it. Catalog pages
 //! and projections, groups, logos, favorites, channel health and series identity.
+//!
+//! Guide for contributors: docs/components/channel-catalog.md.
 
 pub(crate) mod catalog_endpoint_projection;
 pub(crate) mod catalog_group_mutation;

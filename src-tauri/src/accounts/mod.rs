@@ -14,6 +14,8 @@
 
 //! Paid TV accounts: credentials in the vault, reading a provider's channels,
 //! guide and on-demand catalog, and playing them through the local proxy.
+//!
+//! Guide for contributors: docs/components/paid-tv-accounts.md.
 
 pub(crate) mod account_acquisition;
 pub(crate) mod account_catalog_owner;

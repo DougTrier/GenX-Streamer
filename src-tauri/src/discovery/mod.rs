@@ -15,6 +15,8 @@
 //! Source Discovery: finding channels. Scans of playlists and websites, the
 //! network probes that check streams, resumable scan checkpoints and the
 //! source directory.
+//!
+//! Guide for contributors: docs/components/source-discovery.md.
 
 pub(crate) mod discovery_input;
 pub(crate) mod discovery_unavailable;

@@ -12,6 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+//! Program guide (EPG): XMLTV parsing, the guide database, matching listings
+//! to channels, refresh and retention, and the guide commands (native_guide).
+//!
+//! Guide for contributors: docs/components/program-guide.md.
+
 pub mod database;
 pub mod input;
 pub mod parser;

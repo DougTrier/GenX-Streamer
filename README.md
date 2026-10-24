@@ -122,6 +122,13 @@ addresses. Your own device serials, addresses and paths belong in an untracked
 `.private-patterns.json` (already in `.gitignore`); reviewed test placeholders
 are listed by fingerprint in `scripts/clean-repo-allow.json`.
 
+## Contributing
+
+Developers are welcome. [CONTRIBUTING.md](CONTRIBUTING.md) explains how to set
+up, make and check a change; [docs/components/](docs/components/README.md) has
+a guide for each part of the app (playback, scans, the program guide, the Trier
+decoders, the interface and more) so you can start with the one you know best.
+
 ## License
 
 GenX Streamer's source code is licensed under the
