@@ -36,7 +36,7 @@ vi.mock('../../src/guide/native', () => ({
   readSelectedGuide: vi.fn(),
   readChannelGuideCoverage: vi.fn(),
 }));
-import { createGuideHost } from '../../src/application/guide-host';
+import { createGuideHost } from '../../src/application/guide/guide-host';
 const deferred = <T>() => {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((done) => {

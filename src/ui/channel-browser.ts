@@ -24,7 +24,7 @@ import {
   type ChannelGuideRow,
   type VisibleGuideChannel,
 } from './channel-guide';
-import type { NowPlayingRow } from '../application/paid-now-playing';
+import type { NowPlayingRow } from '../application/accounts/paid-now-playing';
 import { declaredCategoryAliases, categoryAliasMatches } from '../search/category-aliases';
 import {
   compareGeographicChannels,

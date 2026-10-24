@@ -25,7 +25,7 @@ import {
 import {
   type SelectedGuideSnapshot,
   type createSelectedGuideOwner,
-} from '../application/selected-guide';
+} from '../application/guide/selected-guide';
 import { type createGuideReload } from './guide-reload';
 import { identity, type GuideCatalogChannel, type GuideHost } from './guide-model';
 

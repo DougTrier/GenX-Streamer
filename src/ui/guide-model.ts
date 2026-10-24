@@ -32,9 +32,9 @@ import {
   type SelectedGuideQuery,
   type SelectedGuideSummary,
 } from '../guide/native';
-import { type MappedGuideHydrationResult } from '../application/mapped-guide-schedule';
+import { type MappedGuideHydrationResult } from '../application/guide/mapped-guide-schedule';
 import { type ChannelCoverageReply, type ChannelCoverageRequest } from '../guide/channel-coverage';
-import { type SelectedGuideClock } from '../application/selected-guide';
+import { type SelectedGuideClock } from '../application/guide/selected-guide';
 import { guideCategoryKey, type GuideCategory } from '../guide/categories';
 
 export interface GuideCatalogChannel {

@@ -15,9 +15,9 @@
  */
 
 import { expect, it, vi } from 'vitest';
-import { createAccountPlayer } from '../../src/application/account-player';
+import { createAccountPlayer } from '../../src/application/accounts/account-player';
 import { PlaybackController, type EngineEvent } from '../../src/playback/controller';
-import { createArchivePlayer } from '../../src/application/archive-player';
+import { createArchivePlayer } from '../../src/application/genxtra/archive-player';
 import { createAccountPlayback } from '../../src/platform/account-playback';
 
 function deferred() {

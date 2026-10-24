@@ -14,6 +14,6 @@
  * limitations under the License.
  */
 
-export { createArchiveDownloads } from '../../../src/application/archive-downloads';
+export { createArchiveDownloads } from '../../../src/application/genxtra/archive-downloads';
 export { mountArchiveDownloads } from '../../../src/ui/archive-downloads';
 export { mountArchiveSearch } from '../../../src/ui/archive-search';

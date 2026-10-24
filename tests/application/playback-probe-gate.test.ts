@@ -15,7 +15,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import { createPlaybackProbeGate } from '../../src/application/playback-probe-gate';
+import { createPlaybackProbeGate } from '../../src/application/health/playback-probe-gate';
 
 const deferred = () => {
   let resolve!: () => void;

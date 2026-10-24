@@ -50,7 +50,7 @@ beforeAll(async () => {
         resolveId: (id) => (id === 'virtual:bounded-proof' ? '\0bounded-proof' : null),
         load: (id) =>
           id === '\0bounded-proof'
-            ? `export {createBoundedScanResumeService} from '${process.cwd().replaceAll('\\', '/')}/src/application/bounded-scan-resume-service.ts'; export {createHealthObservation} from '${process.cwd().replaceAll('\\', '/')}/src/discovery/health.ts';`
+            ? `export {createBoundedScanResumeService} from '${process.cwd().replaceAll('\\', '/')}/src/application/discovery/bounded-scan-resume-service.ts'; export {createHealthObservation} from '${process.cwd().replaceAll('\\', '/')}/src/discovery/health.ts';`
             : null,
       },
     ],
@@ -155,7 +155,7 @@ it('actual module Worker prepares once and joins a one-origin256candidate episod
       // Vite serves only these modules: no application bootstrap or native invocation.
       const load = new Function('path', 'return import(path)') as <T>(path: string) => Promise<T>;
       const { createBoundedScanResumeService, createHealthObservation } = await load<
-        typeof import('../../src/application/bounded-scan-resume-service') &
+        typeof import('../../src/application/discovery/bounded-scan-resume-service') &
           typeof import('../../src/discovery/health')
       >('/proof.js');
       const counts = { total: 256, checked: 0, responded: 0, published: 0 };
@@ -233,7 +233,7 @@ it('actual module Worker prepares once and joins a one-origin256candidate episod
         },
         async commit(
           _id: string,
-          request: import('../../src/application/bounded-scan-resume').BoundedScanCommit,
+          request: import('../../src/application/discovery/bounded-scan-resume').BoundedScanCommit,
         ) {
           if (JSON.stringify(request.expectedRevisions) !== JSON.stringify(revisions))
             throw new Error('Stale revision');

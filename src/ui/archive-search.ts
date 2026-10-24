@@ -17,7 +17,7 @@
 import { mountSeriesSuggestions, type SeriesLookup } from './archive-series-suggestions';
 import { mountArchiveDownloads } from './archive-downloads';
 
-import type { ArchiveDownloads } from '../application/archive-downloads';
+import type { ArchiveDownloads } from '../application/genxtra/archive-downloads';
 import type { ArchiveDownloadEntry } from '../platform/archive-downloads';
 
 import {
@@ -41,7 +41,7 @@ import {
 
 import './archive-search.css';
 import { createArchiveSearchApi } from './archive-search-api';
-import { createSharedContext } from '../application/shared-context';
+import { createSharedContext } from '../application/shell/shared-context';
 import { createArchiveSearchNavigation } from './archive-search-navigation';
 import { createArchiveSearchActions } from './archive-search-actions';
 import { createArchiveSearchRender } from './archive-search-render';

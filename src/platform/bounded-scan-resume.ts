@@ -27,7 +27,7 @@ import {
   type BoundedScanResumePlan,
   type BoundedScanAck,
   type BoundedScanCommit,
-} from '../application/bounded-scan-resume';
+} from '../application/discovery/bounded-scan-resume';
 import { boundedJsonUtf8Bytes } from '../data-transfer/json-byte-admission';
 import { createHealthObservation, type HealthObservation } from '../discovery/health';
 const bad = () => new Error('Native bounded scan resume response refused.');

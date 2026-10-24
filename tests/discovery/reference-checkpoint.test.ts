@@ -23,7 +23,7 @@ import { checkpointFixture } from './helpers/scan-checkpoint';
 import {
   captureStoredScanCheckpoint,
   type ScanCheckpointCaptureInput,
-} from '../../src/application/scan-checkpoint-capture';
+} from '../../src/application/discovery/scan-checkpoint-capture';
 import {
   parseStoredScanCheckpoint,
   restoreReferencedScanCheckpoint,

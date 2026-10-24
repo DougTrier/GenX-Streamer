@@ -26,15 +26,15 @@ import {
   decodeSavedHealthOnly,
   evaluateHealthHistory,
   type SavedHealthSnapshot,
-} from '../../src/application/health-history';
+} from '../../src/application/health/health-history';
 import {
   decodeSavedHealthInWorker,
   decodeSavedHealthOnlyInWorker,
-} from '../../src/application/health-history-read';
+} from '../../src/application/health/health-history-read';
 import {
   DECODER_HEALTH_PROFILE,
   reachabilityHealthProfile,
-} from '../../src/application/health-profile';
+} from '../../src/application/health/health-profile';
 const source = {
   id: 'source',
   kind: 'url' as const,

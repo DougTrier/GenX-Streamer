@@ -27,7 +27,7 @@ import {
   type GuideEnrichment,
   type PipelineReview,
 } from '../discovery/pipeline';
-import { type SavedHealthPage, type SavedHealthRow } from '../application/health-history';
+import { type SavedHealthPage, type SavedHealthRow } from '../application/health/health-history';
 import { type createScanChecks } from './source-scan-checks';
 import { type HealthObservation } from '../discovery/health';
 import { type ScanPreparationFailureCode } from '../discovery/selection-failure';

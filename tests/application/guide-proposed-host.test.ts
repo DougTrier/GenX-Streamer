@@ -30,7 +30,7 @@ vi.mock('../../src/guide/native', () => ({
 }));
 import { previewProposedNativeGuide } from '../../src/guide/proposed-preview';
 import { createAutomaticGuideBuilder } from '../../src/guide/automatic-build';
-import { createGuideHost } from '../../src/application/guide-host';
+import { createGuideHost } from '../../src/application/guide/guide-host';
 const proposed = () => ({
   ticket: 'proposal',
   sourceId: 'new',

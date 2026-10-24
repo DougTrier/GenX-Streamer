@@ -18,7 +18,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   createGuideCacheReady,
   createGuideAcquisitionAllowed,
-} from '../../src/application/guide-cache';
+} from '../../src/application/guide/guide-cache';
 import type { GuideSource, SourceCoverage } from '../../src/guide/native';
 
 const now = Date.UTC(2026, 9, 15, 22);

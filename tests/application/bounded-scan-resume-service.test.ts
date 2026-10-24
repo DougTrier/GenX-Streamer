@@ -18,22 +18,22 @@ import { expect, it, vi } from 'vitest';
 import {
   createBoundedScanResumeService,
   type BoundedResumeWorkerTransport,
-} from '../../src/application/bounded-scan-resume-service';
+} from '../../src/application/discovery/bounded-scan-resume-service';
 import {
   attachBoundedScanResumeWorker,
   type BoundedResumeWorkerPort,
-} from '../../src/application/bounded-scan-resume-worker';
-import type { ResumeWire } from '../../src/application/bounded-scan-resume-protocol';
+} from '../../src/application/discovery/bounded-scan-resume-worker';
+import type { ResumeWire } from '../../src/application/discovery/bounded-scan-resume-protocol';
 import {
   scanResumeCommitWindow,
   scanResumeTakeTiming,
-} from '../../src/application/bounded-scan-resume';
+} from '../../src/application/discovery/bounded-scan-resume';
 import type {
   BoundedScanResumeHost,
   BoundedScanCandidateRow,
   BoundedScanResumePlan,
   BoundedScanCommit,
-} from '../../src/application/bounded-scan-resume';
+} from '../../src/application/discovery/bounded-scan-resume';
 import { createHealthObservation } from '../../src/discovery/health';
 class Bridge implements BoundedResumeWorkerTransport {
   onmessage: ((event: MessageEvent) => void) | null = null;

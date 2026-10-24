@@ -19,8 +19,8 @@ import { PlaybackController, type EngineEvent } from '../../src/playback/control
 import {
   createPlaybackHealthCapture,
   type PlaybackHealthHost,
-} from '../../src/application/playback-health';
-import { prepareDecodedHealth } from '../../src/application/prepare-decoded-health';
+} from '../../src/application/playback/playback-health';
+import { prepareDecodedHealth } from '../../src/application/health/prepare-decoded-health';
 import { fingerprintHealthTarget, parseHealthPayload } from '../../src/catalog/health-record';
 
 const evidence = {

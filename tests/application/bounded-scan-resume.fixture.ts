@@ -26,7 +26,7 @@ import {
   type BoundedScanCommit,
   type BoundedScanResumeHost,
   type BoundedScanResumePlan,
-} from '../../src/application/bounded-scan-resume';
+} from '../../src/application/discovery/bounded-scan-resume';
 import { expect, vi } from 'vitest';
 
 export const gate = () => {

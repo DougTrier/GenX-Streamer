@@ -15,7 +15,10 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import { createScanGuideHost, type ScanGuideGateway } from '../../src/application/scan-guide-host';
+import {
+  createScanGuideHost,
+  type ScanGuideGateway,
+} from '../../src/application/discovery/scan-guide-host';
 import type { ReviewCandidate } from '../../src/discovery/scan';
 import type { GuideSuggestions } from '../../src/guide/native';
 

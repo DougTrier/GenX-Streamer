@@ -15,7 +15,7 @@
  */
 
 import { expect, it, vi } from 'vitest';
-import { prepareDiscoveredSources } from '../../src/application/discovered-source-configuration';
+import { prepareDiscoveredSources } from '../../src/application/discovery/discovered-source-configuration';
 import { defaultPreferences } from '../../src/preferences';
 import type {
   OnlineSourceCandidate,

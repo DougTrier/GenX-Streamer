@@ -327,7 +327,7 @@ export async function mount(
           if (fixture.selectionError === 'failure')
             throw new Error('Private controlled fixture detail');
           if (fixture.selectionError === 'cleanup') {
-            const playerPath = '/src/application/archive-player.ts';
+            const playerPath = '/src/application/genxtra/archive-player.ts';
             const { ArchivePlayerCleanupError } = await import(playerPath);
             throw new ArchivePlayerCleanupError();
           }

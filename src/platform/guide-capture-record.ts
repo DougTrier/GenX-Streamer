@@ -16,7 +16,7 @@
 
 import { boundedUtf8Text } from './bounded-text';
 import { validateRevision } from './record-transaction';
-import type { AutomaticGuideSavedSnapshot } from '../application/automatic-guide-capture';
+import type { AutomaticGuideSavedSnapshot } from '../application/guide/automatic-guide-capture';
 export type GuideCaptureRecord = AutomaticGuideSavedSnapshot;
 export interface GuideCaptureRecordHost {
   isNative(): boolean;

@@ -29,7 +29,7 @@ if (!/^[a-z0-9-]+$/.test(phase)) throw new Error('Invalid footer fixture phase')
 beforeAll(async () => {
   const [main, foreground, android] = await Promise.all([
     readFile('src/main.ts', 'utf8'),
-    readFile('src/application/foreground-controller.ts', 'utf8'),
+    readFile('src/application/shell/foreground-controller.ts', 'utf8'),
     readFile('src-tauri/gen/android/app/src/main/java/com/tmg/tv/ViewingPlugin.kt', 'utf8'),
   ]);
   // The Back listener is registered while main.ts loads (when it creates the

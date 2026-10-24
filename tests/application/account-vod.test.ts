@@ -15,7 +15,7 @@
  */
 
 import { expect, it, vi } from 'vitest';
-import { createAccountPlayer } from '../../src/application/account-player';
+import { createAccountPlayer } from '../../src/application/accounts/account-player';
 import { createAccountPlayback } from '../../src/platform/account-playback';
 import {
   createAccountVod,

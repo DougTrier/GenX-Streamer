@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type { createStartupObserver } from '../application/startup-observer';
+import type { createStartupObserver } from '../application/shell/startup-observer';
 import './startup-status.css';
 
 export type StartupSnapshot = ReturnType<ReturnType<typeof createStartupObserver>['snapshot']>;

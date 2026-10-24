@@ -26,7 +26,7 @@ import {
   validateBoundedScanCandidatePage,
   validateBoundedScanResumePlan,
   type BoundedScanResumeHost,
-} from '../../src/application/bounded-scan-resume';
+} from '../../src/application/discovery/bounded-scan-resume';
 import { type HealthObservation } from '../../src/discovery/health';
 import {
   fixture,

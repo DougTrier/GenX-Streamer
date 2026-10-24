@@ -15,8 +15,8 @@
  */
 
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { captureAutomaticGuideInWorker } from '../../src/application/automatic-guide-capture-service';
-import { captureAutomaticGuide } from '../../src/application/automatic-guide-capture';
+import { captureAutomaticGuideInWorker } from '../../src/application/guide/automatic-guide-capture-service';
+import { captureAutomaticGuide } from '../../src/application/guide/automatic-guide-capture';
 class FakeCaptureWorker {
   static instances: FakeCaptureWorker[] = [];
   static failPost = false;

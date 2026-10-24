@@ -19,7 +19,7 @@ import {
   createSelectedGuideOwner,
   type SelectedGuideScope,
   type SelectedGuideClock,
-} from '../../src/application/selected-guide';
+} from '../../src/application/guide/selected-guide';
 import {
   SelectedGuideUnavailableError,
   type SelectedGuideQuery,

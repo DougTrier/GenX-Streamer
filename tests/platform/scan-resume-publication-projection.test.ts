@@ -16,7 +16,7 @@
 
 import { expect, it } from 'vitest';
 import { createScanPublicationProjectionReader } from '../../src/platform/scan-resume-publication-projection';
-import type { BoundedScanAck } from '../../src/application/bounded-scan-resume';
+import type { BoundedScanAck } from '../../src/application/discovery/bounded-scan-resume';
 const source = {
   id: 'source',
   name: 'Owned',

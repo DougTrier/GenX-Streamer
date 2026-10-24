@@ -34,7 +34,7 @@ vi.mock('../../src/guide/native', () => ({
   readSelectedGuide: calls.summary,
   readChannelGuideCoverage: calls.channelCoverage,
 }));
-import { createGuideHost } from '../../src/application/guide-host';
+import { createGuideHost } from '../../src/application/guide/guide-host';
 const source = {
   id: 'g',
   name: 'Guide',

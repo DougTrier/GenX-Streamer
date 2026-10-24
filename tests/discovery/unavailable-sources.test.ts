@@ -17,7 +17,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { isPlaceholderLocation, unavailableReason } from '../../src/discovery/unavailable-sources';
 import { SourceRequestError } from '../../src/sources';
-import { prepareDiscoveredSources } from '../../src/application/discovered-source-configuration';
+import { prepareDiscoveredSources } from '../../src/application/discovery/discovered-source-configuration';
 import { defaultPreferences } from '../../src/preferences';
 import type { OnlineSourceScanResult } from '../../src/discovery/online-source-scan';
 import {

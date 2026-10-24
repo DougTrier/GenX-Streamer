@@ -15,7 +15,7 @@
  */
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createArchivePlayer } from '../../src/application/archive-player';
+import { createArchivePlayer } from '../../src/application/genxtra/archive-player';
 import {
   PlaybackController,
   type EngineEvent,

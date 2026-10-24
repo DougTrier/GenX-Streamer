@@ -15,7 +15,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import { createArchiveDiscovery } from '../../src/application/archive-discovery';
+import { createArchiveDiscovery } from '../../src/application/genxtra/archive-discovery';
 import { createArchiveCatalog } from '../../src/platform/archive-catalog';
 import type {
   ArchiveDiscoverReceipt,

@@ -370,7 +370,7 @@ test('actual main status retains optional counters and immediately hides previou
   page,
 }) => {
   // The archive status renderer lives in the library controller (moved out of main.ts).
-  await page.route('**/src/application/library-controller.ts*', async (route) => {
+  await page.route('**/src/application/genxtra/library-controller.ts*', async (route) => {
     const response = await route.fetch();
     const code = await response.text();
     const marker = 'const archiveDiscovery = createArchiveDiscovery({';

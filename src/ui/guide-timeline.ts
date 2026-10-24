@@ -19,7 +19,7 @@ import type { MappedProgram, ProgramPage, ProgramQuery } from '../guide/native';
 import { programCountdown } from '../guide/program-countdown';
 
 import { createTimelineKeys } from './guide-timeline-keys';
-import { createSharedContext } from '../application/shared-context';
+import { createSharedContext } from '../application/shell/shared-context';
 import { createTimelineDetails } from './guide-timeline-details';
 import { createTimelineRefresh } from './guide-timeline-refresh';
 import { createTimelineChannels } from './guide-timeline-channels';

@@ -17,15 +17,18 @@
 import './ui/style.css';
 import './ui/management.css';
 import './ui/channel-logos.css';
-import { createChannelLogos } from './application/channel-logos';
+import { createChannelLogos } from './application/catalog/channel-logos';
 
-import { createBootstrapBoundary } from './application/bootstrap-boundary';
-import { createRendererRecoveryPolicy } from './application/renderer-recovery-policy';
+import { createBootstrapBoundary } from './application/shell/bootstrap-boundary';
+import { createRendererRecoveryPolicy } from './application/shell/renderer-recovery-policy';
 
-import { createAccountPlayer, type AccountPlaybackChoice } from './application/account-player';
-import { createArchivePlayer } from './application/archive-player';
+import {
+  createAccountPlayer,
+  type AccountPlaybackChoice,
+} from './application/accounts/account-player';
+import { createArchivePlayer } from './application/genxtra/archive-player';
 
-import { createArchiveDownloads } from './application/archive-downloads';
+import { createArchiveDownloads } from './application/genxtra/archive-downloads';
 
 import {
   createArchiveCatalog,
@@ -34,13 +37,13 @@ import {
 } from './platform/archive-catalog';
 import { mountArchiveSearch } from './ui/archive-search';
 
-import { createAccountBrowser } from './application/account-browser';
+import { createAccountBrowser } from './application/accounts/account-browser';
 
 import { createVpnStatus } from './platform/vpn-status';
 import { mountVpnIndicator } from './ui/vpn-indicator';
 import { mountScanOverlay } from './ui/scan-overlay';
 
-import { createStartupObserver } from './application/startup-view';
+import { createStartupObserver } from './application/shell/startup-view';
 
 import { mountLibrarySwitcher } from './ui/library-switcher';
 
@@ -92,49 +95,49 @@ import { mountLocalStreams } from './ui/local-streams';
 
 // Last stylesheet: the shared pop-up look sits over every component sheet.
 import './ui/dialog-polish.css';
-import { createScanController } from './application/scan-controller';
-import type { ContentLibrary } from './application/content-library';
+import { createScanController } from './application/discovery/scan-controller';
+import type { ContentLibrary } from './application/genxtra/content-library';
 
-import { createGuideController } from './application/guide-controller';
-import { createChannelHealthController } from './application/channel-health-controller';
-import { createImportController } from './application/import-controller';
-import { createPlayerView } from './application/player-view';
-import { createGenxtraNavigation } from './application/genxtra-navigation';
-import { createLibraryState } from './application/library-state';
-import { createPageState } from './application/page-state';
-import { createVisibleGuideState } from './application/visible-guide-state';
-import { createVisibleGuideController } from './application/visible-guide-controller';
-import { createLibraryController } from './application/library-controller';
-import { createPageController } from './application/page-controller';
-import { createStartup } from './application/startup';
-import { createCloseController } from './application/close-controller';
-import { createForegroundController } from './application/foreground-controller';
-import { createSettingsController } from './application/settings-controller';
-import { createCatalogView } from './application/catalog-view';
-import { createPlaybackControls } from './application/playback-controls';
-import { createAccountPlaybackSelection } from './application/account-playback-selection';
-import { createChannelEdits } from './application/channel-edits';
-import { createAccountScope } from './application/account-scope';
-import { createSharedContext } from './application/shared-context';
-import { installPageHide } from './application/page-hide';
-import { installSettingsFile } from './application/settings-file';
-import { installPanelDivider } from './application/panel-divider';
-import { installMainScreenControls } from './application/main-screen-controls';
-import { createAddChannelsEntry } from './application/add-channels-entry';
-import { createCatalogRefresh } from './application/catalog-refresh';
-import { createMediaKeys } from './application/media-keys';
-import { createGuideViews } from './application/guide-views';
-import { createAccountSetup } from './application/account-setup';
-import { createChannelListControls } from './application/channel-list-controls';
-import { createChannelBrowserSetup } from './application/channel-browser-setup';
-import { createAccountPreferencesController } from './application/account-preferences-controller';
-import { createSourceFinder } from './application/source-finder';
-import { createDataTransferSetup } from './application/data-transfer-setup';
-import { createViewingWakeSetup } from './application/viewing-wake-setup';
-import { createSharingAndCasting } from './application/sharing-and-casting';
-import { createPreferencesSetup } from './application/preferences-setup';
-import { createPlaybackSetup } from './application/playback-setup';
-import { createShellSetup } from './application/shell-setup';
+import { createGuideController } from './application/guide/guide-controller';
+import { createChannelHealthController } from './application/health/channel-health-controller';
+import { createImportController } from './application/discovery/import-controller';
+import { createPlayerView } from './application/playback/player-view';
+import { createGenxtraNavigation } from './application/genxtra/genxtra-navigation';
+import { createLibraryState } from './application/genxtra/library-state';
+import { createPageState } from './application/shell/page-state';
+import { createVisibleGuideState } from './application/guide/visible-guide-state';
+import { createVisibleGuideController } from './application/guide/visible-guide-controller';
+import { createLibraryController } from './application/genxtra/library-controller';
+import { createPageController } from './application/shell/page-controller';
+import { createStartup } from './application/shell/startup';
+import { createCloseController } from './application/shell/close-controller';
+import { createForegroundController } from './application/shell/foreground-controller';
+import { createSettingsController } from './application/shell/settings-controller';
+import { createCatalogView } from './application/catalog/catalog-view';
+import { createPlaybackControls } from './application/playback/playback-controls';
+import { createAccountPlaybackSelection } from './application/accounts/account-playback-selection';
+import { createChannelEdits } from './application/catalog/channel-edits';
+import { createAccountScope } from './application/accounts/account-scope';
+import { createSharedContext } from './application/shell/shared-context';
+import { installPageHide } from './application/shell/page-hide';
+import { installSettingsFile } from './application/shell/settings-file';
+import { installPanelDivider } from './application/shell/panel-divider';
+import { installMainScreenControls } from './application/shell/main-screen-controls';
+import { createAddChannelsEntry } from './application/discovery/add-channels-entry';
+import { createCatalogRefresh } from './application/discovery/catalog-refresh';
+import { createMediaKeys } from './application/playback/media-keys';
+import { createGuideViews } from './application/guide/guide-views';
+import { createAccountSetup } from './application/accounts/account-setup';
+import { createChannelListControls } from './application/catalog/channel-list-controls';
+import { createChannelBrowserSetup } from './application/catalog/channel-browser-setup';
+import { createAccountPreferencesController } from './application/accounts/account-preferences-controller';
+import { createSourceFinder } from './application/discovery/source-finder';
+import { createDataTransferSetup } from './application/catalog/data-transfer-setup';
+import { createViewingWakeSetup } from './application/playback/viewing-wake-setup';
+import { createSharingAndCasting } from './application/sharing/sharing-and-casting';
+import { createPreferencesSetup } from './application/shell/preferences-setup';
+import { createPlaybackSetup } from './application/playback/playback-setup';
+import { createShellSetup } from './application/shell/shell-setup';
 
 /**
  * The application context: everything the area controllers share with the

@@ -27,7 +27,7 @@ import {
 import type { Source } from '../catalog/parser';
 import { type HealthObservation } from '../discovery/health';
 
-import type { SavedHealthPage } from '../application/health-history';
+import type { SavedHealthPage } from '../application/health/health-history';
 import { type GuideEnrichment, type PipelineReview } from '../discovery/pipeline';
 import {
   scanConfiguredSources,
@@ -36,7 +36,7 @@ import {
   type ScanSource,
 } from '../discovery/scan';
 import { createAutomaticScanRuns } from './source-scan-automatic';
-import { createSharedContext } from '../application/shared-context';
+import { createSharedContext } from '../application/shell/shared-context';
 import { createScanChecks } from './source-scan-checks';
 import { createScanRuns } from './source-scan-runs';
 import {

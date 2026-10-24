@@ -15,7 +15,10 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { createSharingHost, type SharingActionContext } from '../../src/application/sharing-host';
+import {
+  createSharingHost,
+  type SharingActionContext,
+} from '../../src/application/sharing/sharing-host';
 import { PlaybackController, type EngineEvent } from '../../src/playback/controller';
 import type { Channel } from '../../src/catalog';
 function deferred() {

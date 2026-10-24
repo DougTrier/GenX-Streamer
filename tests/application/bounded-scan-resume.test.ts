@@ -24,7 +24,7 @@ import {
   validateBoundedScanResumePlan,
   type BoundedScanCandidateRow,
   type BoundedScanResumeHost,
-} from '../../src/application/bounded-scan-resume';
+} from '../../src/application/discovery/bounded-scan-resume';
 import { createHealthObservation } from '../../src/discovery/health';
 import { fixture, observation, candidate, gate } from './bounded-scan-resume.fixture';
 

@@ -15,7 +15,7 @@
  */
 
 import { GUIDE_SOURCE_LIMIT } from '../guide/limits';
-import { mappedGuideResultText } from '../application/mapped-guide-schedule';
+import { mappedGuideResultText } from '../application/guide/mapped-guide-schedule';
 import { type createGuidePresentation } from './guide-presentation';
 import { type createGuideView } from './guide-view';
 import { type createGuideReload } from './guide-reload';

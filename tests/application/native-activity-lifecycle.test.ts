@@ -25,7 +25,7 @@ import { expect, it } from 'vitest';
  * environment.
  */
 function fixture() {
-  const main = readFileSync('src/application/foreground-controller.ts', 'utf8');
+  const main = readFileSync('src/application/shell/foreground-controller.ts', 'utf8');
   const start = main.indexOf('let nativeActivityLifecycleSequence = 0;');
   const end = main.indexOf("window.addEventListener('native-back-requested'", start);
   if (start < 0 || end < start) throw new Error('Lifecycle listener boundary missing');

@@ -15,7 +15,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { createScanRecoveryObserver } from '../../src/application/scan-recovery-observer';
+import { createScanRecoveryObserver } from '../../src/application/discovery/scan-recovery-observer';
 describe('scan recovery scalar observation', () => {
   it('retains the exact admitted counts and fixed refusal without source data', () => {
     const observer = createScanRecoveryObserver(),

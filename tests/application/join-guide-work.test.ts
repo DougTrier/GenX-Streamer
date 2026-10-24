@@ -15,7 +15,7 @@
  */
 
 import { expect, it } from 'vitest';
-import { joinGuideWork } from '../../src/application/join-guide-work';
+import { joinGuideWork } from '../../src/application/guide/join-guide-work';
 
 it('retains the second suspension after the first fails, and redacts its failure', async () => {
   let release!: () => void;

@@ -21,8 +21,8 @@ import {
   type MappedGuideHydrationHost,
   type MappedGuidePreview,
   type MappedGuideReceipt,
-} from '../../src/application/mapped-guide-schedule';
-import { createMappedGuideNativeHost } from '../../src/application/mapped-guide-native';
+} from '../../src/application/guide/mapped-guide-schedule';
+import { createMappedGuideNativeHost } from '../../src/application/guide/mapped-guide-native';
 
 const mapping = {
   catalogSourceId: 'catalog',

@@ -15,7 +15,10 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { createPaidNowPlaying, type NowPlayingRow } from '../../src/application/paid-now-playing';
+import {
+  createPaidNowPlaying,
+  type NowPlayingRow,
+} from '../../src/application/accounts/paid-now-playing';
 import type { AccountGuideProgram } from '../../src/platform/account-guide';
 import type { AccountMetadata } from '../../src/platform/account-vault';
 

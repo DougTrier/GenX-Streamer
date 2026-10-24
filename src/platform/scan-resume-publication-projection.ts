@@ -16,7 +16,7 @@
 
 import { invokeOwnedNative, type OwnedNativeRuntime } from './owned-native-command';
 import { validateCatalog, validateSource, type Channel, type Source } from '../catalog';
-import type { BoundedScanAck } from '../application/bounded-scan-resume';
+import type { BoundedScanAck } from '../application/discovery/bounded-scan-resume';
 import { boundedJsonUtf8Bytes } from '../data-transfer/json-byte-admission';
 import { boundedUtf8Text } from './bounded-text';
 

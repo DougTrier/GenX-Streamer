@@ -38,7 +38,9 @@ async function setup(page: Page, mocked = true) {
   const html = await readFile('src-tauri/src/sharing/lan/viewer.html', 'utf8');
   await page.setContent(html.replace(/<script[^>]*><\/script>/g, '').replace(/<link[^>]*>/g, ''));
   if (mocked) await page.addScriptTag({ content: fixture });
-  await page.addScriptTag({ content: await readFile('src-tauri/src/sharing/lan/viewer.js', 'utf8') });
+  await page.addScriptTag({
+    content: await readFile('src-tauri/src/sharing/lan/viewer.js', 'utf8'),
+  });
 }
 async function reply(page: Page, index: number, value: unknown) {
   await page.evaluate(

@@ -15,7 +15,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import { createChannelLogos } from '../../src/application/channel-logos';
+import { createChannelLogos } from '../../src/application/catalog/channel-logos';
 import {
   createChannelLogoAdapter,
   validateChannelLogos,

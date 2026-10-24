@@ -20,7 +20,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { type ChannelSelection } from '../../src/playback/controller';
-import { createSharingHost } from '../../src/application/sharing-host';
+import { createSharingHost } from '../../src/application/sharing/sharing-host';
 import { harness, channel, flush, temporary } from './controller.fixture';
 
 it('records inspected capabilities without claiming playback and ignores stale metadata', async () => {

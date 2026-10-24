@@ -15,7 +15,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { createScanSourceCollector } from '../../src/application/scan-source-collection';
+import { createScanSourceCollector } from '../../src/application/discovery/scan-source-collection';
 import {
   compactDiscoveryMetadata,
   discoveryMetadata,

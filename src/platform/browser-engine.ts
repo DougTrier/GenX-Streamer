@@ -46,7 +46,7 @@ import {
   type ResourceOwners,
 } from '../playback/resource-owners';
 import { createBrowserEngineStart } from './browser-engine-start';
-import { createSharedContext } from '../application/shared-context';
+import { createSharedContext } from '../application/shell/shared-context';
 export type PlaybackSourceReader = (url: string, signal: AbortSignal) => Promise<ConfiguredSource>;
 export const mediaAttachmentOwners = new WeakMap<
   HTMLVideoElement,

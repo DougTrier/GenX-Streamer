@@ -21,7 +21,7 @@ import {
   type ScanPublicationPatch,
   type ScanPublicationStage,
   type ScanPublicationFailure,
-} from '../../src/application/scan-publication-observer';
+} from '../../src/application/discovery/scan-publication-observer';
 
 it('one handle spans checkpoint preparation and commit, retaining frozen stage snapshots', () => {
   const observer = createScanPublicationObserver();

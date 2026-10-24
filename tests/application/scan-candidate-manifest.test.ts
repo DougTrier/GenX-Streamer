@@ -24,13 +24,13 @@ import {
   createOwnedManifestActor,
   type ManifestWorkerCommand,
   type ManifestWorkerReply,
-} from '../../src/application/scan-candidate-manifest-worker';
+} from '../../src/application/discovery/scan-candidate-manifest-worker';
 import {
   createScanCandidateManifestTransport,
   type ScanCandidateManifestHeader,
   type ScanCandidateManifestPage,
-} from '../../src/application/scan-candidate-manifest';
-import { createScanCandidateManifestClient } from '../../src/application/scan-candidate-manifest-service';
+} from '../../src/application/discovery/scan-candidate-manifest';
+import { createScanCandidateManifestClient } from '../../src/application/discovery/scan-candidate-manifest-service';
 async function fixture(count = 130) {
   const {
     schemaVersion: _version,

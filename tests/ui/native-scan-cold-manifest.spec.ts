@@ -16,7 +16,7 @@
 
 import { expect, test, type Page } from '@playwright/test';
 import { preparePackedScanCheckpoint } from '../../src/discovery/scan-checkpoint';
-import { reachabilityHealthProfile } from '../../src/application/health-profile';
+import { reachabilityHealthProfile } from '../../src/application/health/health-profile';
 import type { ScanReview } from '../../src/discovery/scan';
 
 // Bundled main + real checkpoint/manifest workers. The retained bridge below is

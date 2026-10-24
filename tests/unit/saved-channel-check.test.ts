@@ -21,7 +21,7 @@ import {
   type CheckOutcome,
   type SavedChannel,
   type SavedChannelCheckHost,
-} from '../../src/application/saved-channel-check';
+} from '../../src/application/health/saved-channel-check';
 import {
   createChannelCheckStore,
   validateChannelChecks,

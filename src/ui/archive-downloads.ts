@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-import { archivePlayerFailureGuidance } from '../application/archive-player';
-import type { ArchiveDownloads } from '../application/archive-downloads';
+import { archivePlayerFailureGuidance } from '../application/genxtra/archive-player';
+import type { ArchiveDownloads } from '../application/genxtra/archive-downloads';
 import { ArchiveDownloadError, type ArchiveDownloadEntry } from '../platform/archive-downloads';
 export interface ArchiveDownloadsViewHost {
   downloads: ArchiveDownloads;

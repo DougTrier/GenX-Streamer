@@ -19,7 +19,7 @@ import {
   captureAutomaticGuide,
   validateAutomaticGuideCapture,
   automaticGuidePreferenceKey,
-} from '../../src/application/automatic-guide-capture';
+} from '../../src/application/guide/automatic-guide-capture';
 import { defaultPreferences } from '../../src/preferences';
 import { emptyCatalog, type CatalogRecord } from '../../src/catalog';
 function saved() {

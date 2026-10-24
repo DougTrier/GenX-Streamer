@@ -15,7 +15,7 @@
  */
 
 import { checkpointProviders } from '../discovery/helpers/scan-checkpoint';
-import { captureStoredScanCheckpoint } from '../../src/application/scan-checkpoint-capture';
+import { captureStoredScanCheckpoint } from '../../src/application/discovery/scan-checkpoint-capture';
 import { parseStoredScanCheckpoint } from '../../src/discovery/scan-checkpoint';
 import { checkpointFixture as createCheckpointFixture } from '../discovery/helpers/scan-checkpoint';
 const checkpointFixture = (published = false) =>

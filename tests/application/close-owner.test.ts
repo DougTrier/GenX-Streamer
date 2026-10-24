@@ -15,7 +15,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import { createCloseOwner } from '../../src/application/close-owner';
+import { createCloseOwner } from '../../src/application/shell/close-owner';
 const token = (generation = 1) => ({ requestId: `close-${generation}`, generation });
 function deferred() {
   let resolve!: () => void;

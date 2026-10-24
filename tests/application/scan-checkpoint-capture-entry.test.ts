@@ -18,7 +18,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { ScanReconstructionError } from '../../src/discovery/scan-checkpoint';
 
 const state = vi.hoisted(() => ({ failure: null as unknown }));
-vi.mock('../../src/application/scan-checkpoint-capture', () => {
+vi.mock('../../src/application/discovery/scan-checkpoint-capture', () => {
   const capture = () => Promise.reject(state.failure);
   return {
     captureScanCheckpoint: capture,
@@ -39,7 +39,7 @@ it('worker strips arbitrary exception details and codes outside restoration oper
     postMessage: vi.fn(),
   };
   vi.stubGlobal('self', endpoint);
-  await import('../../src/application/scan-checkpoint-capture-worker');
+  await import('../../src/application/discovery/scan-checkpoint-capture-worker');
   for (const operation of ['restore-reference', 'restore-packed-reference']) {
     state.failure = new ScanReconstructionError('needed-source-failed');
     await endpoint.onmessage!({ data: { operation, input: null } } as MessageEvent);

@@ -18,15 +18,15 @@ import { describe, expect, it } from 'vitest';
 import {
   selectScanCheckpointMode,
   scanCheckpointModeOptions,
-} from '../../src/application/scan-checkpoint-mode';
-import { createScanCheckpointProgressCapture } from '../../src/application/scan-checkpoint-capture-service';
+} from '../../src/application/discovery/scan-checkpoint-mode';
+import { createScanCheckpointProgressCapture } from '../../src/application/discovery/scan-checkpoint-capture-service';
 import {
   captureScanCheckpoint,
   captureStoredScanCheckpoint,
   captureInitialProgressCheckpoint,
   captureInitialPackedProgressCheckpoint,
   type ScanCheckpointCaptureInput,
-} from '../../src/application/scan-checkpoint-capture';
+} from '../../src/application/discovery/scan-checkpoint-capture';
 import { checkpointFixture, checkpointProviders } from '../discovery/helpers/scan-checkpoint';
 
 const modern = { advance: true, packedReference: true };

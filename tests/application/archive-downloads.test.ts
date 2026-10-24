@@ -15,7 +15,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { createArchiveDownloads } from '../../src/application/archive-downloads';
+import { createArchiveDownloads } from '../../src/application/genxtra/archive-downloads';
 import {
   createArchiveDownloadsAdapter,
   ArchiveDownloadError,

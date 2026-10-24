@@ -15,7 +15,7 @@
  */
 
 import { describe, it, expect, vi } from 'vitest';
-import { createVisibleGuideOwner } from '../../src/application/visible-guide';
+import { createVisibleGuideOwner } from '../../src/application/guide/visible-guide';
 import {
   createVisibleGuideAdapter,
   validateVisibleGuideSummary,

@@ -18,7 +18,7 @@
  * The scan screen's types, failures and the comparisons used when a saved
  * scan is resumed. Re-exported by source-scan.ts.
  */
-import { type createBoundedScanResumeService } from '../application/bounded-scan-resume-service';
+import { type createBoundedScanResumeService } from '../application/discovery/bounded-scan-resume-service';
 import { type ScanPreparationFailureCode } from '../discovery/selection-failure';
 import {
   type ReviewCandidate,
@@ -40,7 +40,7 @@ import {
 } from '../catalog/parser';
 import { type ReviewedScanHealthContext } from '../discovery/prepare-selection';
 import { type GuideEnrichment, type RegisteredGuide } from '../discovery/pipeline';
-import { type SavedHealthPage, type SavedHealthQuery } from '../application/health-history';
+import { type SavedHealthPage, type SavedHealthQuery } from '../application/health/health-history';
 
 /** First fixed error code in an error or its causes (native failures are codes); never free text. */
 export function scanFailureCode(failure: unknown): string {

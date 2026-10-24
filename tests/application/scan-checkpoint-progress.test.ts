@@ -15,12 +15,12 @@
  */
 
 import { expect, it, vi } from 'vitest';
-import { createScanCheckpointProgressCapture } from '../../src/application/scan-checkpoint-capture-service';
+import { createScanCheckpointProgressCapture } from '../../src/application/discovery/scan-checkpoint-capture-service';
 import {
   captureInitialProgressCheckpoint,
   captureInitialPackedProgressCheckpoint,
   type ScanCheckpointCaptureInput,
-} from '../../src/application/scan-checkpoint-capture';
+} from '../../src/application/discovery/scan-checkpoint-capture';
 import {
   parseStoredScanCheckpoint,
   validateScanCheckpointMutation,

@@ -27,12 +27,12 @@ import { PANEL_AGENDA_WIDTH, type TimelineChannel } from './guide-timeline-model
 import {
   createSelectedGuideOwner,
   type SelectedGuideSnapshot,
-} from '../application/selected-guide';
+} from '../application/guide/selected-guide';
 
 import type { AutomaticGuideBuildProgress } from '../guide/automatic-build';
 
 import { createGuidePresentation } from './guide-presentation';
-import { createSharedContext } from '../application/shared-context';
+import { createSharedContext } from '../application/shell/shared-context';
 import { createGuideReload } from './guide-reload';
 import { createGuideView } from './guide-view';
 import { createGuideDropdown } from './guide-dropdown';

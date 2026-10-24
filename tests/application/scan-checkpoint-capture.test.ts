@@ -20,7 +20,7 @@ import {
   captureScanCheckpoint,
   parseCapturedScanCheckpoint,
   type ScanCheckpointCaptureInput,
-} from '../../src/application/scan-checkpoint-capture';
+} from '../../src/application/discovery/scan-checkpoint-capture';
 import { checkpointFixture } from '../discovery/helpers/scan-checkpoint';
 
 async function input(): Promise<ScanCheckpointCaptureInput> {

@@ -32,7 +32,7 @@ import {
   type ArchiveTitle,
 } from '../platform/archive-catalog';
 import { archiveFavoriteEmptyState } from './archive-empty-state';
-import { archivePlayerFailureGuidance } from '../application/archive-player';
+import { archivePlayerFailureGuidance } from '../application/genxtra/archive-player';
 import { type ArchiveSearchHost } from './archive-search';
 import { type ArchiveContentType } from '../platform/archive-catalog';
 import { type ArchiveDecade } from '../platform/archive-catalog';

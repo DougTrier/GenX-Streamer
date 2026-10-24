@@ -44,7 +44,9 @@ async function setup(page: Page, { mse = true, native = true, pending = false } 
     window.show=()=>{Object.defineProperty(document,'hidden',{configurable:true,value:false});document.dispatchEvent(new Event('visibilitychange'))};
   `,
   });
-  await page.addScriptTag({ content: await readFile('src-tauri/src/sharing/lan/viewer.js', 'utf8') });
+  await page.addScriptTag({
+    content: await readFile('src-tauri/src/sharing/lan/viewer.js', 'utf8'),
+  });
 }
 async function reply(page: Page, index: number, value: unknown) {
   await page.evaluate(

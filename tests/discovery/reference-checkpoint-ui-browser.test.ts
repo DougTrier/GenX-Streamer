@@ -20,7 +20,7 @@ import { build } from 'vite';
 import { chromium, type Browser } from '@playwright/test';
 import { checkpointFixture, checkpointProviders } from './helpers/scan-checkpoint';
 import { defaultPreferences } from '../../src/preferences';
-import { captureStoredScanCheckpoint } from '../../src/application/scan-checkpoint-capture';
+import { captureStoredScanCheckpoint } from '../../src/application/discovery/scan-checkpoint-capture';
 import { mkdtemp, writeFile, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -31,7 +31,7 @@ beforeAll(async () => {
   const source = (p: string) => JSON.stringify(resolve(p).replaceAll('\\', '/'));
   await writeFile(
     entry,
-    `export {mountSourceScan} from ${source('src/ui/source-scan.ts')}; export {scanConfiguredSources} from ${source('src/discovery/scan.ts')}; export {parseStoredCapture,restoreReferencedCapture} from ${source('src/application/scan-checkpoint-capture-service.ts')}; export {readIndexedDbScanCheckpoint,writeIndexedDbRecordPair} from ${source('src/platform/record-transaction.ts')};`,
+    `export {mountSourceScan} from ${source('src/ui/source-scan.ts')}; export {scanConfiguredSources} from ${source('src/discovery/scan.ts')}; export {parseStoredCapture,restoreReferencedCapture} from ${source('src/application/discovery/scan-checkpoint-capture-service.ts')}; export {readIndexedDbScanCheckpoint,writeIndexedDbRecordPair} from ${source('src/platform/record-transaction.ts')};`,
   );
   await build({
     configFile: false,

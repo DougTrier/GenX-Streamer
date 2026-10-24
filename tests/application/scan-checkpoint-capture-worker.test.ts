@@ -26,8 +26,8 @@ import {
   restorePackedCapture,
   parseScanCheckpointCapabilities,
   prepareInitialPackedProgressCapture,
-} from '../../src/application/scan-checkpoint-capture-service';
-import type { ScanCheckpointCaptureInput } from '../../src/application/scan-checkpoint-capture';
+} from '../../src/application/discovery/scan-checkpoint-capture-service';
+import type { ScanCheckpointCaptureInput } from '../../src/application/discovery/scan-checkpoint-capture';
 import { checkpointFixture } from '../discovery/helpers/scan-checkpoint';
 import { scanReconstructionFailureCode } from '../../src/discovery/scan-checkpoint';
 class FakeWorker {

@@ -15,7 +15,10 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import { createAccountPlayer, PROVIDER_BUSY_MESSAGE } from '../../src/application/account-player';
+import {
+  createAccountPlayer,
+  PROVIDER_BUSY_MESSAGE,
+} from '../../src/application/accounts/account-player';
 
 const A = 'a'.repeat(32);
 const B = 'b'.repeat(32);

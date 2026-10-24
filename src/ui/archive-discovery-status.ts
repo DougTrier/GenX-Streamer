@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import type { ArchiveDiscoverySnapshot } from '../application/archive-discovery';
+import type { ArchiveDiscoverySnapshot } from '../application/genxtra/archive-discovery';
 
 export interface ArchiveDiscoveryStatus {
   readonly hidden: boolean;

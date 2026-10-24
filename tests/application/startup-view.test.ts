@@ -15,8 +15,8 @@
  */
 
 import { expect, it, vi } from 'vitest';
-import { createStartupObserver } from '../../src/application/startup-view';
-import { createStartupObserver as core } from '../../src/application/startup-observer';
+import { createStartupObserver } from '../../src/application/shell/startup-view';
+import { createStartupObserver as core } from '../../src/application/shell/startup-observer';
 import type { StartupSnapshot, StartupStatusView } from '../../src/ui/startup-status';
 
 function deferred<T>() {

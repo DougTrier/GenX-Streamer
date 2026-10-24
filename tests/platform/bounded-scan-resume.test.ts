@@ -17,7 +17,7 @@
 import {
   scanResumeCommitWindow,
   scanResumeTakeTiming,
-} from '../../src/application/bounded-scan-resume';
+} from '../../src/application/discovery/bounded-scan-resume';
 import { expect, it, vi } from 'vitest';
 import { createBoundedNativeScanResumeTransport } from '../../src/platform/bounded-scan-resume';
 import { createHealthObservation } from '../../src/discovery/health';

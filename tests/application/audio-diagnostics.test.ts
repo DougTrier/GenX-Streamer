@@ -15,7 +15,7 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import { installAudioDiagnostics } from '../../src/application/audio-diagnostics';
+import { installAudioDiagnostics } from '../../src/application/playback/audio-diagnostics';
 import {
   AUDIO_HEALTH_CHANGE,
   type AudioHealthSnapshot,

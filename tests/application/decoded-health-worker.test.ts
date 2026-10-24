@@ -15,8 +15,8 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { prepareDecodedHealthInWorker } from '../../src/application/decoded-health';
-import type { PrepareDecodedHealthInput } from '../../src/application/prepare-decoded-health';
+import { prepareDecodedHealthInWorker } from '../../src/application/health/decoded-health';
+import type { PrepareDecodedHealthInput } from '../../src/application/health/prepare-decoded-health';
 class WorkerFixture {
   static current: WorkerFixture;
   onmessage: ((event: MessageEvent) => void) | null = null;

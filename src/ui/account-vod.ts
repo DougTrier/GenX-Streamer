@@ -23,10 +23,10 @@ import {
   type AccountVodItem,
   type AccountVodSection,
 } from '../platform/account-vod';
-import type { AccountVodTitle } from '../application/account-player';
+import type { AccountVodTitle } from '../application/accounts/account-player';
 import { viewingSettings } from '../platform/viewing-settings';
 import { createAccountVodRows } from './account-vod-rows';
-import { createSharedContext } from '../application/shared-context';
+import { createSharedContext } from '../application/shell/shared-context';
 
 /**
  * Video On Demand for a Paid TV account ("GenX Cinema"): the provider's movies

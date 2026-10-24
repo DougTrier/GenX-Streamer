@@ -15,7 +15,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { createCloseFinalizationObserver } from '../../src/application/close-finalization';
+import { createCloseFinalizationObserver } from '../../src/application/shell/close-finalization';
 
 describe('close finalization observation', () => {
   it('times actual finalization promises without retaining errors or changing their result', async () => {

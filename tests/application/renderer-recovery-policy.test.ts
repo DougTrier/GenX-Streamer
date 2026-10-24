@@ -18,7 +18,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   createRendererRecoveryPolicy,
   validateRendererRecoveryBootstrap,
-} from '../../src/application/renderer-recovery-policy';
+} from '../../src/application/shell/renderer-recovery-policy';
 
 describe('renderer recovery session consent', () => {
   it('holds automatic work until one actual bootstrap reply settles', async () => {

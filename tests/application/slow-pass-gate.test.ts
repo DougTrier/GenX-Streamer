@@ -15,7 +15,7 @@
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createSlowPassGate } from '../../src/application/slow-pass-gate';
+import { createSlowPassGate } from '../../src/application/discovery/slow-pass-gate';
 
 const deferred = () => {
   let resolve!: () => void;

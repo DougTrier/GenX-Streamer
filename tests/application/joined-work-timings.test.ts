@@ -15,7 +15,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { createJoinedWorkTimings } from '../../src/application/joined-work-timings';
+import { createJoinedWorkTimings } from '../../src/application/shell/joined-work-timings';
 
 describe('passive joined work timing', () => {
   it('reports actual held work, immutable snapshots and the identical result/error', async () => {

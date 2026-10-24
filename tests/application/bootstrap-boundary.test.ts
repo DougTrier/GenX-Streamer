@@ -20,7 +20,7 @@ import {
   BootstrapFailureError,
   type BootstrapRecoveryView,
   type BootstrapSnapshot,
-} from '../../src/application/bootstrap-boundary';
+} from '../../src/application/shell/bootstrap-boundary';
 
 function view() {
   const renders: BootstrapSnapshot[] = [];

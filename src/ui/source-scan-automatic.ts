@@ -19,7 +19,7 @@ import { type HealthObservation } from '../discovery/health';
 import {
   validateBoundedScanResumePlan,
   type BoundedScanResumePlan,
-} from '../application/bounded-scan-resume';
+} from '../application/discovery/bounded-scan-resume';
 import { SourceSnapshotFullRecheckEmptyError } from '../platform/source-snapshot-activation';
 import { type Source } from '../catalog/parser';
 import { type PipelineReview } from '../discovery/pipeline';

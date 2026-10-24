@@ -16,8 +16,8 @@
 
 import { expect, it, vi } from 'vitest';
 import { defaultPreferences } from '../../src/preferences';
-import { prepareDiscoveredSources } from '../../src/application/discovered-source-configuration';
-import { captureAutomaticGuide } from '../../src/application/automatic-guide-capture';
+import { prepareDiscoveredSources } from '../../src/application/discovery/discovered-source-configuration';
+import { captureAutomaticGuide } from '../../src/application/guide/automatic-guide-capture';
 import { createSourceIndexService } from '../../src/discovery/source-index-service';
 import { sourceDocumentUrl } from '../../src/discovery/source-index';
 import { createOnlineSourceScan } from '../../src/discovery/online-source-scan';

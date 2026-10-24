@@ -15,7 +15,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { createCloseProgressObserver } from '../../src/application/close-progress';
+import { createCloseProgressObserver } from '../../src/application/shell/close-progress';
 const progress = {
   schemaVersion: 1,
   generation: 2,

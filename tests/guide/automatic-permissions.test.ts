@@ -28,7 +28,7 @@ vi.mock('../../src/guide/native', () => ({
   readSelectedGuide: vi.fn(),
   readChannelGuideCoverage: vi.fn(),
 }));
-import { createGuideHost } from '../../src/application/guide-host';
+import { createGuideHost } from '../../src/application/guide/guide-host';
 const source = (patch: Partial<GuideSource> = {}): GuideSource => ({
   id: 'saved',
   name: 'My saved guide',

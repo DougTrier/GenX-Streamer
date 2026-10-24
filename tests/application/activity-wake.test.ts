@@ -15,7 +15,7 @@
  */
 
 import { expect, it } from 'vitest';
-import { createActivityWakePolicy } from '../../src/application/activity-wake';
+import { createActivityWakePolicy } from '../../src/application/playback/activity-wake';
 it('keeps an active TV scan awake when idle playback releases its reason, then releases on completion', async () => {
   const states: boolean[] = [];
   const policy = createActivityWakePolicy(async (active) => {

@@ -15,7 +15,10 @@
  */
 
 import { expect, it } from 'vitest';
-import { allowIncludedHttp, providerScanSources } from '../../src/application/included-sources';
+import {
+  allowIncludedHttp,
+  providerScanSources,
+} from '../../src/application/discovery/included-sources';
 import { emptyCatalog, type Source } from '../../src/catalog';
 import { defaultPreferences } from '../../src/preferences';
 

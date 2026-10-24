@@ -19,7 +19,7 @@ import {
   createArchivePlayer,
   ArchivePlayerCleanupError,
   ArchiveFileRemovedError,
-} from '../../src/application/archive-player';
+} from '../../src/application/genxtra/archive-player';
 import {
   createArchivePlayback,
   type ArchivePlaybackReceipt,

@@ -19,7 +19,7 @@ import {
   type AutomaticGuideBuildResult,
 } from '../guide/automatic-build';
 import { GUIDE_SOURCE_LIMIT } from '../guide/limits';
-import { type createSelectedGuideOwner } from '../application/selected-guide';
+import { type createSelectedGuideOwner } from '../application/guide/selected-guide';
 import { type GuideHost } from './guide-model';
 
 /** What this part reads from, and writes back to, mountGuide. */

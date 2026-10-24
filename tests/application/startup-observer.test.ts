@@ -19,7 +19,7 @@ import {
   createStartupObserver,
   type StartupStage,
   startupStages,
-} from '../../src/application/startup-observer';
+} from '../../src/application/shell/startup-observer';
 function deferred<T>() {
   let resolve!: (value: T) => void;
   let reject!: (error: Error) => void;
