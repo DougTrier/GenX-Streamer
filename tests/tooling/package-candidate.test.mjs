@@ -33,6 +33,7 @@ with zipfile.ZipFile(sys.argv[1],'w',compression=zipfile.ZIP_DEFLATED) as z:
  z.writestr('classes.dex', b'dex fixture')
  z.writestr('lib/arm64-v8a/libfixture.so', b'ELF fixture')
  v=sys.argv[2]
+ if v=='universal': z.writestr('lib/armeabi-v7a/libfixture.so', b'ELF fixture')
  if v=='ratio': z.writestr('bomb',bytes(1000000))
  if v=='traversal': z.writestr('../escape',b'x')
  if v=='backslash': z.writestr('folder\\escape',b'x')
@@ -45,12 +46,12 @@ if sys.argv[2]=='backslash':
 test('fixed ZIP bytes repeat with identical inputs, spaces/Unicode paths; unchanged APK and honest manifest',async()=>fixture(async({options,root,apk})=>{
  const first=await packageCandidate(options);const second=await packageCandidate({...options,outputDir:path.join(root,'candidate two ü')});
  const a=await readFile(path.join(first.directory,'GenX-Streamer-0.1.0-Windows-x64-portable.zip'));const b=await readFile(path.join(second.directory,'GenX-Streamer-0.1.0-Windows-x64-portable.zip'));assert.deepEqual(a,b);
- assert.equal(await sha256(apk),await sha256(path.join(first.directory,'GenX-Streamer-0.1.0-Android-arm64.apk')));
+ assert.equal(await sha256(apk),await sha256(path.join(first.directory,'GenX-Streamer-0.1.0-Android.apk')));
  const manifest=await verifyCandidate(first.directory);assert.equal(manifest.releaseAcceptance,false);assert.equal(manifest.signatureStatus,'unverified');assert.match(manifest.profiles.authority,/caller-declared/);assert.equal(manifest.appIdentifier,'com.tmg.tv');assert.equal(manifest.noticesStatus,'missing');
  const receipt=JSON.parse(await readFile(path.join(first.directory,'receipt.json'),'utf8'));assert.equal(receipt.exitCode,0);assert.equal(receipt.releaseAcceptance,false);assert.equal(receipt.inputHashes.android,await sha256(apk));
  const entries=JSON.parse(execFileSync('python',['-c',"import zipfile,json,sys;z=zipfile.ZipFile(sys.argv[1]);print(json.dumps([[i.filename,list(i.date_time)] for i in z.infolist()]))",path.join(first.directory,'GenX-Streamer-0.1.0-Windows-x64-portable.zip')],{encoding:'utf8',windowsHide:true}));assert.deepEqual(entries.map(e=>e[0]),['GenX Streamer.exe','README.txt','tmg-portable.flag']);assert.ok(entries.every(e=>JSON.stringify(e[1])==='[1980,1,1,0,0,0]'));
 }));
-test('tampered binary hash fails verification',async()=>fixture(async({options})=>{const result=await packageCandidate(options);await writeFile(path.join(result.directory,'GenX-Streamer-0.1.0-Android-arm64.apk'),'tampered');await assert.rejects(verifyCandidate(result.directory),/checksum/);}));
+test('tampered binary hash fails verification',async()=>fixture(async({options})=>{const result=await packageCandidate(options);await writeFile(path.join(result.directory,'GenX-Streamer-0.1.0-Android.apk'),'tampered');await assert.rejects(verifyCandidate(result.directory),/checksum/);}));
 test('missing/nonfile inputs and invalid PE fail without publishing',async()=>fixture(async({options,root,exe})=>{
  await assert.rejects(packageCandidate({...options,windowsExe:path.join(root,'missing')}));await assert.rejects(packageCandidate({...options,windowsExe:root}),/regular file/);await writeFile(exe,'MZ only');await assert.rejects(packageCandidate(options),/PE structure/);
 }));
@@ -61,12 +62,12 @@ test('invalid APK, traversal, compression, manifest and entry-count limits fail 
 test('existing destination never gets replaced or modified',async()=>fixture(async({options})=>{await mkdir(options.outputDir);const sentinel=path.join(options.outputDir,'user-data');await writeFile(sentinel,'keep');await assert.rejects(packageCandidate(options),/already exists/);assert.equal(await readFile(sentinel,'utf8'),'keep');}));
 test('final-inputs requires notices and release declarations but still cannot certify a release',async()=>fixture(async({options,root})=>{
  await assert.rejects(packageCandidate({...options,mode:'final-inputs'}),/require/);await assert.rejects(packageCandidate({...options,mode:'final-inputs',windowsProfile:'release',androidProfile:'release'}),/notices/);
- const notices=path.join(root,'reviewed notices.txt');await writeFile(notices,'Fixture notices; not real licensing evidence');const result=await packageCandidate({...options,mode:'final-inputs',windowsProfile:'release',androidProfile:'release',notices});assert.equal(result.manifest.releaseAcceptance,false);assert.equal(result.manifest.noticesStatus,'included-completeness-unverified');assert.equal(result.manifest.signatureStatus,'unverified');assert.ok(result.manifest.pendingEvidence.includes('physical Windows and Android playback'));
+ const notices=path.join(root,'reviewed notices.txt');await writeFile(notices,'Fixture notices; not real licensing evidence');await assert.rejects(packageCandidate({...options,mode:'final-inputs',windowsProfile:'release',androidProfile:'release',notices}),/arm64-v8a and armeabi-v7a/);apkFixture(options.androidApk,'universal');const result=await packageCandidate({...options,mode:'final-inputs',windowsProfile:'release',androidProfile:'release',notices});assert.deepEqual(result.manifest.inputs.android.architectures,['arm64-v8a','armeabi-v7a']);const described=JSON.parse(await readFile(path.join(result.directory,'release-manifest.json'),'utf8'));assert.deepEqual(described.files.map(f=>[f.name,f.platform,f.architectures.join('+')]),[['GenX-Streamer-0.1.0-Windows-x64-portable.zip','windows','x64'],['GenX-Streamer-0.1.0-Windows-x64.exe','windows','x64'],['GenX-Streamer-0.1.0-Android.apk','android','arm64-v8a+armeabi-v7a']]);assert.equal(described.files[2].minimumSdk,24);assert.equal(result.manifest.releaseAcceptance,false);assert.equal(result.manifest.noticesStatus,'included-completeness-unverified');assert.equal(result.manifest.signatureStatus,'unverified');assert.ok(result.manifest.pendingEvidence.includes('physical Windows and Android playback'));
 }));
 test('windows-only packages the ZIP alone and names the Android release as pending',async()=>fixture(async({options})=>{const {androidApk,androidProfile,...windows}=options;void androidApk;void androidProfile;const result=await packageCandidate({...windows,mode:'windows-only'});assert.deepEqual(result.manifest.artifacts.map(a=>a.platform),['windows','windows-exe']);assert.equal(result.manifest.profiles.android,null);assert.ok(result.manifest.pendingEvidence[0].startsWith('Android release APK'));assert.equal(result.manifest.releaseAcceptance,false);await verifyCandidate(result.directory);await assert.rejects(packageCandidate({...options,mode:'windows-only',outputDir:options.outputDir+'-2'}),/required|profiles/);}));
 test('release files carry version and platform, and SHA256SUMS lists every one',async()=>fixture(async({options,exe,apk})=>{
  const result=await packageCandidate(options);
- const names=['GenX-Streamer-0.1.0-Windows-x64-portable.zip','GenX-Streamer-0.1.0-Windows-x64.exe','GenX-Streamer-0.1.0-Android-arm64.apk'];
+ const names=['GenX-Streamer-0.1.0-Windows-x64-portable.zip','GenX-Streamer-0.1.0-Windows-x64.exe','GenX-Streamer-0.1.0-Android.apk'];
  assert.deepEqual(result.manifest.artifacts.map(a=>a.name),names);
  assert.equal(result.manifest.version,'0.1.0');
  const sums=(await readFile(path.join(result.directory,'SHA256SUMS'),'utf8')).trim().split(/\r?\n/u);

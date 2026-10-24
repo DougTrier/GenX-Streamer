@@ -1,0 +1,224 @@
+<!doctype html>
+<!--
+  Copyright 2026 Doug Trier
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+
+  Get GenX Streamer (docs/share-links.md, "The right build for every device"),
+  for GitHub Pages at https://dougtrier.github.io/GenX-Streamer/get/. Pass It
+  Along's download link and QR code open this page. It reads the latest
+  official release from GitHub's API and offers the file that fits the device
+  that opened it, with its requirements and SHA-256 (SH-009, SH-012). It never
+  downloads by itself (SH-015); when it cannot tell the device, it says so and
+  lets the person choose (SH-011, SH-020). ?for=android or ?for=windows picks
+  the platform explicitly. Offline sharing never depends on this page (SH-013).
+-->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="referrer" content="no-referrer" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; connect-src https://api.github.com; script-src 'sha256-dfGnQMgDyCUj/c5EGrzccyj91NnKbOagmYQvTmKptmo='; base-uri 'none'; form-action 'none'"
+    />
+    <title>Get GenX Streamer</title>
+    <style>
+      :root {
+        color-scheme: dark;
+        --text: #eef3ff;
+        --muted: #b9c6dd;
+        --cyan: #83e9f5;
+        --magenta: #f58dca;
+      }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        font: 17px/1.5 system-ui, 'Segoe UI', Roboto, sans-serif;
+        color: var(--text);
+        background:
+          radial-gradient(120% 70% at 100% 0%, #f58dca1f, transparent 60%),
+          linear-gradient(160deg, #121d38, #0a1128 70%);
+      }
+      main {
+        box-sizing: border-box;
+        width: min(560px, calc(100vw - 32px));
+        padding: 28px;
+        border: 1px solid #3d6280;
+        border-top: 3px solid var(--magenta);
+        border-radius: 18px;
+        background: #0c1530cc;
+      }
+      img {
+        width: 64px;
+        height: 64px;
+      }
+      h1 {
+        margin: 12px 0 4px;
+        font-size: 1.5rem;
+      }
+      p,
+      li {
+        color: var(--muted);
+      }
+      a.button {
+        display: inline-block;
+        margin: 12px 0;
+        padding: 12px 18px;
+        border-radius: 12px;
+        color: #071022;
+        background: var(--cyan);
+        font-weight: 700;
+        text-decoration: none;
+      }
+      a {
+        color: var(--cyan);
+      }
+      code {
+        font-size: 13px;
+        overflow-wrap: anywhere;
+      }
+      [hidden] {
+        display: none !important;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <img src="../watch/genx-icon.png" alt="" />
+      <h1 id="title">Get GenX Streamer</h1>
+      <p id="status">Looking for the latest release…</p>
+      <div id="pick" hidden>
+        <p id="requirements"></p>
+        <a id="download" class="button"></a>
+        <p>SHA-256 (compare after downloading): <code id="sha"></code></p>
+        <p id="guidance"></p>
+      </div>
+      <div id="others" hidden>
+        <p id="others-label">Other downloads:</p>
+        <ul id="list"></ul>
+      </div>
+      <p>
+        Every file and its checksum is also on the
+        <a id="page" href="https://github.com/DougTrier/GenX-Streamer/releases/latest" rel="noopener noreferrer">release page</a>.
+      </p>
+    </main>
+    <script>
+      (() => {
+        const API = 'https://api.github.com/repos/DougTrier/GenX-Streamer/releases/latest';
+        const PREFIX = 'https://github.com/DougTrier/GenX-Streamer/releases/download/';
+        // The release files (docs/verify-a-download.md) and what each needs.
+        const BUILDS = {
+          android: {
+            label: 'Android',
+            pattern: /^GenX-Streamer-\d+\.\d+\.\d+-Android\.apk$/,
+            requirements:
+              'For Android 7.0 or newer on ARM phones, tablets and TVs (32- and 64-bit). Not for x86 Android devices.',
+            guidance:
+              'Open the downloaded file. When Android asks, allow your browser or Files to install apps.',
+          },
+          windows: {
+            label: 'Windows',
+            pattern: /^GenX-Streamer-\d+\.\d+\.\d+-Windows-x64-portable\.zip$/,
+            requirements:
+              'For 64-bit Windows 10 or 11 with the Microsoft Edge WebView2 Runtime (built into Windows 11).',
+            guidance:
+              'Extract the whole ZIP into a folder of its own, then open GenX Streamer.exe. Windows may say the publisher is unknown: choose More info, then Run anyway.',
+          },
+        };
+        const text = (id, value) => (document.getElementById(id).textContent = value);
+        // What the device says it is; 'apple' and 'other' get no build (SH-009).
+        function platform() {
+          const forced = new URLSearchParams(location.search).get('for');
+          if (forced === 'android' || forced === 'windows') return { name: forced, sure: true };
+          const ua = navigator.userAgent;
+          if (/Android/i.test(ua)) return { name: 'android', sure: false };
+          if (/iPhone|iPad|iPod/i.test(ua)) return { name: 'apple', sure: true };
+          if (/Windows NT/i.test(ua)) return { name: 'windows', sure: false };
+          if (/Macintosh|Mac OS X/i.test(ua)) return { name: 'apple', sure: true };
+          return { name: 'other', sure: false };
+        }
+        const official = (asset, tag) =>
+          typeof asset.browser_download_url === 'string' &&
+          asset.browser_download_url === PREFIX + tag + '/' + asset.name &&
+          /^sha256:[0-9a-f]{64}$/.test(asset.digest || '');
+        function link(asset) {
+          const a = document.createElement('a');
+          a.href = asset.browser_download_url;
+          a.rel = 'noopener noreferrer';
+          a.textContent = asset.name;
+          return a;
+        }
+        fetch(API, { headers: { Accept: 'application/vnd.github+json' } })
+          .then((response) => {
+            if (response.status === 404) throw new Error('none');
+            if (!response.ok) throw new Error('unavailable');
+            return response.json();
+          })
+          .then((release) => {
+            if (!release || release.draft || release.prerelease || typeof release.tag_name !== 'string') throw new Error('none');
+            const tag = release.tag_name;
+            // SH-012: only the official release's own files, with GitHub's digest.
+            const assets = (release.assets || []).filter((asset) => official(asset, tag));
+            const device = platform();
+            const build = BUILDS[device.name];
+            const chosen = build && assets.find((asset) => build.pattern.test(asset.name));
+            const others = assets.filter((asset) => asset !== chosen && Object.values(BUILDS).some((b) => b.pattern.test(asset.name)));
+            if (chosen) {
+              text('title', 'GenX Streamer ' + tag.replace(/^v/, '') + ' for ' + build.label);
+              text(
+                'status',
+                device.sure
+                  ? 'This is the download for your device.'
+                  : 'This device looks like ' + build.label + '. If that is wrong, choose another download below.',
+              );
+              text('requirements', build.requirements);
+              const download = document.getElementById('download');
+              download.href = chosen.browser_download_url;
+              download.textContent = 'Download ' + chosen.name;
+              text('sha', chosen.digest.slice(7));
+              text('guidance', build.guidance);
+              document.getElementById('pick').hidden = false;
+            } else if (device.name === 'apple') {
+              text('status', 'GenX Streamer is not available for iPhone, iPad or Mac yet.');
+            } else if (build) {
+              text('status', 'The latest release has no ' + build.label + ' download yet.');
+            } else {
+              text('status', 'This page cannot tell which device this is. Choose the download for your device:');
+            }
+            if (others.length) {
+              text('others-label', chosen ? 'Other downloads:' : 'Downloads:');
+              document.getElementById('list').replaceChildren(
+                ...others.map((asset) => {
+                  const item = document.createElement('li');
+                  item.append(link(asset));
+                  return item;
+                }),
+              );
+              document.getElementById('others').hidden = false;
+            }
+          })
+          .catch((error) => {
+            text(
+              'status',
+              error.message === 'none'
+                ? 'No public release of GenX Streamer was found yet.'
+                : 'GitHub could not be reached. Try again when you are online.',
+            );
+          });
+      })();
+    </script>
+  </body>
+</html>

@@ -94,7 +94,7 @@ test('Settings offers Send app to a friend in its header, opening every way to s
   // The browser preview has no app file to send; the link options remain.
   await expect(dialog.getByRole('button', { name: 'Send the download link' })).toBeVisible();
   await expect(dialog.getByRole('textbox', { name: 'Download link' })).toHaveValue(
-    'https://github.com/DougTrier/GenX-Streamer/releases/latest',
+    'https://dougtrier.github.io/GenX-Streamer/get/',
   );
   await page.keyboard.press('Escape');
   await expect(dialog).toBeHidden();

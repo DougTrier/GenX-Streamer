@@ -164,7 +164,7 @@ test('Send app offers the app file, the download link and a copy, each through t
   await expect(dialog).toContainText('unknown publisher');
   await expect(dialog.getByRole('button', { name: 'Send the app file' })).toBeFocused();
   await expect(dialog.getByRole('textbox', { name: 'Download link' })).toHaveValue(
-    'https://github.com/DougTrier/GenX-Streamer/releases/latest',
+    'https://dougtrier.github.io/GenX-Streamer/get/',
   );
   await dialog.getByRole('button', { name: 'Send the download link' }).click();
   await expect(dialog.getByRole('button', { name: 'Send the Windows ZIP link' })).toBeVisible();
@@ -175,7 +175,7 @@ test('Send app offers the app file, the download link and a copy, each through t
       command: 'share_text',
       args: {
         title: 'GenX Streamer',
-        text: 'Get GenX Streamer, a free TV app for Windows and Android: https://github.com/DougTrier/GenX-Streamer/releases/latest',
+        text: 'Get GenX Streamer, a free TV app for Windows and Android: https://dougtrier.github.io/GenX-Streamer/get/',
       },
     },
     {
@@ -355,7 +355,7 @@ test('the web page names what was shared and opens GenX Streamer with the same d
   );
   await expect(page.getByRole('link', { name: 'Get GenX Streamer' })).toHaveAttribute(
     'href',
-    'https://github.com/DougTrier/GenX-Streamer/releases/latest',
+    'https://dougtrier.github.io/GenX-Streamer/get/',
   );
   // Nothing from the shared link is fetched: only the page and its icon.
   expect(requests.every((url) => url.startsWith('file:'))).toBe(true);
@@ -373,4 +373,104 @@ test('the web page shows only the plain download page for an invalid link', asyn
     await expect(page.locator('h1')).toHaveText('GenX Streamer');
     await expect(page.getByRole('link', { name: 'Open in GenX Streamer' })).toBeHidden();
   }
+});
+
+const getPage = pathToFileURL(path.resolve('site/get/index.html')).href;
+const release = (assets: { name: string; digest?: string; url?: string }[]) => ({
+  tag_name: 'v1.2.0',
+  draft: false,
+  prerelease: false,
+  assets: assets.map((asset) => ({
+    name: asset.name,
+    digest: asset.digest ?? `sha256:${'ab'.repeat(32)}`,
+    browser_download_url:
+      asset.url ??
+      `https://github.com/DougTrier/GenX-Streamer/releases/download/v1.2.0/${asset.name}`,
+  })),
+});
+const files = [
+  { name: 'GenX-Streamer-1.2.0-Android.apk' },
+  { name: 'GenX-Streamer-1.2.0-Windows-x64-portable.zip' },
+  { name: 'GenX-Streamer-1.2.0-Windows-x64.exe' },
+  { name: 'SHA256SUMS' },
+];
+async function openGetPage(page: Page, answer: unknown, status = 200, query = '') {
+  await page.route('https://api.github.com/**', (route) =>
+    route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(answer) }),
+  );
+  await page.goto(`${getPage}${query}`);
+}
+
+test.describe('the download page on an Android phone', () => {
+  test.use({ userAgent: 'Mozilla/5.0 (Linux; Android 15; Pixel 9) AppleWebKit/537.36 Chrome/140' });
+  test('offers the Android app with its requirements and checksum, and never downloads by itself', async ({
+    page,
+  }) => {
+    const downloads: string[] = [];
+    page.on('download', (download) => downloads.push(download.url()));
+    await openGetPage(page, release(files));
+    await expect(page.locator('h1')).toHaveText('GenX Streamer 1.2.0 for Android');
+    await expect(page.locator('#status')).toContainText('looks like Android');
+    await expect(page.locator('#requirements')).toContainText('Android 7.0 or newer on ARM');
+    await expect(
+      page.getByRole('link', { name: 'Download GenX-Streamer-1.2.0-Android.apk' }),
+    ).toHaveAttribute(
+      'href',
+      'https://github.com/DougTrier/GenX-Streamer/releases/download/v1.2.0/GenX-Streamer-1.2.0-Android.apk',
+    );
+    await expect(page.locator('#sha')).toHaveText('ab'.repeat(32));
+    // The other platform stays reachable when detection is wrong; extras are not offered.
+    await expect(page.locator('#list li')).toHaveText([
+      'GenX-Streamer-1.2.0-Windows-x64-portable.zip',
+    ]);
+    expect(downloads).toEqual([]);
+  });
+
+  test('chooses Windows when asked explicitly', async ({ page }) => {
+    await openGetPage(page, release(files), 200, '?for=windows');
+    await expect(page.locator('h1')).toHaveText('GenX Streamer 1.2.0 for Windows');
+    await expect(page.locator('#status')).toHaveText('This is the download for your device.');
+  });
+});
+
+test.describe('the download page on an iPhone', () => {
+  test.use({
+    userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15',
+  });
+  test('says there is no build for it rather than offering one that cannot run', async ({
+    page,
+  }) => {
+    await openGetPage(page, release(files));
+    await expect(page.locator('#status')).toHaveText(
+      'GenX Streamer is not available for iPhone, iPad or Mac yet.',
+    );
+    await expect(page.locator('#pick')).toBeHidden();
+  });
+});
+
+test('the download page on Windows offers the portable ZIP, and only official files', async ({
+  page,
+}) => {
+  await openGetPage(
+    page,
+    release([
+      { name: 'GenX-Streamer-1.2.0-Windows-x64-portable.zip', url: 'https://example.com/fake.zip' },
+      { name: 'GenX-Streamer-1.2.0-Android.apk', digest: '' },
+    ]),
+  );
+  // Neither file is official (wrong address, no digest): nothing is offered.
+  await expect(page.locator('#status')).toHaveText(
+    'The latest release has no Windows download yet.',
+  );
+  await expect(page.locator('#others')).toBeHidden();
+  await openGetPage(page, release(files));
+  await expect(page.locator('h1')).toHaveText('GenX Streamer 1.2.0 for Windows');
+  await expect(page.locator('#guidance')).toContainText('More info, then Run anyway');
+});
+
+test('the download page says plainly when there is no public release yet', async ({ page }) => {
+  await openGetPage(page, { message: 'Not Found' }, 404);
+  await expect(page.locator('#status')).toHaveText(
+    'No public release of GenX Streamer was found yet.',
+  );
 });

@@ -35,8 +35,13 @@
 export const SHARE_PAGE = 'https://dougtrier.github.io/GenX-Streamer/watch/';
 /** The app's own scheme: opens GenX Streamer directly (Windows, and Android's fallback). */
 export const APP_SCHEME = 'genx';
-/** Where people get GenX Streamer (the repository is private until the owner publishes it). */
-export const DOWNLOAD_PAGE = 'https://github.com/DougTrier/GenX-Streamer/releases/latest';
+/**
+ * Where people get GenX Streamer: the download page (site/get/) offers the
+ * file that fits the device that opens it (docs/share-links.md SH-009).
+ */
+export const DOWNLOAD_PAGE = 'https://dougtrier.github.io/GenX-Streamer/get/';
+/** Every release file and its checksum (the repository is private until the owner publishes it). */
+export const RELEASE_PAGE = 'https://github.com/DougTrier/GenX-Streamer/releases/latest';
 
 const PAGE_HOST = 'dougtrier.github.io';
 const PAGE_PATHS = new Set([

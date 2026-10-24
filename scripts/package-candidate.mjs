@@ -50,7 +50,8 @@ if p['action']=='inspect':
    if not e.is_dir():
     with z.open(e) as stream:
      while stream.read(65536): pass
- print(json.dumps({'entries':len(entries),'expandedBytes':total,'architecture':'arm64-v8a','validation':'bounded ZIP structure and CRC only; no signature or install proof'}))
+ abis=sorted({n.split('/')[1] for n in names if n.startswith('lib/') and n.count('/')==2 and n.endswith('.so')})
+ print(json.dumps({'entries':len(entries),'expandedBytes':total,'architecture':'arm64-v8a','architectures':abis,'validation':'bounded ZIP structure and CRC only; no signature or install proof'}))
 else:
  with zipfile.ZipFile(p['file'],'w',compression=zipfile.ZIP_DEFLATED,compresslevel=9) as z:
   for name in sorted(p['entries']):
@@ -144,7 +145,8 @@ export function releaseNames(version) {
   return {
     windows: `GenX-Streamer-${version}-Windows-x64-portable.zip`,
     'windows-exe': `GenX-Streamer-${version}-Windows-x64.exe`,
-    android: `GenX-Streamer-${version}-Android-arm64.apk`,
+    // One APK for every ARM phone and TV: arm64-v8a and armeabi-v7a (SH-010).
+    android: `GenX-Streamer-${version}-Android.apk`,
   };
 }
 /** The app's own version (src-tauri/tauri.conf.json), the one GenX reports in About. */
@@ -204,6 +206,12 @@ export async function packageCandidate(options) {
     await file(androidApk);
     apkInfo = await python({ action: 'inspect', file: path.resolve(androidApk) }, pythonExecutable);
   }
+  // SH-010: a release APK carries every ARM architecture it is offered for.
+  if (
+    mode === 'final-inputs' &&
+    !['arm64-v8a', 'armeabi-v7a'].every((abi) => apkInfo?.architectures?.includes(abi))
+  )
+    throw new Error('A release APK must carry both arm64-v8a and armeabi-v7a libraries.');
   if (notices) await file(notices, 1024 * 1024);
   const inputHashes = {
     windows: await sha256(windowsExe),
@@ -289,6 +297,50 @@ export async function packageCandidate(options) {
       artifacts,
     };
     await writeFile(path.join(stage, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
+    // release-manifest.json (docs/verify-a-download.md): what each release file
+    // is for, so every distribution method picks by the same rules. Its own
+    // integrity is GitHub's published digest; Android files are also checked
+    // against the certificate compiled into GenX, never one named here.
+    const describe = {
+      windows: {
+        platform: 'windows',
+        architectures: ['x64'],
+        format: 'portable-zip',
+        minimumOs: 'Windows 10 (64-bit) with the WebView2 Runtime',
+      },
+      'windows-exe': {
+        platform: 'windows',
+        architectures: ['x64'],
+        format: 'exe',
+        minimumOs: 'Windows 10 (64-bit) with the WebView2 Runtime',
+      },
+      android: {
+        platform: 'android',
+        architectures: apkInfo?.architectures ?? [],
+        format: 'apk',
+        minimumOs: 'Android 7.0',
+        minimumSdk: 24,
+      },
+    };
+    await writeFile(
+      path.join(stage, 'release-manifest.json'),
+      JSON.stringify(
+        {
+          schemaVersion: 1,
+          product: 'GenX Streamer',
+          appIdentifier: 'com.tmg.tv',
+          version: manifest.version,
+          files: artifacts.map((a) => ({
+            name: a.name,
+            ...describe[a.platform],
+            bytes: a.bytes,
+            sha256: a.sha256,
+          })),
+        },
+        null,
+        2,
+      ) + '\n',
+    );
     await writeFile(
       path.join(stage, 'SHA256SUMS'),
       artifacts.map((a) => `${a.sha256}  ${a.name}`).join('\n') + '\n',

@@ -39,7 +39,7 @@ import {
 export const appShareMessage = `Get GenX Streamer, a free TV app for Windows and Android: ${DOWNLOAD_PAGE}`;
 
 /** The Windows portable ZIP is on the release page (release files carry the version in their names). */
-export const windowsZipMessage = `Get GenX Streamer for Windows: on this page, download the Windows portable ZIP (GenX-Streamer-…-Windows-x64-portable.zip), extract it and open GenX Streamer.exe: ${DOWNLOAD_PAGE}`;
+export const windowsZipMessage = `Get GenX Streamer for Windows: download the portable ZIP, extract it and open GenX Streamer.exe: ${DOWNLOAD_PAGE}?for=windows`;
 
 /** The receiver's one line of guidance for each platform's app file. */
 export const appFileGuidance = {

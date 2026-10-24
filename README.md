@@ -114,7 +114,7 @@ The package holds the release files named with version and platform
 `-Android-arm64.apk`; the version comes from `src-tauri/tauri.conf.json`
 unless `--version` is given) and a `SHA256SUMS` file for the release page.
 How a recipient checks a copy: [docs/verify-a-download.md](docs/verify-a-download.md).
-Signed Android releases (the owner's key, `build-android.ps1 -Release`):
+Signed Android releases (the owner's key, `build-android-release.ps1`):
 [docs/release-signing.md](docs/release-signing.md).
 
 ## Privacy

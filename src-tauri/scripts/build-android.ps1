@@ -19,15 +19,7 @@ param(
     [string]$NdkVersion = '28.2.13676358',
     [switch]$UseExistingSharedBuild,
     [ValidateSet(0,2)][int]$Optimization = 0,
-    [switch]$CleanApkPackaging,
-    # A signed release APK (docs/release-signing.md): Rust release profile,
-    # Gradle release, signed with the key named by GENX_RELEASE_SIGNING (a
-    # properties file outside the repository), and its certificate must be
-    # the one RELEASE_CERTIFICATE_SHA256 names.
-    [switch]$Release,
-    # Only to prove the release pipeline with a throwaway key: skips the
-    # official-certificate match and says the APK is NOT an official release.
-    [switch]$PipelineTest
+    [switch]$CleanApkPackaging
 )
 $ErrorActionPreference = 'Stop'
 function Get-TmgAndroidRoute([string]$RequestedArchitecture) {
@@ -158,27 +150,14 @@ if ($tmgRoute.Target -notin $tmgInstalledTargets) { throw "Rust target $($tmgRou
 $tmgTarget = $tmgRoute.Target
 $tmgAbi = $tmgRoute.Abi
 $tmgGradleArch = $tmgRoute.GradleArch
-$tmgProfile = if ($Release) { [ordered]@{ schemaVersion=1; profile='release'; gradle='Release' } } else { Get-TmgDevelopmentProfile $Optimization }
-$tmgVariant = if ($Release) { 'Release' } else { 'Debug' }
-$tmgSigning = $null
-if ($Release) {
-    $tmgSigning = $env:GENX_RELEASE_SIGNING
-    if ([string]::IsNullOrWhiteSpace($tmgSigning) -or !(Test-Path -LiteralPath $tmgSigning -PathType Leaf)) {
-        throw 'Release signing file missing: set GENX_RELEASE_SIGNING to the properties file beside your release key (docs/release-signing.md)'
-    }
-    $tmgSigning = [IO.Path]::GetFullPath($tmgSigning)
-    $tmgRepoFull = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..'))
-    if ($tmgSigning.StartsWith($tmgRepoFull, [StringComparison]::OrdinalIgnoreCase)) {
-        throw 'Release signing file must be outside the repository; build refused'
-    }
-}
+$tmgProfile = Get-TmgDevelopmentProfile $Optimization
 $tmgBuildEnvironment = [ordered]@{
     JAVA_HOME = $JdkRoot
     ANDROID_HOME = $SdkRoot
     NDK_HOME = $tmgNdk
     CARGO_NET_OFFLINE = 'true'
     TAURI_ANDROID_PROJECT_PATH = $tmgAndroid
-    TAURI_ENV_DEBUG = $(if ($Release) { 'false' } else { 'true' })
+    TAURI_ENV_DEBUG = 'true'
     WRY_ANDROID_PACKAGE = 'com.tmg.tv'
     WRY_ANDROID_LIBRARY = 'tmg_tv_lib'
     WRY_RUSTWEBVIEWCLIENT_CLASS_EXTENSION = "override fun onRenderProcessGone(view: WebView, detail: RenderProcessGoneDetail): Boolean { return com.tmg.tv.RendererRecoveryBridge.gone(view) }"
@@ -218,8 +197,7 @@ try {
     Write-Output "Shared assets SHA256 $tmgDistFingerprint"
     $tmgStage = 'native-build'
     $tmgCargoArguments = @('build','--locked','--offline','--manifest-path','src-tauri/Cargo.toml','--target',$tmgTarget,'--features','tauri/custom-protocol')
-    if ($Release) { $tmgCargoArguments += '--release' }
-    if ($Optimization -eq 2 -and !$Release) {
+    if ($Optimization -eq 2) {
         $tmgObserved = [Collections.Generic.HashSet[string]]::new()
         $tmgNativeErrorPreference = $ErrorActionPreference
         try {
@@ -244,7 +222,7 @@ try {
     } else { & cargo @tmgCargoArguments }
     if ($LASTEXITCODE -ne 0) { throw 'Android native compilation failed; no APK packaging performed' }
     if ((Get-TmgDistFingerprint) -ne $tmgDistFingerprint) { throw 'Shared assets changed during compilation; APK packaging refused' }
-    $tmgLibrary = Join-Path $tmgRepo "src-tauri/target/$tmgTarget/$($tmgVariant.ToLower())/libtmg_tv_lib.so"
+    $tmgLibrary = Join-Path $tmgRepo "src-tauri/target/$tmgTarget/debug/libtmg_tv_lib.so"
     if (!(Test-Path -LiteralPath $tmgLibrary -PathType Leaf)) { throw 'Native compilation did not produce its required library' }
     $tmgJni = Join-Path $tmgAndroid "app/src/main/jniLibs/$tmgAbi"
     New-Item -ItemType Directory -Path $tmgJni -Force | Out-Null
@@ -262,31 +240,14 @@ try {
         $tmgStage = 'gradle-package'
         # Explicit compiled-library copy avoids Windows symlink privilege requirements.
         # Excluding the Rust task is safe only after the checked compile+hash match above.
-        $tmgGradleArguments = @(":app:assemble${tmgGradleArch}$tmgVariant", '-x', ":app:rustBuild${tmgGradleArch}$tmgVariant", "-PabiList=$tmgAbi", "-ParchList=$($tmgGradleArch.ToLower())", "-PtargetList=$($tmgRoute.TauriTarget)", '--console=plain')
-        if ($Release) { $tmgGradleArguments += "-PgenxSigning=$tmgSigning" }
-        & ./gradlew.bat @tmgGradleArguments
+        & ./gradlew.bat ":app:assemble${tmgGradleArch}Debug" -x ":app:rustBuild${tmgGradleArch}Debug" "-PabiList=$tmgAbi" "-ParchList=$($tmgGradleArch.ToLower())" "-PtargetList=$($tmgRoute.TauriTarget)" --console=plain
         if ($LASTEXITCODE -ne 0) { throw 'Android Gradle packaging failed' }
-        $tmgApk = Join-Path $tmgAndroid "app/build/outputs/apk/$($tmgGradleArch.ToLower())/$($tmgVariant.ToLower())/app-$($tmgGradleArch.ToLower())-$($tmgVariant.ToLower()).apk"
+        $tmgApk = Join-Path $tmgAndroid "app/build/outputs/apk/$($tmgGradleArch.ToLower())/debug/app-$($tmgGradleArch.ToLower())-debug.apk"
         if (!(Test-Path -LiteralPath $tmgApk -PathType Leaf)) { throw 'Gradle did not produce its required APK' }
         $tmgAapt2 = Join-Path $SdkRoot 'build-tools/36.0.0/aapt2.exe'
         if (!(Test-Path -LiteralPath $tmgAapt2 -PathType Leaf)) { throw 'Android TV package guard requires SDK build-tools 36.0.0' }
         & python -B -X utf8 (Join-Path $tmgRepo 'scripts/check-android-tv.py') --apk $tmgApk --aapt2 $tmgAapt2
         if ($LASTEXITCODE -ne 0) { throw 'Android TV launcher/package metadata verification failed' }
-        if ($Release) {
-            # The APK's certificate must be the official one GenX checks itself against.
-            $tmgApksigner = Join-Path $SdkRoot 'build-tools/36.0.0/apksigner.bat'
-            $tmgCerts = @(& $tmgApksigner verify --print-certs $tmgApk 2>&1 | ForEach-Object { [string]$_ })
-            if ($LASTEXITCODE -ne 0) { throw 'Release APK signature verification failed' }
-            $tmgSigners = @($tmgCerts | Where-Object { $_ -match 'certificate SHA-256 digest: ([0-9a-f]{64})' } | ForEach-Object { $Matches[1] })
-            $tmgIdentity = Get-Content -Raw -LiteralPath (Join-Path $tmgRepo 'src-tauri/src/platform/app_identity.rs')
-            if ($tmgIdentity -notmatch 'RELEASE_CERTIFICATE_SHA256: &str = "([0-9a-f]*)"') { throw 'Release certificate constant not found' }
-            $tmgOfficial = $Matches[1]
-            $tmgMatches = $tmgSigners.Count -eq 1 -and $tmgOfficial.Length -eq 64 -and $tmgSigners[0] -eq $tmgOfficial
-            if (!$tmgMatches -and !$PipelineTest) {
-                throw 'The release APK is not signed with the certificate RELEASE_CERTIFICATE_SHA256 names; build refused'
-            }
-            Write-Output ('Release signing ' + (@{schemaVersion=1;signerSha256=$tmgSigners;official=$tmgMatches;pipelineTest=[bool]$PipelineTest} | ConvertTo-Json -Compress))
-        }
         Get-FileHash -LiteralPath $tmgApk -Algorithm SHA256
     } finally { Pop-Location }
 } catch {

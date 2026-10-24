@@ -5,7 +5,7 @@ the same key, or Android refuses to install it over the copy people have. GenX
 Streamer's release key is the owner's: it is never committed, never shared,
 and nobody else creates or uses it.
 
-Development builds (`build-android.ps1` without `-Release`) are signed with
+Development builds (`build-android.ps1`) are signed with
 Android's debug key. They are fine for testing but are not official: they
 cannot send their own APK (Pass It Along), and a release-signed copy will not
 install over them without uninstalling first.
@@ -65,14 +65,14 @@ fingerprint goes into the share links' `assetlinks.json`
 ## Building a signed release
 
 ```powershell
-pwsh -NoProfile -File src-tauri/scripts/build-android.ps1 -Architecture aarch64 -Release
+pwsh -NoProfile -File src-tauri/scripts/build-android-release.ps1
 ```
 
-This builds Rust and Gradle in their release profiles, signs with the key the
+This builds one universal APK (arm64-v8a and armeabi-v7a, so it runs on 32- and 64-bit ARM devices; `-Architecture aarch64` builds the 64-bit-only APK for comparison). It builds Rust and Gradle in their release profiles, signs with the key the
 signing file names, then verifies the APK's signature with `apksigner` and
 refuses the build unless its certificate is exactly the one
 `RELEASE_CERTIFICATE_SHA256` names. The APK is
-`src-tauri/gen/android/app/build/outputs/apk/arm64/release/app-arm64-release.apk`;
+`src-tauri/gen/android/app/build/outputs/apk/universal/release/app-universal-release.apk`;
 `scripts/package-candidate.mjs` names it for the release and lists it in
 `SHA256SUMS` ([verify-a-download.md](verify-a-download.md)).
 
@@ -87,3 +87,11 @@ Settings → Audio and preferences → **Full backup** (save the file somewhere
 you can reach), uninstall GenX Streamer, install the release APK, then import
 the backup. Uninstalling removes the app's saved channels, favorites and
 settings, so the backup comes first.
+
+## Size of the universal APK
+
+Measured October 24, 2026 (release builds, signed with a throwaway pipeline
+key): universal 84.9 MiB, 64-bit-only 50.9 MiB. The difference (+34 MiB,
++67%) is the 32-bit library (`armeabi-v7a`, 33.9 MiB); Android keeps native
+libraries uncompressed in the APK. Startup, memory and playback on devices are
+not yet compared.
