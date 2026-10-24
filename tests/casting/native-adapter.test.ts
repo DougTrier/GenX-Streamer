@@ -297,6 +297,28 @@ describe('native casting bridge contract (mock commands, not hardware acceptance
     expect(invoke).not.toHaveBeenCalled();
     await catalog.dispose();
   });
+  it('passes on whether the TV shows the cast', async () => {
+    vi.useFakeTimers();
+    const emit = vi.fn();
+    vi.mocked(invoke).mockImplementation(async (command) =>
+      command === 'cast_start' || command === 'cast_status'
+        ? {
+            sessionId: 'session',
+            selectionId: 'channel',
+            state: 'playing',
+            remoteSessionId: 'media',
+            onScreen: command === 'cast_start',
+          }
+        : true,
+    );
+    const engine = confirmedAdapter().create(device, 'session', emit);
+    await engine.start(selection, new AbortController().signal);
+    expect(emit).toHaveBeenLastCalledWith(expect.objectContaining({ onScreen: true }));
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(emit).toHaveBeenLastCalledWith(expect.objectContaining({ onScreen: false }));
+    await engine.stop(new AbortController().signal);
+    await engine.dispose();
+  });
   // Owner requirement, October 24, 2026: Back or Home on the TV, another
   // phone, a TV turned off or gone: the next status check ends this cast.
   for (const [label, status, reason] of [

@@ -63,6 +63,9 @@ pub struct CastStatus {
     pub selection_id: String,
     pub state: String,
     pub remote_session_id: Option<String>,
+    /// Whether the TV shows the cast, when it says: false while it is on
+    /// another input or in standby (the cast may keep playing there).
+    pub on_screen: Option<bool>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Endpoint {

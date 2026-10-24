@@ -21,26 +21,6 @@ use std::sync::atomic::AtomicUsize;
 use std::time::Instant;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
-#[test]
-fn receiver_fetch_needs_a_grant_on_the_actual_response() {
-    use reqwest::header::HeaderValue;
-    assert!(grants_receiver(Some(&HeaderValue::from_static("*"))));
-    assert!(grants_receiver(Some(&HeaderValue::from_static(
-        "https://www.gstatic.com"
-    ))));
-    assert!(!grants_receiver(None));
-    assert!(!grants_receiver(Some(&HeaderValue::from_static(
-        "https://example.com"
-    ))));
-}
-
-#[tokio::test]
-async fn plain_http_and_invalid_streams_always_relay() {
-    assert!(!receiver_can_fetch("http://example.invalid/live.m3u8").await);
-    assert!(!receiver_can_fetch("not a url").await);
-    assert!(!receiver_can_fetch("https://user:pass@example.invalid/live.m3u8").await);
-}
-
 const SERVICE: &str = "urn:schemas-upnp-org:service:AVTransport:1";
 
 #[derive(Clone, Copy, PartialEq)]
@@ -273,7 +253,7 @@ async fn admission_replaces_only_the_same_tv_and_bounds_how_many() {
     let session =
         |id: &str, tv: &str| Arc::new(OwnedSession::new(id, tv.into(), "channel", network.clone()));
     for index in 0..MAX_SESSIONS {
-        let tv = format!("cast:192.168.1.{index}:8009");
+        let tv = format!("cast:tv-{index}");
         assert!(manager
             .admit(&session(&format!("s{index}"), &tv))
             .await
@@ -281,19 +261,15 @@ async fn admission_replaces_only_the_same_tv_and_bounds_how_many() {
             .is_none());
     }
     assert!(matches!(
-        manager
-            .admit(&session("extra", "cast:192.168.1.99:8009"))
-            .await,
+        manager.admit(&session("extra", "cast:tv-extra")).await,
         Err("cast-session-limit")
     ));
     assert!(matches!(
-        manager
-            .admit(&session("s0", "cast:192.168.1.98:8009"))
-            .await,
+        manager.admit(&session("s0", "cast:tv-new")).await,
         Err("cast-session-duplicate")
     ));
     let replaced = manager
-        .admit(&session("again", "cast:192.168.1.2:8009"))
+        .admit(&session("again", "cast:tv-2"))
         .await
         .unwrap()
         .unwrap();
@@ -321,7 +297,7 @@ async fn closing_asks_every_tv_together_and_refuses_new_casts() {
     assert!(manager.active.lock().await.is_empty());
     let late = Arc::new(OwnedSession::new(
         "late",
-        "cast:192.168.1.5:8009".into(),
+        "cast:tv-late".into(),
         "channel",
         manager.observe_network().await.unwrap(),
     ));

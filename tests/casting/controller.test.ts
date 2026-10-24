@@ -330,6 +330,37 @@ describe('casting ownership and authoritative receiver state', () => {
     for (const owned of f.sessions) expect(owned.engine.dispose).toHaveBeenCalledOnce();
     expect(f.controller.snapshot).toMatchObject({ casts: [], disposed: true });
   });
+  // Owner report, October 24, 2026: a TV that switched input, and casting a
+  // TV's own channel to it again after its cast dropped.
+  it('remembers each TV last channel and whether the TV shows the cast', async () => {
+    const f = fixture();
+    let published = 0;
+    f.controller.subscribe(() => published++);
+    await f.controller.start(device, selection);
+    await f.controller.start(bedroom, sports);
+    playing(f.sessions[1]!, sports.id);
+    const before = published;
+    playing(f.sessions[1]!, sports.id);
+    expect(published).toBe(before);
+    f.sessions[1]!.emit({
+      sessionId: f.sessions[1]!.id,
+      selectionId: sports.id,
+      state: 'playing',
+      remoteSessionId: 'remote',
+      onScreen: false,
+    });
+    expect(f.controller.snapshot.casts[1]).toMatchObject({ state: 'playing', onScreen: false });
+    f.sessions[1]!.emit({ sessionId: f.sessions[1]!.id, selectionId: sports.id, state: 'ended' });
+    await vi.waitFor(() => expect(f.controller.snapshot.casts).toHaveLength(1));
+    await f.controller.start(device, { ...sports, id: 'movies', name: 'Movies' });
+    expect(
+      f.controller.snapshot.recent.map((cast) => [cast.device.name, cast.selection.name]),
+    ).toEqual([
+      ['Bedroom', 'Sports'],
+      ['Living room', 'Movies'],
+    ]);
+    await f.controller.dispose();
+  });
   it('subscriber copies cannot mutate owned state', async () => {
     const f = fixture();
     const unsubscribe = f.controller.subscribe((snapshot) => {

@@ -31,10 +31,19 @@ export interface ActiveCast {
   selection: ChannelSelection;
   sessionId: string;
   state: CastState;
+  /** False while the TV says it is on another input or in standby. */
+  onScreen: boolean;
+}
+/** The channel a TV played last, for casting it there again in one tap. */
+export interface RecentCast {
+  device: CastDevice;
+  selection: ChannelSelection;
 }
 export interface CastSnapshot {
   /** Every TV being cast to, in the order they were chosen. */
   casts: ActiveCast[];
+  /** The last channel of each TV cast to since GenX started, newest last. */
+  recent: RecentCast[];
   /** The latest outcome to tell the viewer (a failure, or a TV that ended). */
   message: string | null;
   disposed: boolean;
@@ -46,6 +55,8 @@ export type CastEvent = {
   remoteSessionId?: string;
   /** Why it ended: the TV said so (Back, Home, another phone, idle), or it stopped answering. */
   reason?: 'receiver' | 'unreachable';
+  /** Whether the TV shows the cast, when it says. */
+  onScreen?: boolean;
 };
 export interface CastEngine {
   /** LOAD acceptance alone is not playing. Emit verified receiver transport status separately. */
@@ -69,8 +80,11 @@ interface Session {
   engine: CastEngine;
   abort: AbortController;
   state: CastState;
+  onScreen: boolean;
   deadline: ReturnType<typeof setTimeout> | undefined;
 }
+/** TVs whose last channel is remembered. */
+const RECENT_LIMIT = 16;
 /** Which TV this is: its own identity when it reports one, else its roster id. */
 export function castDeviceKey(device: CastDevice): string {
   return device.protocolReceiverId
@@ -103,6 +117,7 @@ export class CastingController {
   /** The latest start or stop asked of each TV; older work for it gives way. */
   private intents = new Map<string, number>();
   private queues = new Map<string, Promise<unknown>>();
+  private recent = new Map<string, RecentCast>();
   private message: string | null = null;
   private listeners = new Set<(snapshot: CastSnapshot) => void>();
   private disposed = false;
@@ -121,6 +136,11 @@ export class CastingController {
         selection: { ...session.selection },
         sessionId: session.id,
         state: session.state,
+        onScreen: session.onScreen,
+      })),
+      recent: [...this.recent.values()].map((cast) => ({
+        device: { ...cast.device },
+        selection: { ...cast.selection },
       })),
       message: this.message,
       disposed: this.disposed,
@@ -275,10 +295,16 @@ export class CastingController {
         engine,
         abort: new AbortController(),
         state: 'connecting',
+        onScreen: true,
         deadline: undefined,
       };
       owner.session = session;
       this.sessions.set(key, session);
+      // Owner report, October 24, 2026: after a TV dropped its cast, casting
+      // to it again took the channel playing here instead of its own.
+      this.recent.delete(key);
+      this.recent.set(key, { device: { ...device }, selection: { ...selection } });
+      if (this.recent.size > RECENT_LIMIT) this.recent.delete(this.recent.keys().next().value!);
       // A live stream through the relay takes the TV several seconds after its
       // cast app opens; the native start (40 s) gives up first, with cleanup.
       session.deadline = setTimeout(
@@ -332,8 +358,10 @@ export class CastingController {
       clearTimeout(session.deadline);
     }
     // Status arrives every two seconds; only a change redraws the panel and pins.
-    if (session.state === event.state) return;
+    const onScreen = event.onScreen ?? session.onScreen;
+    if (session.state === event.state && session.onScreen === onScreen) return;
     session.state = event.state;
+    session.onScreen = onScreen;
     this.publish();
   }
   /** Lets go of a TV that ended the cast on its side. */

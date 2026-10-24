@@ -85,6 +85,16 @@ async function mount(page: Page) {
           reason,
         });
       },
+      tvShows(name: string, onScreen: boolean) {
+        const owned = fixture.sessions[name]!;
+        owned.emit({
+          sessionId: owned.sessionId,
+          selectionId: owned.channel,
+          state: 'playing',
+          remoteSessionId: 'media',
+          onScreen,
+        });
+      },
     };
     const receivers = createConfirmedReceiver({
       readNetworkScope: async () => ({
@@ -326,3 +336,37 @@ for (const [reason, message] of [
       ]);
   });
 }
+
+// Owner report, October 24, 2026: the Sansui switched input to the Streamer
+// and dropped its cast; casting to it again took the channel playing here.
+test('a TV on another input says so, and its own channel casts again in one tap', async ({
+  page,
+}) => {
+  await mount(page);
+  await cast(page, 'Bedroom', { id: 'weather', name: 'Weather' });
+  await expect(row(page, 'Bedroom').locator('.cast-device-again')).toBeHidden();
+  await page.evaluate(() => Reflect.get(window, 'castFixture').tvShows('Bedroom', false));
+  await expect(row(page, 'Bedroom').locator('.cast-device-badge')).toHaveText('Not on screen');
+  await page.evaluate(() => Reflect.get(window, 'castFixture').tvShows('Bedroom', true));
+  await expect(row(page, 'Bedroom').locator('.cast-device-badge')).toHaveText('Casting');
+  await page.evaluate(() => Reflect.get(window, 'castFixture').tvEnds('Bedroom', 'receiver'));
+  const again = row(page, 'Bedroom').getByRole('button', {
+    name: 'Cast Weather to Bedroom again',
+  });
+  await expect(again).toHaveText('↻ Weather');
+  // This device has moved on to another channel meanwhile.
+  await page.evaluate(() => {
+    Reflect.get(window, 'castFixture').channel = {
+      id: 'cartoons',
+      name: 'Cartoons',
+      url: 'https://fixture.invalid/cartoons',
+    };
+  });
+  await again.click();
+  await expect(row(page, 'Bedroom').locator('.cast-device-channel')).toHaveText(' · Weather');
+  await expect(again).toBeHidden();
+  expect((await starts(page)).at(-1)).toEqual({ tv: 'Bedroom', channel: 'weather' });
+  // Choosing the TV itself still casts the channel playing here.
+  await row(page, 'Bedroom').locator('.cast-device').click();
+  await expect(row(page, 'Bedroom').locator('.cast-device-channel')).toHaveText(' · Cartoons');
+});

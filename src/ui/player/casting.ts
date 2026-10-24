@@ -19,6 +19,7 @@ import {
   CastingController,
   castDeviceKey,
   type ActiveCast,
+  type RecentCast,
   type CastAdapter,
   type CastDevice,
   type CastSnapshot,
@@ -160,6 +161,7 @@ export function installCasting(
     unknown.checked = false;
     confirm.disabled = true;
     check.disabled = discover.disabled = false;
+    recast = null;
   };
   const begin = (): { owned: AbortController; current: number } => {
     clearSelection();
@@ -184,7 +186,12 @@ export function installCasting(
     channel: HTMLSpanElement;
     stopButton: HTMLButtonElement;
   }
-  const rows = new Map<ReceiverDetails, CastMarks & { button: HTMLButtonElement }>();
+  const rows = new Map<
+    ReceiverDetails,
+    CastMarks & { button: HTMLButtonElement; again: HTMLButtonElement }
+  >();
+  /** The channel to cast instead of the one playing here: a TV's own, again. */
+  let recast: ChannelSelection | null = null;
   const castingLabel: Record<CastState, string> = {
     connecting: 'Connecting…',
     buffering: 'Buffering…',
@@ -192,11 +199,12 @@ export function installCasting(
     paused: 'Paused',
     stopping: 'Stopping…',
   };
+  const sameTv = (a: CastDevice, b: CastDevice): boolean =>
+    a.id === b.id || castDeviceKey(a) === castDeviceKey(b);
   const castTo = (device: CastDevice, snapshot: CastSnapshot): ActiveCast | undefined =>
-    snapshot.casts.find(
-      (cast) =>
-        cast.device.id === device.id || castDeviceKey(cast.device) === castDeviceKey(device),
-    );
+    snapshot.casts.find((cast) => sameTv(cast.device, device));
+  const lastOn = (device: CastDevice, snapshot: CastSnapshot): RecentCast | undefined =>
+    snapshot.recent.find((cast) => sameTv(cast.device, device));
   // TVs being cast to that the list does not show (still searching, or not
   // found this time) are listed above it, so each can still be stopped.
   const elsewhere = document.createElement('div');
@@ -232,7 +240,12 @@ export function installCasting(
   };
   const showCast = (marks: CastMarks, cast: ActiveCast | undefined): void => {
     marks.badge.hidden = marks.channel.hidden = marks.stopButton.hidden = !cast;
-    marks.badge.textContent = cast ? castingLabel[cast.state] : '';
+    // A TV on another input or in standby says so (owner report, October 24, 2026).
+    marks.badge.textContent = !cast
+      ? ''
+      : cast.state === 'playing' && !cast.onScreen
+        ? 'Not on screen'
+        : castingLabel[cast.state];
     marks.channel.textContent = cast ? ` · ${cast.selection.name}` : '';
     marks.stopButton.disabled = !cast || cast.state === 'stopping';
   };
@@ -243,6 +256,13 @@ export function installCasting(
       if (cast) listed.add(cast.sessionId);
       row.button.setAttribute('aria-current', String(!!cast));
       showCast(row, cast);
+      const last = cast ? undefined : lastOn(device, snapshot);
+      row.again.hidden = !last;
+      row.again.textContent = last ? `↻ ${last.selection.name}` : '';
+      row.again.setAttribute(
+        'aria-label',
+        last ? `Cast ${last.selection.name} to ${device.name} again` : 'Cast again',
+      );
     }
     for (const remove of elsewhereListeners.splice(0)) remove();
     elsewhere.replaceChildren();
@@ -293,13 +313,18 @@ export function installCasting(
       `${device.name} · ${device.model ?? (device.protocol === 'dlna' ? 'DLNA' : 'Chromecast')}${device.protocolReceiverId ? ' · ' + device.protocolReceiverId : ' · Identity unverified'}`,
       marks.channel,
     );
-    row.append(button, marks.stopButton);
-    rows.set(device, { ...marks, button });
-    const selectDevice = () => {
+    // One tap casts this TV's last channel to it again, whatever plays here.
+    const again = document.createElement('button');
+    again.className = 'cast-device-again';
+    again.hidden = true;
+    row.append(button, again, marks.stopButton);
+    rows.set(device, { ...marks, button, again });
+    const selectDevice = (channel?: ChannelSelection) => {
       void (async () => {
         await Promise.allSettled([...authorizations]);
         if (disposed || !dialog.open) return;
         const { owned, current } = begin();
+        recast = channel ? { ...channel } : null;
         status.textContent = 'Checking the selected TV…';
         try {
           await receivers.select(device, owned.signal);
@@ -322,8 +347,17 @@ export function installCasting(
         }
       })();
     };
-    button.addEventListener('click', selectDevice);
-    deviceListeners.push(() => button.removeEventListener('click', selectDevice));
+    const selectThis = () => selectDevice();
+    const castAgain = () => {
+      const last = lastOn(device, controller.snapshot);
+      if (last) selectDevice(last.selection);
+    };
+    button.addEventListener('click', selectThis);
+    again.addEventListener('click', castAgain);
+    deviceListeners.push(() => {
+      button.removeEventListener('click', selectThis);
+      again.removeEventListener('click', castAgain);
+    });
     devices.append(row);
     markCasting(controller.snapshot);
   };
@@ -343,7 +377,7 @@ export function installCasting(
   const castSelected = (): void => {
     if (!available()) return;
     void (async () => {
-      const channel = selection();
+      const channel = recast ?? selection();
       if (!channel) {
         status.textContent = 'Choose a channel before casting.';
         return;

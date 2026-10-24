@@ -327,13 +327,16 @@ impl CastingManager {
         let state = tokio::time::timeout(Duration::from_secs(5), async {
             let mut guard = owned.engine.lock().await;
             match guard.as_mut().ok_or("cast-session-connecting")? {
-                Engine::Chromecast(engine) => engine.status().await,
-                Engine::Dlna(engine) => engine.status().await,
+                Engine::Chromecast(engine) => {
+                    let state = engine.status().await?;
+                    Ok((state, engine.on_screen()))
+                }
+                Engine::Dlna(engine) => Ok((engine.status().await?, None)),
             }
         })
         .await
         .unwrap_or(Err("cast-status-timeout"));
-        let state = match state {
+        let (state, on_screen) = match state {
             Ok(state) => state,
             Err("cast-session-connecting") => return Err("cast-session-connecting"),
             Err(error) => {
@@ -359,6 +362,7 @@ impl CastingManager {
             selection_id: owned.selection.clone(),
             state: state.into(),
             remote_session_id: remote,
+            on_screen,
         })
     }
     /// Asks the receiver to stop this session's media (five seconds at most),

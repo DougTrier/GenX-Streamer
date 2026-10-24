@@ -17,6 +17,8 @@ the cast on its side (Back or Home on its remote, another phone taking it
 over, turned off, gone from the network), the next status check (every two
 seconds) reports it ended or fails, and GenX releases that TV's session,
 updates the panel and unpins its channel; the other TVs play on.
+A TV on another input or in standby shows "Not on screen"; a TV that is not
+casting offers its last channel again in one tap ("↻ AccuWeather").
 
 ## Where the code is
 

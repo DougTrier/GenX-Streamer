@@ -275,8 +275,18 @@ dialog input[type='file']::file-selector-button {
   flex: 1 1 auto;
   min-width: 0;
 }
-.cast-device-row > .cast-device-stop {
+.cast-device-row > .cast-device-stop,
+.cast-device-row > .cast-device-again {
   flex: none;
+}
+.cast-device-again {
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cast-device-again[hidden] {
+  display: none;
 }
 .cast-device-badge {
   display: inline-block;

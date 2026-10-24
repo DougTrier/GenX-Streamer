@@ -12,6 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use super::sessions::{grants_receiver, receiver_can_fetch};
+#[test]
+fn receiver_fetch_needs_a_grant_on_the_actual_response() {
+    use reqwest::header::HeaderValue;
+    assert!(grants_receiver(Some(&HeaderValue::from_static("*"))));
+    assert!(grants_receiver(Some(&HeaderValue::from_static(
+        "https://www.gstatic.com"
+    ))));
+    assert!(!grants_receiver(None));
+    assert!(!grants_receiver(Some(&HeaderValue::from_static(
+        "https://example.com"
+    ))));
+}
+
+#[tokio::test]
+async fn plain_http_and_invalid_streams_always_relay() {
+    assert!(!receiver_can_fetch("http://example.invalid/live.m3u8").await);
+    assert!(!receiver_can_fetch("not a url").await);
+    assert!(!receiver_can_fetch("https://user:pass@example.invalid/live.m3u8").await);
+}
+
 use super::*;
 #[test]
 fn discovery_requests_fence_supersession_and_retain_actual_work_until_lease_drop() {

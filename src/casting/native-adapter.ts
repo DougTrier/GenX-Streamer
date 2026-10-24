@@ -25,6 +25,8 @@ interface NativeStatus {
   selectionId: string;
   state: 'playing' | 'paused' | 'buffering' | 'ended';
   remoteSessionId: string | null;
+  /** Whether the TV shows the cast, when it says (Chromecast). */
+  onScreen?: boolean | null;
 }
 export function createNativeCastAdapter(
   allowHttp: (selection: ChannelSelection) => boolean = () => false,
@@ -82,6 +84,7 @@ export function createNativeCastAdapter(
           state: status.state,
           ...(status.remoteSessionId ? { remoteSessionId: status.remoteSessionId } : {}),
           ...(status.state === 'ended' ? { reason: 'receiver' as const } : {}),
+          ...(typeof status.onScreen === 'boolean' ? { onScreen: status.onScreen } : {}),
         });
       };
       const poll = async () => {
