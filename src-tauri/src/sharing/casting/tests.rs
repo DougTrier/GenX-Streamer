@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use super::sessions::{grants_receiver, receiver_can_fetch};
 #[test]
 fn receiver_fetch_needs_a_grant_on_the_actual_response() {
     use reqwest::header::HeaderValue;
@@ -135,7 +136,7 @@ async fn raw_roster_id_cannot_start_or_allocate_a_receiver_session() {
         result,
         Err("cast-issued-handle-expired-revalidate")
     ));
-    assert!(manager.active.lock().await.is_none());
+    assert!(manager.active.lock().await.is_empty());
 }
 #[test]
 fn immutable_grant_expires_and_network_epoch_changes_cannot_retarget_it() {
@@ -221,7 +222,7 @@ async fn shutdown_waits_for_owned_operations_and_refuses_late_work() {
 #[test]
 fn native_operations_are_bounded() {
     let manager = CastingManager::default();
-    let operations: Vec<_> = (0..4).map(|_| manager.enter().unwrap()).collect();
+    let operations: Vec<_> = (0..8).map(|_| manager.enter().unwrap()).collect();
     assert!(manager.enter().is_err());
     drop(operations);
     assert_eq!(manager.operations.load(Ordering::SeqCst), 0);
@@ -273,5 +274,5 @@ async fn media_policy_never_permits_local_device_urls_as_upstream_media() {
             .await,
         Err("cast-media-public-url-required")
     ));
-    assert!(manager.active.lock().await.is_none());
+    assert!(manager.active.lock().await.is_empty());
 }

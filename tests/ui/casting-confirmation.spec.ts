@@ -417,7 +417,7 @@ test('the TV being cast to is marked, with its own Stop beside it', async ({ pag
   await expect(rows.nth(1).locator('.cast-device')).toHaveAttribute('aria-current', 'false');
   await expect(rows.nth(1).locator('.cast-device-badge')).toBeHidden();
   await expect(rows.nth(1).locator('.cast-device-stop')).toBeHidden();
-  await expect(page.locator('#cast-status')).toHaveText('Casting to Room TV.');
+  await expect(page.locator('#cast-status')).toHaveText('Casting to Room TV: Channel A.');
   await rows.nth(0).getByRole('button', { name: 'Stop casting to Room TV' }).click();
   await expect
     .poll(() => page.evaluate(() => Reflect.get(window, 'castFixture').stopCalls))

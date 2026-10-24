@@ -264,8 +264,8 @@ dialog input[type='file']::file-selector-button {
   cursor: pointer;
 }
 
-/* The cast list: the TV being cast to is marked (aria-current gives it the
-   selected glass above), with its own Stop beside it. */
+/* The cast list: every TV being cast to is marked (aria-current gives it the
+   selected glass above) with the channel it plays and its own Stop. */
 .cast-device-row {
   display: flex;
   gap: 8px;
@@ -275,8 +275,18 @@ dialog input[type='file']::file-selector-button {
   flex: 1 1 auto;
   min-width: 0;
 }
-.cast-device-row > .cast-device-stop {
+.cast-device-row > .cast-device-stop,
+.cast-device-row > .cast-device-again {
   flex: none;
+}
+.cast-device-again {
+  max-width: 40%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cast-device-again[hidden] {
+  display: none;
 }
 .cast-device-badge {
   display: inline-block;
@@ -292,4 +302,28 @@ dialog input[type='file']::file-selector-button {
 }
 .cast-device-badge[hidden] {
   display: none;
+}
+/* The channel each TV plays, beside its name in the cast panel. */
+.cast-device-channel {
+  font-weight: 700;
+}
+.cast-device-channel[hidden] {
+  display: none;
+}
+#cast-active[hidden] {
+  display: none;
+}
+/* A TV being cast to that the device list does not show has the same
+   selected glass as a casting TV's button. */
+#cast-active .cast-device {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  min-height: 44px;
+  padding: 6px 12px;
+  color: #fff4fc;
+  background: var(--gx-glass-sheen), var(--gx-selected-fill);
+  border: 1px solid var(--gx-selected-edge);
+  border-radius: 9px;
+  box-shadow: var(--gx-selected-glow);
 }

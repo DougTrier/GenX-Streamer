@@ -297,4 +297,71 @@ describe('native casting bridge contract (mock commands, not hardware acceptance
     expect(invoke).not.toHaveBeenCalled();
     await catalog.dispose();
   });
+  it('passes on whether the TV shows the cast', async () => {
+    vi.useFakeTimers();
+    const emit = vi.fn();
+    vi.mocked(invoke).mockImplementation(async (command) =>
+      command === 'cast_start' || command === 'cast_status'
+        ? {
+            sessionId: 'session',
+            selectionId: 'channel',
+            state: 'playing',
+            remoteSessionId: 'media',
+            onScreen: command === 'cast_start',
+          }
+        : true,
+    );
+    const engine = confirmedAdapter().create(device, 'session', emit);
+    await engine.start(selection, new AbortController().signal);
+    expect(emit).toHaveBeenLastCalledWith(expect.objectContaining({ onScreen: true }));
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(emit).toHaveBeenLastCalledWith(expect.objectContaining({ onScreen: false }));
+    await engine.stop(new AbortController().signal);
+    await engine.dispose();
+  });
+  // Owner requirement, October 24, 2026: Back or Home on the TV, another
+  // phone, a TV turned off or gone: the next status check ends this cast.
+  for (const [label, status, reason] of [
+    ['reports ended (Back, Home, idle or another phone)', 'ended', 'receiver'],
+    ['fails (off, gone or hung up)', 'cast-status-timeout', 'unreachable'],
+    ['finds the socket closed', 'cast-connection-closed', 'unreachable'],
+    ['finds the session already released', 'cast-session-not-owned', 'unreachable'],
+  ] as const) {
+    it(`a status check that ${label} ends the cast and stops polling`, async () => {
+      vi.useFakeTimers();
+      const emit = vi.fn();
+      vi.mocked(invoke).mockImplementation(async (command) => {
+        if (command === 'cast_start')
+          return {
+            sessionId: 'session',
+            selectionId: 'channel',
+            state: 'playing',
+            remoteSessionId: 'avtransport:0',
+          };
+        if (command !== 'cast_status') return true;
+        if (status !== 'ended') throw status;
+        return {
+          sessionId: 'session',
+          selectionId: 'channel',
+          state: 'ended',
+          remoteSessionId: null,
+        };
+      });
+      const engine = confirmedAdapter().create(device, 'session', emit);
+      await engine.start(selection, new AbortController().signal);
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(emit).toHaveBeenLastCalledWith({
+        sessionId: 'session',
+        selectionId: 'channel',
+        state: 'ended',
+        reason,
+      });
+      await vi.advanceTimersByTimeAsync(10_000);
+      expect(
+        vi.mocked(invoke).mock.calls.filter(([command]) => command === 'cast_status'),
+      ).toHaveLength(1);
+      await engine.stop(new AbortController().signal);
+      await engine.dispose();
+    });
+  }
 });

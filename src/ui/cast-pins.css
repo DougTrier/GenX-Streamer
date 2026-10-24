@@ -1,0 +1,63 @@
+/*
+ * Copyright 2026 Doug Trier
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/* Channels being cast, pinned above the channel list with their TVs' names
+   (owner request, October 24, 2026). */
+.cast-pins {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: 4px;
+  margin: 2px 0 6px;
+  /* Four TVs never crowd the list out on a short panel. */
+  max-height: 35vh;
+  overflow-y: auto;
+}
+.cast-pins[hidden],
+#app[data-content-library='genxtra'] .cast-pins {
+  display: none;
+}
+.cast-pin {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  min-height: 44px;
+  padding: 6px 12px;
+  text-align: left;
+  border: 1px solid var(--gx-cyan);
+  border-radius: 10px;
+  background: rgba(131, 233, 245, 0.1);
+}
+.cast-pin-tv {
+  padding: 1px 9px;
+  border-radius: 999px;
+  font-size: 0.75em;
+  font-weight: 700;
+  color: #04121c;
+  background: var(--gx-cyan);
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.cast-pin-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

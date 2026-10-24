@@ -91,8 +91,26 @@ pub struct Session {
     idle_reason: Option<String>,
     /// The last status showed another sender's media on the receiver.
     foreign_media: bool,
+    /// The TV closed the cast app GenX launched: Back or Home on its remote,
+    /// another phone's app, or sleep. Nothing of GenX's plays there any more.
+    app_closed: bool,
+    /// Whether the TV shows this cast: false on another input or in standby.
+    on_screen: Option<bool>,
+    /// The media time the TV last reported for GenX's stream, the time at the
+    /// previous status check, whether it has ever moved, and for how many
+    /// checks it has stood still while the TV said it was playing.
+    media_time: Option<f64>,
+    checked_time: Option<f64>,
+    time_moved: bool,
+    frozen_checks: u32,
     request: u32,
 }
+/// The default media receiver, GenX's cast app on the TV.
+const MEDIA_RECEIVER: &str = "CC1AD845";
+/// Checks (two seconds apart) a picture may stand still while the TV says it
+/// plays: shown as buffering after three, ended after fifteen (thirty seconds).
+const FROZEN_BUFFERING: u32 = 3;
+const FROZEN_ENDED: u32 = 15;
 impl Session {
     pub async fn connect(address: SocketAddr, sender: String) -> Result<Self, &'static str> {
         if !super::private_address(address.ip()) {
@@ -132,6 +150,12 @@ impl Session {
             owned_url: None,
             idle_reason: None,
             foreign_media: false,
+            app_closed: false,
+            on_screen: None,
+            media_time: None,
+            checked_time: None,
+            time_moved: false,
+            frozen_checks: 0,
             request: 0,
         };
         session
@@ -247,11 +271,80 @@ impl Session {
         Err("cast-known-receiver-status-unverified")
     }
 
-    pub async fn load(&mut self, selection: &MediaSelection) -> Result<(), &'static str> {
+    /// Asks the TV itself (not the cast app) for its status: the apps it runs,
+    /// and whether it is on screen.
+    async fn receiver_status(&mut self) -> Result<Value, &'static str> {
         self.send(
             "receiver-0",
             protocol::RECEIVER,
-            json!({"type":"LAUNCH","appId":"CC1AD845"}),
+            json!({"type":"GET_STATUS"}),
+        )
+        .await?;
+        let request = u64::from(self.request);
+        loop {
+            let message = self.receive().await?;
+            if message.namespace == protocol::CONNECTION && self.closes_our_app(&message) {
+                self.mark_app_closed();
+            }
+            if message.source == "receiver-0"
+                && message.namespace == protocol::RECEIVER
+                && message.payload["type"] == "RECEIVER_STATUS"
+                && message.payload["requestId"].as_u64() == Some(request)
+                && message.payload["status"].is_object()
+            {
+                return Ok(message.payload["status"].clone());
+            }
+        }
+    }
+    /// A media receiver app already on the TV, such as GenX's own from an
+    /// earlier cast left behind when the TV switched input, keeps reporting
+    /// that it plays while out of sight, and a new cast would join it there
+    /// (Sansui, October 24, 2026). Close it so the new cast opens in front.
+    async fn close_lingering_app(&mut self) -> Result<(), &'static str> {
+        let status = self.receiver_status().await?;
+        let Some(lingering) = status["applications"].as_array().and_then(|apps| {
+            apps.iter()
+                .find(|app| app["appId"] == MEDIA_RECEIVER)
+                .and_then(|app| app["sessionId"].as_str().map(str::to_owned))
+        }) else {
+            return Ok(());
+        };
+        self.send(
+            "receiver-0",
+            protocol::RECEIVER,
+            json!({"type":"STOP","sessionId":lingering}),
+        )
+        .await?;
+        // Bounded: a TV that keeps it gets the new cast in that app anyway.
+        let _ = tokio::time::timeout(Duration::from_secs(3), async {
+            loop {
+                let message = self.receive().await?;
+                if Self::app_gone(&message, &lingering) {
+                    return Ok::<(), &'static str>(());
+                }
+            }
+        })
+        .await;
+        Ok(())
+    }
+    /// A receiver status that does not list the app with this session id.
+    fn app_gone(message: &protocol::Message, session: &str) -> bool {
+        message.namespace == protocol::RECEIVER
+            && message.payload["type"] == "RECEIVER_STATUS"
+            && message.payload["status"].is_object()
+            && !Self::listed(&message.payload["status"], session)
+    }
+    fn listed(receiver: &Value, session: &str) -> bool {
+        receiver["applications"]
+            .as_array()
+            .is_some_and(|apps| apps.iter().any(|app| app["sessionId"] == session))
+    }
+    pub async fn load(&mut self, selection: &MediaSelection) -> Result<(), &'static str> {
+        self.close_lingering_app().await?;
+        self.send(
+            "receiver-0",
+            protocol::RECEIVER,
+            json!({"type":"LAUNCH","appId":MEDIA_RECEIVER}),
         )
         .await?;
         loop {
@@ -263,7 +356,7 @@ impl Session {
                 return Err("cast-receiver-launch-refused");
             }
             if let Some(apps) = message.payload["status"]["applications"].as_array() {
-                if let Some(app) = apps.iter().find(|app| app["appId"] == "CC1AD845") {
+                if let Some(app) = apps.iter().find(|app| app["appId"] == MEDIA_RECEIVER) {
                     self.destination = app["transportId"].as_str().map(str::to_owned);
                     self.receiver_session = app["sessionId"].as_str().map(str::to_owned);
                     break;
@@ -300,6 +393,10 @@ impl Session {
     async fn next_state(&mut self) -> Result<ReceiverState, &'static str> {
         loop {
             let message = self.receive().await?;
+            if self.closes_our_app(&message) {
+                self.mark_app_closed();
+                return Ok(ReceiverState::Ended);
+            }
             if message.namespace != protocol::MEDIA
                 || self.destination.as_deref() != Some(message.source.as_str())
             {
@@ -331,6 +428,7 @@ impl Session {
                         self.media_session = Some(id);
                     }
                     self.foreign_media = false;
+                    self.media_time = status["currentTime"].as_f64();
                     if status["playerState"] == "IDLE" {
                         self.idle_reason = status["idleReason"].as_str().map(str::to_owned);
                     }
@@ -347,21 +445,104 @@ impl Session {
             }
         }
     }
+    /// The TV says GenX's cast app is gone: it closed GenX's connection to
+    /// the app, or its receiver status no longer lists the app GenX launched.
+    fn closes_our_app(&self, message: &protocol::Message) -> bool {
+        if message.namespace == protocol::CONNECTION {
+            return message.payload["type"] == "CLOSE"
+                && self.destination.as_deref() == Some(message.source.as_str());
+        }
+        self.receiver_session
+            .as_deref()
+            .is_some_and(|ours| Self::app_gone(message, ours))
+    }
+    fn mark_app_closed(&mut self) {
+        self.app_closed = true;
+        self.receiver_session = None;
+        self.media_session = None;
+        self.owned_url = None;
+        self.foreign_media = false;
+    }
+    /// Whether the TV shows this cast, when it says: false while it is on
+    /// another input or in standby.
+    pub fn on_screen(&self) -> Option<bool> {
+        self.on_screen
+    }
+    /// One status check: first the TV itself (is GenX's app still running, is
+    /// the TV on screen), then GenX's media in that app.
     pub async fn status(&mut self) -> Result<ReceiverState, &'static str> {
+        if self.app_closed {
+            return Ok(ReceiverState::Ended);
+        }
+        let receiver = self.receiver_status().await?;
+        if self.app_closed
+            || self
+                .receiver_session
+                .as_deref()
+                .is_some_and(|ours| !Self::listed(&receiver, ours))
+        {
+            // Back or Home on the TV, another app, or the TV closed the app
+            // on its own: the cast ended there.
+            self.mark_app_closed();
+            return Ok(ReceiverState::Ended);
+        }
+        self.on_screen = match (
+            receiver["isStandBy"].as_bool(),
+            receiver["isActiveInput"].as_bool(),
+        ) {
+            (Some(true), _) => Some(false),
+            (_, active) => active,
+        };
         let destination = self.destination.clone().ok_or("cast-not-loaded")?;
         self.send(&destination, protocol::MEDIA, json!({"type":"GET_STATUS"}))
             .await?;
-        self.next_state().await
+        let state = self.next_state().await?;
+        Ok(self.check_progress(state))
     }
-    pub async fn stop(&mut self) -> Result<bool, &'static str> {
-        let stopped = self.stop_media().await?;
-        // Never close the app while another sender's media plays in it.
-        if stopped && !self.foreign_media {
-            self.close_app().await;
+    /// A TV whose cast app was sent to the background can keep saying it
+    /// plays while its picture stands still. Once the media time has moved,
+    /// a time that stops moving reads as buffering, and after thirty seconds
+    /// as ended. A TV that reports no media time is taken at its word.
+    fn check_progress(&mut self, state: ReceiverState) -> ReceiverState {
+        let ReceiverState::Playing(_) = state else {
+            self.frozen_checks = 0;
+            self.checked_time = None;
+            return state;
+        };
+        match (self.checked_time, self.media_time) {
+            (Some(before), Some(now)) if now > before => {
+                self.time_moved = true;
+                self.frozen_checks = 0;
+            }
+            (Some(_), Some(_)) if self.time_moved => self.frozen_checks += 1,
+            _ => {}
         }
-        Ok(stopped)
+        self.checked_time = self.media_time;
+        if self.frozen_checks >= FROZEN_ENDED {
+            ReceiverState::Ended
+        } else if self.frozen_checks >= FROZEN_BUFFERING {
+            ReceiverState::Buffering
+        } else {
+            state
+        }
+    }
+    /// Stops GenX's media (three seconds at most), then closes the cast app
+    /// GenX launched even when the media did not answer: an app stuck in the
+    /// background would otherwise take the next cast out of sight. Never
+    /// closes the app while another sender's media plays in it. Confirmed
+    /// when the media stopped or the TV confirms the app closed.
+    pub async fn stop(&mut self) -> Result<bool, &'static str> {
+        let stopped = matches!(
+            tokio::time::timeout(Duration::from_secs(3), self.stop_media()).await,
+            Ok(Ok(true))
+        );
+        let closed = !self.foreign_media && self.close_app().await;
+        Ok(stopped || closed)
     }
     async fn stop_media(&mut self) -> Result<bool, &'static str> {
+        if self.app_closed {
+            return Ok(true);
+        }
         if self.media_session.is_none() {
             if self.owned_url.is_none() {
                 return Ok(true);
@@ -383,7 +564,7 @@ impl Session {
         )
         .await?;
         // The receiver may first report the playback it is still ending; wait
-        // for idle (the caller bounds the wait: five seconds).
+        // for idle (stop() bounds the wait: three seconds).
         while !matches!(self.next_state().await?, ReceiverState::Ended) {}
         self.media_session = None;
         self.owned_url = None;
@@ -392,246 +573,37 @@ impl Session {
     /// Close the cast app this session launched, so the TV leaves its cast
     /// screen (its Back button cannot). Names only our own receiver session:
     /// the TV ignores it when another sender's app has replaced ours.
-    async fn close_app(&mut self) {
+    /// Returns whether the TV confirmed it closed (one and a half seconds at
+    /// most); the TV's own receiver answers even when the app is stuck.
+    async fn close_app(&mut self) -> bool {
         let Some(session) = self.receiver_session.take() else {
-            return;
+            return self.app_closed;
         };
-        let _ = self
+        if self
             .send(
                 "receiver-0",
                 protocol::RECEIVER,
                 json!({"type":"STOP","sessionId":session}),
             )
-            .await;
+            .await
+            .is_err()
+        {
+            return false;
+        }
+        let closed = tokio::time::timeout(Duration::from_millis(1500), async {
+            loop {
+                let message = self.receive().await?;
+                if Self::app_gone(&message, &session) {
+                    return Ok::<(), &'static str>(());
+                }
+            }
+        })
+        .await;
+        self.app_closed = matches!(closed, Ok(Ok(())));
+        self.app_closed
     }
 }
 
 #[cfg(test)]
-mod receiver_tests {
-    use super::*;
-    use rustls::pki_types::{CertificateDer, PrivateKeyDer};
-    use tokio::net::TcpListener;
-    use tokio_rustls::TlsAcceptor;
-
-    #[tokio::test]
-    async fn known_receiver_probe_uses_real_tls_and_status_without_launch_or_load() {
-        let tls = rustls::ServerConfig::builder_with_provider(Arc::new(
-            rustls::crypto::ring::default_provider(),
-        ))
-        .with_safe_default_protocol_versions()
-        .unwrap()
-        .with_no_client_auth()
-        .with_single_cert(
-            vec![CertificateDer::from(
-                include_bytes!("../lan/fixtures/loopback-cert.der").to_vec(),
-            )],
-            PrivateKeyDer::try_from(include_bytes!("../lan/fixtures/loopback-key.der").to_vec())
-                .unwrap(),
-        )
-        .unwrap();
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let address = listener.local_addr().unwrap();
-        let server = tokio::spawn(async move {
-            let (tcp, _) = listener.accept().await.unwrap();
-            let mut stream = TlsAcceptor::from(Arc::new(tls)).accept(tcp).await.unwrap();
-            for expected in ["CONNECT", "GET_STATUS"] {
-                let size = stream.read_u32().await.unwrap() as usize;
-                assert!(size <= protocol::MAX_FRAME);
-                let mut body = vec![0; size];
-                stream.read_exact(&mut body).await.unwrap();
-                let message = protocol::decode(&body).unwrap();
-                assert_eq!(message.payload["type"], expected);
-                if expected == "GET_STATUS" {
-                    let reply = protocol::encode(
-                        "receiver-0",
-                        &message.source,
-                        protocol::RECEIVER,
-                        &json!({"type":"RECEIVER_STATUS","requestId":message.payload["requestId"],"status":{"volume":{"level":0.5}}}),
-                    )
-                    .unwrap();
-                    stream.write_all(&reply).await.unwrap();
-                }
-            }
-        });
-        assert!(
-            Session::connect(address, "refused-production-loopback".into())
-                .await
-                .is_err()
-        );
-        let mut session = Session::connect_transport(address, "probe-fixture".into())
-            .await
-            .unwrap();
-        tokio::time::timeout(Duration::from_secs(3), session.verify_receiver())
-            .await
-            .unwrap()
-            .unwrap();
-        assert!(session.media_session.is_none());
-        assert!(session.owned_url.is_none());
-        server.await.unwrap();
-    }
-
-    fn fixture_tls() -> TlsAcceptor {
-        TlsAcceptor::from(Arc::new(
-            rustls::ServerConfig::builder_with_provider(Arc::new(
-                rustls::crypto::ring::default_provider(),
-            ))
-            .with_safe_default_protocol_versions()
-            .unwrap()
-            .with_no_client_auth()
-            .with_single_cert(
-                vec![CertificateDer::from(
-                    include_bytes!("../lan/fixtures/loopback-cert.der").to_vec(),
-                )],
-                PrivateKeyDer::try_from(
-                    include_bytes!("../lan/fixtures/loopback-key.der").to_vec(),
-                )
-                .unwrap(),
-            )
-            .unwrap(),
-        ))
-    }
-    const URL: &str = "http://10.0.0.2:4000/media/abc";
-    fn media(state: &str, reason: Option<&str>) -> Value {
-        let mut status = json!({"mediaSessionId":7,"playerState":state,"media":{"contentId":URL}});
-        if let Some(reason) = reason {
-            status["idleReason"] = json!(reason);
-        }
-        json!({"type":"MEDIA_STATUS","status":[status]})
-    }
-    /// A Default Media Receiver as Google TV behaves: an empty status right
-    /// after LOAD, then `after_load`; records every message GenX sends.
-    async fn receiver(
-        after_load: Vec<Value>,
-        on_status: Value,
-    ) -> (SocketAddr, tokio::task::JoinHandle<Vec<Value>>) {
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let address = listener.local_addr().unwrap();
-        let server = tokio::spawn(async move {
-            let (tcp, _) = listener.accept().await.unwrap();
-            let mut stream = fixture_tls().accept(tcp).await.unwrap();
-            let mut seen = Vec::new();
-            loop {
-                let Ok(size) = stream.read_u32().await else {
-                    return seen;
-                };
-                let mut body = vec![0; size as usize];
-                stream.read_exact(&mut body).await.unwrap();
-                let message = protocol::decode(&body).unwrap();
-                let kind = message.payload["type"]
-                    .as_str()
-                    .unwrap_or_default()
-                    .to_owned();
-                seen.push(json!({"ns":message.namespace,"payload":message.payload}));
-                let mut replies = Vec::new();
-                match (message.namespace.as_str(), kind.as_str()) {
-                    (protocol::RECEIVER, "LAUNCH") => replies.push(("receiver-0", protocol::RECEIVER, json!({"type":"RECEIVER_STATUS","status":{"applications":[{"appId":"CC1AD845","transportId":"web-1","sessionId":"app-1"}]}}))),
-                    (protocol::MEDIA, "LOAD") => {
-                        replies.push(("web-1", protocol::MEDIA, json!({"type":"MEDIA_STATUS","status":[]})));
-                        for reply in &after_load {
-                            replies.push(("web-1", protocol::MEDIA, reply.clone()));
-                        }
-                    }
-                    (protocol::MEDIA, "GET_STATUS") => {
-                        replies.push(("web-1", protocol::MEDIA, on_status.clone()))
-                    }
-                    // Google TV reports the ending playback once before going idle.
-                    (protocol::MEDIA, "STOP") => {
-                        replies.push(("web-1", protocol::MEDIA, media("PLAYING", None)));
-                        replies.push(("web-1", protocol::MEDIA, media("IDLE", Some("CANCELLED"))));
-                    }
-                    (protocol::RECEIVER, "STOP") => return seen,
-                    _ => {}
-                }
-                for (source, namespace, payload) in replies {
-                    let frame =
-                        protocol::encode(source, &message.source, namespace, &payload).unwrap();
-                    stream.write_all(&frame).await.unwrap();
-                }
-            }
-        });
-        (address, server)
-    }
-    fn selection() -> MediaSelection {
-        MediaSelection {
-            id: "channel".into(),
-            name: "Channel".into(),
-            url: URL.into(),
-            content_type: "application/x-mpegURL".into(),
-        }
-    }
-
-    #[tokio::test]
-    async fn load_waits_past_the_early_empty_status_and_stop_closes_the_cast_app() {
-        let (address, server) = receiver(
-            vec![
-                media("IDLE", None),
-                media("BUFFERING", None),
-                media("PLAYING", None),
-            ],
-            media("PLAYING", None),
-        )
-        .await;
-        let mut session = Session::connect_transport(address, "load-fixture".into())
-            .await
-            .unwrap();
-        tokio::time::timeout(Duration::from_secs(5), session.load(&selection()))
-            .await
-            .unwrap()
-            .unwrap();
-        assert_eq!(session.media_session, Some(7));
-        assert!(tokio::time::timeout(Duration::from_secs(5), session.stop())
-            .await
-            .unwrap()
-            .unwrap());
-        let seen = server.await.unwrap();
-        let last = seen.last().unwrap();
-        assert_eq!(last["ns"], protocol::RECEIVER);
-        assert_eq!(last["payload"]["type"], "STOP");
-        assert_eq!(last["payload"]["sessionId"], "app-1");
-    }
-
-    #[tokio::test]
-    async fn a_receiver_that_goes_idle_with_an_error_fails_the_load() {
-        let (address, server) = receiver(vec![media("IDLE", Some("ERROR"))], json!({})).await;
-        let mut session = Session::connect_transport(address, "load-fixture".into())
-            .await
-            .unwrap();
-        assert_eq!(
-            tokio::time::timeout(Duration::from_secs(5), session.load(&selection()))
-                .await
-                .unwrap(),
-            Err("cast-load-failed")
-        );
-        drop(session);
-        server.abort();
-    }
-
-    #[tokio::test]
-    async fn stop_leaves_another_senders_media_and_app_alone() {
-        let mut other = media("PLAYING", None);
-        other["status"][0]["mediaSessionId"] = json!(99);
-        other["status"][0]["media"]["contentId"] = json!("https://other.example/live.m3u8");
-        let (address, server) = receiver(vec![media("PLAYING", None)], other).await;
-        let mut session = Session::connect_transport(address, "load-fixture".into())
-            .await
-            .unwrap();
-        tokio::time::timeout(Duration::from_secs(5), session.load(&selection()))
-            .await
-            .unwrap()
-            .unwrap();
-        // Another phone took over: GenX's media is gone, so Stop is done.
-        session.media_session = None;
-        assert!(tokio::time::timeout(Duration::from_secs(5), session.stop())
-            .await
-            .unwrap()
-            .unwrap());
-        drop(session);
-        let seen = server.await.unwrap();
-        assert!(seen
-            .iter()
-            .all(|m| !(m["ns"] == protocol::RECEIVER && m["payload"]["type"] == "STOP")));
-        assert!(seen
-            .iter()
-            .all(|m| !(m["ns"] == protocol::MEDIA && m["payload"]["type"] == "STOP")));
-    }
-}
+#[path = "chromecast_tests.rs"]
+mod receiver_tests;
