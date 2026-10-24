@@ -68,6 +68,8 @@ pub(super) fn diag(line: std::fmt::Arguments) {
     let _ = line;
 }
 
+// Only the debug-build relay diagnostics above time their lines.
+#[cfg(debug_assertions)]
 pub(super) fn now_ms() -> u128 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
