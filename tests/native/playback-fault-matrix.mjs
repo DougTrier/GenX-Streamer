@@ -201,7 +201,7 @@ try {
     await page.locator('#cast-button').click();
     await page.locator('#cast-discover').click();
     await expect(page.locator('#cast-discover')).toBeEnabled({ timeout: 15000 });
-    report.discoveredDevices = await page.locator('#cast-devices button').allTextContents();
+    report.discoveredDevices = await page.locator('#cast-devices .cast-device').allTextContents();
     report.discoveryStatus = await page.locator('#cast-status').textContent();
     await page.locator('[data-close="cast-dialog"]').click();
   }

@@ -52,7 +52,7 @@ test('manual receiver entry is optional and browser preview never claims a conne
   await expect(page.locator('#cast-status')).toHaveText(
     'Casting requires the installed application.',
   );
-  await expect(page.locator('#cast-devices button')).toHaveCount(0);
+  await expect(page.locator('#cast-devices .cast-device')).toHaveCount(0);
   await expect(page.locator('#cast-known-check')).toBeEnabled();
   await expect(page.locator('#cast-stop')).toBeDisabled();
 });

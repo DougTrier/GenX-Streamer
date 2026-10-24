@@ -171,15 +171,32 @@ export class CastingController {
     for (const [owner] of pending) owner.abort();
     await Promise.allSettled(pending.map(([, work]) => work));
   }
-  private async release(): Promise<void> {
+  /**
+   * Asks the receiver to stop (five seconds at most), then lets the session go
+   * whether or not it answered, and reports whether it confirmed. Switching to
+   * another TV, or stopping, is never held up by a TV that does not answer
+   * (owner decision, October 24, 2026): one that is asleep, unplugged, or
+   * already taken over by another phone would otherwise block every later
+   * cast. The native layer revokes the stream relay first, either way.
+   */
+  private async release(): Promise<boolean> {
     const session = this.session;
-    if (!session) return;
+    if (!session) return true;
     session.abort.abort();
-    const stopSignal = AbortSignal.timeout(5_000);
-    const result = await bounded(session.engine.stop(stopSignal), stopSignal);
-    if (!result.confirmed) throw new Error('The receiver has not confirmed that casting stopped.');
-    await bounded(session.engine.dispose(), AbortSignal.timeout(5_000));
+    let confirmed: boolean;
+    try {
+      const stopSignal = AbortSignal.timeout(5_000);
+      confirmed = (await bounded(session.engine.stop(stopSignal), stopSignal)).confirmed;
+    } catch {
+      confirmed = false;
+    }
+    try {
+      await bounded(session.engine.dispose(), AbortSignal.timeout(5_000));
+    } catch {
+      // The sender's own timers and listeners go with the session below.
+    }
     if (this.session === session) this.session = null;
+    return confirmed;
   }
   async start(device: CastDevice, selection: ChannelSelection): Promise<void> {
     if (this.disposed || this.closing) throw new Error('Casting controller is closed.');
@@ -187,16 +204,8 @@ export class CastingController {
     this.clearDeadline();
     this.session?.abort.abort();
     const started = await this.enqueue(async () => {
-      try {
-        await this.release();
-      } catch {
-        if (generation === this.generation)
-          this.publish(
-            'failed',
-            'Casting could not stop its previous receiver session. Retry Stop casting.',
-          );
-        return null;
-      }
+      // The previous TV, if any, is asked to stop and let go before this one starts.
+      await this.release();
       if (generation !== this.generation || this.disposed) return null;
       const sessionId = this.id();
       const abort = new AbortController();
@@ -271,11 +280,11 @@ export class CastingController {
     this.clearDeadline();
     this.session?.abort.abort();
     this.publish('failed', message);
-    void this.enqueue(() => this.release()).catch(() => {
-      if (failedGeneration === this.generation)
+    void this.enqueue(() => this.release()).then((confirmed) => {
+      if (!confirmed && failedGeneration === this.generation)
         this.publish(
           'failed',
-          'Casting failed and the receiver may still be active. Retry Stop casting.',
+          `${message} If the TV still shows the channel, stop it with the TV's remote.`,
         );
     });
   }
@@ -286,22 +295,21 @@ export class CastingController {
     this.session?.abort.abort();
     this.publish('stopping');
     await this.enqueue(async () => {
-      try {
-        await this.release();
-        if (generation === this.generation) {
-          this.current = {
-            state: 'idle',
-            device: null,
-            selection: null,
-            sessionId: null,
-            error: null,
-          };
-          this.publish('idle');
-        }
-      } catch {
-        if (generation === this.generation)
-          this.publish('failed', 'The receiver may still be playing. Retry Stop casting.');
-      }
+      const confirmed = await this.release();
+      if (generation !== this.generation) return;
+      this.current = {
+        state: 'idle',
+        device: null,
+        selection: null,
+        sessionId: null,
+        error: null,
+      };
+      this.publish(
+        'idle',
+        confirmed
+          ? null
+          : "The TV did not answer. If it still shows the channel, stop it with the TV's remote.",
+      );
     });
   }
   dispose(): Promise<void> {

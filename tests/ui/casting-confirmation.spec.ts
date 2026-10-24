@@ -182,8 +182,8 @@ async function mount(page: Page, unverified = false) {
 
 /** Opening lists the TVs by itself; choose the first one. */
 async function selectFirst(page: Page) {
-  await expect(page.locator('#cast-devices button')).toHaveCount(2);
-  await page.locator('#cast-devices button').first().click();
+  await expect(page.locator('#cast-devices .cast-device')).toHaveCount(2);
+  await page.locator('#cast-devices .cast-device').first().click();
 }
 
 async function starts(page: Page) {
@@ -197,7 +197,7 @@ test.afterEach(async ({ page }) => {
 test('Cast, choose the TV, it plays: a verified TV needs no second step', async ({ page }) => {
   await mount(page);
   await selectFirst(page);
-  await expect(page.locator('#cast-status')).toContainText('playing');
+  await expect(page.locator('#cast-status')).toContainText('Casting to');
   await expect(page.locator('#cast-confirmation')).toBeHidden();
   await expect(page.locator('#cast-relay-http')).toHaveCount(0);
   expect(await starts(page)).toEqual([
@@ -218,7 +218,7 @@ test('identity unavailable requires deliberate uncertainty acknowledgment', asyn
   expect(await starts(page)).toEqual([]);
   await page.locator('#cast-unverified').check();
   await page.locator('#cast-confirm').click();
-  await expect(page.locator('#cast-status')).toContainText('playing');
+  await expect(page.locator('#cast-status')).toContainText('Casting to');
   expect(await starts(page)).toHaveLength(1);
 });
 
@@ -235,7 +235,7 @@ test('connection method exposes one path and known-address probe does not cast',
   await expect(page.locator('#cast-known-form')).toBeVisible();
   await page.locator('#cast-known-address').fill('192.0.2.1');
   await page.locator('#cast-known-check').click();
-  await expect(page.locator('#cast-devices button')).toHaveCount(1);
+  await expect(page.locator('#cast-devices .cast-device')).toHaveCount(1);
   expect(await starts(page)).toEqual([]);
   await expect(page.locator('#cast-confirmation')).toBeHidden();
 });
@@ -249,7 +249,7 @@ for (const action of ['close', 'cancel'] as const) {
       Reflect.get(window, 'castFixture').holdAt = 1;
     });
     await page.locator('#cast-discover').click();
-    await page.locator('#cast-devices button').first().click();
+    await page.locator('#cast-devices .cast-device').first().click();
     await expect
       .poll(() => page.evaluate(() => !!Reflect.get(window, 'castFixture').pending))
       .toBe(true);
@@ -293,7 +293,7 @@ test('choosing the TV captures its channel while a delayed check completes', asy
     fixture.channel = { id: 'channel-b', name: 'Channel B', url: 'https://fixture.invalid/b' };
     fixture.pending();
   });
-  await expect(page.locator('#cast-status')).toContainText('playing');
+  await expect(page.locator('#cast-status')).toContainText('Casting to');
   expect((await starts(page))[0].channel.id).toBe('channel-a');
 });
 
@@ -373,7 +373,9 @@ for (const size of [
   });
 }
 
-test('close cleanup awaits remote ownership and retries refusal without admitting new UI work', async ({
+// Owner decision, October 24, 2026: a TV that refuses or ignores Stop never
+// holds casting (or closing) hostage; closing still runs once, to completion.
+test('close releases the cast even when the TV refuses stop, once, without admitting new UI work', async ({
   page,
 }) => {
   await mount(page);
@@ -382,18 +384,6 @@ test('close cleanup awaits remote ownership and retries refusal without admittin
   await page.evaluate(() => {
     const f = Reflect.get(window, 'castFixture');
     f.stopRefused = true;
-    f.failed = false;
-    f.dispose().catch(() => {
-      f.failed = true;
-    });
-  });
-  await page.waitForFunction(() => Reflect.get(window, 'castFixture').failed);
-  expect(await page.locator('#cast-method').count()).toBe(0);
-  await page.locator('#cast-discover').click();
-  expect(await starts(page)).toHaveLength(1);
-  await page.evaluate(() => {
-    const f = Reflect.get(window, 'castFixture');
-    f.stopRefused = false;
     f.holdDispose = true;
     f.finished = false;
     const work = f.dispose();
@@ -410,5 +400,29 @@ test('close cleanup awaits remote ownership and retries refusal without admittin
   await page.evaluate(() => Reflect.get(window, 'castFixture').resolveDispose());
   await page.waitForFunction(() => Reflect.get(window, 'castFixture').finished);
   expect(await page.evaluate(() => Reflect.get(window, 'castFixture').engineDisposeCalls)).toBe(1);
+  expect(await page.locator('#cast-method').count()).toBe(0);
+  await page.locator('#cast-discover').click();
   expect(await starts(page)).toHaveLength(1);
+});
+
+// Owner request, October 24, 2026: show which TV is being cast to, with a Stop
+// beside that TV.
+test('the TV being cast to is marked, with its own Stop beside it', async ({ page }) => {
+  await mount(page);
+  await selectFirst(page);
+  await expect.poll(async () => (await starts(page)).length).toBe(1);
+  const rows = page.locator('#cast-devices .cast-device-row');
+  await expect(rows.nth(0).locator('.cast-device')).toHaveAttribute('aria-current', 'true');
+  await expect(rows.nth(0).locator('.cast-device-badge')).toHaveText('Casting');
+  await expect(rows.nth(1).locator('.cast-device')).toHaveAttribute('aria-current', 'false');
+  await expect(rows.nth(1).locator('.cast-device-badge')).toBeHidden();
+  await expect(rows.nth(1).locator('.cast-device-stop')).toBeHidden();
+  await expect(page.locator('#cast-status')).toHaveText('Casting to Room TV.');
+  await rows.nth(0).getByRole('button', { name: 'Stop casting to Room TV' }).click();
+  await expect
+    .poll(() => page.evaluate(() => Reflect.get(window, 'castFixture').stopCalls))
+    .toBe(1);
+  await expect(rows.nth(0).locator('.cast-device')).toHaveAttribute('aria-current', 'false');
+  await expect(rows.nth(0).locator('.cast-device-stop')).toBeHidden();
+  await expect(page.locator('#cast-status')).toHaveText('Choose a channel, then select your TV.');
 });

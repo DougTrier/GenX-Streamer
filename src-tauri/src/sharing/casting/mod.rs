@@ -849,28 +849,34 @@ impl CastingManager {
             remote_session_id: remote,
         })
     }
+    /// Asks the receiver to stop this session's media (five seconds at most),
+    /// then releases the session whether or not the receiver answered, and
+    /// returns whether it confirmed. Switching to another TV, or stopping, is
+    /// never held up by a TV that does not answer (owner decision, October 24,
+    /// 2026): one that is asleep, off the network or already taken over by
+    /// another phone used to block every later cast. The relay is revoked
+    /// first, so a TV that was fed through it loses the stream either way.
     pub async fn stop(&self, session_id: &str) -> Result<bool, &'static str> {
         let owned = self.owned(session_id).await?;
         owned.cancel.store(true, Ordering::SeqCst);
-        // Revoke media access even when the receiver does not confirm STOP.
-        Self::stop_relay(&owned).await?;
-        if self.observe_network().await? != owned.network {
-            return Err("cast-network-changed-remote-stop-unconfirmed");
-        }
-        let stopped = tokio::time::timeout(Duration::from_secs(5), async {
-            let mut guard = owned.engine.lock().await;
-            match guard.as_mut() {
-                Some(Engine::Chromecast(engine)) => engine.stop().await,
-                Some(Engine::Dlna(engine)) => engine.stop().await,
-                None => Ok(true),
-            }
-        })
-        .await
-        .map_err(|_| "cast-stop-timeout")??;
-        if stopped {
-            self.clear_owned(&owned).await;
-        }
-        Ok(stopped)
+        let relay = Self::stop_relay(&owned).await;
+        let same_network =
+            matches!(self.observe_network().await, Ok(network) if network == owned.network);
+        let stopped = same_network
+            && matches!(
+                tokio::time::timeout(Duration::from_secs(5), async {
+                    let mut guard = owned.engine.lock().await;
+                    match guard.as_mut() {
+                        Some(Engine::Chromecast(engine)) => engine.stop().await,
+                        Some(Engine::Dlna(engine)) => engine.stop().await,
+                        None => Ok(true),
+                    }
+                })
+                .await,
+                Ok(Ok(true))
+            );
+        self.clear_owned(&owned).await;
+        Ok(stopped && relay.is_ok())
     }
     pub async fn shutdown(&self) -> Result<(), &'static str> {
         self.closing.store(true, Ordering::SeqCst);
@@ -889,9 +895,9 @@ impl CastingManager {
             changed.await;
         }
         if let Some(session) = owned {
-            if !self.stop(&session.id).await? {
-                return Err("cast-stop-unconfirmed");
-            }
+            // Closing the app releases the cast even when the TV does not
+            // answer; the relay is already revoked by then.
+            self.stop(&session.id).await?;
         }
         Ok(())
     }

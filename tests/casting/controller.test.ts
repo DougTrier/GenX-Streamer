@@ -95,18 +95,40 @@ describe('casting ownership and authoritative receiver state', () => {
     expect(f.controller.snapshot.state).toBe('connecting');
     await f.controller.dispose();
   });
-  it('retains ownership and blocks a second engine when receiver stop is unconfirmed', async () => {
+  // Owner decision, October 24, 2026: a TV that does not answer (asleep, off the
+  // network, taken over by another phone) never blocks casting to another TV.
+  it('switching to another TV lets an unanswering previous TV go and starts the new one', async () => {
     const f = fixture();
+    const bedroom = { id: 'bedroom', name: 'Bedroom', protocol: 'chromecast' as const };
     await f.controller.start(device, selection);
     vi.mocked(f.sessions[0]!.engine.stop).mockResolvedValue({ confirmed: false });
-    await f.controller.start(device, selection);
-    expect(f.sessions).toHaveLength(1);
-    expect(f.controller.snapshot.state).toBe('failed');
-    expect(f.sessions[0]!.engine.dispose).not.toHaveBeenCalled();
-    await expect(f.controller.dispose()).rejects.toThrow('ownership was retained');
-    vi.mocked(f.sessions[0]!.engine.stop).mockResolvedValue({ confirmed: true });
+    await f.controller.start(bedroom, selection);
+    expect(f.sessions).toHaveLength(2);
+    expect(f.sessions[0]!.engine.stop).toHaveBeenCalledOnce();
+    expect(f.sessions[0]!.engine.dispose).toHaveBeenCalledOnce();
+    expect(f.controller.snapshot).toMatchObject({
+      state: 'connecting',
+      device: bedroom,
+      error: null,
+    });
     await f.controller.dispose();
     expect(f.controller.snapshot.state).toBe('disposed');
+  });
+  it('a stop the TV never answers still ends casting, within five seconds', async () => {
+    vi.useFakeTimers();
+    const f = fixture();
+    await f.controller.start(device, selection);
+    vi.mocked(f.sessions[0]!.engine.stop).mockReturnValue(new Promise(() => undefined));
+    const stopping = f.controller.stop();
+    await vi.advanceTimersByTimeAsync(5_000);
+    await stopping;
+    expect(f.sessions[0]!.engine.dispose).toHaveBeenCalledOnce();
+    expect(f.controller.snapshot).toMatchObject({ state: 'idle', sessionId: null, device: null });
+    expect(f.controller.snapshot.error).toContain('did not answer');
+    await f.controller.start(device, selection);
+    expect(f.sessions).toHaveLength(2);
+    expect(f.controller.snapshot.state).toBe('connecting');
+    await f.controller.dispose();
   });
   it('stop confirmation precedes sender disposal and clears selection', async () => {
     const f = fixture();

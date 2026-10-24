@@ -263,3 +263,33 @@ dialog input[type='file']::file-selector-button {
   box-shadow: var(--gx-glass-depth);
   cursor: pointer;
 }
+
+/* The cast list: the TV being cast to is marked (aria-current gives it the
+   selected glass above), with its own Stop beside it. */
+.cast-device-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+.cast-device-row > .cast-device {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+.cast-device-row > .cast-device-stop {
+  flex: none;
+}
+.cast-device-badge {
+  display: inline-block;
+  margin-inline-end: 8px;
+  padding: 1px 9px;
+  border-radius: 999px;
+  font-size: 0.8em;
+  font-weight: 700;
+  color: #04121c;
+  background: var(--gx-cyan);
+  text-shadow: none;
+  vertical-align: 0.1em;
+}
+.cast-device-badge[hidden] {
+  display: none;
+}

@@ -15,7 +15,13 @@
  */
 
 import { invoke, isTauri } from '@tauri-apps/api/core';
-import { CastingController, type CastAdapter, type CastDevice } from '../../casting/controller';
+import {
+  CastingController,
+  type CastAdapter,
+  type CastDevice,
+  type CastSnapshot,
+  type CastState,
+} from '../../casting/controller';
 import { probeKnownReceiver } from '../../casting/known-receiver';
 import { createNativeCastAdapter } from '../../casting/native-adapter';
 import { createConfirmedReceiver } from '../../casting/confirmed-receiver';
@@ -122,6 +128,7 @@ export function installCasting(
   const deviceListeners: Array<() => void> = [];
   const clearDevices = (): void => {
     for (const remove of deviceListeners.splice(0)) remove();
+    rows.clear();
     devices.replaceChildren();
   };
   const on = (node: EventTarget, name: string, handler: EventListener): void => {
@@ -156,17 +163,79 @@ export function installCasting(
       !selected ||
       (selected.requiresUnverifiedAcknowledgment && !unknown.checked);
   };
+  // The TV being cast to is marked in the list, with its own Stop beside it
+  // (owner request, October 24, 2026).
+  const rows = new Map<
+    ReceiverDetails,
+    { button: HTMLButtonElement; badge: HTMLSpanElement; stopButton: HTMLButtonElement }
+  >();
+  const castingLabel: Partial<Record<CastState, string>> = {
+    connecting: 'Connecting…',
+    buffering: 'Buffering…',
+    playing: 'Casting',
+    paused: 'Paused',
+    stopping: 'Stopping…',
+  };
+  const isCastingTo = (device: ReceiverDetails, snapshot: CastSnapshot): boolean => {
+    const active = snapshot.device as (CastDevice & Partial<ReceiverDetails>) | null;
+    return (
+      !!active &&
+      !!snapshot.sessionId &&
+      !!castingLabel[snapshot.state] &&
+      (active.id === device.id ||
+        (!!device.protocolReceiverId && active.protocolReceiverId === device.protocolReceiverId))
+    );
+  };
+  const markCasting = (snapshot: CastSnapshot): void => {
+    for (const [device, row] of rows) {
+      const casting = isCastingTo(device, snapshot);
+      row.button.setAttribute('aria-current', String(casting));
+      row.badge.hidden = !casting;
+      row.badge.textContent = casting ? castingLabel[snapshot.state]! : '';
+      row.stopButton.hidden = !casting;
+      row.stopButton.disabled = !casting || snapshot.state === 'stopping';
+    }
+  };
+  const stopCasting = (): void => {
+    clearSelection();
+    void controller.stop().catch(() => {
+      if (!disposed)
+        status.textContent = 'The receiver has not confirmed Stop. Retry Stop casting.';
+    });
+  };
   const unsubscribe = controller.subscribe((snapshot) => {
+    const label = castingLabel[snapshot.state];
     status.textContent =
       snapshot.error ??
       (snapshot.state === 'idle'
         ? 'Choose a channel, then select your TV.'
-        : `${snapshot.device?.name ?? 'Receiver'} · ${snapshot.state}`);
+        : snapshot.state === 'playing'
+          ? `Casting to ${snapshot.device?.name ?? 'your TV'}.`
+          : `${snapshot.device?.name ?? 'Receiver'} · ${label ?? snapshot.state}`);
     stop.disabled = !snapshot.sessionId || snapshot.state === 'idle';
+    markCasting(snapshot);
   });
   const addDevice = (device: ReceiverDetails): void => {
+    const row = document.createElement('div');
+    row.className = 'cast-device-row';
     const button = document.createElement('button');
-    button.textContent = `${device.name} · ${device.model ?? (device.protocol === 'dlna' ? 'DLNA' : 'Chromecast')}${device.protocolReceiverId ? ' · ' + device.protocolReceiverId : ' · Identity unverified'}`;
+    button.className = 'cast-device';
+    const badge = document.createElement('span');
+    badge.className = 'cast-device-badge';
+    badge.hidden = true;
+    button.append(
+      badge,
+      `${device.name} · ${device.model ?? (device.protocol === 'dlna' ? 'DLNA' : 'Chromecast')}${device.protocolReceiverId ? ' · ' + device.protocolReceiverId : ' · Identity unverified'}`,
+    );
+    const stopButton = document.createElement('button');
+    stopButton.className = 'cast-device-stop';
+    stopButton.textContent = 'Stop';
+    stopButton.setAttribute('aria-label', `Stop casting to ${device.name}`);
+    stopButton.hidden = true;
+    stopButton.addEventListener('click', stopCasting);
+    deviceListeners.push(() => stopButton.removeEventListener('click', stopCasting));
+    row.append(button, stopButton);
+    rows.set(device, { button, badge, stopButton });
     const selectDevice = () => {
       void (async () => {
         const { owned, current } = begin();
@@ -194,7 +263,8 @@ export function installCasting(
     };
     button.addEventListener('click', selectDevice);
     deviceListeners.push(() => button.removeEventListener('click', selectDevice));
-    devices.append(button);
+    devices.append(row);
+    markCasting(controller.snapshot);
   };
   // Full screen hides the header: its player row offers Cast too.
   on(document.getElementById('dock-cast')!, 'click', () =>
@@ -303,13 +373,7 @@ export function installCasting(
       }
     })();
   });
-  on(stop, 'click', () => {
-    clearSelection();
-    void controller.stop().catch(() => {
-      if (!disposed)
-        status.textContent = 'The receiver has not confirmed Stop. Retry Stop casting.';
-    });
-  });
+  on(stop, 'click', stopCasting);
   const showMethod = (): void => {
     clearSelection();
     clearDevices();
