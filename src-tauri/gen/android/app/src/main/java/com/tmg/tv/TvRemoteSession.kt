@@ -37,6 +37,8 @@ internal class TvRemoteSession(
   @Volatile var changes = 0
   @Volatile var ready = false
   @Volatile var open = true
+  /** null until the TV says. */
+  @Volatile var screenOn: Boolean? = null
 
   @Synchronized fun send(message: ByteArray) {
     if (!open) throw IllegalStateException("tv-disconnected")
@@ -57,6 +59,7 @@ internal class TvRemoteSession(
           is TvEvent.SetActive -> { send(TvRemote.setActiveReply()); ready = true }
           is TvEvent.Ping -> send(TvRemote.pingReply(event.value))
           is TvEvent.FrontApp -> { front = event.app; changes += 1 }
+          is TvEvent.Screen -> screenOn = event.on
           TvEvent.Other -> {}
         }
       }

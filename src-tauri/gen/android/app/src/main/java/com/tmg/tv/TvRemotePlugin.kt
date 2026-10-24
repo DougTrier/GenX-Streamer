@@ -203,6 +203,11 @@ class TvRemotePlugin(private val activity: Activity) : Plugin(activity) {
       val deadline = System.currentTimeMillis() + 6000
       while (!connected.ready && connected.open && System.currentTimeMillis() < deadline) Thread.sleep(50)
       if (!connected.ready) { connected.close(); throw IllegalStateException("tv-connect-failed") }
+      // Wake the TV (asleep: HDMI shows no signal; or in its screensaver) with one
+      // Home press, then wait for its screen, so the person sees every step.
+      connected.send(TvRemote.home())
+      val awake = System.currentTimeMillis() + 5000
+      while (connected.screenOn != true && connected.open && System.currentTimeMillis() < awake) Thread.sleep(50)
       invoke.resolveObject(status(connected))
     }
   }

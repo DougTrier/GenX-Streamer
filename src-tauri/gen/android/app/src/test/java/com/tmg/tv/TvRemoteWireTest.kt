@@ -104,6 +104,13 @@ class TvRemoteWireTest {
     assertEquals(TvEvent.Configure("Google TV Streamer", "Google"), TvRemote.read(configure))
     assertEquals(TvEvent.SetActive, TvRemote.read(TvWire.bytes(2, TvWire.int(1, 622))))
     assertEquals(TvEvent.Ping(7), TvRemote.read(TvWire.bytes(8, TvWire.int(1, 7))))
+    // Screen state, as the Streamer reported it asleep and after waking.
+    assertEquals(TvEvent.Screen(false), TvRemote.read(TvWire.bytes(40, TvWire.int(1, 0))))
+    assertEquals(TvEvent.Screen(true), TvRemote.read(TvWire.bytes(40, TvWire.int(1, 1))))
+    // Home, one short press: the only key GenX sends.
+    val home = TvWire.nested(TvWire.parse(TvRemote.home()), 10)
+    assertEquals(3L, TvWire.number(home, 1))
+    assertEquals(3L, TvWire.number(home, 2))
     val front = TvWire.bytes(20, TvWire.bytes(1, TvWire.text(12, "com.esaba.downloader")))
     assertEquals(TvEvent.FrontApp("com.esaba.downloader"), TvRemote.read(front))
     val odd = TvWire.bytes(20, TvWire.bytes(1, TvWire.text(12, "x y; rm")))
@@ -173,6 +180,10 @@ class TvRemoteWireTest {
     assertTrue(session.ready)
     assertEquals("Google TV Streamer", session.model)
     assertEquals("com.android.vending", session.front)
+    tvSends(TvWire.bytes(40, TvWire.int(1, 1)))
+    val lit = System.currentTimeMillis() + 2000
+    while (session.screenOn != true && System.currentTimeMillis() < lit) Thread.sleep(10)
+    assertEquals(true, session.screenOn)
 
     // The TV goes away mid-session.
     toGenX.close()

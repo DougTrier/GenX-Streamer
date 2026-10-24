@@ -8,6 +8,11 @@ rest: no address to type, no settings to find (owner's decision, October 24,
 
 ## How it works
 
+0. **Wake.** A TV asleep (its HDMI shows "No signal") or in its screensaver
+   shows nothing, so on connecting GenX presses Home once and waits for the
+   TV to report its screen on. Measured on the Streamer: 1.3 s. Wake and
+   Power were tried first: Wake did nothing, and Power switches an awake TV
+   off.
 1. **Find.** GenX looks for TVs offering the built-in remote service: the one
    the Google TV phone app uses, `_androidtvremote2._tcp`.
 2. **Pair, once per TV.** The TV shows a six-character code; the person
@@ -76,7 +81,7 @@ Every network call runs off the interface thread
 | TV-001 | Pairing needs the code the TV shows, typed by the person; GenX never pairs on its own. |
 | TV-002 | GenX keeps only its own key (Android Keystore) and each paired TV's certificate fingerprint and name; **Forget paired TVs** removes them all. |
 | TV-003 | The person never enters an IP address, URL, port or download code in the normal Install on TV workflow. |
-| TV-004 | GenX may open links on the TV but never approves anything: it sends no key presses, so installing the helper, allowing installs from it and installing GenX are always the person's choice on the TV. |
+| TV-004 | GenX may open links on the TV but never approves anything. The only key it sends is one Home press when it connects, to wake a sleeping TV or end its screensaver, before any prompt exists. Installing the helper, allowing installs from it and installing GenX are always the person's choice on the TV. |
 | TV-005 | The whole normal workflow is understandable and operable on one screen: no scrolling, no technical terms, no network setup. |
 | TV-006 | "Installed" is said only after GenX on the TV reported the SHA-256 of the very file sent; otherwise the card says what is known (downloaded, an older copy, or not installed). The TV reports only to a private address with the nearby share's shape. |
 | TV-007 | GenX opens only three links on a TV: its own nearby file address, the download helper's store page, and `genx://open`. Remote connections go only to private addresses and only to a TV whose certificate matches the one paired. |

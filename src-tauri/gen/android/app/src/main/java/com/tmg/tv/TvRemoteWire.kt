@@ -27,8 +27,9 @@ import java.security.MessageDigest
  * written from its public protocol description: pairing on port 6467, the
  * remote on 6466, protocol buffers framed by a varint length. Only what Send
  * to TV needs: pairing, keeping the session alive, opening a link and
- * hearing which app is in front. No key presses: GenX never presses
- * anything on the TV (the person approves every install, SH-028).
+ * hearing which app is in front, and one Home press to wake the TV. Home is
+ * the only key GenX ever sends, before any prompt exists; it cannot approve
+ * anything (the person approves every install, TV-004).
  */
 internal object TvWire {
   const val MAX_FRAME = 64 * 1024
@@ -170,6 +171,8 @@ internal sealed class TvEvent {
   data class Ping(val value: Long) : TvEvent()
   /** The app now in front of the TV (its package name). */
   data class FrontApp(val app: String) : TvEvent()
+  /** Whether the TV's screen is on (off: asleep, HDMI shows no signal). */
+  data class Screen(val on: Boolean) : TvEvent()
   object Other : TvEvent()
 }
 
@@ -184,6 +187,8 @@ internal object TvRemote {
   fun setActiveReply() = TvWire.bytes(2, TvWire.int(1, FEATURES))
   fun pingReply(value: Long) = TvWire.bytes(9, TvWire.int(1, value))
   fun openLink(link: String) = TvWire.bytes(90, TvWire.text(1, link))
+  /** KEYCODE_HOME, one short press: wakes a sleeping TV or ends its screensaver (TV-004). */
+  fun home() = TvWire.bytes(10, TvWire.int(1, 3) + TvWire.int(2, 3))
 
   fun read(data: ByteArray): TvEvent {
     val message = TvWire.parse(data) ?: return TvEvent.Other
@@ -194,6 +199,7 @@ internal object TvRemote {
     }
     if (message.containsKey(2)) return TvEvent.SetActive
     if (message.containsKey(8)) return TvEvent.Ping(TvWire.number(TvWire.nested(message, 8), 1) ?: 0)
+    if (message.containsKey(40)) return TvEvent.Screen(TvWire.number(TvWire.nested(message, 40), 1) == 1L)
     TvWire.nested(message, 20)?.let { ime ->
       val app = TvWire.string(TvWire.nested(ime, 1), 12)
       if (app != null && Regex("[A-Za-z0-9_.]{1,200}").matches(app)) return TvEvent.FrontApp(app)
