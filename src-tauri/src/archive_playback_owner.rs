@@ -293,11 +293,16 @@ pub(crate) async fn start(
                         if GENERATION.load(Ordering::SeqCst) != current {
                             return Err("archive-playback-replaced".into());
                         }
-                        store.with_archive_write_checked(&revision, |_| Ok(None), |c, check| {
-                            archive_catalog::remove_confirmed_missing(
-                                c, &file_ref, &revision, &evidence, check,
-                            )
-                        }, check)
+                        store.with_archive_write_checked(
+                            &revision,
+                            |_| Ok(None),
+                            |c, check| {
+                                archive_catalog::remove_confirmed_missing(
+                                    c, &file_ref, &revision, &evidence, check,
+                                )
+                            },
+                            check,
+                        )
                     })
                     .await?;
                 // No post-COMMIT cancellation check: the actual deletion receipt
@@ -1184,7 +1189,8 @@ mod tests {
                 completed: false,
                 observed_ms: 1000,
             };
-            let saved = producer_store.write_archive_bookmark_checked(&proof, "0", &position, check);
+            let saved =
+                producer_store.write_archive_bookmark_checked(&proof, "0", &position, check);
             outcome.send(saved.is_err()).unwrap();
         });
         started.await.unwrap();

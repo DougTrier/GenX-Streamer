@@ -163,7 +163,8 @@ fn backup_verification_large_fixture_reports_owned_handshake_overhead_and_full_c
         let copy = connect(&root.path().join(BACKUP), true).unwrap();
         // Direct and owned verification must use the same pager; otherwise
         // their difference would conflate read policy with worker handoffs.
-        copy.execute_batch(&InspectionPager::DEFAULT.configuration().unwrap()).unwrap();
+        copy.execute_batch(&InspectionPager::DEFAULT.configuration().unwrap())
+            .unwrap();
         integrity(&copy).unwrap();
     }
     let direct_ms = direct.elapsed().as_secs_f64() * 1000.0;
@@ -201,34 +202,72 @@ fn backup_verification_large_fixture_reports_owned_handshake_overhead_and_full_c
 fn verifier_read_pager_is_connection_local_and_unmapped_fallback_checks_all_foreign_keys() {
     let (root, _store) = fixture(8);
     let path = root.path().join(DB);
-    let default_cache = connect(&path, true).unwrap()
-        .query_row("PRAGMA cache_size", [], |row| row.get::<_, i64>(0)).unwrap();
+    let default_cache = connect(&path, true)
+        .unwrap()
+        .query_row("PRAGMA cache_size", [], |row| row.get::<_, i64>(0))
+        .unwrap();
     let before = image(root.path());
     for mmap_bytes in [0, InspectionPager::DEFAULT.mmap_bytes] {
         let connection = connect(&path, true).unwrap();
-        let pager = InspectionPager { cache_kib: 8192, mmap_bytes };
-        connection.execute_batch(&pager.configuration().unwrap()).unwrap();
-        assert_eq!(connection.query_row("PRAGMA cache_size", [], |row| row.get::<_, i64>(0)).unwrap(), -8192);
-        let effective_mmap = connection.query_row("PRAGMA mmap_size", [], |row| row.get::<_, i64>(0)).unwrap();
-        assert!((0..=mmap_bytes as i64).contains(&effective_mmap), "VFS may decline mapping, never exceed the bound");
+        let pager = InspectionPager {
+            cache_kib: 8192,
+            mmap_bytes,
+        };
+        connection
+            .execute_batch(&pager.configuration().unwrap())
+            .unwrap();
+        assert_eq!(
+            connection
+                .query_row("PRAGMA cache_size", [], |row| row.get::<_, i64>(0))
+                .unwrap(),
+            -8192
+        );
+        let effective_mmap = connection
+            .query_row("PRAGMA mmap_size", [], |row| row.get::<_, i64>(0))
+            .unwrap();
+        assert!(
+            (0..=mmap_bytes as i64).contains(&effective_mmap),
+            "VFS may decline mapping, never exceed the bound"
+        );
         integrity(&connection).unwrap();
         drop(connection);
         assert_eq!(image(root.path()), before);
-        assert_eq!(connect(&path, true).unwrap().query_row("PRAGMA cache_size", [], |row| row.get::<_, i64>(0)).unwrap(), default_cache);
+        assert_eq!(
+            connect(&path, true)
+                .unwrap()
+                .query_row("PRAGMA cache_size", [], |row| row.get::<_, i64>(0))
+                .unwrap(),
+            default_cache
+        );
     }
     let writer = connect(&path, false).unwrap();
-    writer.execute_batch("PRAGMA foreign_keys=OFF;UPDATE verification_child SET parent=-1 WHERE id=20000;").unwrap();
+    writer
+        .execute_batch(
+            "PRAGMA foreign_keys=OFF;UPDATE verification_child SET parent=-1 WHERE id=20000;",
+        )
+        .unwrap();
     drop(writer);
     let corrupted = image(root.path());
     for mmap_bytes in [0, InspectionPager::DEFAULT.mmap_bytes] {
         let connection = connect(&path, true).unwrap();
-        connection.execute_batch(&InspectionPager { cache_kib: 8192, mmap_bytes }.configuration().unwrap()).unwrap();
-        assert_eq!(integrity(&connection), Err("sqlite-integrity-failed".into()));
+        connection
+            .execute_batch(
+                &InspectionPager {
+                    cache_kib: 8192,
+                    mmap_bytes,
+                }
+                .configuration()
+                .unwrap(),
+            )
+            .unwrap();
+        assert_eq!(
+            integrity(&connection),
+            Err("sqlite-integrity-failed".into())
+        );
         drop(connection);
         assert_eq!(image(root.path()), corrupted);
     }
 }
-
 
 #[test]
 fn rendezvous_first_each_phase_and_exact_interval_boundary_are_deterministic() {
@@ -238,14 +277,40 @@ fn rendezvous_first_each_phase_and_exact_interval_boundary_are_deterministic() {
     // A slow original-owner response must not consume verifier execution time.
     let replied = start + Duration::from_secs(5);
     assert_eq!(gate.grant(BackupPhase::QuickCheckProgress, replied), Ok(()));
-    assert_eq!(gate.due(BackupPhase::QuickCheckProgress, replied), Ok(false));
-    assert_eq!(gate.due(BackupPhase::QuickCheckProgress, replied + Duration::from_micros(9_999)), Ok(false));
-    assert_eq!(gate.due(BackupPhase::QuickCheckProgress, replied + Duration::from_millis(10)), Ok(true));
+    assert_eq!(
+        gate.due(BackupPhase::QuickCheckProgress, replied),
+        Ok(false)
+    );
+    assert_eq!(
+        gate.due(
+            BackupPhase::QuickCheckProgress,
+            replied + Duration::from_micros(9_999)
+        ),
+        Ok(false)
+    );
+    assert_eq!(
+        gate.due(
+            BackupPhase::QuickCheckProgress,
+            replied + Duration::from_millis(10)
+        ),
+        Ok(true)
+    );
     let next_reply = replied + Duration::from_millis(13);
-    gate.grant(BackupPhase::QuickCheckProgress, next_reply).unwrap();
-    assert_eq!(gate.due(BackupPhase::ForeignKeyProgress, next_reply), Ok(true));
-    gate.grant(BackupPhase::ForeignKeyProgress, next_reply).unwrap();
-    assert_eq!(gate.due(BackupPhase::ForeignKeyProgress, next_reply + Duration::from_millis(1)), Ok(false));
+    gate.grant(BackupPhase::QuickCheckProgress, next_reply)
+        .unwrap();
+    assert_eq!(
+        gate.due(BackupPhase::ForeignKeyProgress, next_reply),
+        Ok(true)
+    );
+    gate.grant(BackupPhase::ForeignKeyProgress, next_reply)
+        .unwrap();
+    assert_eq!(
+        gate.due(
+            BackupPhase::ForeignKeyProgress,
+            next_reply + Duration::from_millis(1)
+        ),
+        Ok(false)
+    );
 }
 
 #[test]
@@ -261,10 +326,17 @@ fn rendezvous_backwards_observation_or_reply_permanently_refuses_continuation() 
         let refused = if backwards_reply {
             gate.grant(BackupPhase::QuickCheckProgress, backwards)
         } else {
-            gate.due(BackupPhase::ForeignKeyProgress, backwards).map(|_| ())
+            gate.due(BackupPhase::ForeignKeyProgress, backwards)
+                .map(|_| ())
         };
         assert_eq!(refused, Err(()));
-        assert_eq!(gate.due(BackupPhase::ForeignKeyProgress, later + Duration::from_secs(1)), Err(()));
+        assert_eq!(
+            gate.due(
+                BackupPhase::ForeignKeyProgress,
+                later + Duration::from_secs(1)
+            ),
+            Err(())
+        );
     }
 }
 
@@ -281,7 +353,13 @@ fn rendezvous_dense_observation_policy_bounds_expensive_handoffs() {
         }
     }
     assert_eq!(handoffs, 6);
-    assert_eq!(gate.due(BackupPhase::ForeignKeyProgress, start + Duration::from_millis(50)), Ok(true));
+    assert_eq!(
+        gate.due(
+            BackupPhase::ForeignKeyProgress,
+            start + Duration::from_millis(50)
+        ),
+        Ok(true)
+    );
 }
 
 #[test]
@@ -329,10 +407,14 @@ fn cancellation_after_last_sql_grant_is_still_checked_before_sync_and_replace() 
         let mut canceled = false;
         let mut final_guard = false;
         let result = store.backup_observed(&source, &mut |phase| {
-            if phase == grant { canceled = true; }
+            if phase == grant {
+                canceled = true;
+            }
             if phase == refused_at {
                 final_guard = true;
-                if canceled { return Err("canceled".into()); }
+                if canceled {
+                    return Err("canceled".into());
+                }
             }
             Ok(())
         });

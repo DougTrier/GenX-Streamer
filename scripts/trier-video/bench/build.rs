@@ -34,8 +34,14 @@ fn main() {
          #define HAVE_STDLIB_H 1\n#define HAVE_MEMORY_H 1\n#define HAVE_TIME_H 1\n#define STDC_HEADERS 1\n",
     );
     let mut files = vec![
-        "alloc.c", "cpu_accel.c", "cpu_state.c", "decode.c", "header.c", "idct.c",
-        "motion_comp.c", "slice.c",
+        "alloc.c",
+        "cpu_accel.c",
+        "cpu_state.c",
+        "decode.c",
+        "header.c",
+        "idct.c",
+        "motion_comp.c",
+        "slice.c",
     ];
     if arch == "x86_64" {
         config.push_str(

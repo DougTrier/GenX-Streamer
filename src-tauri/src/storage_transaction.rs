@@ -13,14 +13,14 @@
 // limitations under the License.
 
 //! Normalized canonical SQLite storage. JSON is only the compatibility/migration boundary.
-#[path="storage_guide_maintenance.rs"]
-pub(crate) mod guide_maintenance;
-#[cfg(test)]
-#[path="storage_guide_retention_tests.rs"]
-mod guide_retention_tests;
 #[cfg(test)]
 #[path = "storage_guide_clone_bench_tests.rs"]
 mod guide_clone_bench_tests;
+#[path = "storage_guide_maintenance.rs"]
+pub(crate) mod guide_maintenance;
+#[cfg(test)]
+#[path = "storage_guide_retention_tests.rs"]
+mod guide_retention_tests;
 use crate::storage::refuse_link;
 use rusqlite::{params, Connection, OpenFlags, TransactionBehavior};
 use serde::{Deserialize, Serialize};
@@ -52,17 +52,19 @@ mod channel_categories;
 #[cfg(test)]
 #[path = "channel_category_tests.rs"]
 mod channel_category_tests;
+#[path = "channel_check.rs"]
+pub(crate) mod channel_check;
 #[path = "channel_logo_store.rs"]
 mod channel_logo_store;
 #[cfg(test)]
 #[path = "catalog_endpoint_policy_tests.rs"]
 mod endpoint_policy_tests;
 #[cfg(test)]
-#[path = "catalog_page_cache_tests.rs"]
-mod page_cache_tests;
-#[cfg(test)]
 #[path = "storage_online_backup_tests.rs"]
 mod online_backup_tests;
+#[cfg(test)]
+#[path = "catalog_page_cache_tests.rs"]
+mod page_cache_tests;
 #[cfg(test)]
 #[path = "storage_pair_reuse_tests.rs"]
 mod pair_reuse_tests;
@@ -95,8 +97,6 @@ mod scan_checkpoint_tests;
 #[cfg(test)]
 #[path = "scan_window_tests.rs"]
 mod scan_window_tests;
-#[path = "channel_check.rs"]
-pub(crate) mod channel_check;
 #[path = "source_snapshot.rs"]
 pub(crate) mod source_snapshot;
 #[path = "source_snapshot_activation.rs"]
@@ -235,7 +235,9 @@ impl BackupRendezvous {
     const INTERVAL: Duration = Duration::from_millis(10);
     fn observe(&mut self, now: std::time::Instant) -> Result<(), ()> {
         if self.refused_clock
-            || self.observed.is_some_and(|previous| now.checked_duration_since(previous).is_none())
+            || self
+                .observed
+                .is_some_and(|previous| now.checked_duration_since(previous).is_none())
         {
             self.refused_clock = true;
             return Err(());
@@ -763,26 +765,53 @@ fn connect(path: &Path, readonly: bool) -> Result<Connection, String> {
 }
 const ARCHIVE_BINDING_SQL: &str = "CREATE TABLE archive_authority_binding_v1(singleton INTEGER PRIMARY KEY CHECK(singleton=1),format INTEGER NOT NULL CHECK(format=1),binding TEXT NOT NULL CHECK(length(CAST(binding AS BLOB))<=2048));";
 fn archive_binding(c: &Connection) -> Result<crate::archive_library_store::Binding, String> {
-    let schema: String = sql(c.query_row("SELECT sql FROM sqlite_schema WHERE type='table' AND name='archive_authority_binding_v1'", [], |r| r.get(0)))?;
+    let schema: String = sql(c.query_row(
+        "SELECT sql FROM sqlite_schema WHERE type='table' AND name='archive_authority_binding_v1'",
+        [],
+        |r| r.get(0),
+    ))?;
     if schema.trim_end_matches(';') != ARCHIVE_BINDING_SQL.trim_end_matches(';') {
         return Err(crate::archive_library_store::REPAIR.into());
     }
-    let rows: i64 = sql(c.query_row("SELECT count(*) FROM archive_authority_binding_v1", [], |r| r.get(0)))?;
-    if rows != 1 { return Err(crate::archive_library_store::REPAIR.into()); }
-    let encoded: String = sql(c.query_row("SELECT binding FROM archive_authority_binding_v1 WHERE singleton=1 AND format=1", [], |r| r.get(0)))?;
-    let binding: crate::archive_library_store::Binding = serde_json::from_str(&encoded).map_err(|_| crate::archive_library_store::REPAIR)?;
+    let rows: i64 = sql(c.query_row(
+        "SELECT count(*) FROM archive_authority_binding_v1",
+        [],
+        |r| r.get(0),
+    ))?;
+    if rows != 1 {
+        return Err(crate::archive_library_store::REPAIR.into());
+    }
+    let encoded: String = sql(c.query_row(
+        "SELECT binding FROM archive_authority_binding_v1 WHERE singleton=1 AND format=1",
+        [],
+        |r| r.get(0),
+    ))?;
+    let binding: crate::archive_library_store::Binding =
+        serde_json::from_str(&encoded).map_err(|_| crate::archive_library_store::REPAIR)?;
     binding.validate()?;
     for table in crate::archive_library_store::TABLES {
-        let found: i64 = sql(c.query_row("SELECT count(*) FROM sqlite_schema WHERE name=?1", [table], |r| r.get(0)))?;
-        if found != 0 { return Err(crate::archive_library_store::REPAIR.into()); }
+        let found: i64 = sql(c.query_row(
+            "SELECT count(*) FROM sqlite_schema WHERE name=?1",
+            [table],
+            |r| r.get(0),
+        ))?;
+        if found != 0 {
+            return Err(crate::archive_library_store::REPAIR.into());
+        }
     }
     Ok(binding)
 }
-fn archive_peer_matches(c: &Connection, witness: &crate::archive_library_store::Witness) -> Result<bool, String> {
+fn archive_peer_matches(
+    c: &Connection,
+    witness: &crate::archive_library_store::Witness,
+) -> Result<bool, String> {
     let version: i64 = sql(c.query_row("PRAGMA user_version", [], |r| r.get(0)))?;
     match (version, witness.phase) {
         (17..=19, _) => Ok(archive_binding(c)? == witness.binding),
-        (16, crate::archive_library_store::Phase::Prepared) => Ok(crate::archive_library_store::source_fingerprint(c, &mut || Ok(()))? == witness.binding.imported_digest),
+        (16, crate::archive_library_store::Phase::Prepared) => Ok(
+            crate::archive_library_store::source_fingerprint(c, &mut || Ok(()))?
+                == witness.binding.imported_digest,
+        ),
         (1..=16, crate::archive_library_store::Phase::Active) => Ok(true),
         _ => Ok(false),
     }
@@ -979,8 +1008,12 @@ fn integrity_parts(
     if version >= 17 {
         archive_binding(c)?;
     }
-    if version >= 18 { crate::guide::retention::validate(c)?; }
-    if version >= 19 { validate_content_library_schema(c)?; }
+    if version >= 18 {
+        crate::guide::retention::validate(c)?;
+    }
+    if version >= 19 {
+        validate_content_library_schema(c)?;
+    }
     Ok(())
 }
 
@@ -991,7 +1024,9 @@ fn validate_content_library_schema(c: &Connection) -> Result<(), String> {
         "SELECT count(*) FROM preference WHERE content_library IS NOT NULL AND content_library NOT IN ('live','genxtra')",
         [], |r| r.get(0),
     ))?;
-    if invalid != 0 { return Err("sqlite-invalid-content-library".into()); }
+    if invalid != 0 {
+        return Err("sqlite-invalid-content-library".into());
+    }
     Ok(())
 }
 
@@ -1050,8 +1085,7 @@ impl InspectionPager {
     };
     fn configuration(self) -> Result<String, String> {
         const MAX_INSPECTION_MMAP_BYTES: u64 = 268435456;
-        if !(1024..=32768).contains(&self.cache_kib)
-            || self.mmap_bytes > MAX_INSPECTION_MMAP_BYTES
+        if !(1024..=32768).contains(&self.cache_kib) || self.mmap_bytes > MAX_INSPECTION_MMAP_BYTES
         {
             return Err("sqlite-inspection-pager-invalid".into());
         }
@@ -1137,7 +1171,13 @@ fn inspect_database_with_access(
                 .map_err(|_| InspectionFailure::Refused("archive-library-repair-required"))?;
         }
         if version >= 18 {
-            crate::guide::retention::validate(&tx).map_err(|error| InspectionFailure::Refused(if error=="guide-projection-policy-unsupported" {"guide-projection-policy-unsupported"}else{"guide-projection-state-invalid"}))?;
+            crate::guide::retention::validate(&tx).map_err(|error| {
+                InspectionFailure::Refused(if error == "guide-projection-policy-unsupported" {
+                    "guide-projection-policy-unsupported"
+                } else {
+                    "guide-projection-state-invalid"
+                })
+            })?;
         }
         if version >= 19 {
             validate_content_library_schema(&tx)
@@ -1319,7 +1359,9 @@ impl PairStore {
         let binding = match (version, witness.as_ref()) {
             (17..=19, Some(w)) => {
                 let binding = archive_binding(&c)?;
-                if binding != w.binding { return Err(library::REPAIR.into()); }
+                if binding != w.binding {
+                    return Err(library::REPAIR.into());
+                }
                 binding
             }
             (16, Some(w)) if w.phase == library::Phase::Active => w.binding.clone(),
@@ -1327,7 +1369,9 @@ impl PairStore {
             _ => return Err(library::REPAIR.into()),
         };
         {
-            let _caller = crate::storage_timings::archive_caller(crate::storage_timings::ArchiveCaller::OpenHandoff);
+            let _caller = crate::storage_timings::archive_caller(
+                crate::storage_timings::ArchiveCaller::OpenHandoff,
+            );
             library::verify_handoff_pair(lease, &binding, check)?;
         }
         if version == 16 {
@@ -1335,39 +1379,71 @@ impl PairStore {
             let tx = sql(c.transaction_with_behavior(TransactionBehavior::Immediate))?;
             // PREPARED still belongs to this exact source snapshot. ACTIVE is
             // permanent authority: restored legacy rows are retired, not read.
-            if witness.as_ref().is_none_or(|w| w.phase == library::Phase::Prepared)
+            if witness
+                .as_ref()
+                .is_none_or(|w| w.phase == library::Phase::Prepared)
                 && library::source_fingerprint(&tx, check)? != binding.imported_digest
             {
                 return Err(library::REPAIR.into());
             }
             sql(tx.execute_batch(ARCHIVE_BINDING_SQL))?;
             let encoded = serde_json::to_string(&binding).map_err(|_| library::REPAIR)?;
-            sql(tx.execute("INSERT INTO archive_authority_binding_v1 VALUES(1,1,?1)", [encoded]))?;
+            sql(tx.execute(
+                "INSERT INTO archive_authority_binding_v1 VALUES(1,1,?1)",
+                [encoded],
+            ))?;
             for table in [
-                "public_archive_variant_v1", "public_archive_preference_v1", "public_archive_removal_v1", "public_archive_checkpoint_v1", "public_archive_item_v1",
-                "archive_bookmark_v1", "archive_bookmark_meta_v1", "archive_item_progress_v1", "archive_progress_v1", "archive_preferences_v1", "archive_removal_v1", "archive_file_v1", "archive_title_v1", "archive_catalog_meta_v1",
-            ] { sql(tx.execute_batch(&format!("DROP TABLE {table};")))?; }
+                "public_archive_variant_v1",
+                "public_archive_preference_v1",
+                "public_archive_removal_v1",
+                "public_archive_checkpoint_v1",
+                "public_archive_item_v1",
+                "archive_bookmark_v1",
+                "archive_bookmark_meta_v1",
+                "archive_item_progress_v1",
+                "archive_progress_v1",
+                "archive_preferences_v1",
+                "archive_removal_v1",
+                "archive_file_v1",
+                "archive_title_v1",
+                "archive_catalog_meta_v1",
+            ] {
+                sql(tx.execute_batch(&format!("DROP TABLE {table};")))?;
+            }
             sql(tx.execute_batch("PRAGMA user_version=17;"))?;
             archive_binding(&tx)?;
             check()?;
             sql(tx.commit())?;
             // Durable retirement cannot be described as canceled afterward.
-            self.backup_now(&c).map_err(|_| library::REPAIR.to_string())?;
+            self.backup_now(&c)
+                .map_err(|_| library::REPAIR.to_string())?;
         } else {
             // PREPARED + committed seal may have crashed before its mirror.
-            if witness.as_ref().is_some_and(|w| w.phase == library::Phase::Prepared) {
+            if witness
+                .as_ref()
+                .is_some_and(|w| w.phase == library::Phase::Prepared)
+            {
                 self.backup_now_with_check(&c, &mut *check)?;
             }
         }
-        library::activate(lease, &binding, || {
-            if archive_binding(&c)? == binding { Ok(()) } else { Err(library::REPAIR.into()) }
-        }, &mut || Ok(()))?;
-        let current:i64=sql(c.query_row("PRAGMA user_version",[],|r|r.get(0)))?;
-        if current==17 {
+        library::activate(
+            lease,
+            &binding,
+            || {
+                if archive_binding(&c)? == binding {
+                    Ok(())
+                } else {
+                    Err(library::REPAIR.into())
+                }
+            },
+            &mut || Ok(()),
+        )?;
+        let current: i64 = sql(c.query_row("PRAGMA user_version", [], |r| r.get(0)))?;
+        if current == 17 {
             // Policy metadata migration is non-destructive. Legacy full caches
             // remain untouched until explicit checked retention maintenance.
-            self.backup_now_with_check(&c,&mut *check)?;
-            let tx=sql(c.transaction_with_behavior(TransactionBehavior::Immediate))?;
+            self.backup_now_with_check(&c, &mut *check)?;
+            let tx = sql(c.transaction_with_behavior(TransactionBehavior::Immediate))?;
             crate::guide::retention::install(&tx)?;
             sql(tx.execute_batch("PRAGMA user_version=18;"))?;
             crate::guide::retention::validate(&tx)?;
@@ -1375,12 +1451,12 @@ impl PairStore {
             check()?;
             sql(tx.commit())?;
         }
-        let current:i64=sql(c.query_row("PRAGMA user_version",[],|r|r.get(0)))?;
-        if current==18 {
+        let current: i64 = sql(c.query_row("PRAGMA user_version", [], |r| r.get(0)))?;
+        if current == 18 {
             // Preserve the fully checked schema18 preimage. NULL means legacy
             // absence, independently of either explicit user library choice.
-            self.backup_now_with_check(&c,&mut *check)?;
-            let tx=sql(c.transaction_with_behavior(TransactionBehavior::Immediate))?;
+            self.backup_now_with_check(&c, &mut *check)?;
+            let tx = sql(c.transaction_with_behavior(TransactionBehavior::Immediate))?;
             sql(tx.execute_batch("ALTER TABLE preference ADD COLUMN content_library TEXT DEFAULT NULL CHECK(content_library IS NULL OR content_library IN ('live','genxtra'));PRAGMA user_version=19;"))?;
             validate_content_library_schema(&tx)?;
             archive_binding(&tx)?;
@@ -1395,7 +1471,9 @@ impl PairStore {
     }
     pub(crate) fn new_existing(root: PathBuf, require_database: bool) -> Result<Self, String> {
         refuse_link(&root)?;
-        if !root.is_dir() { return Err("storage-directory-unavailable".into()); }
+        if !root.is_dir() {
+            return Err("storage-directory-unavailable".into());
+        }
         let lease = crate::archive_library_store::lock_root(&root)?;
         Self::new_existing_locked(root, require_database, &lease)
     }
@@ -1464,20 +1542,29 @@ impl PairStore {
             for name in ["archive.sqlite3", "archive.sqlite3.backup"] {
                 let path = directory.join(name);
                 refuse_link(&path)?;
-                orphan |= path.try_exists().map_err(|_| crate::archive_library_store::REPAIR)?;
+                orphan |= path
+                    .try_exists()
+                    .map_err(|_| crate::archive_library_store::REPAIR)?;
             }
             if orphan {
                 // Only an exact, unadopted sequence-zero export can recreate a
                 // PREPARED witness. Never restore a main peer first and then
                 // discover that a committed namespace forbids that history.
-                let source = connect(&self.root.join(DB), true).map_err(|_| crate::archive_library_store::REPAIR)?;
+                let source = connect(&self.root.join(DB), true)
+                    .map_err(|_| crate::archive_library_store::REPAIR)?;
                 crate::archive_library_store::prepare(lease, &source, &mut || Ok(()))?;
                 authority = crate::archive_library_store::inspect(&self.root)?;
             }
         }
         if let Some(witness) = authority.as_ref() {
-            let _caller = crate::storage_timings::archive_caller(crate::storage_timings::ArchiveCaller::RecoveryHandoff);
-            crate::archive_library_store::verify_handoff_pair(lease, &witness.binding, &mut || Ok(()))?;
+            let _caller = crate::storage_timings::archive_caller(
+                crate::storage_timings::ArchiveCaller::RecoveryHandoff,
+            );
+            crate::archive_library_store::verify_handoff_pair(
+                lease,
+                &witness.binding,
+                &mut || Ok(()),
+            )?;
         }
         let main = self.root.join(DB);
         let backup = self.root.join(BACKUP);
@@ -1552,7 +1639,9 @@ impl PairStore {
             let c = connect(&backup, true)?;
             integrity(&c)?;
             if let Some(witness) = authority.as_ref() {
-                if !archive_peer_matches(&c, witness)? { return Err(crate::archive_library_store::REPAIR.into()); }
+                if !archive_peer_matches(&c, witness)? {
+                    return Err(crate::archive_library_store::REPAIR.into());
+                }
             }
             drop(c);
             if journal_present {
@@ -1678,7 +1767,11 @@ impl PairStore {
             let source = connect(&self.root.join(DB), true)?;
             let stop = abort.clone();
             sql(source.progress_handler(1000, Some(move || stop())))?;
-            let target = tmp.path().to_str().ok_or("sqlite-backup-failed")?.to_owned();
+            let target = tmp
+                .path()
+                .to_str()
+                .ok_or("sqlite-backup-failed")?
+                .to_owned();
             let copied = source.execute("VACUUM INTO ?1", [target]);
             let _ = source.progress_handler(0, None::<fn() -> bool>);
             if abort() {
@@ -1778,10 +1871,7 @@ impl PairStore {
     pub(crate) fn with_guide_write_preflight_checked<T>(
         &self,
         preflight: impl FnOnce(&Connection) -> Result<Option<T>, String>,
-        write: impl FnOnce(
-            &mut Connection,
-            &mut dyn FnMut() -> Result<(), String>,
-        ) -> Result<T, String>,
+        write: impl FnOnce(&mut Connection, &mut dyn FnMut() -> Result<(), String>) -> Result<T, String>,
         mut check: impl FnMut() -> Result<(), String>,
     ) -> Result<T, String> {
         check()?;
@@ -2626,7 +2716,10 @@ impl PairStore {
         if p.catalog.is_none() && health.is_none() && scan.is_none() {
             if let Some(preferences) = validated_preferences.as_ref() {
                 if let Some(receipt) = Self::preferences_noop_preflight(
-                    &mut c, preferences, (expected, expected_health), &mut phase,
+                    &mut c,
+                    preferences,
+                    (expected, expected_health),
+                    &mut phase,
                 )? {
                     return Ok(receipt);
                 }
@@ -2659,13 +2752,19 @@ impl PairStore {
         phase: &mut impl FnMut(Phase) -> Result<(), String>,
     ) -> Result<Option<CommitReceipt>, String> {
         let tx = sql(c.transaction_with_behavior(TransactionBehavior::Immediate))?;
-        let version:i64 = sql(tx.query_row("PRAGMA user_version", [], |r| r.get(0)))?;
-        if version < 19 { return Ok(None); }
-        let (overall, catalog, health):(i64,i64,i64) = sql(tx.query_row(
+        let version: i64 = sql(tx.query_row("PRAGMA user_version", [], |r| r.get(0)))?;
+        if version < 19 {
+            return Ok(None);
+        }
+        let (overall, catalog, health): (i64, i64, i64) = sql(tx.query_row(
             "SELECT revision,catalog_revision,health_revision FROM metadata WHERE singleton=1",
-            [], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
         ))?;
-        if [overall,catalog,health].iter().any(|r| *r < 0 || *r == i64::MAX) {
+        if [overall, catalog, health]
+            .iter()
+            .any(|r| *r < 0 || *r == i64::MAX)
+        {
             return Err("storage-revision-exhausted".into());
         }
         if expected.0.is_some_and(|revision| revision != catalog) {
@@ -2681,28 +2780,51 @@ impl PairStore {
         // contentLibrary remain part of equality.
         let mut candidate = preferences.clone();
         for key in ["volume", "panelWidth"] {
-            candidate[key] = json!(preferences[key].as_f64().ok_or("record-invalid-preferences")?);
+            candidate[key] = json!(preferences[key]
+                .as_f64()
+                .ok_or("record-invalid-preferences")?);
         }
         let cadence = crate::refresh_cadence::from_preferences(preferences)?;
         candidate["sourceRefreshCadence"] = json!(cadence.as_str());
-        candidate["automaticSourceRefresh"] = json!(cadence != crate::refresh_cadence::Cadence::Off);
-        candidate["sourceRefreshAttemptAt"] = json!(preferences["sourceRefreshAttemptAt"].as_f64().unwrap_or(0.0) as i64);
+        candidate["automaticSourceRefresh"] =
+            json!(cadence != crate::refresh_cadence::Cadence::Off);
+        candidate["sourceRefreshAttemptAt"] = json!(preferences["sourceRefreshAttemptAt"]
+            .as_f64()
+            .unwrap_or(0.0) as i64);
         if candidate.get("removedChannels").is_none() {
             candidate["removedChannels"] = json!([]);
         }
-        if candidate.get("channelCategoryOverrides").and_then(Value::as_array).is_some_and(Vec::is_empty) {
-            candidate.as_object_mut().ok_or("record-invalid-preferences")?.remove("channelCategoryOverrides");
+        if candidate
+            .get("channelCategoryOverrides")
+            .and_then(Value::as_array)
+            .is_some_and(Vec::is_empty)
+        {
+            candidate
+                .as_object_mut()
+                .ok_or("record-invalid-preferences")?
+                .remove("channelCategoryOverrides");
         }
-        for source in candidate["sources"].as_array_mut().ok_or("record-invalid-preferences")? {
+        for source in candidate["sources"]
+            .as_array_mut()
+            .ok_or("record-invalid-preferences")?
+        {
             if source.get("allowHttp").and_then(Value::as_bool) == Some(false) {
-                source.as_object_mut().ok_or("record-invalid-preferences")?.remove("allowHttp");
+                source
+                    .as_object_mut()
+                    .ok_or("record-invalid-preferences")?
+                    .remove("allowHttp");
             }
         }
-        if current.preferences.as_ref() != Some(&candidate) { return Ok(None); }
+        if current.preferences.as_ref() != Some(&candidate) {
+            return Ok(None);
+        }
         phase(Phase::BeforeCommit)?;
         sql(tx.commit())?;
         Ok(Some(CommitReceipt {
-            committed:true, catalog_revision:catalog.to_string(), health_revision:health.to_string(), checkpoint_revision:None,
+            committed: true,
+            catalog_revision: catalog.to_string(),
+            health_revision: health.to_string(),
+            checkpoint_revision: None,
         }))
     }
     pub fn read_pair(&self) -> Result<RecordPair, String> {
@@ -2892,7 +3014,8 @@ if let Some(mime)=r.get::<_,Option<String>>(6)?{v["mediaMime"]=json!(mime);}Ok(v
             if sql(c.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)))? >= 19 {
                 let library: Option<String> = sql(c.query_row(
                     "SELECT content_library FROM preference WHERE singleton=1",
-                    [], |r| r.get(0),
+                    [],
+                    |r| r.get(0),
                 ))?;
                 if let Some(library) = library {
                     pref["contentLibrary"] = json!(library);

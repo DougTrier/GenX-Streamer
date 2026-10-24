@@ -470,7 +470,8 @@ pub(crate) fn parse_details(
         .map(|d| d.chars().take(4).collect::<String>())
         .filter(|y| y.len() == 4 && y.bytes().all(|b| b.is_ascii_digit()));
     Ok(Details {
-        plot: prose(info, "plot", 4096, policy).or_else(|| prose(info, "description", 4096, policy)),
+        plot: prose(info, "plot", 4096, policy)
+            .or_else(|| prose(info, "description", 4096, policy)),
         genre: prose(info, "genre", acq::TEXT_LIMIT, policy),
         director: prose(info, "director", acq::TEXT_LIMIT, policy),
         cast: prose(info, "cast", acq::TEXT_LIMIT, policy)
@@ -484,7 +485,11 @@ pub(crate) fn parse_details(
 pub(crate) fn vod_info_extension(bytes: &[u8]) -> Option<String> {
     let value: Value = serde_json::from_slice(bytes).ok()?;
     ["movie_data", "info"].iter().find_map(|section| {
-        extension(value.get(section).and_then(|v| text_field(v, "container_extension")))
+        extension(
+            value
+                .get(section)
+                .and_then(|v| text_field(v, "container_extension")),
+        )
     })
 }
 /// When a listed movie had no container: ask its detail once (one API request,
@@ -636,7 +641,10 @@ pub(crate) async fn account_vod_details(
         let params: [(&str, &str); 2] = if request.section == Section::Movies {
             [("action", "get_vod_info"), ("vod_id", &request.item_id)]
         } else {
-            [("action", "get_series_info"), ("series_id", &request.item_id)]
+            [
+                ("action", "get_series_info"),
+                ("series_id", &request.item_id),
+            ]
         };
         let bytes = api(&resolved, &owner, &params, deadline).await?;
         let section = request.section;
@@ -719,9 +727,19 @@ mod tests {
         assert_eq!(episodes[1].extension, None);
         assert_eq!(episodes[2].extension, None, "never a .null address");
         // A movie's own detail gives its real container, or nothing.
-        assert_eq!(vod_info_extension(br#"{"info":{},"movie_data":{"container_extension":"mkv"}}"#).as_deref(), Some("mkv"));
-        assert_eq!(vod_info_extension(br#"{"info":{"container_extension":"MP4"}}"#).as_deref(), Some("mp4"));
-        assert_eq!(vod_info_extension(br#"{"movie_data":{"container_extension":"null"}}"#), None);
+        assert_eq!(
+            vod_info_extension(br#"{"info":{},"movie_data":{"container_extension":"mkv"}}"#)
+                .as_deref(),
+            Some("mkv")
+        );
+        assert_eq!(
+            vod_info_extension(br#"{"info":{"container_extension":"MP4"}}"#).as_deref(),
+            Some("mp4")
+        );
+        assert_eq!(
+            vod_info_extension(br#"{"movie_data":{"container_extension":"null"}}"#),
+            None
+        );
         assert_eq!(vod_info_extension(b"not json"), None);
     }
     fn policy() -> DisplayPolicy {
@@ -780,27 +798,42 @@ mod tests {
             "releasedate":"2026-09-18","rating":"6.3","backdrop_path":["https://img.fixture.invalid/back.jpg"],
             "movie_image":"https://img.fixture.invalid/poster.jpg"},"movie_data":{"stream_id":7}}"#;
         let d = parse_details(movie, Section::Movies, &policy()).unwrap();
-        assert_eq!(d.plot.as_deref(), Some("A witch returns. She brings friends."));
+        assert_eq!(
+            d.plot.as_deref(),
+            Some("A witch returns. She brings friends.")
+        );
         assert_eq!(d.genre.as_deref(), Some("Comedy, Fantasy"));
         assert_eq!(d.director.as_deref(), Some("Susanne Bier"));
         assert_eq!(d.cast.as_deref(), Some("Sandra Bullock, Nicole Kidman"));
         assert_eq!(d.duration_seconds, Some(7260));
         assert_eq!(d.year.as_deref(), Some("2026"));
-        assert_eq!(d.backdrop.as_deref(), Some("https://img.fixture.invalid/back.jpg"));
+        assert_eq!(
+            d.backdrop.as_deref(),
+            Some("https://img.fixture.invalid/back.jpg")
+        );
         // get_series_info keeps its details under "info" too; backdrop may be a string.
         let series = br#"{"info":{"plot":"Detectives.","genre":"Crime","releaseDate":"2019-01-01",
             "backdrop_path":"https://img.fixture.invalid/s.jpg","episode_run_time":"45"},"episodes":{}}"#;
         let s = parse_details(series, Section::Series, &policy()).unwrap();
         assert_eq!(s.plot.as_deref(), Some("Detectives."));
         assert_eq!(s.duration_seconds, Some(45 * 60));
-        assert_eq!(s.backdrop.as_deref(), Some("https://img.fixture.invalid/s.jpg"));
+        assert_eq!(
+            s.backdrop.as_deref(),
+            Some("https://img.fixture.invalid/s.jpg")
+        );
         // Anything that could carry the sign-in, a link, or plain HTTP art is left out.
         let tainted = br#"{"info":{"plot":"Watch at http://x","genre":"fixtureuser",
             "backdrop_path":["http://img.fixture.invalid/a.jpg"],"duration_secs":"-5"}}"#;
         let t = parse_details(tainted, Section::Movies, &policy()).unwrap();
-        assert_eq!((t.plot, t.genre, t.backdrop, t.duration_seconds), (None, None, None, None));
+        assert_eq!(
+            (t.plot, t.genre, t.backdrop, t.duration_seconds),
+            (None, None, None, None)
+        );
         // Nothing usable is an empty detail, not an error; malformed JSON is an error.
-        assert!(parse_details(b"[]", Section::Movies, &policy()).unwrap().plot.is_none());
+        assert!(parse_details(b"[]", Section::Movies, &policy())
+            .unwrap()
+            .plot
+            .is_none());
         assert!(parse_details(b"<html>", Section::Movies, &policy()).is_err());
     }
     #[test]

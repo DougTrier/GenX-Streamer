@@ -179,7 +179,7 @@ fn removal_and_preferences_race_refuses_cursor_even_without_catalog_or_guide_rev
         "INSERT INTO removed VALUES('c{:04}');UPDATE metadata SET revision=revision+1",
         PAGE + 1
     ))
-        .unwrap();
+    .unwrap();
     assert_eq!(
         read_error(&c, &q(Some(cursor))),
         "guide-listed-stale-cursor"

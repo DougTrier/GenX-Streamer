@@ -339,7 +339,9 @@ pub(crate) fn parse(
                 }
             }
             Event::Text(value) => {
-                let text = value.xml_content(XmlVersion::Explicit1_0).map_err(malformed)?;
+                let text = value
+                    .xml_content(XmlVersion::Explicit1_0)
+                    .map_err(malformed)?;
                 if field.is_some() {
                     push(&mut captured, &text, &mut program);
                 } else if depth == 0 && !text.trim().is_empty() {
@@ -347,7 +349,9 @@ pub(crate) fn parse(
                 }
             }
             Event::CData(value) => {
-                let text = value.xml_content(XmlVersion::Explicit1_0).map_err(malformed)?;
+                let text = value
+                    .xml_content(XmlVersion::Explicit1_0)
+                    .map_err(malformed)?;
                 if field.is_some() {
                     push(&mut captured, &text, &mut program);
                 }
@@ -623,7 +627,8 @@ pub(crate) fn channels(c: &Connection, account: &str) -> Result<Vec<GuideChannel
     }))?;
     rows.map(sql).collect()
 }
-const OVERLAP: &str = "start_ms>=?2-43200000 AND start_ms<?3 AND (stop_ms>?2 OR (stop_ms IS NULL AND start_ms>=?2))";
+const OVERLAP: &str =
+    "start_ms>=?2-43200000 AND start_ms<?3 AND (stop_ms>?2 OR (stop_ms IS NULL AND start_ms>=?2))";
 /// EPG IDs with a listing in the window; with search, whose title or
 /// description has every word.
 pub(crate) fn listed(
@@ -661,15 +666,18 @@ pub(crate) fn listed(
         ));
     }
     let mut statement = sql(c.prepare(&sql_text))?;
-    let mut values: Vec<rusqlite::types::Value> = vec![
-        account.to_owned().into(),
-        from_ms.into(),
-        to_ms.into(),
-    ];
+    let mut values: Vec<rusqlite::types::Value> =
+        vec![account.to_owned().into(), from_ms.into(), to_ms.into()];
     values.extend(words.iter().cloned().map(Into::into));
-    let rows = sql(statement.query_map(rusqlite::params_from_iter(values), |r| {
-        Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?))
-    }))?;
+    let rows = sql(
+        statement.query_map(rusqlite::params_from_iter(values), |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, String>(1)?,
+                r.get::<_, String>(2)?,
+            ))
+        }),
+    )?;
     let mut out: Vec<String> = Vec::new();
     let mut seen = HashSet::new();
     for row in rows {
@@ -682,7 +690,10 @@ pub(crate) fn listed(
             .split(|c: char| c.is_whitespace() || "([-/:\"#.,;!?)]'".contains(c))
             .filter(|w| !w.is_empty())
             .collect();
-        if words.iter().all(|word| starts.iter().any(|w| w.starts_with(word.as_str()))) {
+        if words
+            .iter()
+            .all(|word| starts.iter().any(|w| w.starts_with(word.as_str())))
+        {
             seen.insert(epg.clone());
             out.push(epg);
         }
@@ -709,7 +720,15 @@ pub(crate) fn programs(
          ORDER BY start_ms,ordinal LIMIT ?7"
     )))?;
     let rows = sql(statement.query_map(
-        params![account, from_ms, to_ms, epg_id, after_start, after_ordinal, limit.min(100) as i64],
+        params![
+            account,
+            from_ms,
+            to_ms,
+            epg_id,
+            after_start,
+            after_ordinal,
+            limit.min(100) as i64
+        ],
         |r| {
             let categories: String = r.get(6)?;
             Ok(Program {

@@ -34,7 +34,12 @@ pub fn run(args: &[String]) -> Option<i32> {
             args[5].parse().expect("height"),
             args.get(6).map(String::as_str) == Some("align"),
         )),
-        "damage" => Some(damage(&args[2], &args[3], args[4].parse().expect("seed"), &args[5])),
+        "damage" => Some(damage(
+            &args[2],
+            &args[3],
+            args[4].parse().expect("seed"),
+            &args[5],
+        )),
         _ => None,
     }
 }
@@ -60,7 +65,9 @@ fn decode(input: &str, output: &str) -> i32 {
     let mut out = std::io::BufWriter::new(std::fs::File::create(output).expect("create output"));
     let mut decoder = Decoder::new();
     decoder.set_threads(crate::threads());
-    decoder.set_kit(crate::kit()).expect("kit available on this CPU");
+    decoder
+        .set_kit(crate::kit())
+        .expect("kit available on this CPU");
     let (mut frames, mut errors, mut seconds) = (0usize, 0usize, 0f64);
     let mut size = (0, 0);
     let mut panicked = false;
@@ -230,7 +237,11 @@ fn damage(input: &str, output: &str, seed: u64, mode: &str) -> i32 {
                 let at = keep + rng.below(es.len() - keep);
                 lost[at..(at + 184).min(es.len())].fill(true);
             }
-            es.iter().zip(&lost).filter(|(_, &l)| !l).map(|(&b, _)| b).collect()
+            es.iter()
+                .zip(&lost)
+                .filter(|(_, &l)| !l)
+                .map(|(&b, _)| b)
+                .collect()
         }
         "drop" => {
             let percent: usize = amount.parse().expect("percent");
@@ -260,6 +271,10 @@ fn damage(input: &str, output: &str, seed: u64, mode: &str) -> i32 {
         _ => panic!("unknown damage mode {kind}"),
     };
     std::fs::write(output, &out).expect("write output");
-    println!("{{\"mode\":\"{mode}\",\"seed\":{seed},\"inBytes\":{},\"outBytes\":{}}}", es.len(), out.len());
+    println!(
+        "{{\"mode\":\"{mode}\",\"seed\":{seed},\"inBytes\":{},\"outBytes\":{}}}",
+        es.len(),
+        out.len()
+    );
     0
 }

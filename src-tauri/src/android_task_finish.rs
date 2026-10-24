@@ -195,9 +195,16 @@ mod tests {
         let pending_request = requests.acquire();
         let pending_work = work.acquire();
         let ended = AtomicUsize::new(0);
-        let gate = end_after_drain(&closing, &close, &ticket, requests.clone(), &work, || async {
-            ended.fetch_add(1, Ordering::SeqCst);
-        });
+        let gate = end_after_drain(
+            &closing,
+            &close,
+            &ticket,
+            requests.clone(),
+            &work,
+            || async {
+                ended.fetch_add(1, Ordering::SeqCst);
+            },
+        );
         tokio::pin!(gate);
         // Negative: with owned work outstanding the process is never ended.
         let wait = std::time::Duration::from_millis(50);
@@ -220,10 +227,30 @@ mod tests {
         let work = WorkOwner::default();
         let refuse = || async { panic!("must not end the process") };
         let not_closing = std::sync::atomic::AtomicBool::new(false);
-        assert!(!end_after_drain(&not_closing, &close, &current, requests.clone(), &work, refuse).await);
+        assert!(
+            !end_after_drain(
+                &not_closing,
+                &close,
+                &current,
+                requests.clone(),
+                &work,
+                refuse
+            )
+            .await
+        );
         let closing = std::sync::atomic::AtomicBool::new(true);
         assert!(!end_after_drain(&closing, &close, &old, requests.clone(), &work, refuse).await);
-        assert!(end_after_drain(&closing, &close, &current, requests.clone(), &work, || async {}).await);
+        assert!(
+            end_after_drain(
+                &closing,
+                &close,
+                &current,
+                requests.clone(),
+                &work,
+                || async {}
+            )
+            .await
+        );
         // Repeated exit requests cannot end it twice (LX03).
         assert!(!end_after_drain(&closing, &close, &current, requests, &work, refuse).await);
     }

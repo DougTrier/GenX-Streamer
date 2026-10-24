@@ -560,7 +560,9 @@ fn xtream_entries(
         check(owner, deadline)?;
         // One bad row never costs the good channels (XC-014): it is counted
         // and left out. Only account-level problems stop the import.
-        match live_row(row, account, origin, base, username, password, auth, cats, policy)? {
+        match live_row(
+            row, account, origin, base, username, password, auth, cats, policy,
+        )? {
             Some(entry) if ids.insert(entry.provider_id.clone().unwrap_or_default()) => {
                 result.push(entry)
             }
@@ -624,21 +626,20 @@ fn live_row(
             Err(_) => return Ok(None),
         },
         None | Some(Value::Null) | Some(Value::String(_)) => {
-                let extension = auth.format.as_ref().ok_or("account-live-format-required")?;
-                // URL segment mutation normalizes standalone dot segments; do
-                // not silently change the provider's literal credential value.
-                if matches!(username, "." | "..") || matches!(password, "." | "..") {
-                    return Err("account-login-path-invalid".into());
-                }
-                let primary = live_address(base, origin, username, password, &provider, extension)?;
-                if let Some(other) = auth.alternate.as_deref() {
-                    backups.push(Zeroizing::new(
-                        live_address(base, origin, username, password, &provider, other)?
-                            .to_string(),
-                    ));
-                }
-                primary
+            let extension = auth.format.as_ref().ok_or("account-live-format-required")?;
+            // URL segment mutation normalizes standalone dot segments; do
+            // not silently change the provider's literal credential value.
+            if matches!(username, "." | "..") || matches!(password, "." | "..") {
+                return Err("account-login-path-invalid".into());
             }
+            let primary = live_address(base, origin, username, password, &provider, extension)?;
+            if let Some(other) = auth.alternate.as_deref() {
+                backups.push(Zeroizing::new(
+                    live_address(base, origin, username, password, &provider, other)?.to_string(),
+                ));
+            }
+            primary
+        }
         _ => return Ok(None),
     };
     Ok(Some(PreparedEntry {
@@ -758,7 +759,11 @@ pub(crate) async fn guide_address(
                     .map_err(|_| "account-playlist-encoding-invalid")?,
             }
             .trim_start_matches('\u{feff}');
-            let header = text.lines().next().ok_or("account-playlist-invalid")?.trim();
+            let header = text
+                .lines()
+                .next()
+                .ok_or("account-playlist-invalid")?
+                .trim();
             let tail = header
                 .strip_prefix("#EXTM3U")
                 .filter(|v| v.is_empty() || v.starts_with([' ', '\t']))
@@ -1141,7 +1146,8 @@ mod tests {
         let active = br#"{"user_info":{"auth":1,"status":"Active","exp_date":"2000","allowed_output_formats":["ts","m3u8"],"max_connections":"1","active_cons":"0"}}"#;
         let auth = login(active, 1_000_000).unwrap();
         assert_eq!(auth.format.as_deref(), Some("ts"));
-        let hls_only = br#"{"user_info":{"auth":1,"status":"Active","allowed_output_formats":["m3u8"]}}"#;
+        let hls_only =
+            br#"{"user_info":{"auth":1,"status":"Active","allowed_output_formats":["m3u8"]}}"#;
         assert_eq!(login(hls_only, 0).unwrap().format.as_deref(), Some("m3u8"));
         // The provider's other advertised format is kept for a fallback only.
         assert_eq!(auth.alternate.as_deref(), Some("m3u8"));
@@ -1301,7 +1307,13 @@ mod tolerance_tests {
         let names: Vec<&str> = entries.iter().map(|e| e.name.as_str()).collect();
         assert_eq!(
             names,
-            ["Good One", "Good Two", "Decimal id", "Unknown group", "Odd guide id"]
+            [
+                "Good One",
+                "Good Two",
+                "Decimal id",
+                "Unknown group",
+                "Odd guide id"
+            ]
         );
         assert_eq!(skipped, 7);
         assert_eq!(entries[2].provider_id.as_deref(), Some("3"));
@@ -1319,7 +1331,10 @@ mod tolerance_tests {
         // account, and it must not replace a saved library (XC-019).
         assert!(parse("[]").is_err());
         // Nothing usable at all is a failed import, not an empty success.
-        assert!(parse(r#"[{"name": "No id"}, {"stream_id": 6, "stream_type": "radio_streams", "name": "r"}]"#).is_err());
+        assert!(parse(
+            r#"[{"name": "No id"}, {"stream_id": 6, "stream_type": "radio_streams", "name": "r"}]"#
+        )
+        .is_err());
     }
 }
 
@@ -1364,12 +1379,23 @@ mod playlist_tolerance_tests {
             #EXTINF:-1,Trailing without address";
         let (entries, _, skipped) = parse(text).unwrap();
         let names: Vec<&str> = entries.iter().map(|e| e.name.as_str()).collect();
-        assert_eq!(names, ["One, with a comma", "Two", "Three keeps its channel", "Four"]);
+        assert_eq!(
+            names,
+            [
+                "One, with a comma",
+                "Two",
+                "Three keeps its channel",
+                "Four"
+            ]
+        );
         // Broken header (+its address), orphan address, leaked name, other
         // server, lost address, trailing entry.
         assert_eq!(skipped, 6);
         assert_eq!(entries[0].category, "News");
-        assert_eq!(entries[2].provider_id, None, "a tainted tvg-id is dropped, not shown");
+        assert_eq!(
+            entries[2].provider_id, None,
+            "a tainted tvg-id is dropped, not shown"
+        );
     }
     #[test]
     fn whole_file_problems_still_refuse_the_import() {

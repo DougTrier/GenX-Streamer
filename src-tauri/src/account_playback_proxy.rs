@@ -720,7 +720,9 @@ async fn authority(state: &Arc<Mutex<State>>) -> Result<(), &'static str> {
         if !s.active() {
             return Err("account-proxy-expired");
         }
-        if s.verified.is_some_and(|at| at.elapsed() < AUTHORITY_INTERVAL) {
+        if s.verified
+            .is_some_and(|at| at.elapsed() < AUTHORITY_INTERVAL)
+        {
             s.renewed = Instant::now();
             return Ok(());
         }
@@ -1115,12 +1117,12 @@ async fn process(
         let busy = s.busy.clone();
         let live_start = !vod && request.id == s.root;
         // The player's first plain request takes the answer opened at start.
-        let preopened = if live_start && !request.options && !request.head && request.range.is_none()
-        {
-            s.preopen.take()
-        } else {
-            None
-        };
+        let preopened =
+            if live_start && !request.options && !request.head && request.range.is_none() {
+                s.preopen.take()
+            } else {
+                None
+            };
         // The first live request of each session opens the timing record
         // (unless the session's opening request already did).
         let timed = (live_start
@@ -1637,7 +1639,11 @@ fn clean_manifest(raw: &str, state: &mut State) -> Result<String, &'static str> 
         for (key, mut value, mut quoted) in attrs(value)? {
             if !keys.contains(&key.as_str()) {
                 // Likewise an attribute GenX does not know (PROGRAM-ID).
-                diag(format_args!("manifest dropped {} {}", printable(tag), printable(&key)));
+                diag(format_args!(
+                    "manifest dropped {} {}",
+                    printable(tag),
+                    printable(&key)
+                ));
                 continue;
             }
             match key.as_str() {
@@ -2071,7 +2077,10 @@ http://tv.fixture.example/live/u/p/1.m3u8
         assert!(!out.contains("PROGRAM-ID"));
         assert!(out.contains("BANDWIDTH=2000000"));
         assert!(out.contains("RESOLUTION=1280x720"));
-        assert!(!out.contains("tv.fixture.example"), "every address goes through the relay");
+        assert!(
+            !out.contains("tv.fixture.example"),
+            "every address goes through the relay"
+        );
         let media = "#EXTM3U
 #EXT-X-VERSION:3
 #EXT-X-TARGETDURATION:10
@@ -2083,40 +2092,77 @@ http://tv.fixture.example/live/u/p/1.m3u8
 ";
         let out = state().rewrite(media, &base).unwrap();
         assert!(!out.contains("DATERANGE") && !out.contains("PROVIDER-OWN"));
-        assert!(!out.contains("elsewhere"), "a dropped tag's address never reaches the player");
+        assert!(
+            !out.contains("elsewhere"),
+            "a dropped tag's address never reaches the player"
+        );
         assert!(out.contains("#EXT-X-MEDIA-SEQUENCE:7") && out.contains("#EXTINF:10.0,"));
         // Segments on another public server the playlist names are admitted
         // (bounded); private addresses and downgrades never are.
         let mut s = state();
         assert!(s
-            .rewrite("#EXTM3U
+            .rewrite(
+                "#EXTM3U
 #EXTINF:10,
 http://cdn.fixture.example/7.ts
-", &base)
+",
+                &base
+            )
             .is_ok());
         assert_eq!(s.media_origins, ["http://cdn.fixture.example"]);
-        for refused in ["http://192.168.1.20/7.ts", "http://127.0.0.1:8080/7.ts", "http://u:p@cdn.fixture.example/7.ts"] {
+        for refused in [
+            "http://192.168.1.20/7.ts",
+            "http://127.0.0.1:8080/7.ts",
+            "http://u:p@cdn.fixture.example/7.ts",
+        ] {
             let mut s = state();
-            assert!(s.rewrite(&format!("#EXTM3U
+            assert!(
+                s.rewrite(
+                    &format!(
+                        "#EXTM3U
 #EXTINF:10,
 {refused}
-"), &base).is_err(), "{refused}");
+"
+                    ),
+                    &base
+                )
+                .is_err(),
+                "{refused}"
+            );
             assert!(s.media_origins.is_empty());
         }
         let mut https = state();
         https.authorized_origin = "https://tv.fixture.example".into();
         let secure = Url::parse("https://tv.fixture.example/live/u/p/1.m3u8").unwrap();
-        assert!(https.rewrite("#EXTM3U
+        assert!(https
+            .rewrite(
+                "#EXTM3U
 #EXTINF:10,
 http://cdn.fixture.example/7.ts
-", &secure).is_err());
+",
+                &secure
+            )
+            .is_err());
         // At most eight servers per session.
         let mut s = state();
-        let many: String = (0..9).map(|i| format!("#EXTINF:10,
+        let many: String = (0..9)
+            .map(|i| {
+                format!(
+                    "#EXTINF:10,
 http://cdn{i}.fixture.example/7.ts
-")).collect();
-        assert!(s.rewrite(&format!("#EXTM3U
-{many}"), &base).is_err());
+"
+                )
+            })
+            .collect();
+        assert!(s
+            .rewrite(
+                &format!(
+                    "#EXTM3U
+{many}"
+                ),
+                &base
+            )
+            .is_err());
         assert!(s.media_origins.is_empty());
     }
 }
@@ -2166,7 +2212,11 @@ mod authority_tests {
         for _ in 0..100 {
             authority(&state).await.unwrap();
         }
-        assert_eq!(calls.load(SeqCst), 1, "one database check, not one per chunk");
+        assert_eq!(
+            calls.load(SeqCst),
+            1,
+            "one database check, not one per chunk"
+        );
         tokio::time::advance(Duration::from_millis(2_100)).await;
         authority(&state).await.unwrap();
         assert_eq!(calls.load(SeqCst), 2);

@@ -285,12 +285,8 @@ pub(crate) async fn start_vod(
         } else {
             request.extension.clone()
         };
-        let url = crate::account_vod::media_url(
-            &resolved,
-            request.kind,
-            &request.item_id,
-            &extension,
-        )?;
+        let url =
+            crate::account_vod::media_url(&resolved, request.kind, &request.item_id, &extension)?;
         let origin = resolved.metadata.server_origin.clone();
         drop(resolved);
         let hint = match extension.as_str() {
@@ -429,7 +425,10 @@ mod format_tests {
         assert_eq!(other_format(ts).as_deref(), Some(hls));
         assert_eq!(other_format(hls).as_deref(), Some(ts));
         assert_eq!(other_format("http://tv.fixture.example/live/u/p/7"), None);
-        assert_eq!(other_format("http://tv.fixture.example/movie/u/p/7.mkv"), None);
+        assert_eq!(
+            other_format("http://tv.fixture.example/movie/u/p/7.mkv"),
+            None
+        );
         // Stored: primary + the provider's other advertised format.
         let both = urls(&[ts, hls]);
         assert_eq!(choose(&both, None, false), (ts, true));

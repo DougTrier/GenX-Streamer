@@ -99,13 +99,21 @@ fn keeps_only_this_accounts_channels_in_the_window_and_counts_unusable_listings(
             // 16:00 at -0500 is 21:00 UTC: the offset is honoured, never guessed.
             row("fox32.us", "Local News", NOW + 3 * HOUR, 0),
             // Matched by the provider's EPG ID even if the file never declared it.
-            row("unlisted.us", "Channel the file never declared", NOW + HOUR, 0),
+            row(
+                "unlisted.us",
+                "Channel the file never declared",
+                NOW + HOUR,
+                0
+            ),
         ]
     );
     // Broken time, no title, markup inside a title: counted, never shown.
     assert_eq!(parsed.skipped, 3);
     let game = &parsed.programs[0];
-    assert_eq!(game.description.as_deref(), Some("Chicago & New Orleans meet."));
+    assert_eq!(
+        game.description.as_deref(),
+        Some("Chicago & New Orleans meet.")
+    );
     assert_eq!(game.categories.len(), 1);
     assert_eq!(game.stop_ms, Some(NOW + 3 * HOUR));
 }
@@ -126,7 +134,10 @@ fn malformed_or_unsafe_xml_fails_the_whole_read() {
         "account-guide-malformed"
     );
     let subset = r#"<?xml version="1.0"?><!DOCTYPE tv [<!ENTITY a "aaaa">]><tv></tv>"#;
-    assert_eq!(read(subset, &["fox32.us"]).unwrap_err(), "account-guide-malformed");
+    assert_eq!(
+        read(subset, &["fox32.us"]).unwrap_err(),
+        "account-guide-malformed"
+    );
     let latin = r#"<?xml version="1.0" encoding="ISO-8859-1"?><tv></tv>"#;
     assert_eq!(
         read(latin, &["fox32.us"]).unwrap_err(),
@@ -206,10 +217,31 @@ fn channel_id(letter: char) -> String {
 }
 /// (letter, name, group, epg id, removed, favorite)
 const CHANNELS: &[(char, &str, &str, Option<&str>, bool, bool)] = &[
-    ('a', "FOX 32 Chicago", "US| LOCALS", Some("fox32.us"), false, true),
-    ('b', "NFL PPV 1", "US| NFL PPV", Some("unlisted.us"), false, false),
+    (
+        'a',
+        "FOX 32 Chicago",
+        "US| LOCALS",
+        Some("fox32.us"),
+        false,
+        true,
+    ),
+    (
+        'b',
+        "NFL PPV 1",
+        "US| NFL PPV",
+        Some("unlisted.us"),
+        false,
+        false,
+    ),
     ('c', "No Guide TV", "US| GENERAL", None, false, false),
-    ('d', "Removed FOX", "US| LOCALS", Some("fox32.us"), true, false),
+    (
+        'd',
+        "Removed FOX",
+        "US| LOCALS",
+        Some("fox32.us"),
+        true,
+        false,
+    ),
 ];
 fn database() -> Connection {
     let c = Connection::open_in_memory().unwrap();
@@ -249,7 +281,11 @@ fn database() -> Connection {
 fn stored(c: &mut Connection) -> Status {
     let wanted = super::wanted(c, ACCOUNT).unwrap();
     let parsed = parse(
-        open_reader(std::io::Cursor::new(GUIDE.as_bytes().to_vec()), EXPANDED_LIMIT).unwrap(),
+        open_reader(
+            std::io::Cursor::new(GUIDE.as_bytes().to_vec()),
+            EXPANDED_LIMIT,
+        )
+        .unwrap(),
         &wanted,
         NOW - KEEP_BEFORE_MS,
         NOW + KEEP_AFTER_MS,
@@ -263,7 +299,10 @@ fn stored(c: &mut Connection) -> Status {
 #[test]
 fn the_accounts_epg_ids_come_from_its_live_channels() {
     let c = database();
-    assert_eq!(super::wanted(&c, ACCOUNT).unwrap(), ids(&["fox32.us", "unlisted.us"]));
+    assert_eq!(
+        super::wanted(&c, ACCOUNT).unwrap(),
+        ids(&["fox32.us", "unlisted.us"])
+    );
 }
 
 #[test]
@@ -271,7 +310,15 @@ fn a_committed_guide_lists_channels_listings_and_search_for_this_account() {
     let mut c = database();
     assert_eq!(status(&c, ACCOUNT).unwrap(), None);
     let receipt = stored(&mut c);
-    assert_eq!((receipt.revision, receipt.programs, receipt.channels, receipt.skipped), (1, 4, 2, 3));
+    assert_eq!(
+        (
+            receipt.revision,
+            receipt.programs,
+            receipt.channels,
+            receipt.skipped
+        ),
+        (1, 4, 2, 3)
+    );
     assert_eq!(status(&c, ACCOUNT).unwrap(), Some(receipt));
     // Removed channels stay out; a channel without an EPG ID has no guide row.
     let rows = channels(&c, ACCOUNT).unwrap();
@@ -282,11 +329,22 @@ fn a_committed_guide_lists_channels_listings_and_search_for_this_account() {
     assert_eq!(rows[0].stream_reference, "a".repeat(32));
     let mut window = listed(&c, ACCOUNT, NOW, NOW + 3 * HOUR, "").unwrap();
     window.sort();
-    assert_eq!(window, vec!["fox32.us".to_string(), "unlisted.us".to_string()]);
-    assert_eq!(listed(&c, ACCOUNT, NOW, NOW + 3 * HOUR, "bears SAINTS").unwrap(), vec!["fox32.us".to_string()]);
-    assert!(listed(&c, ACCOUNT, NOW, NOW + 3 * HOUR, "hockey").unwrap().is_empty());
+    assert_eq!(
+        window,
+        vec!["fox32.us".to_string(), "unlisted.us".to_string()]
+    );
+    assert_eq!(
+        listed(&c, ACCOUNT, NOW, NOW + 3 * HOUR, "bears SAINTS").unwrap(),
+        vec!["fox32.us".to_string()]
+    );
+    assert!(listed(&c, ACCOUNT, NOW, NOW + 3 * HOUR, "hockey")
+        .unwrap()
+        .is_empty());
     // A long programme that began before the window still shows in it.
-    assert_eq!(listed(&c, ACCOUNT, NOW + 2 * HOUR, NOW + 2 * HOUR + 1, "").unwrap(), vec!["fox32.us".to_string()]);
+    assert_eq!(
+        listed(&c, ACCOUNT, NOW + 2 * HOUR, NOW + 2 * HOUR + 1, "").unwrap(),
+        vec!["fox32.us".to_string()]
+    );
     let page = programs(&c, ACCOUNT, "fox32.us", NOW, NOW + 4 * HOUR, None, 1).unwrap();
     assert_eq!(page.len(), 1);
     assert_eq!(page[0].title, "NFL Football: Bears at Saints");
@@ -312,7 +370,11 @@ fn a_new_guide_replaces_the_old_one_whole() {
     let parsed = read(only, &["fox32.us", "unlisted.us"]).unwrap();
     let receipt = commit(&mut c, ACCOUNT, 1, &parsed, NOW + HOUR, &mut || Ok(())).unwrap();
     assert_eq!((receipt.revision, receipt.programs), (2, 1));
-    assert!(programs(&c, ACCOUNT, "unlisted.us", NOW, NOW + 4 * HOUR, None, 100).unwrap().is_empty());
+    assert!(
+        programs(&c, ACCOUNT, "unlisted.us", NOW, NOW + 4 * HOUR, None, 100)
+            .unwrap()
+            .is_empty()
+    );
 }
 
 #[test]
@@ -326,11 +388,19 @@ fn a_failed_or_stale_publication_keeps_the_last_good_guide() {
         "account-revision-conflict"
     );
     assert_eq!(
-        commit(&mut c, ACCOUNT, 1, &parsed, NOW, &mut || Err("canceled".into())).unwrap_err(),
+        commit(&mut c, ACCOUNT, 1, &parsed, NOW, &mut || Err(
+            "canceled".into()
+        ))
+        .unwrap_err(),
         "canceled"
     );
     assert_eq!(status(&c, ACCOUNT).unwrap(), Some(good));
-    assert_eq!(programs(&c, ACCOUNT, "unlisted.us", NOW, NOW + 4 * HOUR, None, 100).unwrap().len(), 1);
+    assert_eq!(
+        programs(&c, ACCOUNT, "unlisted.us", NOW, NOW + 4 * HOUR, None, 100)
+            .unwrap()
+            .len(),
+        1
+    );
 }
 
 #[test]
@@ -355,7 +425,9 @@ fn an_edited_account_hides_the_old_guide_and_removal_deletes_it() {
     ))
     .unwrap();
     let left: i64 = c
-        .query_row("SELECT COUNT(*) FROM account_guide_program_v1", [], |r| r.get(0))
+        .query_row("SELECT COUNT(*) FROM account_guide_program_v1", [], |r| {
+            r.get(0)
+        })
         .unwrap();
     assert_eq!(left, 0);
 }
@@ -370,9 +442,23 @@ fn search_matches_whole_words_not_letters_inside_words() {
     </tv>"#;
     let parsed = read(xml, &["fox32.us", "unlisted.us"]).unwrap();
     commit(&mut c, ACCOUNT, 1, &parsed, NOW, &mut || Ok(())).unwrap();
-    assert_eq!(listed(&c, ACCOUNT, NOW, NOW + HOUR, "nfl").unwrap(), vec!["fox32.us".to_string()]);
-    assert_eq!(listed(&c, ACCOUNT, NOW, NOW + HOUR, "NFL foot").unwrap(), vec!["fox32.us".to_string()]);
-    assert_eq!(listed(&c, ACCOUNT, NOW, NOW + HOUR, "conflict").unwrap(), vec!["unlisted.us".to_string()]);
-    assert_eq!(listed(&c, ACCOUNT, NOW, NOW + HOUR, "battles").unwrap(), vec!["unlisted.us".to_string()]);
-    assert!(listed(&c, ACCOUNT, NOW, NOW + HOUR, "flict").unwrap().is_empty());
+    assert_eq!(
+        listed(&c, ACCOUNT, NOW, NOW + HOUR, "nfl").unwrap(),
+        vec!["fox32.us".to_string()]
+    );
+    assert_eq!(
+        listed(&c, ACCOUNT, NOW, NOW + HOUR, "NFL foot").unwrap(),
+        vec!["fox32.us".to_string()]
+    );
+    assert_eq!(
+        listed(&c, ACCOUNT, NOW, NOW + HOUR, "conflict").unwrap(),
+        vec!["unlisted.us".to_string()]
+    );
+    assert_eq!(
+        listed(&c, ACCOUNT, NOW, NOW + HOUR, "battles").unwrap(),
+        vec!["unlisted.us".to_string()]
+    );
+    assert!(listed(&c, ACCOUNT, NOW, NOW + HOUR, "flict")
+        .unwrap()
+        .is_empty());
 }

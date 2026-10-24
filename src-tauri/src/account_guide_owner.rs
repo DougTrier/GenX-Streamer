@@ -188,7 +188,8 @@ impl ReadRequest {
                 if (0..=SAFE).contains(&from)
                     && (0..=SAFE).contains(&to)
                     && to > from
-                    && to - from <= account_guide::KEEP_AFTER_MS + account_guide::KEEP_BEFORE_MS =>
+                    && to - from
+                        <= account_guide::KEEP_AFTER_MS + account_guide::KEEP_BEFORE_MS =>
             {
                 Ok((from, to))
             }
@@ -239,7 +240,10 @@ pub(crate) async fn channels(
     app: tauri::AppHandle,
 ) -> Result<Vec<account_guide::GuideChannel>, String> {
     let account = request.account()?.to_owned();
-    read(request_id, app, move |c| account_guide::channels(c, &account)).await
+    read(request_id, app, move |c| {
+        account_guide::channels(c, &account)
+    })
+    .await
 }
 pub(crate) async fn listed(
     request: ReadRequest,

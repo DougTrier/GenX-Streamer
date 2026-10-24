@@ -27,15 +27,15 @@
 mod android;
 mod annex_b;
 mod bits;
+pub mod calibration;
 mod idct;
 pub mod kit;
 mod macroblock;
 mod mc;
 mod picture;
-pub mod calibration;
 pub mod platform;
-pub mod profile;
 mod pool;
+pub mod profile;
 mod tables;
 #[cfg(test)]
 mod tests;
@@ -402,7 +402,9 @@ impl Decoder {
             pool: None,
             // The first registered kit this CPU can run (the default kit,
             // unless it needs NEON on a 32-bit ARM CPU without it).
-            kit: kit::available().next().map_or(kit::KitId::Portable, |k| k.id),
+            kit: kit::available()
+                .next()
+                .map_or(kit::KitId::Portable, |k| k.id),
             autotune: None,
             scan: tables::scan_to_raster(false),
             stats: Stats::default(),
@@ -442,7 +444,12 @@ impl Decoder {
     /// for each workload class with a usable choice, that kit and those
     /// workers (at most `ceiling` for capped policies); for classes without
     /// one, the settings in force now (the known-good configuration).
-    pub fn set_autotune(&mut self, profile: profile::Profile, policy: tune::Policy, ceiling: usize) {
+    pub fn set_autotune(
+        &mut self,
+        profile: profile::Profile,
+        policy: tune::Policy,
+        ceiling: usize,
+    ) {
         self.autotune = Some(AutoTune {
             profile,
             policy,
@@ -457,7 +464,9 @@ impl Decoder {
     /// decoder's life (the playback guard, milestone 7): the next picture
     /// decodes with them. True when a profile choice was in force.
     pub fn autotune_revert(&mut self) -> bool {
-        let Some(a) = self.autotune.as_ref() else { return false };
+        let Some(a) = self.autotune.as_ref() else {
+            return false;
+        };
         if a.status != AutoTuneStatus::Applied {
             return false;
         }
@@ -499,7 +508,9 @@ impl Decoder {
     fn apply_autotune(&mut self) {
         let Some(seq) = self.seq.as_ref() else { return };
         let shape = (seq.width, seq.height, seq.progressive);
-        let Some(a) = self.autotune.as_mut() else { return };
+        let Some(a) = self.autotune.as_mut() else {
+            return;
+        };
         // After a revert the known-good settings stay for this decoder's life.
         if a.shape == Some(shape) || a.status == AutoTuneStatus::Reverted {
             return;
@@ -510,7 +521,11 @@ impl Decoder {
         let (policy, ceiling, base) = (a.policy, a.ceiling, a.base);
         let (kit, threads, adaptive, status) = match choice {
             Some(c) => {
-                let workers = if policy.capped() { c.workers.min(ceiling) } else { c.workers };
+                let workers = if policy.capped() {
+                    c.workers.min(ceiling)
+                } else {
+                    c.workers
+                };
                 (c.kit, workers, c.adaptive, AutoTuneStatus::Applied)
             }
             None => (base.0, base.1, base.2, AutoTuneStatus::NoChoice),

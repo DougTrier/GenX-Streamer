@@ -27,13 +27,13 @@
 //! trier-video-bench calibrate|cross ... (calibrate.rs: AutoTune's harness)
 //! (nohash skips the checksum, so CPU counters see decoding only)
 //! TRIER_VIDEO_KIT=<name> decodes with that registered kit (default: default).
-#[path = "../../../src-tauri/src/trier_video/mod.rs"]
-#[allow(dead_code)]
-mod trier_video;
 mod calibrate;
 mod lab;
 #[cfg(libmpeg2)]
 mod libmpeg2;
+#[path = "../../../src-tauri/src/trier_video/mod.rs"]
+#[allow(dead_code)]
+mod trier_video;
 
 use std::time::Instant;
 
@@ -71,7 +71,8 @@ fn access_units(es: &[u8]) -> Vec<(&[u8], u8)> {
         while j > 0 {
             let (c, a) = codes[j - 1];
             let ext = es.get(a).map(|b| b >> 4);
-            let belongs = matches!(c, 0xB3 | 0xB8) || (c == 0xB5 && matches!(ext, Some(1) | Some(2)));
+            let belongs =
+                matches!(c, 0xB3 | 0xB8) || (c == 0xB5 && matches!(ext, Some(1) | Some(2)));
             if !belongs || a - 4 <= *cuts.last().unwrap() {
                 break;
             }
@@ -81,19 +82,32 @@ fn access_units(es: &[u8]) -> Vec<(&[u8], u8)> {
         cuts.push(cut);
     }
     cuts.push(es.len());
-    cuts.windows(2).map(|w| &es[w[0]..w[1]]).zip(types).collect()
+    cuts.windows(2)
+        .map(|w| &es[w[0]..w[1]])
+        .zip(types)
+        .collect()
 }
 
 fn read(path: &str) -> String {
-    std::fs::read_to_string(path).map(|s| s.trim().to_string()).unwrap_or_default()
+    std::fs::read_to_string(path)
+        .map(|s| s.trim().to_string())
+        .unwrap_or_default()
 }
 fn conditions() -> String {
     if !cfg!(target_os = "android") {
         return String::new();
     }
     let freqs: Vec<String> = (0..8)
-        .map(|c| read(&format!("/sys/devices/system/cpu/cpu{c}/cpufreq/scaling_cur_freq")))
-        .map(|f| f.parse::<u64>().map(|k| format!("{:.2}", k as f64 / 1e6)).unwrap_or(f))
+        .map(|c| {
+            read(&format!(
+                "/sys/devices/system/cpu/cpu{c}/cpufreq/scaling_cur_freq"
+            ))
+        })
+        .map(|f| {
+            f.parse::<u64>()
+                .map(|k| format!("{:.2}", k as f64 / 1e6))
+                .unwrap_or(f)
+        })
         .collect();
     let mut temps = Vec::new();
     for zone in 0..80 {
@@ -136,13 +150,20 @@ fn main() {
         std::process::exit(code);
     }
     if args.get(1).map(String::as_str) == Some("kits") {
-        println!("machine: {}", trier_video::platform::Machine::detect().summary());
+        println!(
+            "machine: {}",
+            trier_video::platform::Machine::detect().summary()
+        );
         let have = trier_video::kit::Features::detected();
         for k in trier_video::kit::KITS {
             println!(
                 "kit {:<9} {} parts [{}] needs [{}] {:?}: {}",
                 k.name,
-                if have.covers(k.requires) { "available  " } else { "unavailable" },
+                if have.covers(k.requires) {
+                    "available  "
+                } else {
+                    "unavailable"
+                },
                 k.parts.join(", "),
                 k.requires.names().join(","),
                 k.contract,
@@ -155,12 +176,18 @@ fn main() {
     if let Some(code) = libmpeg2::command(&args) {
         std::process::exit(code);
     }
-    let path = args.get(1).expect("usage: trier-video-bench <file.m2v> [repeats] [budget-us]");
+    let path = args
+        .get(1)
+        .expect("usage: trier-video-bench <file.m2v> [repeats] [budget-us]");
     let repeats: usize = args.get(2).and_then(|s| s.parse().ok()).unwrap_or(3);
     let budget: u64 = args.get(3).and_then(|s| s.parse().ok()).unwrap_or(16_683);
     let es = std::fs::read(path).expect("read input");
     let units = access_units(&es);
-    println!("input {path}: {} pictures, {} bytes, budget {budget} us, repeats {repeats}", units.len(), es.len());
+    println!(
+        "input {path}: {} pictures, {} bytes, budget {budget} us, repeats {repeats}",
+        units.len(),
+        es.len()
+    );
     println!("kit: {}", kit().name());
     println!("before: {}", conditions());
     let mut all: Vec<(u64, u8)> = Vec::new();
@@ -230,7 +257,13 @@ fn main() {
     };
     report("all", all.iter().map(|&(t, _)| t).collect());
     for (kind, name) in [(1, "I"), (2, "P"), (3, "B")] {
-        report(name, all.iter().filter(|&&(_, k)| k == kind).map(|&(t, _)| t).collect());
+        report(
+            name,
+            all.iter()
+                .filter(|&&(_, k)| k == kind)
+                .map(|&(t, _)| t)
+                .collect(),
+        );
     }
     // Longest run of consecutive pictures over the frame period (in decode order).
     let (mut run, mut longest) = (0, 0);

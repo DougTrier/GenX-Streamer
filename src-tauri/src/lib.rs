@@ -13,13 +13,6 @@
 // limitations under the License.
 
 mod account_acquisition;
-mod local_streams;
-mod native_live;
-mod ts_align;
-mod native_video;
-pub mod trier_video;
-mod vpn_status;
-mod web_page;
 mod account_catalog_owner;
 mod account_catalog_query;
 mod account_guide;
@@ -31,8 +24,6 @@ mod account_preferences;
 mod account_vault;
 mod account_vault_owner;
 mod account_vod;
-mod viewing_settings;
-mod group_country;
 #[cfg(any(target_os = "android", test))]
 #[cfg_attr(
     all(test, not(target_os = "android")),
@@ -71,20 +62,24 @@ mod channel_logos;
 mod close_owner;
 mod device_capabilities;
 mod diagnostics;
-mod discovery_unavailable;
-mod local_favorites;
 mod discovery_input;
+mod discovery_unavailable;
 mod donation;
+mod group_country;
 pub mod guide;
 mod health_storage;
 pub mod lan;
+mod local_favorites;
+mod local_streams;
 mod native_catalog;
 #[cfg(any(target_os = "android", test))]
 mod native_debug_stages;
 mod native_guide;
+mod native_live;
 mod native_sharing;
 mod native_shutdown;
 mod native_speech;
+mod native_video;
 mod network;
 mod network_media_probe;
 pub mod relay;
@@ -118,15 +113,20 @@ mod storage;
     reason = "Experimental chunk recovery format remains unwired until durability and fault verification."
 )]
 mod storage_backup_chunks;
+mod storage_backup_policy;
 mod storage_budget;
 mod storage_leases;
 #[cfg(windows)]
 mod storage_recovery;
 mod storage_startup;
 mod storage_timings;
-mod storage_backup_policy;
 mod storage_transaction;
+pub mod trier_video;
+mod ts_align;
+mod viewing_settings;
 mod viewing_wake;
+mod vpn_status;
+mod web_page;
 #[cfg(windows)]
 mod windows_manifest_protector;
 #[cfg(windows)]
@@ -1349,7 +1349,10 @@ async fn read_channel_checks(
     app: tauri::AppHandle,
 ) -> Result<storage_transaction::channel_check::Checks, String> {
     let now = native_now_ms("channel-check-clock-invalid")?;
-    scan_storage_work(request_id, app, move |store, check| store.channel_checks(now, check)).await
+    scan_storage_work(request_id, app, move |store, check| {
+        store.channel_checks(now, check)
+    })
+    .await
 }
 /// Records a batch of quiet channel checks (or a channel that just played),
 /// timed by the native clock so a wrong page clock cannot mark channels.
@@ -2632,7 +2635,10 @@ async fn finalize_activity_exit(app: tauri::AppHandle, ticket: close_owner::Clos
                 viewing
                     .state::<AndroidViewing>()
                     .0
-                    .run_mobile_plugin_async::<serde_json::Value>("endProcess", serde_json::json!({})),
+                    .run_mobile_plugin_async::<serde_json::Value>(
+                        "endProcess",
+                        serde_json::json!({}),
+                    ),
             )
             .await;
             viewing.exit(0);

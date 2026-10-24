@@ -139,7 +139,8 @@ pub fn command(args: &[String]) -> Option<i32> {
             let (seconds, accel) = run(&mut es, |f| {
                 for row in 0..f.height {
                     let at = row * f.stride;
-                    out.write_all(&f.planes[0][at..at + f.width]).expect("write");
+                    out.write_all(&f.planes[0][at..at + f.width])
+                        .expect("write");
                 }
                 for plane in &f.planes[1..] {
                     for row in 0..f.height / 2 {
