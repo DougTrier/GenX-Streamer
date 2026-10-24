@@ -107,6 +107,14 @@ class TvRemoteWireTest {
     // Screen state, as the Streamer reported it asleep and after waking.
     assertEquals(TvEvent.Screen(false), TvRemote.read(TvWire.bytes(40, TvWire.int(1, 0))))
     assertEquals(TvEvent.Screen(true), TvRemote.read(TvWire.bytes(40, TvWire.int(1, 1))))
+    // Asleep, or the screensaver in front (what the Streamer reported while dreaming): press Home.
+    assertTrue(TvRemote.dark(false, "com.google.android.apps.tv.launcherx"))
+    assertTrue(TvRemote.dark(true, "com.google.android.apps.tv.dreamx"))
+    assertTrue(TvRemote.dark(true, "com.android.dreams.basic"))
+    // In use, or not reported yet: never press.
+    assertFalse(TvRemote.dark(true, "com.google.android.apps.tv.launcherx"))
+    assertFalse(TvRemote.dark(true, "com.esaba.downloader"))
+    assertFalse(TvRemote.dark(null, ""))
     // Home, one short press: the only key GenX sends.
     val home = TvWire.nested(TvWire.parse(TvRemote.home()), 10)
     assertEquals(3L, TvWire.number(home, 1))

@@ -187,8 +187,17 @@ internal object TvRemote {
   fun setActiveReply() = TvWire.bytes(2, TvWire.int(1, FEATURES))
   fun pingReply(value: Long) = TvWire.bytes(9, TvWire.int(1, value))
   fun openLink(link: String) = TvWire.bytes(90, TvWire.text(1, link))
-  /** KEYCODE_HOME, one short press: sent only to a TV that reports its screen off (TV-010). */
+  /** KEYCODE_HOME, one short press: sent only to a TV that is asleep or in its screensaver (TV-010). */
   fun home() = TvWire.bytes(10, TvWire.int(1, 3) + TvWire.int(2, 3))
+
+  /**
+   * A screensaver in front: the TV still reports its screen on, but the app in
+   * front is the screensaver (the Streamer's is com.google.android.apps.tv.dreamx).
+   */
+  fun screensaver(app: String) = Regex("(?i)(dream|screensaver|daydream)").containsMatchIn(app)
+
+  /** Whether the person cannot see the TV: asleep, or its screensaver is showing (TV-010). */
+  fun dark(screenOn: Boolean?, front: String) = screenOn == false || (screenOn == true && screensaver(front))
 
   fun read(data: ByteArray): TvEvent {
     val message = TvWire.parse(data) ?: return TvEvent.Other

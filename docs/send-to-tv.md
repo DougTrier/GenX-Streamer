@@ -10,16 +10,19 @@ rest: no address to type, no settings to find (owner's decision, October 24,
 
 0. **Wake (TV-010).** A sleeping TV (its HDMI shows "No signal") shows
    nothing. Right after connecting, the TV reports whether its screen is on.
-   - Only when it says off does GenX press Home, once, and wait up to six
-     seconds for the screen. A TV that stays dark gets "Your TV didn't wake.
-     Turn it on with its remote, then try again."
+   - Only when it is asleep (screen off) or showing its screensaver does
+     GenX press Home, once, and wait up to six seconds for the screen. A TV
+     that stays dark gets "Your TV didn't wake. Turn it on with its remote,
+     then try again."
    - An awake TV is never pressed.
    - Measured on the Streamer: on in 1.3 s after Home. Wake (KEYCODE_WAKEUP)
      did nothing, and Power switched an awake TV off, so neither is used.
    - That Home wakes this Streamer does not prove it wakes every TV; the
      screen report is what GenX trusts.
-   - A TV in its screensaver may still report its screen on; that case is
-     not tested yet.
+   - In its screensaver the Streamer reports its screen **on**, but the app in
+     front is the screensaver (`com.google.android.apps.tv.dreamx`, measured
+     October 24, 2026). So GenX also presses Home when the app in front is a
+     screensaver (a package name with "dream" or "screensaver").
 1. **Find.** GenX looks for TVs offering the built-in remote service: the one
    the Google TV phone app uses, `_androidtvremote2._tcp`.
 2. **Pair, once per TV.** The TV shows a six-character code; the person
@@ -93,7 +96,7 @@ Every network call runs off the interface thread
 | TV-006 | "Installed" is said only after GenX on the TV reported the SHA-256 of the very file sent; otherwise the card says what is known (downloaded, an older copy, or not installed). The TV reports only to a private address with the nearby share's shape. |
 | TV-007 | GenX opens only three links on a TV: its own nearby file address, the download helper's store page, and `genx://open`. Remote connections go only to private addresses and only to a TV whose certificate matches the one paired. |
 | TV-008 | Install on TV is separate from the transfer: a remote-protocol failure never affects nearby sharing, the share sheet or Windows sharing. |
-| TV-010 | GenX establishes that the TV is awake before opening anything: it presses Home only when the TV reports its screen off, at most once per connection, never during a prompt; a TV that does not wake within the time limit is a plain, recoverable failure. |
+| TV-010 | GenX establishes that the TV can be seen before opening anything: it presses Home only when the TV reports its screen off or its screensaver in front, at most once per connection, never during a prompt; a TV that does not wake within the time limit is a plain, recoverable failure. |
 | TV-009 | Finding or pairing with a TV is never taken as proof that it can install GenX: each step (a download app took the link, the installer appeared, GenX opened) is established from what the TV reports. |
 
 ## Limits, plainly

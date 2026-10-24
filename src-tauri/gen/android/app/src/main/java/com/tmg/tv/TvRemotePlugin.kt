@@ -203,17 +203,20 @@ class TvRemotePlugin(private val activity: Activity) : Plugin(activity) {
       val deadline = System.currentTimeMillis() + 6000
       while (!connected.ready && connected.open && System.currentTimeMillis() < deadline) Thread.sleep(50)
       if (!connected.ready) { connected.close(); throw IllegalStateException("tv-connect-failed") }
-      // TV-010: wake before installing. The TV reports its screen state right after
-      // setup; only when it says off (asleep, HDMI "No signal") does GenX press Home,
-      // once, then wait for the screen. A TV that stays dark is a plain, recoverable
-      // refusal; an awake TV is never pressed.
+      // TV-010: wake before installing. Right after setup the TV reports its screen
+      // and the app in front. Only when it is asleep (screen off, HDMI "No signal")
+      // or showing its screensaver does GenX press Home, once, then wait until the
+      // screen is on and the screensaver gone. A TV that stays dark is a plain,
+      // recoverable refusal; a TV in use is never pressed.
       val told = System.currentTimeMillis() + 1500
-      while (connected.screenOn == null && connected.open && System.currentTimeMillis() < told) Thread.sleep(50)
-      if (connected.screenOn == false) {
+      while ((connected.screenOn == null || connected.front.isEmpty()) && connected.open &&
+        System.currentTimeMillis() < told) Thread.sleep(50)
+      if (TvRemote.dark(connected.screenOn, connected.front)) {
         connected.send(TvRemote.home())
         val awake = System.currentTimeMillis() + 6000
-        while (connected.screenOn != true && connected.open && System.currentTimeMillis() < awake) Thread.sleep(50)
-        if (connected.screenOn != true) { connected.close(); throw IllegalStateException("tv-asleep") }
+        while (TvRemote.dark(connected.screenOn, connected.front) && connected.open &&
+          System.currentTimeMillis() < awake) Thread.sleep(50)
+        if (TvRemote.dark(connected.screenOn, connected.front)) { connected.close(); throw IllegalStateException("tv-asleep") }
       }
       invoke.resolveObject(status(connected))
     }
