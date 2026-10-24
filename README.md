@@ -16,6 +16,33 @@ companion documents (invariant registers, metrics, the old task ledger) stay in
 the private project archive and are not part of this repository.
 Open work: [TASKS.md](TASKS.md).
 
+## Provenance
+
+GenX Streamer includes two decoders of its own, for formats that some devices
+offer apps no decoder for (for example Samsung Galaxy phones and MPEG-2 video):
+
+- **Trier MPEG Video** decodes MPEG-2 video (Main Profile, 4:2:0). It was
+  written from the published standard, ITU-T H.262 | ISO/IEC 13818-2. Its
+  variable-length code tables are extracted from the text of the free ITU-T
+  edition by `scripts/trier-video/extract_tables.py`, not retyped from other
+  software. Design and measurements: [docs/trier-mpeg-video.md](docs/trier-mpeg-video.md).
+- **Trier MPEG** decodes MPEG audio Layers I and II. It was written from
+  ISO/IEC 11172-3 and the lower-sampling-frequency extension in ISO/IEC 13818-3.
+  Design: [docs/trier-mpeg.md](docs/trier-mpeg.md).
+
+Neither decoder contains code from FFmpeg, libmpeg2 or any other decoder, and
+the Windows and Android apps do not include or link FFmpeg. During development,
+FFmpeg (the `ffmpeg-static` development dependency) and libmpeg2 serve only as
+outside measuring tools: FFmpeg encodes the test streams, and both decode the
+same streams so Trier's pictures can be compared with an established decoder.
+Trier's output is not bit-identical to FFmpeg's (in the recorded comparison it
+matched exactly in 1 of 12 streams), as expected of an independent
+implementation; MPEG-2 defines an accuracy bound for the inverse DCT, not one
+exact result. Tests that need FFmpeg skip themselves when it is not installed.
+
+Other formats (H.264, HEVC, AAC and the rest) are decoded by the platform:
+Android's Media3/MediaCodec and the system WebView.
+
 ## Requirements
 
 - Node.js 22 or newer, npm
