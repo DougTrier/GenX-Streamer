@@ -12,23 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+use super::http::{bytes, etag, page, request, Bytes, Route};
 use super::*;
 
-const TOKEN: &str = "q1w2e3r4t5y6u7i8o9p0aa";
+const TOKEN: &str = "482913";
 
 #[test]
-fn only_the_page_and_the_file_under_the_secret_are_found() {
+fn only_the_page_and_the_file_under_the_code_are_found() {
     let ask = |line: &str| {
-        route(
+        let asked = request(
             &format!("{line}\r\nHost: x\r\n\r\n"),
             TOKEN,
             "GenX-Streamer.apk",
-        )
+        );
+        (asked.route, asked.head_only)
     };
     assert_eq!(
         ask(&format!("GET /{TOKEN}/ HTTP/1.1")),
         (Route::Page, false)
     );
+    // As typed on a TV remote, without the final slash.
+    assert_eq!(ask(&format!("GET /{TOKEN} HTTP/1.1")), (Route::Page, false));
     assert_eq!(
         ask(&format!("GET /{TOKEN}/GenX-Streamer.apk HTTP/1.1")),
         (Route::File, false)
@@ -39,9 +43,8 @@ fn only_the_page_and_the_file_under_the_secret_are_found() {
     );
     for refused in [
         "GET / HTTP/1.1".to_string(),
-        format!("GET /{TOKEN} HTTP/1.1"),
+        "GET /favicon.ico HTTP/1.1".into(),
         "GET /wrongsecret/ HTTP/1.1".into(),
-        "GET /wrongsecret/GenX-Streamer.apk HTTP/1.1".into(),
         format!("GET /{TOKEN}/../etc/passwd HTTP/1.1"),
         format!("GET /{TOKEN}/GenX-Streamer.apk?x=1 HTTP/1.1"),
         format!("POST /{TOKEN}/ HTTP/1.1"),
@@ -50,6 +53,14 @@ fn only_the_page_and_the_file_under_the_secret_are_found() {
         String::new(),
     ] {
         assert_eq!(ask(&refused).0, Route::NotFound, "{refused}");
+    }
+    for guess in [
+        "GET /123456 HTTP/1.1",
+        "GET /000000/ HTTP/1.1",
+        "GET /999999/GenX-Streamer.apk HTTP/1.1",
+        "GET /4829130 HTTP/1.1",
+    ] {
+        assert_eq!(ask(guess).0, Route::WrongCode, "{guess}");
     }
 }
 
@@ -78,17 +89,6 @@ fn only_clients_on_this_network_are_answered() {
     }
 }
 
-#[test]
-fn each_session_has_its_own_unguessable_secret() {
-    let a = secret().unwrap();
-    let b = secret().unwrap();
-    assert_ne!(a, b);
-    assert_eq!(a.len(), 22);
-    assert!(a
-        .bytes()
-        .all(|c| c.is_ascii_alphanumeric() || c == b'-' || c == b'_'));
-}
-
 fn file(dir: &std::path::Path) -> AppFile {
     let path = dir.join("app.apk");
     std::fs::write(&path, vec![7u8; 300_000]).unwrap();
@@ -98,18 +98,118 @@ fn file(dir: &std::path::Path) -> AppFile {
         mime: "application/vnd.android.package-archive",
         bytes: 300_000,
         guidance: "Open the downloaded file.",
+        package: Package::AndroidUniversal,
+        sha256: "ab".repeat(32),
+        signer: Some("464c42785a80bb27022527d7e5b703c4ecf2d62f433a0f9f6b162ee95b7872ff"),
     }
 }
+
+const ANDROID: &str =
+    "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 Chrome/140 Mobile";
+const IPHONE: &str = "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15";
+const WINDOWS: &str = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)";
 
 #[test]
 fn the_page_names_only_the_app_and_has_no_placeholders_left() {
     let dir = tempfile::tempdir().unwrap();
-    let body = page(&file(dir.path()));
+    let body = page(&file(dir.path()), ANDROID, TOKEN);
     assert!(body.contains("Get GenX Streamer"));
-    assert!(body.contains("href=\"GenX-Streamer.apk\""));
+    assert!(body.contains("href=\"/482913/GenX-Streamer.apk\""));
     assert!(body.contains("(0.3 MB)"));
     assert!(body.contains("Open the downloaded file."));
+    assert!(body.contains("32- and 64-bit"));
+    assert!(!body.contains("class=\"warn\""));
     assert!(!body.contains("{{"));
+}
+
+#[test]
+fn the_page_shows_the_checksum_and_the_official_signer() {
+    let dir = tempfile::tempdir().unwrap();
+    let body = page(&file(dir.path()), ANDROID, TOKEN);
+    assert!(body.contains(&"ab".repeat(32)));
+    assert!(body.contains("46:4C:42:78:5A:80:BB:27"));
+    assert!(body.contains(":5B:78:72:FF</code>"));
+    let mut windows = file(dir.path());
+    windows.package = Package::WindowsExe;
+    windows.signer = None;
+    let body = page(&windows, WINDOWS, TOKEN);
+    assert!(body.contains("SHA-256"));
+    assert!(!body.contains("Signed by"));
+}
+
+#[test]
+fn a_device_that_cannot_run_it_is_told_why_and_offered_no_file() {
+    let dir = tempfile::tempdir().unwrap();
+    let iphone = page(&file(dir.path()), IPHONE, TOKEN);
+    assert!(iphone.contains("This is GenX Streamer for Android"));
+    assert!(iphone.contains("for iPhone, iPad or Mac yet"));
+    assert!(!iphone.contains("href=\"/482913/GenX-Streamer.apk\""));
+    let pc = page(&file(dir.path()), WINDOWS, TOKEN);
+    assert!(pc.contains("dougtrier.github.io/GenX-Streamer/get"));
+    assert!(!pc.contains("href=\"/482913/GenX-Streamer.apk\""));
+    let unknown = page(&file(dir.path()), "curl/8", TOKEN);
+    assert!(unknown.contains("class=\"warn\""));
+    assert!(unknown.contains("href=\"/482913/GenX-Streamer.apk\""));
+}
+
+#[test]
+fn markup_in_the_page_text_stays_plain_text() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut odd = file(dir.path());
+    odd.sha256 = "<script>x</script>".into();
+    let body = page(&odd, ANDROID, TOKEN);
+    assert!(!body.contains("<script>"));
+    assert!(body.contains("&lt;script&gt;"));
+}
+
+#[test]
+fn ranges_resume_only_the_same_file() {
+    let tag = "\"abc\"";
+    assert_eq!(bytes(None, None, tag, 100), Bytes::Whole);
+    assert_eq!(
+        bytes(Some("bytes=10-"), None, tag, 100),
+        Bytes::Part(10, 99)
+    );
+    assert_eq!(
+        bytes(Some("bytes=10-19"), Some(tag), tag, 100),
+        Bytes::Part(10, 19)
+    );
+    assert_eq!(
+        bytes(Some("bytes=90-500"), None, tag, 100),
+        Bytes::Part(90, 99)
+    );
+    assert_eq!(
+        bytes(Some("bytes=-30"), None, tag, 100),
+        Bytes::Part(70, 99)
+    );
+    assert_eq!(
+        bytes(Some("bytes=-300"), None, tag, 100),
+        Bytes::Part(0, 99)
+    );
+    // Another file than the one the browser started: the whole file again.
+    assert_eq!(
+        bytes(Some("bytes=10-"), Some("\"old\""), tag, 100),
+        Bytes::Whole
+    );
+    assert_eq!(bytes(Some("bytes=0-1,5-6"), None, tag, 100), Bytes::Whole);
+    assert_eq!(bytes(Some("items=0-5"), None, tag, 100), Bytes::Whole);
+    assert_eq!(bytes(Some("bytes=x-5"), None, tag, 100), Bytes::Whole);
+    assert_eq!(
+        bytes(Some("bytes=100-"), None, tag, 100),
+        Bytes::Unsatisfiable
+    );
+    assert_eq!(
+        bytes(Some("bytes=20-10"), None, tag, 100),
+        Bytes::Unsatisfiable
+    );
+    assert_eq!(
+        bytes(Some("bytes=-0"), None, tag, 100),
+        Bytes::Unsatisfiable
+    );
+    assert_eq!(
+        bytes(Some("bytes=99999999999999999999-"), None, tag, 100),
+        Bytes::Whole
+    );
 }
 
 /// A real exchange over a socket: the request, the response head and body.
@@ -135,7 +235,9 @@ fn the_file_is_served_whole_with_its_name_and_counted() {
     let file = file(dir.path());
     let stats = Stats::default();
     let reply = exchange(
-        &format!("GET /{TOKEN}/GenX-Streamer.apk HTTP/1.1\r\nHost: x\r\n\r\n"),
+        &format!(
+            "GET /{TOKEN}/GenX-Streamer.apk HTTP/1.1\r\nHost: x\r\nUser-Agent: {ANDROID}\r\n\r\n"
+        ),
         &file,
         &stats,
     );
@@ -146,8 +248,64 @@ fn the_file_is_served_whole_with_its_name_and_counted() {
     assert!(head.contains("Content-Length: 300000"));
     assert!(head.contains("Content-Disposition: attachment; filename=\"GenX-Streamer.apk\""));
     assert_eq!(&reply[split..], &vec![7u8; 300_000][..]);
+    assert!(head.contains("Accept-Ranges: bytes"));
+    assert!(head.contains(&format!("ETag: {}", etag(&file))));
     assert_eq!(stats.downloads.load(Ordering::SeqCst), 1);
     assert_eq!(stats.completed.load(Ordering::SeqCst), 1);
+}
+
+#[test]
+fn an_interrupted_download_resumes_where_it_stopped() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = file(dir.path());
+    std::fs::write(
+        &file.path,
+        (0..300_000u32).map(|i| i as u8).collect::<Vec<_>>(),
+    )
+    .unwrap();
+    let stats = Stats::default();
+    let reply = exchange(
+        &format!(
+            "GET /{TOKEN}/GenX-Streamer.apk HTTP/1.1\r\nRange: bytes=299990-\r\nIf-Range: {}\r\nUser-Agent: {ANDROID}\r\n\r\n",
+            etag(&file)
+        ),
+        &file,
+        &stats,
+    );
+    let split = reply.windows(4).position(|w| w == b"\r\n\r\n").unwrap() + 4;
+    let head = String::from_utf8_lossy(&reply[..split]);
+    assert!(head.starts_with("HTTP/1.1 206 Partial Content"), "{head}");
+    assert!(head.contains("Content-Range: bytes 299990-299999/300000"));
+    assert!(head.contains("Content-Length: 10"));
+    let expected: Vec<u8> = (299_990..300_000u32).map(|i| i as u8).collect();
+    assert_eq!(&reply[split..], &expected[..]);
+    // The end of a resumed download completes it, without counting a new one.
+    assert_eq!(stats.downloads.load(Ordering::SeqCst), 0);
+    assert_eq!(stats.completed.load(Ordering::SeqCst), 1);
+    let beyond = exchange(
+        &format!("GET /{TOKEN}/GenX-Streamer.apk HTTP/1.1\r\nRange: bytes=300000-\r\n\r\n"),
+        &file,
+        &stats,
+    );
+    let beyond = String::from_utf8_lossy(&beyond);
+    assert!(beyond.starts_with("HTTP/1.1 416 Range Not Satisfiable"));
+    assert!(beyond.contains("Content-Range: bytes */300000"));
+}
+
+#[test]
+fn the_file_is_refused_to_a_device_it_cannot_run_on() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = file(dir.path());
+    let stats = Stats::default();
+    let reply = exchange(
+        &format!("GET /{TOKEN}/GenX-Streamer.apk HTTP/1.1\r\nUser-Agent: {IPHONE}\r\n\r\n"),
+        &file,
+        &stats,
+    );
+    let reply = String::from_utf8_lossy(&reply);
+    assert!(reply.starts_with("HTTP/1.1 403 Forbidden"));
+    assert!(!reply.contains("Content-Disposition"));
+    assert_eq!(stats.downloads.load(Ordering::SeqCst), 0);
 }
 
 #[test]
@@ -168,6 +326,36 @@ fn the_page_counts_visitors_and_strangers_find_nothing() {
     );
     assert!(String::from_utf8_lossy(&stranger).starts_with("HTTP/1.1 404 Not Found"));
     assert_eq!(stats.downloads.load(Ordering::SeqCst), 0);
+    assert!(!stats.guesses.exhausted());
+}
+
+#[test]
+fn wrong_codes_are_counted_and_lock_the_guesser_out() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = file(dir.path());
+    let stats = Stats::default();
+    for wrong in 0..super::guard::CLIENT_GUESSES {
+        let reply = exchange(&format!("GET /{wrong:06} HTTP/1.1\r\n\r\n"), &file, &stats);
+        assert!(String::from_utf8_lossy(&reply).starts_with("HTTP/1.1 404 Not Found"));
+    }
+    // exchange() connects from 127.0.0.1; the accept loop drops a locked-out client.
+    assert!(stats.guesses.locked_out("127.0.0.1".parse().unwrap()));
+    assert!(!stats.guesses.locked_out("192.168.1.30".parse().unwrap()));
+}
+
+#[test]
+fn the_page_typed_without_its_slash_links_the_file_by_its_full_path() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = file(dir.path());
+    let stats = Stats::default();
+    let reply = exchange(
+        &format!("GET /{TOKEN} HTTP/1.1\r\nUser-Agent: {ANDROID}\r\n\r\n"),
+        &file,
+        &stats,
+    );
+    let reply = String::from_utf8_lossy(&reply);
+    assert!(reply.starts_with("HTTP/1.1 200 OK"));
+    assert!(reply.contains(&format!("href=\"/{TOKEN}/GenX-Streamer.apk\"")));
 }
 
 #[test]
@@ -188,8 +376,8 @@ fn a_stopped_or_expired_session_reports_inactive() {
     let owner = NearbyOwner::default();
     assert!(!owner.status().active);
     let (stop, _receiver) = watch::channel(false);
-    *owner.0.lock().unwrap() = Some(Session {
-        url: format!("http://192.168.1.20:4000/{TOKEN}/"),
+    *owner.session.lock().unwrap() = Some(Session {
+        url: format!("http://192.168.1.20:4000/{TOKEN}"),
         expires: Instant::now() + SESSION,
         stats: Arc::new(Stats::default()),
         stop,
@@ -206,7 +394,31 @@ fn a_stopped_or_expired_session_reports_inactive() {
             expires_in_ms: 0,
             visitors: 0,
             downloads: 0,
-            completed: 0
+            completed: 0,
+            ended: None
         }
     );
+}
+
+#[test]
+fn an_early_end_says_why_and_never_ends_a_newer_session() {
+    let owner = NearbyOwner::default();
+    let session = |url: &str| {
+        let (stop, receiver) = watch::channel(false);
+        std::mem::forget(receiver);
+        Session {
+            url: url.into(),
+            expires: Instant::now() + SESSION,
+            stats: Arc::new(Stats::default()),
+            stop,
+        }
+    };
+    *owner.session.lock().unwrap() = Some(session("http://192.168.1.20:8080/111111"));
+    owner.end("http://192.168.1.20:8080/111111", Some(Ended::Guesses));
+    assert!(!owner.status().active);
+    assert_eq!(owner.status().ended, Some(Ended::Guesses));
+    // The old session's task finishing late leaves the new one running.
+    *owner.session.lock().unwrap() = Some(session("http://192.168.1.20:8080/222222"));
+    owner.end("http://192.168.1.20:8080/111111", Some(Ended::Network));
+    assert!(owner.status().active);
 }

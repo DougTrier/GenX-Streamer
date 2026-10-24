@@ -180,13 +180,32 @@ the local Wi-Fi for ten minutes (`src-tauri/src/sharing/nearby_download.rs`,
   minutes, on **Stop sharing**, or when GenX closes.
 - The page shows a QR code (`src/sharing/qr-code.ts`, GenX's own encoder,
   checked by decoding with OpenCV in `tests/tooling/test_qr_code.py`) and the
-  address, `http://<this device>:<port>/<secret>/`. Friends scan it with their
-  camera; their browser opens a small "Get GenX Streamer" page and downloads
-  the app. No internet, store or GenX on their side is needed.
-- Every session has a fresh 128-bit secret in the address: without the code,
-  nothing is found. Only local clients (private, shared or link-local
-  addresses) are answered; at most eight connections at a time, bounded
-  request heads, read and write deadlines.
+  address, `http://<this device>:8080/<six-digit code>` (another port when
+  8080 is taken), short enough to type with a TV remote. Friends scan it with
+  their camera or type it; their browser (on a TV, its browser or download
+  app) opens a small "Get GenX Streamer" page and downloads the app. No
+  internet, store or GenX on their side is needed.
+- Every session has a fresh, uniformly random six-digit code (owner's
+  decision, October 24, 2026: easy to type everywhere, and safe enough for
+  people in the same room). Without it nothing is found. A device that tries
+  five wrong codes is no longer answered, and twenty wrong codes from anyone
+  end the session ("someone kept trying wrong codes"), so guessing finds the
+  code first at most once in 50,000 sessions
+  (`src-tauri/src/sharing/nearby_download/guard.rs`). Only local clients
+  (private, shared or link-local addresses) are answered; at most eight
+  connections at a time and three per device, bounded request heads, read
+  and write deadlines.
+- The page is written for the device that asks (SH-009, SH-011, SH-019,
+  SH-020; `src-tauri/src/sharing/compatibility.rs`): an Android phone or TV
+  gets the APK with its requirements; a device that cannot be told gets a
+  plain warning first; an iPhone or a PC is told the file won't run there
+  and is not handed it (the file address refuses it too). The APK is offered
+  for what it holds, read from the file itself (`apk_contents.rs`). The page
+  shows the file's SHA-256 and, on Android, the official signing fingerprint
+  (SH-025). Interrupted downloads resume (HTTP `Range` with `If-Range` on the
+  file's SHA-256), never against another file.
+- The session ends when this device leaves the network it shared on (SH-021),
+  and the sharer is told.
 - It serves the installed app itself (Android: the APK in its own install
   folder; Windows: the running exe), never a second copy, and nothing else:
   no settings, channels, accounts or history. The page names nothing about the
@@ -231,7 +250,7 @@ the owner's private notes.
 | SH-021 | Stop, expiry, exit or a network change closes the nearby listener: the port refuses connections. |
 | SH-022 | On Android, a nearby session runs as a foreground service with a visible notification and Stop. |
 | SH-023 | A nearby session listens only on the chosen local address and answers only local clients. |
-| SH-024 | Every nearby session has a fresh random secret (and fresh hotspot credentials when it makes one). |
+| SH-024 | Every nearby session has a fresh random code (six digits, guessing locked out and capped per session) and fresh hotspot credentials when it makes one. |
 | SH-025 | The download page shows the file's SHA-256 and, for Android, the official signing fingerprint. |
 
 Android tells only an installed app its exact architecture; a browser does

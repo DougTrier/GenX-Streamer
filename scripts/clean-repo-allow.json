@@ -781,6 +781,84 @@
       "label": "private network address",
       "sha256": "1d91afa92d5416421dd39243f489ead7f0b9b12c098b137730bfd7cb68bb9678",
       "reason": "reviewed 2026-10-24: placeholder test/fixture value (reserved test domain, loopback, generic RFC1918 example or dummy key), not a real credential or address"
+    },
+    {
+      "file": "docs/user-guide.md",
+      "label": "private network address",
+      "sha256": "4d9cb48c32130ae8ce111b65724c52056bc8101c13f09df5efc3723d9abd6a5c",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in a nearby-sharing test or the user guide example, not a real device address"
+    },
+    {
+      "file": "src-tauri/src/sharing/nearby_download/guard.rs",
+      "label": "private network address",
+      "sha256": "57dbc4308f4a802d5232c521747ba89f7464dd0a1bd493e19eb3b55d8c94a6de",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in a nearby-sharing test or the user guide example, not a real device address"
+    },
+    {
+      "file": "src-tauri/src/sharing/nearby_download/guard.rs",
+      "label": "private network address",
+      "sha256": "d20294be649dbcf3c32da86fbc47570076d2863c3f19881202b9b99375fef406",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in a nearby-sharing test or the user guide example, not a real device address"
+    },
+    {
+      "file": "src-tauri/src/sharing/nearby_download/guard.rs",
+      "label": "private network address",
+      "sha256": "fa8a770891bbca037b5127d7ac174082e8728ab7639dfe2cd08995f5c4d7e433",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in a nearby-sharing test or the user guide example, not a real device address"
+    },
+    {
+      "file": "src-tauri/src/sharing/nearby_download/guard.rs",
+      "label": "private network address",
+      "sha256": "adea83fc399bee557014527b9146497cac58eafcd0114e3c197e8890b9e45a71",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in a nearby-sharing test or the user guide example, not a real device address"
+    },
+    {
+      "file": "src-tauri/src/sharing/nearby_download_tests.rs",
+      "label": "private network address",
+      "sha256": "4633b21f3c71be2dca55e15f47b3aee6d9c2972ffe9c2ac63d6f845a10a6c292",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in a nearby-sharing test or the user guide example, not a real device address"
+    },
+    {
+      "file": "src-tauri/src/sharing/nearby_download_tests.rs",
+      "label": "private network address",
+      "sha256": "497ae6cb1d7327cb98e3284aaa2ae657bfe98d43e8c19bab274364e35877cb84",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in a nearby-sharing test or the user guide example, not a real device address"
+    },
+    {
+      "file": "src-tauri/src/sharing/nearby_download_tests.rs",
+      "label": "private network address",
+      "sha256": "5b357975b587acaccdb121005ba319cecc34ef922f1f406e280c49e57f044dd6",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in a nearby-sharing test or the user guide example, not a real device address"
+    },
+    {
+      "file": "src-tauri/src/sharing/nearby_download_tests.rs",
+      "label": "private network address",
+      "sha256": "541a0520c5b884d8ef601db68f97882dbf1a8879d96973d48b308ec7b0dfba19",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in a nearby-sharing test or the user guide example, not a real device address"
+    },
+    {
+      "file": "src-tauri/src/sharing/nearby_download_tests.rs",
+      "label": "private network address",
+      "sha256": "3ace2b4092993700b08d9b6c3902ea4a092f9a3adc3c776986e27cb07384711b",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in a nearby-sharing test or the user guide example, not a real device address"
+    },
+    {
+      "file": "src-tauri/src/sharing/nearby_download_tests.rs",
+      "label": "private network address",
+      "sha256": "7e17679bfd0326835c759b74e714eb52ac6efd8515d4709da62f3a04efdbf8bb",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in a nearby-sharing test or the user guide example, not a real device address"
+    },
+    {
+      "file": "tests/ui/share-links.spec.ts",
+      "label": "private network address",
+      "sha256": "735353bdf9ecf698aa3827bfc022b7646979e87369510de6182cf0b6854f27bc",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in a nearby-sharing test or the user guide example, not a real device address"
+    },
+    {
+      "file": "tests/ui/share-links.spec.ts",
+      "label": "private network address",
+      "sha256": "0b26c88911c46631ad565457c49eed111cd8a5984171fe6528040671517988bd",
+      "reason": "reviewed 2026-10-24: generic RFC1918 example address in a nearby-sharing test or the user guide example, not a real device address"
     }
   ]
 }

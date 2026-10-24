@@ -20,15 +20,19 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
+/** Why the last session ended early: too many wrong codes, or this device left the network. */
+export type NearbyEnded = 'guesses' | 'network';
+
 export interface NearbyStatus {
   active: boolean;
-  /** http://<this device on the local network>:<port>/<secret>/ */
+  /** http://<this device on the local network>:<port>/<six-digit code> */
   url: string | null;
   expiresInMs: number;
   /** Devices that opened the page. */
   visitors: number;
   downloads: number;
   completed: number;
+  ended: NearbyEnded | null;
 }
 
 const count = (value: unknown) =>
@@ -37,7 +41,7 @@ const count = (value: unknown) =>
 function status(raw: unknown): NearbyStatus {
   const r = (raw ?? {}) as Record<string, unknown>;
   const url =
-    typeof r.url === 'string' && /^http:\/\/[0-9.]{7,15}:\d{1,5}\/[A-Za-z0-9_-]{22}\/$/u.test(r.url)
+    typeof r.url === 'string' && /^http:\/\/[0-9.]{7,15}:\d{1,5}\/\d{6}$/u.test(r.url)
       ? r.url
       : null;
   return {
@@ -47,6 +51,7 @@ function status(raw: unknown): NearbyStatus {
     visitors: count(r.visitors),
     downloads: count(r.downloads),
     completed: count(r.completed),
+    ended: r.ended === 'guesses' || r.ended === 'network' ? r.ended : null,
   };
 }
 

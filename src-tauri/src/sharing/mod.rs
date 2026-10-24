@@ -18,7 +18,9 @@
 //!
 //! Guide for contributors: docs/components/sharing-and-casting.md.
 
+pub(crate) mod apk_contents;
 pub mod casting;
+pub(crate) mod compatibility;
 pub mod lan;
 pub(crate) mod native_sharing;
 pub(crate) mod nearby_download;

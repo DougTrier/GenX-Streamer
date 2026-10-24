@@ -16,8 +16,9 @@
 /**
  * Share with everyone nearby (Send app page; docs/share-links.md): this
  * device serves GenX Streamer on the local Wi-Fi for ten minutes; friends scan
- * the code with their camera and download it, with no store, link or
- * internet. Started and stopped only by the viewer.
+ * the code with their camera, or type the short address (a TV remote can),
+ * and download it, with no store, link or internet. Started and stopped only
+ * by the viewer.
  */
 import { qrSvg } from '../../sharing/qr-code';
 import {
@@ -26,8 +27,24 @@ import {
   onNearbyChanged,
   startNearby,
   stopNearby,
+  type NearbyEnded,
   type NearbyStatus,
 } from '../../platform/nearby-share';
+
+/** What the sharer is told when a session ended before its time. */
+export function nearbyEnded(why: NearbyEnded | null): string {
+  switch (why) {
+    case 'guesses':
+      return 'Sharing stopped: someone kept trying wrong codes. Start again for a new code.';
+    case 'network':
+      return 'Sharing stopped because this device left the Wi-Fi network.';
+    default:
+      return '';
+  }
+}
+
+/** The address as a person types it: no http://. */
+export const typedAddress = (url: string) => url.replace(/^http:\/\//u, '');
 
 export function nearbyFailure(code: string): string {
   switch (code) {
@@ -71,19 +88,21 @@ export function mountNearbyShare(card: HTMLElement): {
   if (!nearbyAvailable()) return { activate: () => undefined, dispose: () => undefined };
   card.innerHTML = `
     <h3>Share with everyone nearby</h3>
-    <p class="send-app-detail">Friends on the same Wi-Fi scan the code with their camera and download GenX Streamer from this device. No store, link or internet needed. It stops after 10 minutes.</p>
+    <p class="send-app-detail">Friends on the same Wi-Fi scan the code with their camera, or type the address, and download GenX Streamer from this device. No store, link or internet needed. It stops after 10 minutes.</p>
     <div class="nearby-active" hidden>
       <div class="nearby-code"></div>
+      <p class="nearby-typed">Or type <strong class="nearby-address"></strong></p>
       <div class="send-app-copy"><input type="text" readonly aria-label="Nearby download address" /></div>
       <p class="nearby-counts" role="status" aria-live="polite"></p>
       <p class="nearby-cheer" hidden></p>
-      <p class="send-app-guidance">Anyone on this Wi-Fi who has the code can download it while it is on.</p>
+      <p class="send-app-guidance">On a TV, type the address in its browser or download app. Anyone on this Wi-Fi with the address can download it while it is on; someone guessing codes is shut out.</p>
     </div>
     <button type="button" class="nearby-toggle">Start sharing nearby</button>
     <p class="nearby-status" role="status" aria-live="polite"></p>`;
   const active = card.querySelector<HTMLElement>('.nearby-active')!;
   const code = card.querySelector<HTMLElement>('.nearby-code')!;
   const address = card.querySelector<HTMLInputElement>('.send-app-copy input')!;
+  const typed = card.querySelector<HTMLElement>('.nearby-address')!;
   const counts = card.querySelector<HTMLElement>('.nearby-counts')!;
   const cheer = card.querySelector<HTMLElement>('.nearby-cheer')!;
   const toggle = card.querySelector<HTMLButtonElement>('.nearby-toggle')!;
@@ -126,6 +145,7 @@ export function mountNearbyShare(card: HTMLElement): {
       if (changedUrl) {
         code.replaceChildren(qrSvg(status.url, 'Code to download GenX Streamer nearby'));
         address.value = status.url;
+        typed.textContent = typedAddress(status.url);
       }
       tick();
       if (!timer) timer = setInterval(tick, 1000);
@@ -133,14 +153,24 @@ export function mountNearbyShare(card: HTMLElement): {
       stopTimer();
       code.replaceChildren();
       address.value = '';
+      typed.textContent = '';
       counts.textContent = '';
+      if (status.ended) message.textContent = nearbyEnded(status.ended);
     }
   }
   async function refresh(): Promise<void> {
     try {
       render(await nearbyStatus());
     } catch {
-      render({ active: false, url: null, expiresInMs: 0, visitors: 0, downloads: 0, completed: 0 });
+      render({
+        active: false,
+        url: null,
+        expiresInMs: 0,
+        visitors: 0,
+        downloads: 0,
+        completed: 0,
+        ended: null,
+      });
     }
   }
   toggle.addEventListener('click', () => {

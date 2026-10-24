@@ -20,13 +20,21 @@
 //! - Plain HTTP, so any phone's browser opens it, on this device's own
 //!   network address and a random port; only local (private or link-local)
 //!   clients are answered.
-//! - Every address carries a fresh random secret: without the code on the
-//!   sharer's screen, the page and the file are not found.
+//! - Every session has a fresh six-digit code, short enough to type with a
+//!   TV remote (Downloader on Google TV): without it the page and the file
+//!   are not found, a client that guesses wrong five times is no longer
+//!   answered, and twenty wrong guesses end the session (nearby_download/guard.rs).
 //! - It serves the installed app itself (Android: this copy's APK from its
 //!   own install folder; Windows: the running exe), with no second copy.
 //! - The page names nothing about the sharer: it says "Get GenX Streamer".
-//! - Bounded: eight connections at a time, small request heads, read and
-//!   write deadlines.
+//! - Bounded: eight connections at a time (three per client), small request
+//!   heads, read and write deadlines.
+//! - The right build or none (SH-009, SH-019, SH-020): the page is written
+//!   for the device that asks; a file that cannot run there is not handed over.
+//! - Checkable (SH-025): the page shows the file's SHA-256 and, on Android,
+//!   the official signing fingerprint. Interrupted downloads resume (Range).
+//! - Closed when this device leaves the network it was shared on (SH-021).
+use crate::sharing::compatibility::Package;
 use crate::NativeState;
 use serde::Serialize;
 use std::collections::HashSet;
@@ -42,6 +50,10 @@ use tokio::sync::{watch, Semaphore};
 
 pub(crate) const SESSION: Duration = Duration::from_secs(10 * 60);
 const MAX_CONNECTIONS: usize = 8;
+/// Tried first so the address is easy to type; any free port otherwise.
+const PREFERRED_PORT: u16 = 8080;
+/// How often the session checks that this device still has its address.
+const NETWORK_CHECK: Duration = Duration::from_secs(3);
 const MAX_HEAD: usize = 8 * 1024;
 pub(crate) const CHANGED_EVENT: &str = "nearby-share-changed";
 const PAGE: &str = include_str!("nearby_download/page.html");
@@ -54,6 +66,12 @@ pub(crate) struct AppFile {
     pub mime: &'static str,
     pub bytes: u64,
     pub guidance: &'static str,
+    /// What it is, read from the file itself (Android) or known (Windows).
+    pub package: Package,
+    /// Lowercase hex, computed when the session starts.
+    pub sha256: String,
+    /// Android: the official certificate's SHA-256 (only official copies serve).
+    pub signer: Option<&'static str>,
 }
 
 #[derive(Default)]
@@ -61,6 +79,7 @@ struct Stats {
     visitors: Mutex<HashSet<IpAddr>>,
     downloads: AtomicU32,
     completed: AtomicU32,
+    guesses: Guesses,
 }
 
 struct Session {
@@ -70,8 +89,21 @@ struct Session {
     stop: watch::Sender<bool>,
 }
 
+/// Why the last session ended early (shown to the sharer), when it did.
+#[derive(Clone, Copy, Debug, Serialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub(crate) enum Ended {
+    /// Too many wrong codes were tried (SH-024).
+    Guesses,
+    /// This device left the network it shared on (SH-021).
+    Network,
+}
+
 #[derive(Default)]
-pub(crate) struct NearbyOwner(Mutex<Option<Session>>);
+pub(crate) struct NearbyOwner {
+    session: Mutex<Option<Session>>,
+    ended: Mutex<Option<Ended>>,
+}
 
 #[derive(Debug, Serialize, PartialEq, Eq)]
 #[serde(rename_all = "camelCase")]
@@ -82,11 +114,13 @@ pub(crate) struct NearbyStatus {
     pub visitors: u32,
     pub downloads: u32,
     pub completed: u32,
+    pub ended: Option<Ended>,
 }
 
 impl NearbyOwner {
     fn status(&self) -> NearbyStatus {
-        let session = self.0.lock().ok();
+        let ended = self.ended.lock().ok().and_then(|ended| *ended);
+        let session = self.session.lock().ok();
         match session.as_ref().and_then(|session| session.as_ref()) {
             Some(session) if session.expires > Instant::now() && !*session.stop.borrow() => {
                 NearbyStatus {
@@ -99,6 +133,7 @@ impl NearbyOwner {
                     visitors: session.stats.visitors.lock().map_or(0, |v| v.len() as u32),
                     downloads: session.stats.downloads.load(Ordering::SeqCst),
                     completed: session.stats.completed.load(Ordering::SeqCst),
+                    ended: None,
                 }
             }
             _ => NearbyStatus {
@@ -108,14 +143,29 @@ impl NearbyOwner {
                 visitors: 0,
                 downloads: 0,
                 completed: 0,
+                ended,
             },
         }
     }
     /// Ends the session: no new connections; downloads under way may finish.
     pub(crate) fn stop(&self) {
-        if let Ok(mut session) = self.0.lock() {
+        if let Ok(mut session) = self.session.lock() {
             if let Some(session) = session.take() {
                 let _ = session.stop.send(true);
+            }
+        }
+    }
+    /// Ends the session at `url` only (never a newer one started since),
+    /// saying why when it ended early.
+    fn end(&self, url: &str, why: Option<Ended>) {
+        if let Ok(mut session) = self.session.lock() {
+            if session.as_ref().is_some_and(|session| session.url == url) {
+                if let Some(session) = session.take() {
+                    let _ = session.stop.send(true);
+                }
+                if let Ok(mut ended) = self.ended.lock() {
+                    *ended = why;
+                }
             }
         }
     }
@@ -157,120 +207,10 @@ pub(crate) fn local_address() -> Result<IpAddr, String> {
         .ok_or_else(|| "nearby-no-network".to_string())
 }
 
-/// The secret part of every address of one session (16 random bytes, URL-safe).
-fn secret() -> Result<String, String> {
-    use base64::Engine;
-    let mut bytes = [0u8; 16];
-    getrandom::fill(&mut bytes).map_err(|_| "nearby-unavailable".to_string())?;
-    Ok(base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(bytes))
-}
-
-#[derive(Debug, PartialEq, Eq)]
-pub(crate) enum Route {
-    Page,
-    File,
-    NotFound,
-}
-
-/// What a request head asks for: GET or HEAD of the page or the file, under the secret.
-pub(crate) fn route(head: &str, token: &str, file: &str) -> (Route, bool) {
-    let line = head.lines().next().unwrap_or("");
-    let mut parts = line.split(' ');
-    let (method, path, version) = (parts.next(), parts.next(), parts.next());
-    let head_only = method == Some("HEAD");
-    if !matches!(method, Some("GET" | "HEAD"))
-        || !matches!(version, Some("HTTP/1.1" | "HTTP/1.0"))
-        || parts.next().is_some()
-    {
-        return (Route::NotFound, head_only);
-    }
-    let path = path.unwrap_or("");
-    let page = format!("/{token}/");
-    if path == page {
-        (Route::Page, head_only)
-    } else if path == format!("{page}{file}") {
-        (Route::File, head_only)
-    } else {
-        (Route::NotFound, head_only)
-    }
-}
-
-/// The receiver's page: fixed text, the file's name, size and guidance only.
-pub(crate) fn page(file: &AppFile) -> String {
-    PAGE.replace("{{FILE}}", file.name)
-        .replace(
-            "{{SIZE}}",
-            &format!("{:.1} MB", file.bytes as f64 / 1_048_576.0),
-        )
-        .replace("{{GUIDANCE}}", file.guidance)
-}
-
-fn response_head(status: &str, mime: &str, length: u64, extra: &str) -> String {
-    format!(
-        "HTTP/1.1 {status}\r\nContent-Type: {mime}\r\nContent-Length: {length}\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\nReferrer-Policy: no-referrer\r\nConnection: close\r\n{extra}\r\n"
-    )
-}
-
-/// One connection, on a blocking thread: the head, then the page or the file.
-fn serve(
-    mut stream: std::net::TcpStream,
-    token: &str,
-    file: &AppFile,
-    stats: &Stats,
-    peer: IpAddr,
-) -> std::io::Result<()> {
-    stream.set_read_timeout(Some(Duration::from_secs(10)))?;
-    stream.set_write_timeout(Some(Duration::from_secs(60)))?;
-    let mut head = Vec::new();
-    let mut buffer = [0u8; 1024];
-    while !head.windows(4).any(|w| w == b"\r\n\r\n") {
-        let read = stream.read(&mut buffer)?;
-        if read == 0 || head.len() + read > MAX_HEAD {
-            return Ok(());
-        }
-        head.extend_from_slice(&buffer[..read]);
-    }
-    let head = String::from_utf8_lossy(&head);
-    match route(&head, token, file.name) {
-        (Route::Page, head_only) => {
-            if let Ok(mut visitors) = stats.visitors.lock() {
-                if visitors.len() < 1024 {
-                    visitors.insert(peer);
-                }
-            }
-            let body = page(file);
-            let csp = "Content-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'\r\n";
-            stream.write_all(
-                response_head("200 OK", "text/html; charset=utf-8", body.len() as u64, csp)
-                    .as_bytes(),
-            )?;
-            if !head_only {
-                stream.write_all(body.as_bytes())?;
-            }
-        }
-        (Route::File, head_only) => {
-            let mut source = std::fs::File::open(&file.path)?;
-            let disposition = format!(
-                "Content-Disposition: attachment; filename=\"{}\"\r\n",
-                file.name
-            );
-            stream.write_all(
-                response_head("200 OK", file.mime, file.bytes, &disposition).as_bytes(),
-            )?;
-            if !head_only {
-                stats.downloads.fetch_add(1, Ordering::SeqCst);
-                let sent = std::io::copy(&mut (&mut source).take(file.bytes), &mut stream)?;
-                if sent == file.bytes {
-                    stats.completed.fetch_add(1, Ordering::SeqCst);
-                }
-            }
-        }
-        (Route::NotFound, _) => {
-            stream.write_all(response_head("404 Not Found", "text/plain", 0, "").as_bytes())?;
-        }
-    }
-    stream.flush()
-}
+mod guard;
+mod http;
+use guard::{addresses, still_has, Clients, Guesses};
+use http::serve;
 
 async fn the_app_file(app: &tauri::AppHandle) -> Result<AppFile, String> {
     // Only an official release copy serves its own APK (docs/verify-a-download.md).
@@ -281,32 +221,57 @@ async fn the_app_file(app: &tauri::AppHandle) -> Result<AppFile, String> {
         if split {
             return Err("share-app-split".into());
         }
-        let bytes = std::fs::metadata(&path)
-            .map_err(|_| "share-app-unavailable".to_string())?
-            .len();
+        let (bytes, sha256, package) = measured(path.clone(), |path| {
+            let found = crate::sharing::apk_contents::architectures(path)?;
+            crate::sharing::apk_contents::android_package(&found)
+                .ok_or_else(|| "share-app-unavailable".to_string())
+        })
+        .await?;
         Ok(AppFile {
             path,
             name: "GenX-Streamer.apk",
             mime: "application/vnd.android.package-archive",
             bytes,
             guidance: "Open the downloaded file. When Android asks, allow your browser or Files to install apps.",
+            package,
+            sha256,
+            signer: Some(crate::app_identity::RELEASE_CERTIFICATE_SHA256),
         })
     }
     #[cfg(not(target_os = "android"))]
     {
         let _ = app;
         let path = std::env::current_exe().map_err(|_| "share-app-unavailable".to_string())?;
-        let bytes = std::fs::metadata(&path)
-            .map_err(|_| "share-app-unavailable".to_string())?
-            .len();
+        let (bytes, sha256, package) = measured(path.clone(), |_| Ok(Package::WindowsExe)).await?;
         Ok(AppFile {
             path,
             name: "GenX-Streamer.exe",
             mime: "application/vnd.microsoft.portable-executable",
             bytes,
             guidance: "Save it in a folder of its own and open it. If Windows says the publisher is unknown, choose More info, then Run anyway.",
+            package,
+            sha256,
+            signer: None,
         })
     }
+}
+
+/// The file's size, SHA-256 and package kind, read off the async runtime.
+async fn measured(
+    path: PathBuf,
+    kind: impl FnOnce(&std::path::Path) -> Result<Package, String> + Send + 'static,
+) -> Result<(u64, String, Package), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let bytes = std::fs::metadata(&path)
+            .map_err(|_| "share-app-unavailable".to_string())?
+            .len();
+        let package = kind(&path)?;
+        let sha256 =
+            crate::app_update::hash_file(&path).map_err(|_| "share-app-unavailable".to_string())?;
+        Ok((bytes, sha256, package))
+    })
+    .await
+    .map_err(|_| "share-app-unavailable".to_string())?
 }
 
 fn changed(app: &tauri::AppHandle) {
@@ -323,57 +288,85 @@ pub(crate) async fn nearby_start(app: tauri::AppHandle) -> Result<NearbyStatus, 
     }
     let file = Arc::new(the_app_file(&app).await?);
     let ip = local_address()?;
-    let listener = TcpListener::bind(SocketAddr::new(ip, 0))
-        .await
-        .map_err(|_| "nearby-unavailable".to_string())?;
+    let listener = match TcpListener::bind(SocketAddr::new(ip, PREFERRED_PORT)).await {
+        Ok(listener) => listener,
+        Err(_) => TcpListener::bind(SocketAddr::new(ip, 0))
+            .await
+            .map_err(|_| "nearby-unavailable".to_string())?,
+    };
     let port = listener
         .local_addr()
         .map_err(|_| "nearby-unavailable".to_string())?
         .port();
-    let token = Arc::new(secret()?);
-    let url = format!("http://{ip}:{port}/{token}/");
+    let token = Arc::new(guard::code()?);
+    let url = format!("http://{ip}:{port}/{token}");
     let stats = Arc::new(Stats::default());
     let (stop, mut stopped) = watch::channel(false);
     let expires = Instant::now() + SESSION;
-    *owner.0.lock().map_err(|_| "nearby-unavailable")? = Some(Session {
-        url,
+    if let Ok(mut ended) = owner.ended.lock() {
+        *ended = None;
+    }
+    *owner.session.lock().map_err(|_| "nearby-unavailable")? = Some(Session {
+        url: url.clone(),
         expires,
         stats: stats.clone(),
         stop,
     });
     let slots = Arc::new(Semaphore::new(MAX_CONNECTIONS));
+    let clients = Arc::new(Clients::default());
     let closing = app.state::<NativeState>().closing.clone();
     let task_app = app.clone();
     tauri::async_runtime::spawn(async move {
         let deadline = tokio::time::sleep_until(expires.into());
         tokio::pin!(deadline);
-        loop {
+        let mut network = tokio::time::interval(NETWORK_CHECK);
+        let why = loop {
             tokio::select! {
-                _ = &mut deadline => break,
-                _ = stopped.changed() => break,
+                _ = &mut deadline => break None,
+                _ = stopped.changed() => break None,
+                // SH-021: another network (or none) ends the session.
+                _ = network.tick() => {
+                    let now = tauri::async_runtime::spawn_blocking(addresses).await.unwrap_or_default();
+                    if !still_has(ip, &now) {
+                        break Some(Ended::Network);
+                    }
+                }
                 accepted = listener.accept() => {
                     let Ok((stream, peer)) = accepted else {
                         // Out of sockets, for example: pause instead of spinning.
                         tokio::time::sleep(Duration::from_millis(200)).await;
                         continue;
                     };
-                    if !local_client(peer.ip()) || closing.load(Ordering::SeqCst) {
+                    if stats.guesses.exhausted() {
+                        break Some(Ended::Guesses);
+                    }
+                    if !local_client(peer.ip())
+                        || closing.load(Ordering::SeqCst)
+                        || stats.guesses.locked_out(peer.ip())
+                    {
                         continue;
                     }
+                    let Some(client) = clients.admit(peer.ip()) else { continue };
                     let Ok(permit) = slots.clone().try_acquire_owned() else { continue };
                     let Ok(stream) = stream.into_std().and_then(|s| { s.set_nonblocking(false)?; Ok(s) }) else { continue };
-                    let (token, file, stats, app) = (token.clone(), file.clone(), stats.clone(), task_app.clone());
+                    let (token, file, stats, app, url) = (token.clone(), file.clone(), stats.clone(), task_app.clone(), url.clone());
                     tauri::async_runtime::spawn_blocking(move || {
-                        let _permit = permit;
+                        let (_permit, _client) = (permit, client);
                         let _ = serve(stream, &token, &file, &stats, peer.ip());
+                        // The guess that reaches the limit ends it at once.
+                        if stats.guesses.exhausted() {
+                            if let Some(owner) = app.try_state::<NearbyOwner>() {
+                                owner.end(&url, Some(Ended::Guesses));
+                            }
+                        }
                         changed(&app);
                     });
                 }
             }
-        }
+        };
         drop(listener);
         if let Some(owner) = task_app.try_state::<NearbyOwner>() {
-            owner.stop();
+            owner.end(&url, why);
         }
         changed(&task_app);
     });

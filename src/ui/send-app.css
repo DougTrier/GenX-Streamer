@@ -127,6 +127,16 @@
   height: auto;
   border-radius: 8px;
 }
+#send-app-dialog .nearby-typed {
+  margin: 0 0 8px;
+  text-align: center;
+}
+#send-app-dialog .nearby-address {
+  font-size: 1.35em;
+  letter-spacing: 0.02em;
+  color: var(--gx-text);
+  overflow-wrap: anywhere;
+}
 #send-app-dialog .nearby-counts {
   margin: 10px 0 4px;
   font-weight: 700;

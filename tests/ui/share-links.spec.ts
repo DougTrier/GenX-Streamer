@@ -71,6 +71,7 @@ async function nativeRecorder(page: Page, answers: Record<string, unknown>) {
               visitors: 0,
               downloads: 0,
               completed: 0,
+              ended: null,
             },
           );
         }
@@ -251,7 +252,7 @@ test('Share with everyone nearby shows a code for the local download, live count
 }) => {
   await fixture(page, 'send-app-nearby');
   await page.goto('/send-app-nearby');
-  const url = 'http://192.168.1.20:49152/q1w2e3r4t5y6u7i8o9p0aa/';
+  const url = 'http://192.168.1.20:8080/482913';
   const running = {
     active: true,
     url,
@@ -259,6 +260,7 @@ test('Share with everyone nearby shows a code for the local download, live count
     visitors: 0,
     downloads: 0,
     completed: 0,
+    ended: null,
   };
   await nativeRecorder(page, { nearby_start: running, nearby_stop: null });
   const dialog = await mountSendApp(page);
@@ -271,6 +273,8 @@ test('Share with everyone nearby shows a code for the local download, live count
     nearby.getByRole('img', { name: 'Code to download GenX Streamer nearby' }),
   ).toBeVisible();
   await expect(nearby.getByRole('textbox', { name: 'Nearby download address' })).toHaveValue(url);
+  // Short enough to type with a TV remote.
+  await expect(nearby.locator('.nearby-address')).toHaveText('192.168.1.20:8080/482913');
   await expect(nearby.locator('.nearby-counts')).toContainText(
     '0 connected · 0 downloads · 10:00 left',
   );
@@ -289,6 +293,27 @@ test('Share with everyone nearby shows a code for the local download, live count
     { command: 'nearby_start', args: {} },
     { command: 'nearby_stop', args: {} },
   ]);
+});
+
+test('Share with everyone nearby says why a session ended early', async ({ page }) => {
+  await fixture(page, 'send-app-nearby-ended');
+  await page.goto('/send-app-nearby-ended');
+  await nativeRecorder(page, {});
+  await page.evaluate(() =>
+    Reflect.set(window, '__nearby', {
+      active: false,
+      url: null,
+      expiresInMs: 0,
+      visitors: 0,
+      downloads: 0,
+      completed: 0,
+      ended: 'guesses',
+    }),
+  );
+  const dialog = await mountSendApp(page);
+  await expect(dialog.locator('.nearby-status')).toHaveText(
+    'Sharing stopped: someone kept trying wrong codes. Start again for a new code.',
+  );
 });
 
 test('Share with everyone nearby explains why it cannot start', async ({ page }) => {
