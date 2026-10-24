@@ -18,16 +18,14 @@ import './ui/style.css';
 import './ui/management.css';
 import './ui/channel-logos.css';
 import { createChannelLogos } from './application/channel-logos';
-import { installAudioDiagnostics } from './application/audio-diagnostics';
+
 import { createBootstrapBoundary } from './application/bootstrap-boundary';
 import { createRendererRecoveryPolicy } from './application/renderer-recovery-policy';
 
-import { createSharingHost } from './application/sharing-host';
 import { createAccountPlayer, type AccountPlaybackChoice } from './application/account-player';
 import { createArchivePlayer } from './application/archive-player';
-import { createArchiveBookmarks } from './platform/archive-bookmarks';
+
 import { createArchiveDownloads } from './application/archive-downloads';
-import { chooseArchiveResume } from './ui/archive-resume';
 
 import {
   createArchiveCatalog,
@@ -36,63 +34,20 @@ import {
 } from './platform/archive-catalog';
 import { mountArchiveSearch } from './ui/archive-search';
 
-import { createOwnedAbortSignals } from './platform/abort';
 import { createAccountBrowser } from './application/account-browser';
-import { createPaidNowPlaying } from './application/paid-now-playing';
+
 import { createVpnStatus } from './platform/vpn-status';
 import { mountVpnIndicator } from './ui/vpn-indicator';
 import { mountScanOverlay } from './ui/scan-overlay';
-import { createAccountVault } from './platform/account-vault';
-import { createAccountCatalog } from './platform/account-catalog';
-import {
-  createAccountPreferences,
-  type AccountPreferencesMutation,
-  type AccountPreferencesReceipt,
-} from './platform/account-preferences';
-import { mountAccountManagement } from './ui/accounts';
-
-import { createActivityWakePolicy } from './application/activity-wake';
 
 import { createStartupObserver } from './application/startup-view';
-import { mountSharingSettings } from './sharing/settings';
-import { createRemoteEditMode, installRemoteNavigation } from './ui/remote-navigation';
-import { installCasting } from './ui/casting';
-import { installViewport } from './ui/viewport';
-import { mountRegionPreference } from './ui/region-preference';
-
-import { fetchAuxiliaryText } from './location/fetch';
 
 import { mountLibrarySwitcher } from './ui/library-switcher';
 
-import {
-  defaultProviderRegistry,
-  parseProviderRegistry,
-  serializeProviderRegistry,
-} from './discovery/provider-registry';
-
-import { installInAppSelects } from './ui/in-app-select';
-
-import { installDataTransfer } from './ui/data-transfer';
-
-import { createDiagnostics } from './diagnostics/native';
-
-import { mountEventHistory } from './ui/event-history';
 import './ui/event-history.css';
-
-import { installFullscreenPresentation } from './ui/fullscreen-presentation';
-
-import { installCategoryMenu } from './ui/category-menu';
-import { installCaptions } from './ui/captions';
-
-import { mountGeographyControls } from './ui/geography-controls';
-import { mountViewingChoices } from './ui/viewing-choices';
-import { mountSettingsNavigation, mountLocationDialog } from './ui/settings-navigation';
 
 import { mountVODStop } from './ui/vod-stop';
 
-import { createPageInput } from './discovery/page-input';
-
-import { mountWebsiteDiscovery } from './ui/website-discovery';
 import { NativeSpeech } from './search/native-speech';
 import { mountSpeechSearch } from './ui/speech-search';
 import { mountStorageRecovery } from './ui/storage-recovery';
@@ -114,65 +69,27 @@ import './ui/category-menu.css';
 import './ui/saved-channel-check.css';
 import './ui/picture-states.css';
 import './ui/header-art.css';
-import { createAccountGuide } from './platform/account-guide';
-
-import { installVODDock } from './ui/vod-dock';
 
 import { createSelectionSession } from './discovery/selection-session';
 
 import { type ChannelCheck } from './platform/channel-checks';
 
-import { decodeSavedHealthInWorker } from './application/health-history-read';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 
 import { createShell } from './ui/shell';
-import { mountAbout } from './ui/about';
-import { ChannelBrowser, type ChannelFilter } from './ui/channel-browser';
-import { queryCatalogPage } from './platform/catalog-query';
 
-import { PlaybackController, type PlaybackSnapshot } from './playback/controller';
-import { startTiming } from './playback/start-timing';
+import { type ChannelFilter } from './ui/channel-browser';
 
-import { mountChannelActions } from './ui/channel-actions';
-import { mountProviderManagement } from './ui/provider-management';
+import { type PlaybackSnapshot } from './playback/controller';
 
-import {
-  createViewingWakeOwner,
-  createViewingForegroundAdmission,
-} from './playback/viewing-wake-owner';
-import { createWakeTransportAdmission } from './playback/viewing-wake-startup';
-import { createBrowserEngineFactory, readVideoQuality } from './platform/browser-engine';
 import { createNativeVideoBridge, nativeVideoAvailable } from './platform/native-video';
-import { createNativeVodEngine } from './playback/native-vod-engine';
-import { createNativeLiveEngine, nativeLiveRelay } from './playback/native-live-engine';
-import { accountOnDemand, createRoutingEngineFactory } from './playback/routing-engine';
+
 import { createNativePictureHost } from './ui/native-picture';
-import { installVideoQuality } from './ui/video-quality';
-import { installAudioTracks } from './ui/audio-tracks';
-import { playbackResourceOwners } from './playback/resource-owners';
-import {
-  readRecord,
-  readRecordPair,
-  writeRecord,
-  writeRecordPair,
-  inspectSource,
-} from './platform/records';
-import {
-  emptyCatalog,
-  serializeCatalog,
-  validateSource,
-  type CatalogRecord,
-  type Source,
-} from './catalog';
+
+import { emptyCatalog, type CatalogRecord, type Source } from './catalog';
 
 import { mountLocalStreams } from './ui/local-streams';
 
-import {
-  SerializedPreferencesStore,
-  defaultPanelWidthForViewport,
-  createChannelCategoryResolver,
-  type Preferences,
-} from './preferences';
 // Last stylesheet: the shared pop-up look sits over every component sheet.
 import './ui/dialog-polish.css';
 import { createScanController } from './application/scan-controller';
@@ -207,6 +124,17 @@ import { createAddChannelsEntry } from './application/add-channels-entry';
 import { createCatalogRefresh } from './application/catalog-refresh';
 import { createMediaKeys } from './application/media-keys';
 import { createGuideViews } from './application/guide-views';
+import { createAccountSetup } from './application/account-setup';
+import { createChannelListControls } from './application/channel-list-controls';
+import { createChannelBrowserSetup } from './application/channel-browser-setup';
+import { createAccountPreferencesController } from './application/account-preferences-controller';
+import { createSourceFinder } from './application/source-finder';
+import { createDataTransferSetup } from './application/data-transfer-setup';
+import { createViewingWakeSetup } from './application/viewing-wake-setup';
+import { createSharingAndCasting } from './application/sharing-and-casting';
+import { createPreferencesSetup } from './application/preferences-setup';
+import { createPlaybackSetup } from './application/playback-setup';
+import { createShellSetup } from './application/shell-setup';
 
 /**
  * The application context: everything the area controllers share with the
@@ -220,8 +148,8 @@ const app = createSharedContext(
     accountBrowser: () => accountBrowser,
     accountControls: () => accountControls,
     accountPlayer: () => accountPlayer,
-    accountPreferenceOwner: () => accountPreferenceOwner,
-    accountPreferenceWork: () => accountPreferenceWork,
+    accountPreferenceOwner: () => accountPreferencesController.accountPreferenceOwner,
+    accountPreferenceWork: () => accountPreferencesController.accountPreferenceWork,
     accountVodSelected: () => accountVodSelected,
     activeSources: () => activeSources,
     activityWake: () => activityWake,
@@ -251,7 +179,7 @@ const app = createSharedContext(
     browser: () => browser,
     cancelOnlineSourceEntry: () => cancelOnlineSourceEntry,
     castButton: () => castButton,
-    castingAvailable: () => castingAvailable,
+    castingAvailable: () => sharingAndCasting.castingAvailable,
     catalog: () => catalog,
     catalogBrowseReady: () => catalogBrowseReady,
     catalogBrowseViewRevision: () => catalogBrowseViewRevision,
@@ -279,6 +207,7 @@ const app = createSharedContext(
     eventHistory: () => eventHistory,
     fileImportTarget: () => fileImportTarget,
     foregroundGeneration: () => foregroundGeneration,
+    foregroundPlaybackAllowed: () => foregroundPlaybackAllowed,
     friendlyError: () => friendlyError,
     fullscreenOwner: () => fullscreenOwner,
     fullscreenPresentation: () => fullscreenPresentation,
@@ -304,6 +233,7 @@ const app = createSharedContext(
     liveBrowseJobs: () => liveBrowseJobs,
     localStreams: () => localStreams,
     mutateCatalog: () => mutateCatalog,
+    nativePicture: () => nativePicture,
     nativeViewingForeground: () => nativeViewingForeground,
     notice: () => notice,
     noticeTimer: () => noticeTimer,
@@ -317,7 +247,9 @@ const app = createSharedContext(
     pendingAccountPlayback: () => pendingAccountPlayback,
     pendingPublicPlayback: () => pendingPublicPlayback,
     persistedCatalogRevision: () => persistedCatalogRevision,
+    playAccountVod: () => playAccountVod,
     playbackAction: () => playbackAction,
+    playbackAllowsHttp: () => playbackAllowsHttp,
     playbackHealth: () => playbackHealth,
     player: () => player,
     playerView: () => playerView,
@@ -333,6 +265,7 @@ const app = createSharedContext(
     probeScheduler: () => probeScheduler,
     providerManagement: () => providerManagement,
     publicGroupControllers: () => publicGroupControllers,
+    recordArchiveRevision: () => recordArchiveRevision,
     refresh: () => refresh,
     refreshAllSources: () => refreshAllSources,
     refreshFileImportTargets: () => refreshFileImportTargets,
@@ -348,6 +281,7 @@ const app = createSharedContext(
     removeLocationDialog: () => removeLocationDialog,
     removeMediaKeys: () => removeMediaKeys,
     removeRemoteNavigation: () => removeRemoteNavigation,
+    removeSavedChannel: () => removeSavedChannel,
     removeSettingsNavigation: () => removeSettingsNavigation,
     removeVideoQuality: () => removeVideoQuality,
     removeViewport: () => removeViewport,
@@ -364,11 +298,12 @@ const app = createSharedContext(
     scanController: () => scanController,
     scanProviderSources: () => scanProviderSources,
     selectAccountPlayback: () => selectAccountPlayback,
+    selectAccountScope: () => selectAccountScope,
     selectionEpisode: () => selectionEpisode,
     setImportBusy: () => setImportBusy,
-    settings: () => settings,
+    settings: () => preferencesSetup.settings,
     sharingBridge: () => sharingBridge,
-    sharingPanel: () => sharingPanel,
+    sharingPanel: () => sharingAndCasting.sharingPanel,
     slowChannelIds: () => slowChannelIds,
     soundNow: () => soundNow,
     sourceActivation: () => sourceActivation,
@@ -379,17 +314,18 @@ const app = createSharedContext(
     startupJobs: () => startupJobs,
     startupObserver: () => startupObserver,
     stopLocalPlayback: () => stopLocalPlayback,
-    storageRecovery: () => storageRecovery,
+    storageRecovery: () => shellSetup.storageRecovery,
     supportsBoundedResume: () => supportsBoundedResume,
+    switchLibrary: () => switchLibrary,
     switchPrimaryPage: () => switchPrimaryPage,
-    televisionSelects: () => televisionSelects,
+    televisionSelects: () => sharingAndCasting.televisionSelects,
     toggleChannelFavorite: () => toggleChannelFavorite,
     transferBusy: () => transferBusy,
     updateGuideForeground: () => updateGuideForeground,
     updateImportActions: () => updateImportActions,
     updatePreviewControl: () => updatePreviewControl,
     updateVisibleGuide: () => updateVisibleGuide,
-    viewingChoices: () => viewingChoices,
+    viewingChoices: () => channelListControls.viewingChoices,
     viewingForeground: () => viewingForeground,
     viewingWake: () => viewingWake,
     visibleGuide: () => visibleGuideState.visibleGuide,
@@ -404,6 +340,7 @@ const app = createSharedContext(
     writeAccountPreference: () => writeAccountPreference,
   },
   {
+    accountPlayer: (value: typeof accountPlayer) => (accountPlayer = value),
     addChannelsEntryController: (value: typeof addChannelsEntry.addChannelsEntryController) =>
       (addChannelsEntry.addChannelsEntryController = value),
     addChannelsEntryGeneration: (value: typeof addChannelsEntry.addChannelsEntryGeneration) =>
@@ -411,10 +348,12 @@ const app = createSharedContext(
     addChannelsEntryWork: (value: typeof addChannelsEntry.addChannelsEntryWork) =>
       (addChannelsEntry.addChannelsEntryWork = value),
     applicationClosing: (value: typeof applicationClosing) => (applicationClosing = value),
+    archivePlayer: (value: typeof archivePlayer) => (archivePlayer = value),
     archiveSearch: (value: typeof archiveSearch) => (archiveSearch = value),
     backgroundLiveChoice: (value: typeof backgroundLiveChoice) => (backgroundLiveChoice = value),
     backgroundSuspension: (value: typeof backgroundSuspension) => (backgroundSuspension = value),
-    castingAvailable: (value: typeof castingAvailable) => (castingAvailable = value),
+    castingAvailable: (value: typeof sharingAndCasting.castingAvailable) =>
+      (sharingAndCasting.castingAvailable = value),
     catalog: (value: typeof catalog) => (catalog = value),
     catalogBrowseReady: (value: typeof catalogBrowseReady) => (catalogBrowseReady = value),
     catalogBrowseViewRevision: (value: typeof catalogBrowseViewRevision) =>
@@ -422,11 +361,14 @@ const app = createSharedContext(
     catalogRevision: (value: typeof catalogRevision) => (catalogRevision = value),
     catalogWrites: (value: typeof catalogWrites) => (catalogWrites = value),
     channelCheckMarks: (value: typeof channelCheckMarks) => (channelCheckMarks = value),
+    channelLogos: (value: typeof channelLogos) => (channelLogos = value),
     collectionAbort: (value: typeof collectionAbort) => (collectionAbort = value),
     customImportIntent: (value: typeof addChannelsEntry.customImportIntent) =>
       (addChannelsEntry.customImportIntent = value),
     foregroundGeneration: (value: typeof foregroundGeneration) => (foregroundGeneration = value),
     importRunning: (value: typeof importRunning) => (importRunning = value),
+    libraries: (value: typeof libraries) => (libraries = value),
+    localStreams: (value: typeof localStreams) => (localStreams = value),
     nativeViewingForeground: (value: typeof nativeViewingForeground) =>
       (nativeViewingForeground = value),
     noticeTimer: (value: typeof noticeTimer) => (noticeTimer = value),
@@ -437,11 +379,14 @@ const app = createSharedContext(
       (persistedCatalogRevision = value),
     renderedSelection: (value: typeof renderedSelection) => (renderedSelection = value),
     selectionEpisode: (value: typeof selectionEpisode) => (selectionEpisode = value),
-    settings: (value: typeof settings) => (settings = value),
-    sharingPanel: (value: typeof sharingPanel) => (sharingPanel = value),
+    settings: (value: typeof preferencesSetup.settings) => (preferencesSetup.settings = value),
+    sharingPanel: (value: typeof sharingAndCasting.sharingPanel) =>
+      (sharingAndCasting.sharingPanel = value),
     slowChannelIds: (value: typeof slowChannelIds) => (slowChannelIds = value),
-    storageRecovery: (value: typeof storageRecovery) => (storageRecovery = value),
-    televisionSelects: (value: typeof televisionSelects) => (televisionSelects = value),
+    storageRecovery: (value: typeof shellSetup.storageRecovery) =>
+      (shellSetup.storageRecovery = value),
+    televisionSelects: (value: typeof sharingAndCasting.televisionSelects) =>
+      (sharingAndCasting.televisionSelects = value),
     transferBusy: (value: typeof transferBusy) => (transferBusy = value),
     vodStopControl: (value: typeof vodStopControl) => (vodStopControl = value),
   },
@@ -514,65 +459,25 @@ if (isTauri())
   bootstrapBoundary.run('shell', () =>
     mountVpnIndicator(document.querySelector<HTMLElement>('.topbar')!, createVpnStatus()),
   );
-const diagnostics = bootstrapBoundary.run('shell', () => createDiagnostics());
-const audioDiagnostics = bootstrapBoundary.run('shell', () =>
-  installAudioDiagnostics(element<HTMLVideoElement>('video'), { emit: diagnostics.emit }),
-);
-const eventHistory = bootstrapBoundary.run('shell', () =>
-  mountEventHistory(element('app'), {
-    read: diagnostics.read,
-    clear: diagnostics.clear,
-    formatTime: (timestampMs) => new Date(timestampMs).toLocaleString(),
-  }),
-);
-bootstrapBoundary.run('shell', () =>
-  element('event-history-button').addEventListener('click', () => eventHistory.open()),
-);
-const fullscreenPresentation = bootstrapBoundary.run('viewing-controls', () =>
-  installFullscreenPresentation(element('app')),
-);
-const removeCaptions = bootstrapBoundary.run('viewing-controls', () =>
-  installCaptions(
-    element<HTMLVideoElement>('video'),
-    element<HTMLButtonElement>('captions-button'),
-  ),
-);
-const removeVideoQuality = bootstrapBoundary.run('viewing-controls', () =>
-  installVideoQuality(element<HTMLVideoElement>('video'), element('video-quality')),
-);
-const removeAudioTracks = bootstrapBoundary.run('viewing-controls', () =>
-  installAudioTracks(element<HTMLVideoElement>('video'), element('audio-tracks')),
-);
-const vodDock = bootstrapBoundary.run('viewing-controls', () =>
-  installVODDock(
-    element('app'),
-    () => !applicationClosing && nativeViewingForeground && !backgroundSuspension,
-  ),
-);
+const shellSetup = createShellSetup(app);
+const {
+  audioDiagnostics,
+  categoryMenu,
+  diagnostics,
+  eventHistory,
+  fullscreenPresentation,
+  remoteEditMode,
+  removeAbout,
+  removeAudioTracks,
+  removeCaptions,
+  removeLocationDialog,
+  removeRemoteNavigation,
+  removeSettingsNavigation,
+  removeVideoQuality,
+  removeViewport,
+  vodDock,
+} = shellSetup;
 
-element('app').dataset.compactView = 'watch';
-element('compact-view').addEventListener('change', () => {
-  element('app').dataset.compactView = element<HTMLSelectElement>('compact-view').value;
-  updateVisibleGuide();
-});
-const removeSettingsNavigation = bootstrapBoundary.run('settings', () =>
-  mountSettingsNavigation(element<HTMLDialogElement>('settings-dialog')),
-);
-const removeLocationDialog = bootstrapBoundary.run('region', () =>
-  mountLocationDialog(element('geography-controls')),
-);
-const removeAbout = bootstrapBoundary.run('settings', () =>
-  mountAbout(element('app'), element<HTMLButtonElement>('about-button')),
-);
-element('app').inert = true;
-// TV and Windows: All | Movies | News | Sports fold into one button in the channel row.
-const categoryMenu = bootstrapBoundary.run('viewport', () => installCategoryMenu(element('app')));
-let storageRecovery: ReturnType<typeof mountStorageRecovery> | undefined;
-const removeViewport = bootstrapBoundary.run('viewport', () => installViewport(element('app')));
-const remoteEditMode = bootstrapBoundary.run('viewport', () => createRemoteEditMode());
-const removeRemoteNavigation = bootstrapBoundary.run('viewport', () =>
-  installRemoteNavigation({ editMode: remoteEditMode }),
-);
 const sourceAllowsHttp = (url: string): boolean =>
   catalog.sources.find((source) =>
     catalog.channels.some(
@@ -581,17 +486,13 @@ const sourceAllowsHttp = (url: string): boolean =>
   )?.allowHttp ?? false;
 // Bootstrap failure callbacks can run before these owners are constructed.
 // Keep an initialized optional binding rather than a later const's temporal dead zone.
-// eslint-disable-next-line prefer-const
 let accountPlayer: ReturnType<typeof createAccountPlayer> | undefined;
-// eslint-disable-next-line prefer-const
 let archivePlayer: ReturnType<typeof createArchivePlayer> | undefined;
-// eslint-disable-next-line prefer-const
 let localStreams: ReturnType<typeof mountLocalStreams> | undefined;
 let vodStopControl: ReturnType<typeof mountVODStop> | undefined;
 let archiveSearch: ReturnType<typeof mountArchiveSearch> | undefined;
 // eslint-disable-next-line prefer-const -- assigned once, below; bootstrap failure callbacks read it before that
 let archiveDownloads: ReturnType<typeof createArchiveDownloads> | undefined;
-// eslint-disable-next-line prefer-const -- assigned once, later; read before that
 let channelLogos: ReturnType<typeof createChannelLogos> | undefined;
 const library = createLibraryState();
 const libraryQueries: Record<ContentLibrary, string> = { live: '', genxtra: '' };
@@ -647,230 +548,12 @@ const nativePicture = nativeVideoAvailable()
       video: element<HTMLVideoElement>('video'),
     })
   : null;
-const player = bootstrapBoundary.run(
-  'playback',
-  () =>
-    new PlaybackController(
-      createRoutingEngineFactory(
-        createBrowserEngineFactory(
-          element<HTMLVideoElement>('video'),
-          (url, signal) => inspectSource(url, playbackAllowsHttp(url), signal),
-          {
-            allowHttp: playbackAllowsHttp,
-            preferNativeHls: false,
-            requestAllowed: (url) =>
-              archivePlayer?.selection
-                ? archivePlayer.allowsRequest(url)
-                : accountPlayer?.selection
-                  ? accountPlayer.allowsRequest(url)
-                  : true,
-          },
-        ),
-        nativePicture ? (emit) => createNativeVodEngine(emit, nativePicture) : null,
-        accountOnDemand,
-        // Live channels whose MPEG-2 picture the WebView cannot show.
-        nativePicture
-          ? (emit) =>
-              createNativeLiveEngine(
-                emit,
-                nativePicture,
-                nativeLiveRelay,
-                playbackAllowsHttp,
-                () =>
-                  notice(
-                    'This channel is playing without sound: this device cannot decode its audio format.',
-                  ),
-                // Live channels reach this player for their MPEG-2 picture; a
-                // phone without an MPEG-2 decoder (Galaxy S25) plays only the sound.
-                () => {
-                  notice(
-                    'This channel’s picture is MPEG-2, which this device cannot show. Its sound plays; Android TVs show the picture.',
-                  );
-                  // Kept on the black picture while this channel plays.
-                  const note = element('picture-note');
-                  note.textContent = 'MPEG-2 picture · sound only on this device';
-                  note.dataset.channel = player.snapshot.selection?.id ?? '';
-                  note.hidden = false;
-                },
-              )
-          : null,
-      ),
-    ),
-);
-accountPlayer = createAccountPlayer({ player });
-// Read-only, redacted ownership evidence for deterministic packaged diagnostics.
-// This exposes no channels, addresses, credentials, commands or mutable registry.
-Object.defineProperty(window, '__GENX_PLAYBACK_OWNERS__', {
-  get: () => playbackResourceOwners.snapshot(),
-  enumerable: false,
-  configurable: false,
-});
-Object.defineProperty(window, '__GENX_VIDEO_QUALITY__', {
-  get: () => readVideoQuality(element<HTMLVideoElement>('video')),
-  enumerable: false,
-  configurable: false,
-});
-// Measurement only: when each stage of the latest channel starts happened.
-// A Paid TV start also gets the local relay's times (provider and player bytes).
-if (isTauri())
-  startTiming.enrichAccountStarts((add) => {
-    void invoke<{
-      requestMs: number;
-      playerRequestMs: number | null;
-      preopened: boolean;
-      freshRuns: number;
-      upstreamHeadersMs: number | null;
-      upstreamFirstByteMs: number | null;
-      playerFirstByteMs: number | null;
-      busyRetries: number;
-      hops: Array<{
-        dnsMs: number;
-        connectMs: number | null;
-        serverWaitMs: number;
-        https: boolean;
-        status: number;
-      }>;
-    } | null>('account_playback_start_timing')
-      .then((relay) => {
-        if (!relay) return;
-        add.wallStage('relay-request', relay.requestMs);
-        add.wallStage('player-request', relay.playerRequestMs);
-        add.fact('preopened', relay.preopened);
-        add.fact('fresh-runs', relay.freshRuns);
-        add.wallStage('upstream-headers', relay.upstreamHeadersMs);
-        add.wallStage('upstream-first-byte', relay.upstreamFirstByteMs);
-        add.wallStage('player-first-byte', relay.playerFirstByteMs);
-        add.fact('provider-busy-retries', relay.busyRetries);
-        // The provider stage split: DNS, connect, redirects and server wait.
-        const hops = relay.hops;
-        add.fact('redirects', Math.max(0, hops.length - 1));
-        const total = (pick: (hop: (typeof hops)[number]) => number | null) =>
-          Math.round(hops.reduce((sum, hop) => sum + (pick(hop) ?? 0), 0));
-        add.fact(
-          'dns-ms',
-          total((hop) => hop.dnsMs),
-        );
-        add.fact(
-          'connect-ms',
-          total((hop) => hop.connectMs),
-        );
-        add.fact(
-          'server-wait-ms',
-          total((hop) => hop.serverWaitMs),
-        );
-        hops.forEach((hop, index) => {
-          const name = `hop${index + 1}`;
-          add.fact(`${name}-dns-ms`, Math.round(hop.dnsMs));
-          if (hop.connectMs !== null) add.fact(`${name}-connect-ms`, Math.round(hop.connectMs));
-          add.fact(`${name}-wait-ms`, Math.round(hop.serverWaitMs));
-          add.fact(`${name}-status`, hop.status);
-          add.fact(`${name}-https`, hop.https);
-        });
-      })
-      .catch(() => undefined);
-  });
-Object.defineProperty(window, '__GENX_START_TIMING__', {
-  get: () => startTiming.snapshot(),
-  enumerable: false,
-  configurable: false,
-});
-// WebView can report zero before its first measured layout; this is a DOM
-// initialization fallback, not validation or normalization of saved data.
-function initialPanelWidth(): number {
-  const width = window.innerWidth;
-  return Number.isFinite(width) && width > 0 ? defaultPanelWidthForViewport(width) : 360;
-}
-const preferences = bootstrapBoundary.run(
-  'preferences',
-  () =>
-    new SerializedPreferencesStore(
-      {
-        read: async () => {
-          const text = await readRecord('preferences');
-          return text === null ? null : JSON.parse(text);
-        },
-        write: async (value) => {
-          await writeRecord('preferences', JSON.stringify(value));
-        },
-      },
-      initialPanelWidth(),
-    ),
-);
-let settings: Preferences = preferences.snapshot();
-const regionPreference = bootstrapBoundary.run('region', () =>
-  mountRegionPreference(element('region-settings'), {
-    read: () => settings.preferredRegion,
-    save: async (region, signal) => {
-      signal.throwIfAborted();
-      const saved = await saveSettings(
-        (draft) => {
-          draft.preferredRegion = region;
-        },
-        async () => !signal.aborted,
-      );
-      if (saved) catalogRevision++;
-      return saved;
-    },
-    fetch: fetchAuxiliaryText,
-  }),
-);
-element('save-provider-configuration').addEventListener('click', () => {
-  void (async () => {
-    try {
-      const parsed = parseProviderRegistry(
-        element<HTMLTextAreaElement>('provider-configuration').value,
-      );
-      // Owner decision, October 17, 2026: included channel sources always allow
-      // plain HTTP (allowIncludedHttp grants it again at every start). Keep it on
-      // here and say so, rather than save "off" and silently undo it later.
-      const withdrawn = parsed.reviewedChannelProviders.some(
-        (provider) => provider.allowHttp !== true,
-      );
-      const registry = {
-        ...parsed,
-        reviewedChannelProviders: parsed.reviewedChannelProviders.map((provider) => ({
-          ...provider,
-          allowHttp: true,
-        })),
-      };
-      const saved = await saveSettings((draft) => {
-        draft.reviewedChannelProviders = registry.reviewedChannelProviders;
-        draft.reviewedGuideProviders = registry.reviewedGuideProviders;
-      });
-      if (!saved) return;
-      catalogRevision++;
-      if (withdrawn)
-        element<HTMLTextAreaElement>('provider-configuration').value =
-          serializeProviderRegistry(registry);
-      element('provider-configuration-status').textContent = withdrawn
-        ? 'Discovery providers saved. Included channel sources always allow plain HTTP, so that stays on. Your existing channels are preserved.'
-        : 'Discovery providers saved. Your existing channels are preserved.';
-    } catch {
-      element('provider-configuration-status').textContent =
-        'Check the provider configuration. No changes were saved.';
-    }
-  })();
-});
-element('restore-provider-configuration').addEventListener('click', () => {
-  void (async () => {
-    try {
-      const registry = defaultProviderRegistry();
-      const saved = await saveSettings((draft) => {
-        draft.reviewedChannelProviders = registry.reviewedChannelProviders;
-        draft.reviewedGuideProviders = registry.reviewedGuideProviders;
-      });
-      if (!saved) return;
-      catalogRevision++;
-      element<HTMLTextAreaElement>('provider-configuration').value =
-        serializeProviderRegistry(registry);
-      element('provider-configuration-status').textContent =
-        'Suggested sources restored. Scan channels or find program guides when you are ready.';
-    } catch {
-      element('provider-configuration-status').textContent =
-        'Suggested sources could not be saved.';
-    }
-  })();
-});
+const playbackSetup = createPlaybackSetup(app);
+const { player } = playbackSetup;
+
+const preferencesSetup = createPreferencesSetup(app);
+const { preferences, regionPreference } = preferencesSetup;
+
 let catalog: CatalogRecord = emptyCatalog();
 // Newest saved-channel checks (Not responding marks); see presentNotResponding.
 let channelCheckMarks: ReadonlyMap<string, ChannelCheck> = new Map();
@@ -900,118 +583,9 @@ function admitForegroundPlayback(): void {
   if (!foregroundPlaybackAllowed())
     throw new DOMException('Playback is paused in the background.', 'AbortError');
 }
-const sharingBridge = bootstrapBoundary.run('sharing', () =>
-  createSharingHost({
-    player,
-    playbackAllowed: foregroundPlaybackAllowed,
-    localSelection: {
-      select: async (selection, recovery) => {
-        admitForegroundPlayback();
-        pendingAccountPlayback = null;
-        backgroundLiveChoice = null;
-        clearArchiveResume();
-        const pending = {
-          selection: { ...selection },
-          sharingGeneration: sharingBridge.host.snapshot().generation,
-        };
-        pendingPublicPlayback = pending;
-        try {
-          if (!isTauri()) await accountPlayer!.selectPublic(selection, recovery);
-          else
-            await archivePlayer!.handoff((signal) =>
-              accountPlayer!.selectPublic(selection, recovery, signal),
-            );
-        } finally {
-          if (pendingPublicPlayback === pending) pendingPublicPlayback = null;
-        }
-      },
-      stop: () => accountPlayer!.stop(),
-    },
-    publishSelectionAllowed: (selection) => !privatePlayback(selection),
-    channels: () => catalog.channels,
-    extraChannel: (id) => localStreams?.channel(id),
-    settings: () => settings,
-    saveAudio: async (patch, context, generation) => {
-      const current = () =>
-        !context?.signal.aborted && sharingBridge.host.snapshot().generation === generation;
-      const guard = context
-        ? async () => current() && (await context.authorized()) && current()
-        : undefined;
-      const saved = await saveSettings(
-        (draft) => {
-          if (context && !current()) throw new DOMException('Phone action canceled.', 'AbortError');
-          Object.assign(draft, patch);
-        },
-        guard,
-        true,
-      );
-      if (!saved) throw new Error('Audio settings could not be saved.');
-    },
-  }),
-);
-let sharingPanel: ReturnType<typeof mountSharingSettings> | null = null;
-archivePlayer = createArchivePlayer({
-  player,
-  bookmarks: createArchiveBookmarks(),
-  chooseResume: (selection, position, signal) =>
-    chooseArchiveResume(selection.title, position.positionMs, signal, position.completed),
-  bookmarkFailed: (message) => {
-    if (!applicationClosing) notice(message);
-  },
-  readyScope: archiveRuntimeScope,
-  catalogRevision: () => library.archiveIndexRevision,
-  beforeStart: async (signal) => {
-    signal.throwIfAborted();
-    admitForegroundPlayback();
-    backgroundLiveChoice = null;
-    pendingAccountPlayback = null;
-    pendingPublicPlayback = null;
-    await sharingBridge.stop();
-    signal.throwIfAborted();
-    admitForegroundPlayback();
-  },
-  confirmedDead: (receipt) => {
-    if (archiveRuntimeScope() === null) return;
-    recordArchiveRevision(receipt.revision);
-    notice(
-      'The selected Archive file is no longer available and was removed from playable results.',
-    );
-    // Do not await the Archive UI's query lane from its own selection callback.
-    queueMicrotask(() => {
-      if (archiveActiveScope())
-        void archiveSearch?.query(libraryQueries.genxtra).catch(() => undefined);
-    });
-  },
-  failed: (message) => {
-    if (!applicationClosing) notice(message);
-  },
-});
-const playbackAction = (work: Promise<unknown>): void => {
-  void work.catch((error: unknown) => notice(friendlyError(error)));
-};
-let castingAvailable = !isTauri();
-let televisionSelects: ReturnType<typeof installInAppSelects> | undefined;
-const castButton = element('cast-button') as HTMLButtonElement;
-castButton.hidden = !castingAvailable;
-castButton.disabled = !castingAvailable;
-const removeCasting = bootstrapBoundary.run('casting', () =>
-  installCasting(
-    () => (privatePlayback(player.snapshot.selection) ? null : player.snapshot.selection),
-    (selected) =>
-      catalog.sources.find((source) =>
-        catalog.channels.some(
-          (channel) => channel.sourceId === source.id && channel.id === selected.id,
-        ),
-      )?.allowHttp ?? false,
-    {
-      available: () =>
-        castingAvailable &&
-        !accountPlayer?.selection &&
-        !archivePlayer?.selection &&
-        !privatePlayback(player.snapshot.selection),
-    },
-  ),
-);
+const sharingAndCasting = createSharingAndCasting(app);
+const { castButton, playbackAction, removeCasting, sharingBridge } = sharingAndCasting;
+
 const activeSources = new Map<string, Source>();
 let collectionAbort: AbortController | null = null;
 let importRunning = false;
@@ -1032,33 +606,9 @@ function ownImport(work: Promise<void>): Promise<void> {
 let noticeTimer: ReturnType<typeof setTimeout> | undefined;
 let expanded = false;
 let renderedSelection: string | null = null;
-const wakeTransportAdmission = createWakeTransportAdmission();
-const viewingWake = isTauri()
-  ? createViewingWakeOwner({
-      send: async (active) => {
-        await wakeTransportAdmission.wait();
-        return invoke('set_viewing_active', { active });
-      },
-      onError: () => {
-        if (!applicationClosing)
-          notice('Screen sleep preference could not be applied. Playback remains available.');
-      },
-    })
-  : null;
-Object.defineProperty(window, '__GENX_WAKE__', {
-  get: () => viewingWake?.snapshot() ?? null,
-  enumerable: false,
-  configurable: false,
-});
-const viewingForeground = viewingWake
-  ? createViewingForegroundAdmission((active) => viewingWake.setForeground(active))
-  : null;
-const activityWake = createActivityWakePolicy(
-  (active) => viewingWake?.setActive(active) ?? Promise.resolve(),
-);
-void viewingForeground?.setDocumentVisible(!document.hidden).catch(() => undefined);
-// Initial idle is an explicit owned disable, not an assumed native state.
-void viewingWake?.setActive(false).catch(() => undefined);
+const viewingWakeSetup = createViewingWakeSetup(app);
+const { activityWake, viewingForeground, viewingWake, wakeTransportAdmission } = viewingWakeSetup;
+
 let catalogWrites: Promise<unknown> = Promise.resolve();
 let selectionEpisode:
   | {
@@ -1071,75 +621,8 @@ let selectionEpisode:
     }
   | undefined;
 let transferBusy = false;
-const removeDataTransfer = installDataTransfer({
-  available: () => !importRunning && element('app').dataset.ready === 'true',
-  busy: (value) => {
-    transferBusy = value;
-    setImportBusy(value);
-    for (const id of ['settings-file', 'export-button'])
-      element<HTMLButtonElement | HTMLInputElement>(id).disabled = value;
-  },
-  capture: async () => {
-    await catalogWrites;
-    const saved = await readRecordPair();
-    if (saved.catalogRevision !== persistedCatalogRevision)
-      throw new Error('Saved channels changed. Reopen the app before exporting.');
-    const health = (await decodeSavedHealthInWorker(saved)).health;
-    return {
-      format: 'genx-tv-backup',
-      schemaVersion: 1,
-      catalog,
-      preferences: await preferences.settledSnapshot(),
-      health,
-    };
-  },
-  commit: (prepared) =>
-    withPausedGuideUpdates(async () => {
-      const work = catalogWrites.then(async () => {
-        const healthRevision =
-          prepared.healthText === undefined ? undefined : (await readRecordPair()).healthRevision;
-        settings = await preferences.replaceAtomically(prepared.record.preferences, async () => {
-          const receipt = await writeRecordPair({
-            catalog: prepared.catalogText,
-            preferences: prepared.preferencesText,
-            expectedCatalogRevision: persistedCatalogRevision,
-            ...(prepared.healthText === undefined
-              ? {}
-              : { health: prepared.healthText, expectedHealthRevision: healthRevision }),
-          });
-          persistedCatalogRevision = receipt.catalogRevision;
-        });
-        catalog = prepared.record.catalog;
-        catalogRevision++;
-        await sharingBridge
-          .stop()
-          .catch(() =>
-            notice('Import saved. Playback cleanup needs attention before selecting a channel.'),
-          );
-        applySettings();
-      });
-      catalogWrites = work.catch(() => undefined);
-      await work;
-    }),
-  notice,
-});
-function mutateCatalog(
-  mutate: (previous: CatalogRecord) => CatalogRecord,
-  signal?: AbortSignal,
-): Promise<void> {
-  const work = catalogWrites.then(async () => {
-    signal?.throwIfAborted();
-    const next = mutate(catalog);
-    const contents = serializeCatalog(next);
-    signal?.throwIfAborted();
-    const receipt = await writeRecord('catalog', contents, signal, persistedCatalogRevision);
-    persistedCatalogRevision = receipt.catalogRevision;
-    catalog = next;
-    catalogRevision++;
-  });
-  catalogWrites = work.catch(() => undefined);
-  return work;
-}
+const dataTransferSetup = createDataTransferSetup(app);
+const { mutateCatalog, removeDataTransfer } = dataTransferSetup;
 
 const scanController = createScanController(app);
 const {
@@ -1154,45 +637,11 @@ const {
   adoptIncludedHttp,
 } = scanController;
 
-// Assigned once below; presentPrimaryPage may run before the switcher mounts.
-// eslint-disable-next-line prefer-const -- read earlier by presentPrimaryPage
+// Assigned when account setup mounts the switcher; presentPrimaryPage may run before that.
 let libraries: ReturnType<typeof mountLibrarySwitcher> | undefined;
-const pageInput = createPageInput(
-  isTauri()
-    ? {
-        native: {
-          inspect: (url, allowHttp, requestId) =>
-            invoke('inspect_discovery_page', { url, allowHttp, requestId }),
-          cancel: (requestId) => invoke('cancel_playlist', { requestId }),
-        },
-      }
-    : {},
-);
-const websiteDiscovery = mountWebsiteDiscovery(element('source-scan-settings'), {
-  inspect: (url, allowHttp, signal) => pageInput.inspect(url, allowHttp, signal),
-  reviewSource: (url, label, allowHttp, signal) => {
-    signal?.throwIfAborted();
-    if (importRunning || transferBusy) throw new Error('Wait for the current import to finish.');
-    const existing = catalog.sources.find(
-      (source) => source.kind === 'url' && source.location === url,
-    );
-    const source = validateSource({
-      id: existing?.id ?? crypto.randomUUID(),
-      name: label.trim().slice(0, 512) || new URL(url).hostname,
-      location: url,
-      kind: 'url',
-      allowHttp,
-    });
-    sourceScan.open([{ source, fingerprint: crypto.randomUUID() }]);
-  },
-});
-element('find-sources-button').addEventListener('click', () => {
-  if (importRunning || transferBusy) return;
-  const initialUrl = element<HTMLInputElement>('playlist-url').value.trim();
-  element<HTMLDialogElement>('import-dialog').close();
-  element('settings-button').focus();
-  websiteDiscovery.open(initialUrl);
-});
+const sourceFinder = createSourceFinder(app);
+const { pageInput, websiteDiscovery } = sourceFinder;
+
 const visibleGuideState = createVisibleGuideState();
 // The guide-row controller is created further down, but the channel list can
 // ask for guide rows while it is still being set up. Until the controller
@@ -1210,325 +659,18 @@ let catalogBrowseReady = false;
 const accountBrowser = createAccountBrowser({
   pageChanged: () => queueMicrotask(() => renderPlayer(player.snapshot)),
 });
-const accountPreferences = createAccountPreferences();
-let accountPreferenceOwner: AbortController | null = null;
-let accountPreferenceWork: Promise<AccountPreferencesReceipt> | null = null;
-let accountPreferenceKey = '';
-function writeAccountPreference(
-  mutation: AccountPreferencesMutation,
-): Promise<AccountPreferencesReceipt> {
-  const scope = accountBrowser.preferenceScope();
-  if (!scope || applicationClosing)
-    return Promise.reject(new Error('Reload the account channel list before making changes.'));
-  const key = JSON.stringify([scope, mutation]);
-  if (accountPreferenceWork)
-    return key === accountPreferenceKey
-      ? accountPreferenceWork
-      : Promise.reject(new Error('Wait for the current channel change to finish.'));
-  const owner = new AbortController();
-  accountPreferenceOwner = owner;
-  accountPreferenceKey = key;
-  const work = accountPreferences
-    .write(
-      {
-        schemaVersion: 1,
-        accountId: scope.accountId,
-        expectedAccountRevision: scope.accountRevision,
-        expectedMediaRevision: scope.mediaRevision,
-        expectedPreferencesRevision: scope.preferencesRevision,
-        mutation,
-      },
-      owner.signal,
-    )
-    .then(async (receipt) => {
-      const account = accountBrowser.selectedAccount;
-      if (
-        account?.id === receipt.accountId &&
-        account.revision === receipt.accountRevision &&
-        !applicationClosing
-      ) {
-        await accountBrowser.select(account);
-        renderCatalog();
-      }
-      if (receipt.cleanupPending)
-        notice('Channel changes were saved. Playback cleanup needs a retry.');
-      return receipt;
-    })
-    .finally(() => {
-      if (accountPreferenceWork === work) {
-        accountPreferenceWork = null;
-        accountPreferenceOwner = null;
-        accountPreferenceKey = '';
-        if (!applicationClosing) renderPlayer(player.snapshot);
-      }
-    });
-  accountPreferenceWork = work;
-  renderPlayer(player.snapshot);
-  return work;
-}
-channelLogos = createChannelLogos({
-  readyScope: () =>
-    isTauri() &&
-    element('app').dataset.ready === 'true' &&
-    !applicationClosing &&
-    library.contentLibrary === 'live' &&
-    pageState.primaryPage === 'watch' &&
-    !library.liveBrowseSuspended &&
-    !document.hidden &&
-    nativeViewingForeground &&
-    !accountBrowser.selectedAccount
-      ? {
-          key: `${library.archiveStorageEpoch}:${persistedCatalogRevision}`,
-          revision: persistedCatalogRevision,
-        }
-      : null,
-  changed: () => browser.refreshArtwork(),
-});
-// Paid TV rows show what is on now from the provider guide stored on this device.
-let paidNowPlaying: ReturnType<typeof createPaidNowPlaying> | null = null;
-const browser = new ChannelBrowser(
-  element('channel-list'),
-  (id) => {
-    element('app').dataset.compactView = 'watch';
-    element<HTMLSelectElement>('compact-view').value = 'watch';
-    updateVisibleGuide();
-    const privateChannel = accountBrowser.selectionFor(id);
-    if (privateChannel) {
-      playbackAction(selectAccountPlayback(privateChannel.channel, privateChannel.fence));
-      return;
-    }
-    const channel = catalog.channels.find((item) => item.id === id);
-    if (channel)
-      playbackAction(
-        sharingBridge.select({ id: channel.id, name: channel.name, url: channel.urls[0] }),
-      );
-  },
-  {
-    onVisibleGuideRows: (rows) => {
-      visibleGuideState.visibleGuideRows = rows.map((row) => ({ ...row }));
-      updateVisibleGuide();
-      paidNowPlaying?.setScope(rows);
-    },
-  },
-  isTauri()
-    ? {
-        revision: () =>
-          accountBrowser.selectedAccount ? accountBrowser.revision() : persistedCatalogRevision,
-        ready: () =>
-          element('app').dataset.ready === 'true' &&
-          library.contentLibrary === 'live' &&
-          !library.liveBrowseSuspended &&
-          !document.hidden &&
-          nativeViewingForeground &&
-          (!!accountBrowser.selectedAccount || catalogBrowseReady),
-        identity: () =>
-          `${library.libraryIntent}:` +
-          (accountBrowser.selectedAccount
-            ? accountBrowser.identity()
-            : `${catalogRevision}:${catalogBrowseViewRevision}`),
-        query: (input, signal) => {
-          if (
-            element('app').dataset.ready !== 'true' ||
-            library.liveBrowseSuspended ||
-            library.contentLibrary !== 'live' ||
-            applicationClosing ||
-            document.hidden ||
-            !nativeViewingForeground
-          )
-            return Promise.reject(new DOMException('Channel browsing suspended.', 'AbortError'));
-          const owner = new AbortController();
-          const joined = createOwnedAbortSignals([signal, owner.signal]);
-          const work = (
-            accountBrowser.selectedAccount
-              ? accountBrowser.query(input, joined.signal)
-              : queryCatalogPage({ ...input, favoritesFirst: true }, joined.signal)
-          ).finally(() => {
-            joined.dispose();
-            liveBrowseJobs.delete(owner);
-          });
-          liveBrowseJobs.set(owner, work);
-          return work;
-        },
-      }
-    : undefined,
-  {
-    logos: channelLogos,
-    baseRowHeight: () =>
-      element('app').dataset.deviceKind === 'tv'
-        ? 52
-        : window.innerWidth >= 1100 && window.innerHeight >= 600
-          ? 72
-          : window.innerWidth >= 700 && window.innerWidth <= 1100 && window.innerHeight <= 600
-            ? 60
-            : 72,
-    onFavorite: (id) => toggleChannelFavorite(id),
-    onManage: (id) => channelActions.open(id),
-  },
-);
-paidNowPlaying = createPaidNowPlaying({
-  guide: createAccountGuide(),
-  account: () => (library.contentLibrary === 'live' ? accountBrowser.selectedAccount : null),
-  epgId: (id) => accountBrowser.selectionFor(id)?.channel.epgId ?? null,
-  now: () => Date.now(),
-  publish: (rows) => browser.setNowPlaying(rows),
-});
-const channelActions = mountChannelActions({
-  category: (id) => {
-    const account = accountBrowser.selectionFor(id);
-    if (account)
-      return {
-        name: account.channel.name,
-        original: account.originalCategory,
-        current: account.channel.category,
-      };
-    const channel = catalog.channels.find((entry) => entry.id === id);
-    return channel
-      ? {
-          name: channel.name,
-          original: channel.category,
-          current: createChannelCategoryResolver(settings)(channel),
-        }
-      : null;
-  },
-  saveCategory: async (id, category) => {
-    if (accountBrowser.selectionFor(id)) {
-      await writeAccountPreference({ kind: 'category', channelId: id, category });
-      return;
-    }
-    if (applicationClosing || !catalog.channels.some((channel) => channel.id === id))
-      throw new Error('Channel unavailable.');
-    if (isTauri()) {
-      await editPublicChannelGroup(id, { kind: 'category', value: category });
-      return;
-    }
-    const saved = await saveSettings((draft) => {
-      const overrides = (draft.channelCategoryOverrides ?? []).filter(
-        (entry) => entry.channelId !== id,
-      );
-      if (category !== null) overrides.push({ channelId: id, category });
-      draft.channelCategoryOverrides = overrides;
-    });
-    if (!saved) throw new Error('Category was not saved.');
-  },
-  removeChannel: (id) => removeSavedChannel(id),
-  notice,
-});
-const providerManagement = mountProviderManagement(element('provider-management'), {
-  read: () => ({
-    schemaVersion: 1,
-    reviewedChannelProviders: settings.reviewedChannelProviders ?? [],
-    reviewedGuideProviders: settings.reviewedGuideProviders ?? [],
-  }),
-  remove: async (kind, id, signal) => {
-    if (
-      applicationClosing ||
-      importRunning ||
-      transferBusy ||
-      addChannelsEntry.addChannelsEntryWork
-    )
-      return false;
-    return saveSettings(
-      (draft) => {
-        if (kind === 'channel')
-          draft.reviewedChannelProviders = (draft.reviewedChannelProviders ?? []).filter(
-            (provider) => provider.id !== id,
-          );
-        else
-          draft.reviewedGuideProviders = (draft.reviewedGuideProviders ?? []).filter(
-            (provider) => provider.id !== id,
-          );
-      },
-      async () => !signal.aborted && !applicationClosing,
-    );
-  },
-});
+const accountPreferencesController = createAccountPreferencesController(app);
+const { writeAccountPreference } = accountPreferencesController;
 
-// eslint-disable-next-line prefer-const -- assigned after the panel it serves
-let viewingChoices: ReturnType<typeof mountViewingChoices> | undefined;
-const geographyControls = mountGeographyControls(element('geography-controls'), {
-  preferredCountry: () => settings.preferredRegion?.country,
-  channels: () =>
-    catalog.channels.filter((channel) => !settings.removedChannels.includes(channel.id)),
-  summary: () => (accountBrowser.selectedAccount ? (viewingChoices?.summary ?? null) : null),
-  apply: ({ filter, sort, registry }) => browser.setGeography(filter, sort, registry),
-});
-viewingChoices = mountViewingChoices({
-  channels: browser,
-  accounts: accountBrowser,
-  changed: () => geographyControls.update(),
-  notice,
-});
-const accountVault = createAccountVault();
-const accountCatalog = createAccountCatalog();
+const channelBrowserSetup = createChannelBrowserSetup(app);
+const { browser } = channelBrowserSetup;
 
-libraries = mountLibrarySwitcher(
-  {
-    list: (signal) => accountVault.list(signal),
-    ready: () => isTauri() && !applicationClosing,
-    selected: () => accountBrowser.selectedAccount,
-    select: (account) => selectAccountScope(account),
-    release: async (id) => {
-      if (accountPlayer?.selection?.fence.accountId === id) await accountPlayer.stop();
-    },
-    showLive: () => switchLibrary('live'),
-    openAccounts: () => {
-      element('settings-button').click();
-      document.querySelector<HTMLButtonElement>('[data-settings-section="sources"]')?.click();
-    },
-    run: playbackAction,
-    vod: { play: playAccountVod, changed: () => televisionSelects?.refresh() },
-  },
-  {
-    free: element('live-tv-button'),
-    paid: element('paid-tv-button'),
-    list: element('channel-list'),
-    row: document.querySelector<HTMLElement>('.sidehead'),
-    guide: element('guide-button'),
-  },
-);
-localStreams = mountLocalStreams(
-  {
-    showLive: () => switchLibrary('live'),
-    playRadio: (radio) => sharingBridge.select(radio),
-    stopPlayback: () => sharingBridge.stop(),
-    run: playbackAction,
-    voice: (t) =>
-      void speechSearch
-        .retarget(t?.container ?? element('speech-control'), t?.input ?? element('search'))
-        .catch(() => undefined),
-  },
-  {
-    after: element('genxtra-button'),
-    leave: ['live-tv-button', 'paid-tv-button', 'genxtra-button', 'guide-button'].map(element),
-    list: element('channel-list'),
-    stage: element('screen'),
-  },
-);
-const accountSettingsContainer = document.createElement('div');
-document.querySelector('[data-settings-panel="sources"]')?.append(accountSettingsContainer);
-const accountControls = mountAccountManagement(accountSettingsContainer, {
-  vault: accountVault,
-  available: () => isTauri() && element('app').dataset.ready === 'true' && !applicationClosing,
-  changed: () => libraries!.reload(),
-  notice,
-  refresh: async (account, signal) => {
-    const receipt = await accountCatalog.refresh(account, signal);
-    if (accountBrowser.selectedAccount?.id === account.id) await selectAccountScope(account);
-    return receipt;
-  },
-  browse: async (account, signal) => {
-    signal.throwIfAborted();
-    await switchLibrary('live');
-    signal.throwIfAborted();
-    await libraries!.select(account);
-    signal.throwIfAborted();
-    element<HTMLDialogElement>('settings-dialog').close();
-    element('channel-list').focus({ preventScroll: true });
-  },
-});
-const openAccountSettings = () => {
-  void accountControls.update();
-};
+const channelListControls = createChannelListControls(app);
+const { channelActions, geographyControls, providerManagement } = channelListControls;
+
+const accountSetup = createAccountSetup(app);
+const { accountControls, openAccountSettings } = accountSetup;
+
 element('settings-button').addEventListener('click', openAccountSettings);
 const speechSearch = mountSpeechSearch(
   element('speech-control'),
@@ -1537,7 +679,7 @@ const speechSearch = mountSpeechSearch(
     recognizer: new NativeSpeech(),
     notice,
     language: () => navigator.language || 'en-US',
-    cloudConsent: () => settings.voiceSearchConsent === true,
+    cloudConsent: () => preferencesSetup.settings.voiceSearchConsent === true,
     saveCloudConsent: async (accepted, signal) => {
       signal?.throwIfAborted();
       if (
@@ -1595,7 +737,7 @@ element('genxtra-kind-select').addEventListener('change', () =>
 element('advanced-guide-button').addEventListener('click', () => {
   element<HTMLDialogElement>('settings-dialog').close();
   playbackAction(guide.openAdvanced());
-  televisionSelects?.refresh();
+  sharingAndCasting.televisionSelects?.refresh();
 });
 let nativeViewingForeground = true;
 Object.defineProperty(window, '__GENX_PRIMARY_TRANSITION__', {
@@ -1787,5 +929,5 @@ bootstrapBoundary.mounted();
 void initialize().catch(() => {
   void diagnostics.emit({ operation: 'storage', level: 'error', code: 'storage-failed' });
   if (!applicationClosing)
-    storageRecovery = mountStorageRecovery({ retry: () => initialize(true) });
+    shellSetup.storageRecovery = mountStorageRecovery({ retry: () => initialize(true) });
 });
