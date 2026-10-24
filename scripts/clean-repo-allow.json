@@ -775,6 +775,12 @@
       "label": "username/password query",
       "sha256": "7e8b6cb717504df9671281e21992d379db9ea8bb1ed17c72bbdaa79f4c138de9",
       "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
+    },
+    {
+      "file": "tests/playback/browser-engine-sources.test.ts",
+      "label": "address with a password",
+      "sha256": "bfe8319254d6106e50eea75cf049eb25251e2a8206b5c20e14881c63ff27eb7b",
+      "reason": "reviewed 2026-10-24: the same placeholder test value reviewed 2026-10-23, moved to a test file or reformatted"
     }
   ]
 }

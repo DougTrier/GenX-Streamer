@@ -28,7 +28,7 @@ const componentSuites = [
   '**/about-support.spec.ts',
   '**/exit-support.spec.ts',
   '**/genxtra-dock-layout.spec.ts',
-  '**/archive-status-navigation.spec.ts',
+  '**/archive-status-navigation*.spec.ts',
   '**/archive-resume.spec.ts',
   '**/tv-surface-audit.spec.ts',
   '**/library-switcher.spec.ts',
