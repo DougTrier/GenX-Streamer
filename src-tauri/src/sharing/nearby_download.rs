@@ -350,7 +350,11 @@ pub(crate) async fn nearby_start(app: tauri::AppHandle) -> Result<NearbyStatus, 
                 _ = &mut deadline => break,
                 _ = stopped.changed() => break,
                 accepted = listener.accept() => {
-                    let Ok((stream, peer)) = accepted else { continue };
+                    let Ok((stream, peer)) = accepted else {
+                        // Out of sockets, for example: pause instead of spinning.
+                        tokio::time::sleep(Duration::from_millis(200)).await;
+                        continue;
+                    };
                     if !local_client(peer.ip()) || closing.load(Ordering::SeqCst) {
                         continue;
                     }
