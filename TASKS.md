@@ -6,9 +6,11 @@ dropped.
 
 ## Release
 
-- **T082 Android release APK**: create a permanent release key (owner-held,
-  never committed), sign a stripped release build, and confirm that installing
-  it over the current app keeps settings.
+- ~~**T082 Android release APK**~~: done October 24, 2026.
+  - The owner created the release key (`new-release-key.ps1`; fingerprint
+    `464c4278…72ff`).
+  - `build-android-release.ps1` signs the universal APK.
+  - In-place updates on a Galaxy S25 kept settings, repeatedly.
 - **T081 Clean Windows launch**: launch from a clean Windows (Windows Sandbox) as
   a standard user and from a read-only folder. The spaces/Unicode-path launch
   already passes. Retry `scripts/windows-sandbox-launch-check.ps1` after a reboot
@@ -33,6 +35,30 @@ dropped.
   different channel while the PC plays another; Back or Home on one TV, one
   TV turned off, and another phone taking one over, each releasing only that
   TV and its pin. Fixture tests pass; not yet seen on the TVs.
+
+## Pass It Along and Install on TV (next)
+
+- **SH-022**: nearby sharing on Android as a foreground service with a
+  notification and Stop (docs/share-links.md).
+- **UP-011 resume**: resuming an interrupted update download (today it
+  restarts from zero, which meets the rule; docs/updates.md).
+- **Shared links, per-connection check**: enforce the public-address check on
+  every connection (redirects, playlist variants, segments) for shared
+  streams, not only once before playback (review finding M3,
+  docs/share-links.md).
+- **Install on TV, update case**: update a TV that already has an older
+  official copy (needs a build with a higher version number).
+- **TV to TV and TV to phone**: GenX on a TV already offers Pass It Along.
+  Install on TV must leave the TV itself out of its list; then test both
+  routes on the Sansui and the Streamer.
+- **Scan save failure on the Google TV Streamer**: "Channels could not be
+  saved" after a fresh install (October 24, 2026). The log had rolled over;
+  reproduce with logging running.
+- **Install counts**: GitHub release download counts are available once
+  releases are public. An opt-in install count would change the privacy
+  promise and is an owner decision.
+- **Website**: publish `site/` (GitHub Pages) when the repository goes public;
+  share links and the download page depend on it.
 
 ## Known limits
 

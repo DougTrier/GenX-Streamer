@@ -187,6 +187,10 @@
 #about-dialog .about-author-link:hover {
   background: #83e9f526;
 }
+/* Support links live in the Created by card (owner's layout, October 24, 2026). */
+#about-dialog .about-support-intro {
+  margin-top: 18px;
+}
 #about-dialog .about-glyph {
   width: 22px;
   height: 22px;
