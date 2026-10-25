@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Submit in Google Search Console: Sitemaps → https://dougtrier.github.io/GenX-Streamer/sitemap.xml
+     The watch/ page is left out on purpose: it only answers shared links (noindex). -->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <url>
+    <loc>https://dougtrier.github.io/GenX-Streamer/</loc>
+    <lastmod>2026-10-24</lastmod>
+  </url>
+  <url>
+    <loc>https://dougtrier.github.io/GenX-Streamer/get/</loc>
+    <lastmod>2026-10-24</lastmod>
+  </url>
+</urlset>

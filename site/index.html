@@ -1,36 +1,381 @@
 <!doctype html>
-<!-- Copyright 2026 Doug Trier. Licensed under the Apache License, Version 2.0.
-     The website's front door (https://dougtrier.github.io/GenX-Streamer/):
-     it sends visitors to the download page, which picks the right file for
-     their device (site/get/). No script. -->
+<!--
+  Copyright 2026 Doug Trier
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+
+  The website's front page (https://dougtrier.github.io/GenX-Streamer/): what
+  GenX Streamer is, for people and for search engines. Downloads go through
+  get/, which picks the right file for the visitor's device. No script runs
+  here; the JSON-LD block is data for search engines, never executed.
+-->
 <html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="referrer" content="no-referrer" />
-    <meta http-equiv="refresh" content="0; url=get/" />
-    <title>GenX Streamer</title>
-    <link rel="canonical" href="get/" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"
+    />
+    <title>GenX Streamer: free live TV for Windows and Android TV</title>
+    <meta
+      name="description"
+      content="GenX Streamer is a free app for Windows and Android TVs, phones and handhelds: free live TV channels, a program guide and a public-domain film library. No account, no tracking. Pass it along to a friend with no app store."
+    />
+    <link rel="canonical" href="https://dougtrier.github.io/GenX-Streamer/" />
+    <link rel="icon" href="watch/genx-icon.png" type="image/png" />
+    <meta name="theme-color" content="#0a1128" />
+
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="GenX Streamer" />
+    <meta property="og:title" content="GenX Streamer: good TV never gets old" />
+    <meta
+      property="og:description"
+      content="Free live TV, a program guide and a public-domain film library for Windows and Android TVs, phones and handhelds. Install it on a TV straight from your phone."
+    />
+    <meta property="og:url" content="https://dougtrier.github.io/GenX-Streamer/" />
+    <meta
+      property="og:image"
+      content="https://dougtrier.github.io/GenX-Streamer/media/genx-streamer-card.jpg"
+    />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta
+      property="og:image:alt"
+      content="GenX Streamer on a phone and a Google TV, side by side"
+    />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "GenX Streamer",
+        "description": "Free live TV, a program guide and a public-domain film library for Windows and Android TVs, phones and handhelds.",
+        "applicationCategory": "EntertainmentApplication",
+        "operatingSystem": "Windows 10, Windows 11, Android 7.0 or newer",
+        "softwareVersion": "0.1.0",
+        "url": "https://dougtrier.github.io/GenX-Streamer/",
+        "downloadUrl": "https://dougtrier.github.io/GenX-Streamer/get/",
+        "image": "https://dougtrier.github.io/GenX-Streamer/media/genx-streamer-card.jpg",
+        "screenshot": "https://dougtrier.github.io/GenX-Streamer/media/tv.jpg",
+        "license": "https://www.apache.org/licenses/LICENSE-2.0",
+        "author": {
+          "@type": "Person",
+          "name": "Doug Trier",
+          "url": "https://github.com/dougtrier"
+        },
+        "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+      }
+    </script>
+
     <style>
+      :root {
+        color-scheme: dark;
+        --text: #eef3ff;
+        --muted: #b9c6dd;
+        --cyan: #83e9f5;
+        --magenta: #f58dca;
+        --panel: #0c1530;
+        --line: #3d6280;
+      }
+      * {
+        box-sizing: border-box;
+      }
       body {
         margin: 0;
-        min-height: 100vh;
-        display: grid;
-        place-items: center;
         font:
-          17px/1.5 system-ui,
+          17px/1.6 system-ui,
           'Segoe UI',
           Roboto,
           sans-serif;
-        color: #eef3ff;
-        background: linear-gradient(160deg, #121d38, #0a1128 70%);
+        color: var(--text);
+        background:
+          radial-gradient(120% 60% at 100% 0%, #f58dca1f, transparent 60%),
+          linear-gradient(160deg, #121d38, #0a1128 70%);
+        background-attachment: fixed;
+      }
+      main {
+        width: min(1080px, calc(100vw - 32px));
+        margin: 0 auto;
+        padding: 40px 0 56px;
+      }
+      header {
+        text-align: center;
+      }
+      header img {
+        width: min(440px, 80vw);
+        height: auto;
+      }
+      .tagline {
+        margin: 6px 0 4px;
+        color: var(--cyan);
+        font-size: 1.35rem;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+      }
+      .intro {
+        max-width: 680px;
+        margin: 0 auto 22px;
+        color: var(--muted);
+      }
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 12px;
+      }
+      .button {
+        display: inline-block;
+        padding: 13px 22px;
+        border-radius: 12px;
+        border: 1px solid var(--line);
+        color: var(--text);
+        text-decoration: none;
+        font-weight: 700;
+      }
+      .button.primary {
+        border: 0;
+        color: #071022;
+        background: var(--cyan);
+      }
+      .button:focus-visible,
+      a:focus-visible {
+        outline: 3px solid var(--magenta);
+        outline-offset: 3px;
+      }
+      .hero-shot {
+        margin: 34px 0 0;
+      }
+      .hero-shot img,
+      .phones img {
+        display: block;
+        width: 100%;
+        height: auto;
+        border-radius: 14px;
+        border: 1px solid var(--line);
+      }
+      section {
+        margin-top: 46px;
+      }
+      h2 {
+        margin: 0 0 14px;
+        font-size: 1.45rem;
+      }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+        gap: 16px;
+      }
+      .card {
+        padding: 18px 20px;
+        border: 1px solid var(--line);
+        border-top: 3px solid var(--magenta);
+        border-radius: 14px;
+        background: var(--panel);
+      }
+      .card h3 {
+        margin: 0 0 6px;
+        font-size: 1.08rem;
+        color: var(--cyan);
+      }
+      .card p {
+        margin: 0;
+        color: var(--muted);
+      }
+      .pass {
+        display: grid;
+        grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+        gap: 24px;
+        align-items: center;
+      }
+      .pass ol {
+        margin: 0;
+        padding-left: 1.3em;
+        color: var(--muted);
+      }
+      .phones {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+      @media (max-width: 720px) {
+        .pass {
+          grid-template-columns: 1fr;
+        }
       }
       a {
-        color: #83e9f5;
+        color: var(--cyan);
+      }
+      footer {
+        margin-top: 52px;
+        color: var(--muted);
+        font-size: 0.92rem;
+        text-align: center;
       }
     </style>
   </head>
   <body>
-    <p><a href="get/">Get GenX Streamer</a></p>
+    <main>
+      <header>
+        <h1>
+          <img src="media/genx-wordmark.png" alt="GenX Streamer" width="640" height="213" />
+        </h1>
+        <p class="tagline">Good TV never gets old.</p>
+        <p class="intro">
+          A free app for Windows and Android TVs, phones and handhelds: free live TV channels, a
+          program guide and a public-domain film library. No account, no ads, no tracking.
+        </p>
+        <div class="actions">
+          <a class="button primary" href="get/">Download GenX Streamer</a>
+          <a class="button" href="https://github.com/DougTrier/GenX-Streamer">Source on GitHub</a>
+        </div>
+        <figure class="hero-shot">
+          <img
+            src="media/tv.jpg"
+            width="1280"
+            height="720"
+            alt="GenX Streamer on a Google TV: channel search and the player"
+          />
+        </figure>
+      </header>
+
+      <section aria-labelledby="features">
+        <h2 id="features">What you get</h2>
+        <div class="grid">
+          <div class="card">
+            <h3>Free TV</h3>
+            <p>
+              Finds public live channels, checks that they actually play, and keeps the ones that
+              do. Favourites, search and voice search.
+            </p>
+          </div>
+          <div class="card">
+            <h3>GenXtra</h3>
+            <p>A library of public-domain films and classic TV, with downloads.</p>
+          </div>
+          <div class="card">
+            <h3>Program guide</h3>
+            <p>
+              What's on now and next, instant replay and captions, with a remote-friendly design for
+              TVs.
+            </p>
+          </div>
+          <div class="card">
+            <h3>Paid TV, your way</h3>
+            <p>Bring your own provider account; it stays in your device's protected storage.</p>
+          </div>
+          <div class="card">
+            <h3>Cast to a screen</h3>
+            <p>Send what you're watching to a Chromecast or DLNA TV.</p>
+          </div>
+          <div class="card">
+            <h3>Old devices welcome</h3>
+            <p>
+              Runs on 32- and 64-bit Android TVs and handhelds, with its own decoders for formats
+              some devices can't play.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="pass">
+        <h2 id="pass">Pass it along: no app store needed</h2>
+        <div class="pass">
+          <div>
+            <p class="intro" style="margin: 0 0 12px; text-align: left">
+              Too rad to keep to yourself. GenX Streamer travels friend to friend:
+            </p>
+            <ol>
+              <li>Send it phone to phone with Quick Share or Bluetooth.</li>
+              <li>
+                Share it with everyone nearby: friends scan a QR code or type a short address, with
+                no internet needed.
+              </li>
+              <li>
+                <strong>Install it on a Google TV from your phone:</strong> pick the TV, enter the
+                code it shows, approve on the TV. GenX does the rest.
+              </li>
+            </ol>
+            <p style="margin-top: 14px">
+              <a
+                href="https://github.com/DougTrier/GenX-Streamer#-pass-it-along-phone-to-tv-unedited"
+                >Watch the unedited phone-to-TV recording</a
+              >
+            </p>
+          </div>
+          <div class="phones">
+            <img
+              src="media/phone-pass-it-along.jpg"
+              width="420"
+              height="808"
+              alt="Pass It Along on a phone: Too rad to keep to yourself"
+            />
+            <img
+              src="media/phone-install-on-tv.jpg"
+              width="420"
+              height="792"
+              alt="Install on TV on a phone: Ready! GenX Streamer is installed."
+            />
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="get">
+        <h2 id="get">Get it</h2>
+        <div class="grid">
+          <div class="card">
+            <h3>Android</h3>
+            <p>
+              TVs, phones, tablets and handhelds with Android 7.0 or newer (ARM, 32- and 64-bit).
+            </p>
+          </div>
+          <div class="card">
+            <h3>Windows</h3>
+            <p>Windows 10 and 11 (64-bit), as an installer-free exe or a portable ZIP.</p>
+          </div>
+          <div class="card">
+            <h3>Check your copy</h3>
+            <p>
+              Every file has a published checksum.
+              <a
+                href="https://github.com/DougTrier/GenX-Streamer/blob/main/docs/verify-a-download.md"
+                >How to verify a download</a
+              >.
+            </p>
+          </div>
+        </div>
+        <p class="actions" style="margin-top: 22px">
+          <a class="button primary" href="get/">Download GenX Streamer</a>
+        </p>
+      </section>
+
+      <footer>
+        <p>
+          GenX Streamer is free and open source (Apache 2.0) by
+          <a href="https://github.com/dougtrier">Doug Trier</a>. If it earns a place on your screen,
+          you can <a href="https://github.com/sponsors/dougtrier">support it on GitHub Sponsors</a>.
+        </p>
+        <p>
+          <a href="https://github.com/DougTrier/GenX-Streamer/blob/main/docs/user-guide.md"
+            >User guide</a
+          >
+          ·
+          <a href="https://github.com/DougTrier/GenX-Streamer/releases/latest">Releases</a>
+          ·
+          <a href="https://github.com/DougTrier/GenX-Streamer">GitHub</a>
+        </p>
+      </footer>
+    </main>
   </body>
 </html>
