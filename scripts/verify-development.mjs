@@ -372,7 +372,11 @@ export async function runDevelopmentVerification() {
     {
       name: 'packaging-regressions',
       executable: process.execPath,
-      args: ['--test', 'tests/tooling/package-candidate.test.mjs'],
+      args: [
+        '--test',
+        'tests/tooling/package-candidate.test.mjs',
+        'tests/tooling/bump-version.test.mjs',
+      ],
     },
     {
       name: 'license-inventory-regressions',

@@ -44,6 +44,17 @@ Each step is a separate choice; **Not now** at any point changes nothing.
 | UP-010 | Offline operation stays available. | A failed check says GitHub could not be reached; nothing else changes. |
 | UP-011 | A partial download never resumes against a different release. | Today nothing resumes: every download starts from zero, and the partial file is deleted on failure or cancel. Nothing installs before the full SHA-256 matches. Resuming is planned this way: the checkpoint records the release, asset, size and digest; resume uses `Range` with `If-Range` and an exact `Content-Range`; anything else restarts from zero. |
 
+## Versions
+
+Each release has a higher version than the last (`node scripts/bump-version.mjs
+patch|minor|major` sets it everywhere: `package.json`, `package-lock.json`,
+`src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `src-tauri/tauri.conf.json`
+and the README badge). Check for updates offers a release only when its
+version is higher than the running copy's. Android's `versionCode` is
+`major*1000000 + minor*1000 + patch`, so each part stays below 1000, and
+Android refuses an update whose code is not higher. `npm run verify` fails
+if the files disagree.
+
 ## Release files
 
 A release must carry these files (names are exact; `<version>` is the tag

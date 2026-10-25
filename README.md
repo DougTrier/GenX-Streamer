@@ -239,6 +239,26 @@ path. Without them the device scripts refuse to run.
 
 ### Release
 
+Every release needs a **higher version**: Check for updates compares
+versions, and Android refuses to update to an equal or lower one. The version
+is written in several files; one command changes them all and checks they
+agree:
+
+```powershell
+node scripts/bump-version.mjs patch    # 0.1.0 -> 0.1.1: fixes
+node scripts/bump-version.mjs minor    # 0.1.0 -> 0.2.0: new features
+node scripts/bump-version.mjs check    # do all files agree? (run by npm run verify)
+```
+
+Then build, package and publish:
+
+1. Run `npm run verify`.
+2. Build Windows with `build-windows.ps1 -Profile Release`, and the signed
+   Android APK with `build-android-release.ps1`.
+3. Make the notices and the package (below).
+4. Publish a GitHub release tagged `v<version>` with the APK, the exe, the
+   ZIP, `SHA256SUMS`, `release-manifest.json` and the Android notices.
+
 ```powershell
 node scripts/release-notices.mjs --inventory <inventory.json> --crates <crate list> --product "GenX Streamer for Windows" --output <new file>
 node scripts/package-candidate.mjs --windows-exe <exe> --output-dir <new folder> --windows-profile release --mode windows-only --notices <notices> --source-revision <commit>
