@@ -4,10 +4,14 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://dougtrier.github.io/GenX-Streamer/</loc>
-    <lastmod>2026-10-24</lastmod>
+    <lastmod>2026-10-25</lastmod>
   </url>
   <url>
     <loc>https://dougtrier.github.io/GenX-Streamer/get/</loc>
-    <lastmod>2026-10-24</lastmod>
+    <lastmod>2026-10-25</lastmod>
+  </url>
+  <url>
+    <loc>https://dougtrier.github.io/GenX-Streamer/getting-started/</loc>
+    <lastmod>2026-10-25</lastmod>
   </url>
 </urlset>

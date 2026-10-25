@@ -14,6 +14,8 @@
   [![Verify](https://img.shields.io/badge/Verify-PASS-45ba4b?style=for-the-badge)](#-current-verified-state)
   [![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge)](LICENSE)
 
+  [Website](https://dougtrier.github.io/GenX-Streamer/) •
+  [Installation and setup](https://dougtrier.github.io/GenX-Streamer/getting-started/) •
   [User guide](docs/user-guide.md) •
   [Pass It Along](docs/share-links.md) •
   [Install on TV](docs/send-to-tv.md) •

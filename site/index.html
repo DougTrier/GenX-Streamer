@@ -23,14 +23,15 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="msvalidate.01" content="53909E532ACBF7D1D2CB2A5D00899C19" />
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"
     />
-    <title>GenX Streamer: free live TV for Windows and Android TV</title>
+    <title>GenX Streamer | Free Live TV App for Windows &amp; Android TV</title>
     <meta
       name="description"
-      content="GenX Streamer is a free app for Windows and Android TVs, phones and handhelds: free live TV channels, a program guide and a public-domain film library. No account, no tracking. Pass it along to a friend with no app store."
+      content="Download GenX Streamer, a free live TV app for Windows and Android TV, phones and handhelds. Explore live channels, a program guide and public-domain films."
     />
     <link rel="canonical" href="https://dougtrier.github.io/GenX-Streamer/" />
     <link rel="icon" href="watch/genx-icon.png" type="image/png" />
@@ -38,7 +39,10 @@
 
     <meta property="og:type" content="website" />
     <meta property="og:site_name" content="GenX Streamer" />
-    <meta property="og:title" content="GenX Streamer: good TV never gets old" />
+    <meta
+      property="og:title"
+      content="GenX Streamer | Free Live TV App for Windows &amp; Android TV"
+    />
     <meta
       property="og:description"
       content="Free live TV, a program guide and a public-domain film library for Windows and Android TVs, phones and handhelds. Install it on a TV straight from your phone."
@@ -61,11 +65,13 @@
         "@context": "https://schema.org",
         "@type": "SoftwareApplication",
         "name": "GenX Streamer",
+        "@id": "https://dougtrier.github.io/GenX-Streamer/#app",
         "description": "Free live TV, a program guide and a public-domain film library for Windows and Android TVs, phones and handhelds.",
         "applicationCategory": "EntertainmentApplication",
         "operatingSystem": "Windows 10, Windows 11, Android 7.0 or newer",
         "softwareVersion": "0.1.0",
         "url": "https://dougtrier.github.io/GenX-Streamer/",
+        "sameAs": "https://github.com/DougTrier/GenX-Streamer",
         "downloadUrl": "https://dougtrier.github.io/GenX-Streamer/get/",
         "image": "https://dougtrier.github.io/GenX-Streamer/media/genx-streamer-card.jpg",
         "screenshot": "https://dougtrier.github.io/GenX-Streamer/media/tv.jpg",
@@ -116,6 +122,15 @@
       header img {
         width: min(440px, 80vw);
         height: auto;
+      }
+      h1 {
+        max-width: 760px;
+        margin: 18px auto 12px;
+        font-size: clamp(1.65rem, 4vw, 2.5rem);
+        line-height: 1.2;
+      }
+      nav {
+        margin: 22px 0;
       }
       .tagline {
         margin: 6px 0 4px;
@@ -228,18 +243,22 @@
   <body>
     <main>
       <header>
-        <h1>
-          <img src="media/genx-wordmark.png" alt="GenX Streamer" width="640" height="213" />
-        </h1>
+        <img src="media/genx-wordmark.png" alt="GenX Streamer" width="640" height="213" />
         <p class="tagline">Good TV never gets old.</p>
+        <h1>GenX Streamer: free live TV app for Windows and Android TV</h1>
         <p class="intro">
           A free app for Windows and Android TVs, phones and handhelds: free live TV channels, a
-          program guide and a public-domain film library. No account, no ads, no tracking.
+          program guide and a public-domain film library. Free and open source, with no GenX account
+          or tracking.
         </p>
         <div class="actions">
           <a class="button primary" href="get/">Download GenX Streamer</a>
           <a class="button" href="https://github.com/DougTrier/GenX-Streamer">Source on GitHub</a>
         </div>
+        <nav aria-label="Site navigation">
+          <a href="getting-started/">Installation and setup guide</a> ·
+          <a href="#questions">Frequently asked questions</a>
+        </nav>
         <figure class="hero-shot">
           <img
             src="media/tv.jpg"
@@ -357,6 +376,34 @@
         </div>
         <p class="actions" style="margin-top: 22px">
           <a class="button primary" href="get/">Download GenX Streamer</a>
+        </p>
+      </section>
+
+      <section id="questions" aria-labelledby="questions-title">
+        <h2 id="questions-title">About the GenX Streamer app</h2>
+        <h3>What is GenX Streamer?</h3>
+        <p>
+          GenX Streamer is a free, open-source TV player by Doug Trier. Watch public live channels,
+          browse a program guide and explore GenXtra's public-domain films and classic TV. You can
+          also bring your own playlists or provider account.
+        </p>
+        <h3>Which devices does it support?</h3>
+        <p>
+          Windows 10 and 11 (64-bit), and Android 7.0 or newer on ARM devices, including Android TV,
+          Google TV, phones, tablets and handhelds. There is currently no iPhone, iPad or Mac
+          version.
+        </p>
+        <h3>Does it include a paid TV subscription?</h3>
+        <p>
+          No. The app is free; paid services require your own provider account. Channel availability
+          depends on the source and your location. A channel or guide listing does not guarantee
+          that a stream is available or will play.
+        </p>
+        <h3>How do I install it?</h3>
+        <p>
+          <a href="get/">Download the official Windows ZIP or Android APK</a>, then follow the
+          <a href="getting-started/">installation and setup guide</a>. You can also install on a
+          Google TV or Android TV from an Android phone using Pass It Along.
         </p>
       </section>
 
