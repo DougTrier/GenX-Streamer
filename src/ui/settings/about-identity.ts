@@ -14,28 +14,25 @@
  * limitations under the License.
  */
 /**
- * This copy (About; docs/verify-a-download.md): version, platform and build;
- * on Android the signing certificate's fingerprint and Official release or
- * Development build; and, when asked, the app file's SHA-256 to compare with
- * SHA256SUMS on the release page.
+ * This copy (About; docs/verify-a-download.md): one line with the version,
+ * platform and build, and, when asked, the app file's SHA-256 to compare with
+ * SHA256SUMS on the release page. The signing certificate is checked inside
+ * the app (only official copies send themselves) but not shown here: the
+ * owner's decision, October 24, 2026 (docs/verify-a-download.md says how to
+ * check it with apksigner).
  */
-import {
-  appChecksum,
-  appIdentity,
-  fingerprintText,
-  type AppIdentity,
-} from '../../platform/app-identity';
+import { appChecksum, appIdentity, type AppIdentity } from '../../platform/app-identity';
 
-export function describeIdentity(identity: AppIdentity): { summary: string; status: string } {
-  const build = identity.build === 'release' ? 'Release build' : 'Development build';
-  const summary = `GenX Streamer ${identity.version} · ${identity.platform} (${identity.architecture}) · ${build}`;
-  const status =
-    identity.platform === 'Android'
-      ? identity.official
-        ? 'Official release: signed with the GenX Streamer release key.'
-        : 'Development build: not signed with the GenX Streamer release key.'
-      : 'Windows copies are unsigned. Compare the checksum with SHA256SUMS on the release page; Windows may still warn about an unknown publisher.';
-  return { summary, status };
+export function describeIdentity(identity: AppIdentity): { summary: string } {
+  const build =
+    identity.platform === 'Android' && identity.build === 'release' && !identity.official
+      ? 'Unofficial build'
+      : identity.build === 'release'
+        ? 'Release build'
+        : 'Development build';
+  return {
+    summary: `GenX Streamer ${identity.version} · ${identity.platform} (${identity.architecture}) · ${build}`,
+  };
 }
 
 export function mountAboutIdentity(container: HTMLElement): {
@@ -45,13 +42,9 @@ export function mountAboutIdentity(container: HTMLElement): {
   container.innerHTML = `
     <h3 class="about-section-title">This copy</h3>
     <p class="about-identity-summary">Version details are shown in the installed app.</p>
-    <p class="about-identity-signer" hidden></p>
-    <p class="about-identity-status" hidden></p>
     <div class="about-identity-actions" hidden><button type="button" class="about-identity-checksum">Show checksum</button></div>
     <p class="about-identity-sha" hidden></p>`;
   const summary = container.querySelector<HTMLElement>('.about-identity-summary')!;
-  const signer = container.querySelector<HTMLElement>('.about-identity-signer')!;
-  const status = container.querySelector<HTMLElement>('.about-identity-status')!;
   const actions = container.querySelector<HTMLElement>('.about-identity-actions')!;
   const button = container.querySelector<HTMLButtonElement>('.about-identity-checksum')!;
   const sha = container.querySelector<HTMLElement>('.about-identity-sha')!;
@@ -64,14 +57,7 @@ export function mountAboutIdentity(container: HTMLElement): {
     void appIdentity().then(
       (identity) => {
         if (disposed || !identity) return;
-        const text = describeIdentity(identity);
-        summary.textContent = text.summary;
-        status.textContent = text.status;
-        status.hidden = false;
-        if (identity.signers.length) {
-          signer.textContent = `Signing certificate SHA-256: ${identity.signers.map(fingerprintText).join(', ')}`;
-          signer.hidden = false;
-        }
+        summary.textContent = describeIdentity(identity).summary;
         actions.hidden = false;
       },
       () => {

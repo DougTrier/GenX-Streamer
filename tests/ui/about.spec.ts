@@ -40,7 +40,16 @@ test('About shows the version, the author tab and the quick guide tab; Escape re
   await expect(authorTab).toHaveAttribute('aria-selected', 'true');
   const authorPanel = about.getByRole('tabpanel', { name: 'About the Author' });
   await expect(authorPanel).toContainText('Doug Trier');
-  await expect(authorPanel).toContainText('Support GenX Streamer');
+  // Support links sit in the Created by card, and Check for Updates comes right after it.
+  const card = authorPanel.locator('.about-author');
+  await expect(card).toContainText('you can support its development');
+  await expect(card.locator('.about-support .about-support-card').first()).toBeVisible();
+  expect(
+    await authorPanel.evaluate((panel) => {
+      const card = panel.querySelector('.about-author');
+      return card?.nextElementSibling?.classList.contains('about-update') ?? false;
+    }),
+  ).toBe(true);
   await expect(authorPanel).toContainText('Share GenX Streamer');
   await expect(authorPanel.getByRole('button', { name: 'Send app to a friend' })).toBeVisible();
   await expect(about.locator('.about-guide')).toBeHidden();

@@ -457,12 +457,9 @@ test('About shows which copy this is and its checksum on request', async ({ page
   await expect(app.locator('.about-identity-summary')).toHaveText(
     'GenX Streamer 0.1.0 · Android (aarch64) · Development build',
   );
-  await expect(app.locator('.about-identity-signer')).toHaveText(
-    `Signing certificate SHA-256: ${Array(32).fill('AB').join(':')}`,
-  );
-  await expect(app.locator('.about-identity-status')).toHaveText(
-    'Development build: not signed with the GenX Streamer release key.',
-  );
+  // The signing certificate is checked inside the app, not shown (owner's decision).
+  await expect(app).not.toContainText('Signing certificate');
+  await expect(app).not.toContainText('release key');
   // The checksum is computed only when asked.
   expect(await page.evaluate(() => Reflect.get(window, '__calls'))).toEqual([]);
   await page.getByRole('button', { name: 'Show checksum' }).click();

@@ -67,9 +67,6 @@ export async function appChecksum(): Promise<{ sha256: string; bytes: number }> 
   return { sha256: r.sha256, bytes: Number(r.bytes) };
 }
 
-/** AB:CD:… the way Android tools print certificate fingerprints. */
-export const fingerprintText = (hex: string) => hex.toUpperCase().match(/../gu)!.join(':');
-
 /** May this copy send its own app file? Windows always; Android only as an official release in one APK. */
 export const maySendAppFile = (identity: AppIdentity | null) =>
   !!identity && !identity.split && (identity.platform === 'Windows' || identity.official);

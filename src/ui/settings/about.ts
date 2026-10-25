@@ -134,17 +134,16 @@ export function mountAbout(root: HTMLElement, opener: HTMLButtonElement): () => 
             <button type="button" class="about-link about-author-link" data-link-target="${authorLink.target}" aria-label="${authorLink.name}">
               ${glyph(authorLink.target)}<span>github.com/dougtrier</span>
             </button>
+            <p class="about-support-intro">If GenX Streamer has earned a place on your screen, you can support its development. Links open in your browser.</p>
+            <div class="about-support"></div>
+            <p class="about-status" role="status" aria-live="polite"></p>
           </div>
         </div>
-        <section class="about-identity"></section>
         <section class="about-update"></section>
         <h3 class="about-section-title">Share GenX Streamer</h3>
         <p>Send the app itself, or a download link, to friends and family.</p>
         <div class="about-share-actions"><button type="button" class="about-send-app">Send app to a friend</button></div>
-        <h3 class="about-section-title">Support GenX Streamer</h3>
-        <p>If GenX Streamer has earned a place on your screen, you can support its development. Links open in your browser.</p>
-        <div class="about-support"></div>
-        <p class="about-status" role="status" aria-live="polite"></p>
+        <section class="about-identity"></section>
         <details class="about-licenses">
           <summary>Open-source licenses</summary>
           <p>GenX Streamer includes open-source components; their notices ship with the app.</p>

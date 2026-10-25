@@ -37,10 +37,14 @@ copy.
 
 ## Android: the signing certificate
 
-About → **This copy** also shows the app's signing certificate fingerprint
-(SHA-256) and says **Official release** (signed with the GenX Streamer release
-key) or **Development build**. Android itself refuses to install an update
-signed by anyone else over an installed copy.
+GenX checks its own signing certificate inside the app; About does not show
+it (the owner's decision, October 24, 2026). **This copy** says only the
+version and **Release build**, **Unofficial build** (release-built but not
+signed with the GenX Streamer release key) or **Development build**. Android
+itself refuses to install an update signed by anyone else over an installed
+copy. To see the certificate of a downloaded APK yourself, use Android's
+`apksigner verify --print-certs GenX-Streamer-<version>-Android.apk` and
+compare its SHA-256 with the fingerprint below.
 
 Only an official release copy sends its own APK (Send the app, Share with
 everyone nearby). Development copies, which are debug-signed, offer the link
@@ -48,8 +52,8 @@ and the QR code instead. The release certificate's fingerprint is one constant,
 `RELEASE_CERTIFICATE_SHA256` in `src-tauri/src/platform/app_identity.rs`:
 `464c42785a80bb27022527d7e5b703c4ecf2d62f433a0f9f6b162ee95b7872ff`, the
 owner's release key, created October 24, 2026
-([release-signing.md](release-signing.md)). An official copy's About → This
-copy shows it as `46:4C:42:78:…:72:FF`.
+([release-signing.md](release-signing.md)). `apksigner` prints it with colons:
+`46:4C:42:78:…:72:FF`.
 
 ## Windows: unsigned by decision
 
