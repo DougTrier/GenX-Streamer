@@ -115,6 +115,9 @@ class TvRemoteWireTest {
     assertFalse(TvRemote.dark(true, "com.google.android.apps.tv.launcherx"))
     assertFalse(TvRemote.dark(true, "com.esaba.downloader"))
     assertFalse(TvRemote.dark(null, ""))
+    // An app that merely has "dream" in its name is not a screensaver.
+    assertFalse(TvRemote.dark(true, "com.dreamworks.player"))
+    assertFalse(TvRemote.dark(true, "com.example.daydreamer"))
     // Home, one short press: the only key GenX sends.
     val home = TvWire.nested(TvWire.parse(TvRemote.home()), 10)
     assertEquals(3L, TvWire.number(home, 1))
@@ -131,8 +134,10 @@ class TvRemoteWireTest {
 
   @Test fun onlyGenXsOwnLinksAreOpenedOnATv() {
     assertTrue(TvLinks.allowed("http://192.168.1.20:8080/482913/GenX-Streamer.apk"))
+    // A public address is refused by this gate too (TV-007), not only by the Rust side.
+    assertFalse(TvLinks.allowed("http://8.8.8.8:8080/482913/GenX-Streamer.apk"))
     assertTrue(TvLinks.allowed(TvLinks.DOWNLOADER_STORE))
-    assertTrue(TvLinks.allowed("genx://open?reply=http://192.168.1.20:8080/482913/installed"))
+    assertTrue(TvLinks.allowed("genx://open?reply=http://192.168.1.20:8080/482913/installed/0123456789abcdef"))
     assertFalse(TvLinks.allowed("genx://open"))
     assertFalse(TvLinks.allowed("genx://open?reply=http://8.8.8.8:8080/482913/installed"))
     assertFalse(TvLinks.allowed("genx://open?reply=http://192.168.1.20:8080/482913/other"))
@@ -203,10 +208,11 @@ class TvRemoteWireTest {
 
   /** On the TV: only a check address on this network is ever contacted, with a SHA-256. */
   @Test fun genxOnTheTvReportsOnlyToThePhonesNearbyShare() {
-    val reply = "http://192.168.1.20:8080/482913/installed"
+    val reply = "http://192.168.1.20:8080/482913/installed/0123456789abcdef"
     assertEquals(reply, TvCheckIn.reply("genx://open?reply=$reply"))
     for (refused in listOf(null, "genx://open", "genx://open?reply=http://8.8.8.8:8080/482913/installed",
-        "genx://open?reply=https://192.168.1.20:8080/482913/installed",
+        "genx://open?reply=https://192.168.1.20:8080/482913/installed/0123456789abcdef",
+        "genx://open?reply=http://192.168.1.20:8080/482913/installed",
         "genx://open?reply=http://192.168.1.20:8080/48291/installed",
         "genx://open?reply=http://192.168.1.20:8080/482913/installed&x=1",
         "genx://watch?reply=http://192.168.1.20:8080/482913/installed")) {
@@ -215,5 +221,12 @@ class TvRemoteWireTest {
     assertEquals("$reply?sha256=${"ab".repeat(32)}", TvCheckIn.report(reply, "ab".repeat(32)))
     assertNull(TvCheckIn.report(reply, "AB".repeat(32)))
     assertNull(TvCheckIn.report(reply, "x"))
+    // Same-network check: /24 and /16 neighbours, and a stranger.
+    val lan = byteArrayOf(192.toByte(), 168.toByte(), 1, 20)
+    assertTrue(TvCheckIn.within(lan, byteArrayOf(192.toByte(), 168.toByte(), 1, 99), 24))
+    assertFalse(TvCheckIn.within(lan, byteArrayOf(192.toByte(), 168.toByte(), 2, 99), 24))
+    assertTrue(TvCheckIn.within(lan, byteArrayOf(192.toByte(), 168.toByte(), 2, 99), 16))
+    assertFalse(TvCheckIn.within(lan, byteArrayOf(10, 0, 0, 1), 8))
+    assertFalse(TvCheckIn.within(lan, lan, 0))
   }
 }

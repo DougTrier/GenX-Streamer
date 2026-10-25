@@ -194,7 +194,7 @@ internal object TvRemote {
    * A screensaver in front: the TV still reports its screen on, but the app in
    * front is the screensaver (the Streamer's is com.google.android.apps.tv.dreamx).
    */
-  fun screensaver(app: String) = Regex("(?i)(dream|screensaver|daydream)").containsMatchIn(app)
+  fun screensaver(app: String) = Regex("(?:^|\\.)(?:dreams?|dreamx|daydream|screensaver)(?:\\.|$)").containsMatchIn(app)
 
   /** Whether the person cannot see the TV: asleep, or its screensaver is showing (TV-010). */
   fun dark(screenOn: Boolean?, front: String) = screenOn == false || (screenOn == true && screensaver(front))
@@ -225,24 +225,51 @@ internal object TvRemote {
 internal object TvLinks {
   const val DOWNLOADER_STORE = "market://details?id=com.esaba.downloader"
   const val OPEN_GENX = "genx://open?reply="
-  private val nearby = Regex("""http://(?:\d{1,3}\.){3}\d{1,3}:\d{1,5}/\d{6}/GenX-Streamer\.apk""")
+  private val nearby = Regex("""http://((?:\d{1,3}\.){3}\d{1,3}):\d{1,5}/\d{6}/GenX-Streamer\.apk""")
 
-  fun allowed(link: String) = link == DOWNLOADER_STORE || nearby.matches(link) || TvCheckIn.reply(link) != null
+  fun allowed(link: String): Boolean {
+    if (link == DOWNLOADER_STORE || TvCheckIn.reply(link) != null) return true
+    val match = nearby.matchEntire(link) ?: return false
+    return TvAddress.local(match.groupValues[1])
+  }
 }
 
 /**
- * The installed check (TV-006), on the TV: genx://open?reply=<phone's nearby
- * address>/installed opens GenX, which then tells that address the SHA-256 of
- * its own installed file. The phone says "installed" only when it matches the
- * file it sent, so an older copy that opens instead is never taken for it.
- * Only a private address with the nearby share's shape is ever contacted.
+ * The installed check (TV-006), on the TV:
+ * genx://open?reply=<phone's nearby address>/installed/<one-time token> opens
+ * GenX, which then tells that address the SHA-256 of its own installed file.
+ * The phone says "installed" only when it matches the file it sent and the
+ * token of that very check, so an older copy, an earlier check or someone
+ * else's request is never taken for it. Only a private address with the
+ * nearby share's shape is ever contacted.
  */
 internal object TvCheckIn {
-  private val shape = Regex("""genx://open\?reply=(http://((?:\d{1,3}\.){3}\d{1,3}):\d{1,5}/\d{6}/installed)""")
+  private val shape = Regex("""genx://open\?reply=(http://((?:\d{1,3}\.){3}\d{1,3}):\d{1,5}/\d{6}/installed/[0-9a-f]{16})""")
 
   fun reply(link: String?): String? {
     val match = shape.matchEntire(link ?: return null) ?: return null
     return if (TvAddress.local(match.groupValues[2])) match.groupValues[1] else null
+  }
+
+  /** Whether the reply host is on one of this device's own IPv4 networks. */
+  fun sameNetwork(reply: String): Boolean {
+    val host = Regex("""http://([0-9.]+):""").find(reply)?.groupValues?.get(1) ?: return false
+    val target = runCatching { java.net.InetAddress.getByName(host).address }.getOrNull() ?: return false
+    val interfaces = runCatching { java.net.NetworkInterface.getNetworkInterfaces()?.toList() }.getOrNull() ?: return false
+    return interfaces.flatMap { it.interfaceAddresses }.any { address ->
+      val own = address.address.address
+      own.size == 4 && target.size == 4 && within(own, target, address.networkPrefixLength.toInt())
+    }
+  }
+
+  /** Whether two IPv4 addresses share their first `prefix` bits. */
+  fun within(a: ByteArray, b: ByteArray, prefix: Int): Boolean {
+    if (prefix !in 1..32) return false
+    for (bit in 0 until prefix) {
+      val mask = 0x80 ushr (bit % 8)
+      if ((a[bit / 8].toInt() and mask) != (b[bit / 8].toInt() and mask)) return false
+    }
+    return true
   }
 
   fun report(reply: String, sha256: String): String? =

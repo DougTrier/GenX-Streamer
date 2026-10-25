@@ -17,6 +17,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CHECK_MS,
   DOWNLOAD_MS,
+  HELPER_MS,
   DOWNLOADER,
   frontKind,
   GENX,
@@ -171,6 +172,19 @@ describe('Install on TV', () => {
     expect(stepText('unconfirmed', true)).toBe(
       "GenX Streamer is on your TV, but its version couldn't be checked.",
     );
+  });
+
+  it('waiting for the helper has a time limit too', () => {
+    const helper: TvWatch = { step: 'helper', since: 0, baseline: HOME };
+    expect(
+      play(helper, [
+        [STORE, HELPER_MS - 1],
+        [STORE, HELPER_MS],
+      ]),
+    ).toEqual([
+      ['helper', null],
+      ['stalled', null],
+    ]);
   });
 
   it('a link nothing answers is the same as no download app', () => {

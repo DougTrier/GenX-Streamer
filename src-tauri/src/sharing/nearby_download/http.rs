@@ -23,8 +23,9 @@ use crate::sharing::compatibility::{self, Fit};
 pub(crate) enum Route {
     Page,
     File,
-    /// GenX on a TV reporting its installed file's SHA-256 (Install on TV, TV-006).
-    CheckIn(String),
+    /// GenX on a TV reporting its installed file's SHA-256 with the check's
+    /// one-time token (Install on TV, TV-006): (token, sha256).
+    CheckIn(String, String),
     /// Digits that are not this session's code: a wrong guess, counted.
     WrongCode,
     NotFound,
@@ -64,13 +65,19 @@ pub(crate) fn request(head: &str, token: &str, file: &str) -> Request {
         Route::Page
     } else if path == format!("/{token}/{file}") {
         Route::File
-    } else if let Some(sha256) = path
-        .strip_prefix(&format!("/{token}/installed?sha256="))
-        .filter(|hex| {
-            hex.len() == 64 && hex.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
-        })
+    } else if let Some((check, sha256)) = path
+        .strip_prefix(&format!("/{token}/installed/"))
+        .and_then(|rest| rest.split_once("?sha256="))
+        .filter(|(check, sha256)| hex(check, 16) && hex(sha256, 64))
     {
-        Route::CheckIn(sha256.to_string())
+        Route::CheckIn(check.to_string(), sha256.to_string())
+    } else if path
+        .strip_prefix('/')
+        .and_then(|rest| rest.split('/').nth(1))
+        .is_some_and(|second| second.starts_with("installed"))
+    {
+        // A check-in that does not fit (another session, old token): not a guess at the code.
+        Route::NotFound
     } else if !first.is_empty() && first != token && first.bytes().all(|b| b.is_ascii_digit()) {
         Route::WrongCode
     } else {
@@ -97,6 +104,10 @@ pub(crate) fn request(head: &str, token: &str, file: &str) -> Request {
         if_range,
         user_agent,
     }
+}
+
+fn hex(text: &str, length: usize) -> bool {
+    text.len() == length && text.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
 }
 
 /// Which bytes to send.
@@ -147,9 +158,9 @@ pub(crate) fn bytes(range: Option<&str>, if_range: Option<&str>, etag: &str, tot
             None => Bytes::Whole,
         },
         (start, end) => match (number(start), number(end)) {
-            (Some(start), Some(end)) if start <= end && start < total => {
-                Bytes::Part(start, end.min(total - 1))
-            }
+            // RFC 9110: a range ending before it starts is invalid and ignored.
+            (Some(start), Some(end)) if start > end => Bytes::Whole,
+            (Some(start), Some(end)) if start < total => Bytes::Part(start, end.min(total - 1)),
             (Some(_), Some(_)) => Bytes::Unsatisfiable,
             _ => Bytes::Whole,
         },
@@ -242,12 +253,31 @@ pub(crate) fn serve(
     stats: &Stats,
     peer: IpAddr,
 ) -> std::io::Result<()> {
-    stream.set_read_timeout(Some(Duration::from_secs(10)))?;
     stream.set_write_timeout(Some(Duration::from_secs(60)))?;
     let mut head = Vec::new();
     let mut buffer = [0u8; 1024];
+    // One deadline for the whole request head, not per read: a client trickling
+    // a byte at a time cannot hold a connection (and a slot) beyond it, and a
+    // session that has ended stops waiting.
+    let deadline = std::time::Instant::now() + HEAD_DEADLINE;
     while !head.windows(4).any(|w| w == b"\r\n\r\n") {
-        let read = stream.read(&mut buffer)?;
+        let left = deadline.saturating_duration_since(std::time::Instant::now());
+        if left.is_zero() || stats.ended.load(Ordering::SeqCst) {
+            return Ok(());
+        }
+        stream.set_read_timeout(Some(left.min(Duration::from_secs(1))))?;
+        let read = match stream.read(&mut buffer) {
+            Ok(read) => read,
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    std::io::ErrorKind::WouldBlock | std::io::ErrorKind::TimedOut
+                ) =>
+            {
+                continue
+            }
+            Err(error) => return Err(error),
+        };
         if read == 0 || head.len() + read > MAX_HEAD {
             return Ok(());
         }
@@ -337,16 +367,27 @@ pub(crate) fn serve(
                 }
             }
         }
-        Route::CheckIn(sha256) => {
-            let found = if sha256 == file.sha256 {
-                CheckIn::Same
+        Route::CheckIn(check, sha256) => {
+            // Only the check under way counts, once: its token is then spent.
+            let current = stats
+                .check_token
+                .lock()
+                .ok()
+                .and_then(|mut token| token.take_if(|token| *token == check));
+            if current.is_some() {
+                let found = if sha256 == file.sha256 {
+                    CheckIn::Same
+                } else {
+                    CheckIn::Different
+                };
+                if let Ok(mut check_in) = stats.check_in.lock() {
+                    *check_in = Some(found);
+                }
+                stream
+                    .write_all(response_head("204 No Content", "text/plain", 0, "").as_bytes())?;
             } else {
-                CheckIn::Different
-            };
-            if let Ok(mut check_in) = stats.check_in.lock() {
-                *check_in = Some(found);
+                stream.write_all(response_head("404 Not Found", "text/plain", 0, "").as_bytes())?;
             }
-            stream.write_all(response_head("204 No Content", "text/plain", 0, "").as_bytes())?;
         }
         Route::WrongCode => {
             stats.guesses.record(peer);

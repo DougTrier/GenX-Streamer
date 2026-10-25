@@ -42,7 +42,7 @@ Each step is a separate choice; **Not now** at any point changes nothing.
 | UP-008 | Settings, accounts, playlists, favorites and history survive. | Windows replaces only GenX Streamer.exe (never the data folder or `tmg-portable.flag`); Android updates in place with the same signature. |
 | UP-009 | Older versions keep running. | No expiry date anywhere. |
 | UP-010 | Offline operation stays available. | A failed check says GitHub could not be reached; nothing else changes. |
-| UP-011 | A partial download never resumes against a different release. | The checkpoint records the release, asset, size and digest; resume uses `Range` with `If-Range` and an exact `Content-Range`; anything else restarts from zero and deletes the old partial; nothing installs before the full SHA-256 matches. |
+| UP-011 | A partial download never resumes against a different release. | Today nothing resumes: every download starts from zero, and the partial file is deleted on failure or cancel. Nothing installs before the full SHA-256 matches. Resuming is planned this way: the checkpoint records the release, asset, size and digest; resume uses `Range` with `If-Range` and an exact `Content-Range`; anything else restarts from zero. |
 
 ## Release files
 

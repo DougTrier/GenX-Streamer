@@ -55,6 +55,8 @@ const PREFERRED_PORT: u16 = 8080;
 /// How often the session checks that this device still has its address.
 const NETWORK_CHECK: Duration = Duration::from_secs(3);
 const MAX_HEAD: usize = 8 * 1024;
+/// The whole request head must arrive within this (M1 of the October 24, 2026 review).
+const HEAD_DEADLINE: Duration = Duration::from_secs(10);
 pub(crate) const CHANGED_EVENT: &str = "nearby-share-changed";
 const PAGE: &str = include_str!("nearby_download/page.html");
 
@@ -82,6 +84,10 @@ struct Stats {
     guesses: Guesses,
     /// Install on TV's check (docs/send-to-tv.md TV-006): what GenX on the TV reported.
     check_in: Mutex<Option<CheckIn>>,
+    /// The one-time token of the check under way: only a report carrying it counts.
+    check_token: Mutex<Option<String>>,
+    /// Set when the session ends: connections still reading a request stop waiting.
+    ended: std::sync::atomic::AtomicBool,
 }
 
 /// A GenX copy's report of its installed file: the one shared here, or another.
@@ -164,10 +170,23 @@ impl NearbyOwner {
     pub(crate) fn current_url(&self) -> Option<String> {
         self.status().url
     }
+    /// Starts an install check for the running session: a fresh one-time token,
+    /// and any earlier report forgotten (TV-006). None when no session runs.
+    pub(crate) fn new_check(&self) -> Option<String> {
+        let session = self.session.lock().ok()?;
+        let session = session.as_ref()?;
+        let mut bytes = [0u8; 8];
+        getrandom::fill(&mut bytes).ok()?;
+        let token: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
+        *session.stats.check_token.lock().ok()? = Some(token.clone());
+        *session.stats.check_in.lock().ok()? = None;
+        Some(token)
+    }
     /// Ends the session: no new connections; downloads under way may finish.
     pub(crate) fn stop(&self) {
         if let Ok(mut session) = self.session.lock() {
             if let Some(session) = session.take() {
+                session.stats.ended.store(true, Ordering::SeqCst);
                 let _ = session.stop.send(true);
             }
         }
@@ -178,6 +197,7 @@ impl NearbyOwner {
         if let Ok(mut session) = self.session.lock() {
             if session.as_ref().is_some_and(|session| session.url == url) {
                 if let Some(session) = session.take() {
+                    session.stats.ended.store(true, Ordering::SeqCst);
                     let _ = session.stop.send(true);
                 }
                 if let Ok(mut ended) = self.ended.lock() {

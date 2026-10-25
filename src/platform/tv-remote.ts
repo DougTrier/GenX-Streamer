@@ -64,7 +64,8 @@ export async function findTvs(): Promise<FoundTv[]> {
 export const startPairing = (tv: FoundTv) =>
   invoke<void>('tv_pair_start', { host: tv.host, name: tv.name });
 export const finishPairing = (code: string) => invoke<void>('tv_pair_finish', { code });
-export const connectTv = async (tv: FoundTv) => tvStatus(await invoke('tv_connect', { host: tv.host }));
+export const connectTv = async (tv: FoundTv) =>
+  tvStatus(await invoke('tv_connect', { host: tv.host }));
 export const sendGenX = async () => tvStatus(await invoke('tv_send_genx'));
 export const openHelperStore = async () => tvStatus(await invoke('tv_get_helper'));
 export const openGenXOnTv = async () => tvStatus(await invoke('tv_open_genx'));

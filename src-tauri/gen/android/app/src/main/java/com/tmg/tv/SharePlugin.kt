@@ -52,6 +52,8 @@ internal object IncomingLink {
 @TauriPlugin
 class SharePlugin(private val activity: Activity) : Plugin(activity) {
   private var pending: String? = null
+  private val checking = java.util.concurrent.atomic.AtomicBoolean(false)
+  @Volatile private var lastCheck = 0L
   private var webView: WebView? = null
 
   override fun load(webView: WebView) {
@@ -71,7 +73,15 @@ class SharePlugin(private val activity: Activity) : Plugin(activity) {
     TvCheckIn.reply(intent.dataString)?.let { reply ->
       intent.data = null
       val apk = activity.applicationInfo.sourceDir
-      Thread({ checkIn(reply, apk) }, "install-check").apply { isDaemon = true }.start()
+      // Any page or app can open genx://open, so: one check at a time, at most
+      // every five seconds, and only to an address on this TV's own network.
+      val now = System.currentTimeMillis()
+      if (TvCheckIn.sameNetwork(reply) && checking.compareAndSet(false, true)) {
+        if (now - lastCheck < 5000) { checking.set(false); return false }
+        lastCheck = now
+        Thread({ try { checkIn(reply, apk) } finally { checking.set(false) } }, "install-check")
+          .apply { isDaemon = true }.start()
+      }
       return false
     }
     val link = IncomingLink.admit(intent.dataString)

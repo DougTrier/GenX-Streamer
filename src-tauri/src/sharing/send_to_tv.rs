@@ -193,20 +193,28 @@ pub(crate) async fn tv_get_helper(app: tauri::AppHandle) -> Result<TvStatus, Str
     .await
 }
 
-/// Opens GenX on the TV with the nearby share's check address: the copy that
-/// opens reports its installed file's SHA-256 there (TV-006).
-pub(crate) fn open_link(session_url: &str) -> Option<String> {
-    file_link(session_url).map(|_| format!("{OPEN_GENX}{session_url}/installed"))
+/// Opens GenX on the TV with the nearby share's check address and this
+/// check's one-time token: the copy that opens reports its installed file's
+/// SHA-256 there (TV-006).
+pub(crate) fn open_link(session_url: &str, token: &str) -> Option<String> {
+    let token_ok = token.len() == 16
+        && token
+            .bytes()
+            .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'));
+    (token_ok && file_link(session_url).is_some())
+        .then(|| format!("{OPEN_GENX}{session_url}/installed/{token}"))
 }
 
 #[tauri::command]
 pub(crate) async fn tv_open_genx(app: tauri::AppHandle) -> Result<TvStatus, String> {
     use tauri::Manager;
-    let url = app
-        .state::<crate::nearby_download::NearbyOwner>()
-        .current_url()
-        .ok_or("tv-nearby-off")?;
-    let link = open_link(&url).ok_or("tv-nearby-off")?;
+    // The share may have ended during a long helper install: start it again
+    // (it checks that this copy may send itself), then a fresh check.
+    crate::nearby_download::nearby_start(app.clone()).await?;
+    let owner = app.state::<crate::nearby_download::NearbyOwner>();
+    let url = owner.current_url().ok_or("tv-nearby-off")?;
+    let token = owner.new_check().ok_or("tv-nearby-off")?;
+    let link = open_link(&url, &token).ok_or("tv-nearby-off")?;
     call(&app, "tvOpen", serde_json::json!({ "link": link })).await
 }
 
@@ -264,10 +272,18 @@ mod tests {
     #[test]
     fn genx_on_the_tv_reports_back_to_the_nearby_share() {
         assert_eq!(
-            open_link("http://192.168.1.20:8080/482913").as_deref(),
-            Some("genx://open?reply=http://192.168.1.20:8080/482913/installed")
+            open_link("http://192.168.1.20:8080/482913", "0123456789abcdef").as_deref(),
+            Some("genx://open?reply=http://192.168.1.20:8080/482913/installed/0123456789abcdef")
         );
-        assert_eq!(open_link("http://8.8.8.8:8080/482913"), None);
+        assert_eq!(
+            open_link("http://8.8.8.8:8080/482913", "0123456789abcdef"),
+            None
+        );
+        assert_eq!(open_link("http://192.168.1.20:8080/482913", "short"), None);
+        assert_eq!(
+            open_link("http://192.168.1.20:8080/482913", "0123456789ABCDEF"),
+            None
+        );
     }
 
     #[test]

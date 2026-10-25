@@ -198,10 +198,8 @@ fn ranges_resume_only_the_same_file() {
         bytes(Some("bytes=100-"), None, tag, 100),
         Bytes::Unsatisfiable
     );
-    assert_eq!(
-        bytes(Some("bytes=20-10"), None, tag, 100),
-        Bytes::Unsatisfiable
-    );
+    // RFC 9110: a range ending before it starts is invalid, so it is ignored.
+    assert_eq!(bytes(Some("bytes=20-10"), None, tag, 100), Bytes::Whole);
     assert_eq!(
         bytes(Some("bytes=-0"), None, tag, 100),
         Bytes::Unsatisfiable
@@ -338,7 +336,8 @@ fn wrong_codes_are_counted_and_lock_the_guesser_out() {
         let reply = exchange(&format!("GET /{wrong:06} HTTP/1.1\r\n\r\n"), &file, &stats);
         assert!(String::from_utf8_lossy(&reply).starts_with("HTTP/1.1 404 Not Found"));
     }
-    // exchange() connects from 127.0.0.1; the accept loop drops a locked-out client.
+    // exchange() connects from 127.0.0.1, which is now locked out. Dropping a
+    // locked-out client happens in nearby_start's accept loop (not driven here).
     assert!(stats.guesses.locked_out("127.0.0.1".parse().unwrap()));
     assert!(!stats.guesses.locked_out("192.168.1.30".parse().unwrap()));
 }
@@ -431,24 +430,50 @@ fn genx_on_a_tv_reports_whether_it_runs_the_file_shared_here() {
     let stats = Stats::default();
     let other = "cd".repeat(32);
     let ask = |path: String| format!("GET {path} HTTP/1.1\r\n\r\n");
+    let check = |token: &str| *stats.check_token.lock().unwrap() = Some(token.into());
+    // Without a check under way, nothing is recorded (no forged or stale report).
     let reply = exchange(
-        &ask(format!("/{TOKEN}/installed?sha256={other}")),
+        &ask(format!(
+            "/{TOKEN}/installed/0123456789abcdef?sha256={other}"
+        )),
+        &file,
+        &stats,
+    );
+    assert!(String::from_utf8_lossy(&reply).starts_with("HTTP/1.1 404"));
+    assert_eq!(*stats.check_in.lock().unwrap(), None);
+    check("0123456789abcdef");
+    let reply = exchange(
+        &ask(format!(
+            "/{TOKEN}/installed/0123456789abcdef?sha256={other}"
+        )),
         &file,
         &stats,
     );
     assert!(String::from_utf8_lossy(&reply).starts_with("HTTP/1.1 204 No Content"));
     assert_eq!(*stats.check_in.lock().unwrap(), Some(CheckIn::Different));
+    // The token is spent: a second report with it is not counted.
     let sha = file.sha256.clone();
     exchange(
-        &ask(format!("/{TOKEN}/installed?sha256={sha}")),
+        &ask(format!("/{TOKEN}/installed/0123456789abcdef?sha256={sha}")),
+        &file,
+        &stats,
+    );
+    assert_eq!(*stats.check_in.lock().unwrap(), Some(CheckIn::Different));
+    check("fedcba9876543210");
+    exchange(
+        &ask(format!("/{TOKEN}/installed/fedcba9876543210?sha256={sha}")),
         &file,
         &stats,
     );
     assert_eq!(*stats.check_in.lock().unwrap(), Some(CheckIn::Same));
-    // Malformed reports and reports without the code are not check-ins (nor guesses).
+    // Malformed reports, other tokens and wrong codes are not check-ins, nor guesses.
+    check("1111111111111111");
     for refused in [
-        format!("/{TOKEN}/installed?sha256=XYZ"),
+        format!("/{TOKEN}/installed/1111111111111111?sha256=XYZ"),
+        format!("/{TOKEN}/installed/2222222222222222?sha256={sha}"),
+        format!("/{TOKEN}/installed?sha256={sha}"),
         format!("/{TOKEN}/installed"),
+        format!("/000000/installed/1111111111111111?sha256={sha}"),
         format!("/installed?sha256={other}"),
     ] {
         let reply = exchange(&ask(refused.clone()), &file, &stats);
@@ -459,4 +484,39 @@ fn genx_on_a_tv_reports_whether_it_runs_the_file_shared_here() {
     }
     assert_eq!(*stats.check_in.lock().unwrap(), Some(CheckIn::Same));
     assert!(!stats.guesses.exhausted());
+}
+
+/// M1 (October 24, 2026 review): a client trickling a request head cannot hold
+/// a connection once the session ends (nor beyond HEAD_DEADLINE).
+#[test]
+fn a_trickling_request_is_dropped_when_the_session_ends() {
+    let dir = tempfile::tempdir().unwrap();
+    let file = file(dir.path());
+    let stats = Arc::new(Stats::default());
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let address = listener.local_addr().unwrap();
+    let client = std::thread::spawn(move || {
+        let mut stream = std::net::TcpStream::connect(address).unwrap();
+        // Part of a head, never finished: no code, so no guess is ever counted.
+        stream.write_all(b"GET /48").unwrap();
+        std::thread::sleep(Duration::from_secs(3));
+        stream
+    });
+    let (stream, peer) = listener.accept().unwrap();
+    let serving = {
+        let (file, stats) = (file.clone(), stats.clone());
+        std::thread::spawn(move || serve(stream, TOKEN, &file, &stats, peer.ip()))
+    };
+    std::thread::sleep(Duration::from_millis(300));
+    let started = Instant::now();
+    stats.ended.store(true, Ordering::SeqCst);
+    serving.join().unwrap().unwrap();
+    assert!(
+        started.elapsed() < Duration::from_secs(2),
+        "{:?}",
+        started.elapsed()
+    );
+    assert!(!stats.guesses.exhausted());
+    drop(client.join().unwrap());
+    assert!(HEAD_DEADLINE <= Duration::from_secs(10));
 }

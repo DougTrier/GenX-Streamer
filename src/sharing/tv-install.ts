@@ -60,6 +60,8 @@ export const NO_ANSWER_MS = 8_000;
 export const CHECK_MS = 10_000;
 /** How long a download may run before it is called stalled. */
 export const DOWNLOAD_MS = 5 * 60_000;
+/** How long the person has to install and open the download helper. */
+export const HELPER_MS = 8 * 60_000;
 
 export type FrontKind =
   | 'genx'
@@ -142,6 +144,7 @@ export function observe(
     case 'helper':
       // Installed and opened from the store: send GenX to it.
       if (kind === 'downloader') return { watch: sent(front, now), action: 'send' };
+      if (waited >= HELPER_MS) return go('stalled');
       return stay;
     case 'downloading':
     case 'permission':

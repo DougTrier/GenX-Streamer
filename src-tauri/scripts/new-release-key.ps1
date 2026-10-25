@@ -54,6 +54,10 @@ $plain = [Net.NetworkCredential]::new('', $first).Password
 if ($plain -cne [Net.NetworkCredential]::new('', $second).Password) { throw 'The two passwords differ; nothing was created.' }
 if ($plain.Length -lt 12) { throw 'The password is shorter than 12 characters; nothing was created.' }
 if ($plain -match '[\r\n]') { throw 'The password cannot contain line breaks; nothing was created.' }
+# signing.properties is read back as Java properties: plain ASCII, and no
+# space at either end (Java drops leading spaces), or the release build fails.
+if ($plain -match '[^\x20-\x7E]') { throw 'Use only plain keyboard characters (A-Z, digits, punctuation) in the password; nothing was created.' }
+if ($plain -ne $plain.Trim()) { throw 'The password cannot start or end with a space; nothing was created.' }
 
 $env:GENX_RELEASE_KEY_PASSWORD = $plain
 try {
@@ -72,6 +76,10 @@ $fingerprint = ($Matches[1] -replace ':', '').ToLowerInvariant()
 # What the release build reads. Java properties treat backslash as an escape,
 # so the path uses forward slashes and the password's backslashes are doubled.
 $escaped = $plain.Replace('\', '\\')
+# Create the file empty and restrict it to your account before the password goes in.
+New-Item -ItemType File -Path $properties | Out-Null
+& icacls $properties /inheritance:r /grant:r "$($env:USERNAME):(R,W)" | Out-Null
+if ($LASTEXITCODE -ne 0) { Remove-Item -LiteralPath $properties; throw 'Could not restrict signing.properties to your account; nothing was written.' }
 @(
     "storeFile=$($keystore.Replace('\', '/'))"
     "storePassword=$escaped"
@@ -79,8 +87,6 @@ $escaped = $plain.Replace('\', '\\')
     "keyPassword=$escaped"
 ) | Set-Content -LiteralPath $properties -Encoding ascii
 $plain = $null; $escaped = $null
-# Only your Windows account may read the signing file.
-& icacls $properties /inheritance:r /grant:r "$($env:USERNAME):(R,W)" | Out-Null
 $fingerprint | Set-Content -LiteralPath (Join-Path $folderPath 'fingerprint.txt') -Encoding ascii
 
 Write-Host ''

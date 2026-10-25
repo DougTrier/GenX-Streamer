@@ -411,11 +411,16 @@ async fn download(
     use std::io::Write;
     let folder = staging(app)?;
     // One update file at a time: an older download is never kept beside a newer one.
-    if let Ok(entries) = std::fs::read_dir(&folder) {
-        for entry in entries.flatten() {
-            let _ = std::fs::remove_file(entry.path());
+    // Disk work runs on a blocking thread, never on the async runtime's.
+    let clearing = folder.clone();
+    let _ = tauri::async_runtime::spawn_blocking(move || {
+        if let Ok(entries) = std::fs::read_dir(&clearing) {
+            for entry in entries.flatten() {
+                let _ = std::fs::remove_file(entry.path());
+            }
         }
-    }
+    })
+    .await;
     if let Ok(mut staged) = owner.staged.lock() {
         *staged = None;
     }
@@ -462,7 +467,12 @@ async fn download(
                 );
             }
         }
-        file.sync_all()
+        let flushing = file
+            .try_clone()
+            .map_err(|_| "update-storage-unavailable".to_string())?;
+        tauri::async_runtime::spawn_blocking(move || flushing.sync_all())
+            .await
+            .map_err(|_| "update-storage-unavailable".to_string())?
             .map_err(|_| "update-storage-unavailable".to_string())?;
         if received != candidate.bytes {
             return Err("update-download-mismatch".into());
@@ -474,14 +484,21 @@ async fn download(
     }
     .await;
     drop(file);
-    if let Err(error) = outcome {
-        let _ = std::fs::remove_file(&partial);
-        return Err(error);
-    }
-    std::fs::rename(&partial, &target).map_err(|_| {
-        let _ = std::fs::remove_file(&partial);
-        "update-storage-unavailable".to_string()
-    })?;
+    let (from, to) = (partial.clone(), target.clone());
+    let failed = outcome.is_err();
+    let placed = tauri::async_runtime::spawn_blocking(move || {
+        if failed {
+            let _ = std::fs::remove_file(&from);
+            return Ok(());
+        }
+        std::fs::rename(&from, &to).map_err(|_| {
+            let _ = std::fs::remove_file(&from);
+        })
+    })
+    .await
+    .map_err(|_| "update-storage-unavailable".to_string())?;
+    outcome?;
+    placed.map_err(|_| "update-storage-unavailable".to_string())?;
     Ok(Staged {
         version: candidate.version,
         path: target,

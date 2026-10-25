@@ -68,8 +68,15 @@ An incoming link is checked like a scanned source, and more:
 2. The interface reads every field (`parseShareLink`) and shows names as text.
 3. `check_shared_destination` resolves the stream's (and logo's) host and
    refuses it unless every address is public (`sharing_policy::public_upstream`),
-   so a link can never point GenX at the viewer's own network. The logo is
+   so a link that names a local or private address is refused. The logo is
    shown only after that check.
+   - **Limit, plainly:** the check runs once, before playback. The media
+     fetch resolves the name again and follows redirects, playlist variants
+     and segments without repeating it.
+   - A crafted link could therefore still reach the viewer's own network,
+     through a name that changes its address (DNS rebinding) or through a
+     redirect. Enforcing the check on every connection for shared streams is
+     open work.
 4. The card says "<name> was shared with you" with **Play** and **Add to
    favorites**. Nothing plays or is saved until one is chosen.
 5. Play and Add to favorites check the stream once more
@@ -259,6 +266,12 @@ the owner's private notes.
 | SH-023 | A nearby session listens only on the chosen local address and answers only local clients. |
 | SH-024 | Every nearby session has a fresh random code (six digits, guessing locked out and capped per session) and fresh hotspot credentials when it makes one. |
 | SH-025 | The download page shows the file's SHA-256 and, for Android, the official signing fingerprint. |
+
+Status (October 24, 2026):
+- **SH-022 is not built yet.** A nearby session runs inside GenX on Android,
+  with no notification, and ends when GenX stops or after ten minutes.
+- **No hotspot exists yet**, so SH-024's hotspot credentials do not apply.
+- Every other rule above is in the code, with tests.
 
 Android tells only an installed app its exact architecture; a browser does
 not (its user agent is a claim, and a frozen one on Android). So browsers get
