@@ -82,9 +82,17 @@ export function mountFirstScanHint(indexed: () => boolean, inMemory: () => numbe
       document.querySelector('#paid-tv-button[aria-pressed="true"]') === null &&
       document.querySelector('#local-button[aria-pressed="true"]') === null;
     if (!eligible) return show(null);
-    // While the first scan runs (its panel open) the note explains the wait;
-    // it retires once the scan is over and channels are saved.
-    if (scanPanel && !scanPanel.hidden) return show(sawEmpty ? 'scanning' : null);
+    // While the first scan runs the note explains the wait. Running means the
+    // panel's Stop button shows (inline-scan-panel.ts: hidden when not active):
+    // a stopped or finished scan leaves the panel open with Finish scan and
+    // Rescan, and the note goes (owner's report, October 24, 2026). It retires
+    // once channels are saved.
+    const running =
+      scanPanel !== null &&
+      !scanPanel.hidden &&
+      document.querySelector<HTMLElement>('#inline-scan-stop')?.hidden === false;
+    if (running) return show(sawEmpty ? 'scanning' : null);
+    if (scanPanel && !scanPanel.hidden) return show(null);
     if (checking) return;
     checking = true;
     void total().then((count) => {

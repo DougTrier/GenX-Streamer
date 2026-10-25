@@ -21,7 +21,7 @@ async function mount(page: Page): Promise<void> {
   await page.route('**/first-scan-fixture', (route) =>
     route.fulfill({
       contentType: 'text/html',
-      body: '<!doctype html><html><body><div id="app" data-startup="loading" data-content-library="live" data-device-kind="tv"><button id="paid-tv-button" aria-pressed="false">Paid TV</button><div class="search-controls"><button id="search-programs">Find channels online</button></div><section id="inline-source-scan" hidden>scan</section></div></body></html>',
+      body: '<!doctype html><html><body><div id="app" data-startup="loading" data-content-library="live" data-device-kind="tv"><button id="paid-tv-button" aria-pressed="false">Paid TV</button><div class="search-controls"><button id="search-programs">Find channels online</button></div><section id="inline-source-scan" hidden>scan<button id="inline-scan-stop" hidden>Stop</button></section></div></body></html>',
     }),
   );
   await page.goto('/first-scan-fixture');
@@ -50,7 +50,17 @@ test('the first scan is pointed out, explained while it runs, then never shown a
   await expect(page.locator('#search-programs')).toHaveClass(/first-scan/);
   await expect(page.locator('#search-programs')).toBeFocused();
   // The scan runs: the note explains the wait; the glow goes.
-  await page.evaluate(() => (document.getElementById('inline-source-scan')!.hidden = false));
+  // The panel opening is not enough: the scan must be running (its Stop button shows).
+  await page.evaluate(() => {
+    document.getElementById('inline-source-scan')!.hidden = false;
+    document.getElementById('inline-scan-stop')!.hidden = false;
+  });
+  await expect(callout(page).locator('strong')).toHaveText('First scan');
+  // Stopped (the panel stays open with Finish scan): the note goes at once.
+  await page.evaluate(() => (document.getElementById('inline-scan-stop')!.hidden = true));
+  await expect(callout(page)).toBeHidden();
+  await page.evaluate(() => (document.getElementById('inline-scan-stop')!.hidden = false));
+  await expect(callout(page)).toBeVisible();
   await expect(callout(page).locator('strong')).toHaveText('First scan');
   await expect(callout(page)).toContainText('can take a long time');
   await expect(page.locator('#search-programs')).not.toHaveClass(/first-scan/);
