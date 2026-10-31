@@ -4,7 +4,8 @@
   **Good TV never gets old.**
 
   Free live TV, a program guide and a public-domain film library for Windows,
-  Android TVs, phones and handhelds. Pass it along to a friend with no app store.
+  Android TV, Google TV and Amazon Fire TV, plus Android phones and handhelds.
+  Pass it along to a friend with no app store.
 
   [![Version](https://img.shields.io/badge/Version-0.1.3-brightgreen?style=for-the-badge)](https://github.com/DougTrier/GenX-Streamer/releases)
   [![Tauri](https://img.shields.io/badge/Tauri-2-24C8DB?style=for-the-badge&logo=tauri&logoColor=white)](https://tauri.app/)
@@ -129,9 +130,16 @@ No app store, no GitHub link, no typing on the TV.
 
 Download from [Releases](https://github.com/DougTrier/GenX-Streamer/releases/latest):
 
+**Amazon Fire TV and Fire TV Stick are supported on Android-based Fire OS**
+devices meeting the Android/ARM requirements below. Verified with 0.1.3 on the
+**Fire TV Stick 4K Max, first generation (AFTKA/kara), Fire OS 7 / Android 9**:
+launch, embedded video, fullscreen, returning to embedded, sound and channel
+switching all passed owner testing. Other Amazon models have not been
+individually verified. Fire TV uses the same Android APK.
+
 | File | For |
 | --- | --- |
-| `GenX-Streamer-<version>-Android.apk` | Android TVs, phones, tablets and handhelds (ARM, 32- and 64-bit), Android 7.0 or newer |
+| `GenX-Streamer-<version>-Android.apk` | Android TV, Google TV, Amazon Fire TV with Android-based Fire OS, plus Android phones, tablets and handhelds (ARM, 32- and 64-bit), Android 7.0 or newer |
 | `GenX-Streamer-<version>-Windows-x64.exe` | Windows 10 and 11 (64-bit), with the Microsoft Edge WebView2 Runtime |
 | `GenX-Streamer-<version>-Windows-x64-portable.zip` | Windows, portable: extract to a folder of its own and run `GenX Streamer.exe` |
 | `SHA256SUMS` | Checksums to [verify any copy](docs/verify-a-download.md) |

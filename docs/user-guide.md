@@ -1,5 +1,18 @@
 # GenX Streamer user guide
 
+## Supported devices
+
+GenX Streamer supports Windows 10/11 (64-bit) and Android 7.0 or newer on
+32- or 64-bit ARM devices: Android TV, Google TV, Android phones, tablets and
+handhelds, and Amazon Fire TV / Fire TV Stick running Android-based Fire OS.
+Fire TV uses the same Android APK from the official release.
+
+Version 0.1.3 is verified on the first-generation Fire TV Stick 4K Max
+(AFTKA/kara), Fire OS 7 / Android 9. Launch, embedded and fullscreen playback,
+returning to embedded playback, sound and channel switching passed owner
+testing. This verifies that model; other Amazon models have not been
+individually tested. See the [Fire TV installation guide](https://dougtrier.github.io/GenX-Streamer/getting-started/#fire-tv).
+
 ## Add your channels
 
 Inside **Settings**, choose the current section name to reveal the section list within the same window. Select a section to return to its controls. Back/Escape first collapses the list, then closes Settings; directional remote keys move focus, and OK opens the list.
