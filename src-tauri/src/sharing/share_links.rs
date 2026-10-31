@@ -158,7 +158,9 @@ pub(crate) async fn android_app_file(
 /// This copy's signing fingerprints, whether it is debuggable and whether it is split.
 #[cfg(target_os = "android")]
 #[derive(serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub(crate) struct AndroidIdentity {
+    pub version_code: u64,
     pub signers: Vec<String>,
     pub debuggable: bool,
     pub split: bool,

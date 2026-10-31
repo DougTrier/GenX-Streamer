@@ -122,7 +122,7 @@
     "src/window.rs": "1c3d9ea5812f08c1c0fc70a0f15e539e8f224b6ce05063f1233da82b2e7c9eb4"
   },
   "patchedFile": "src/platform_impl/android/mod.rs",
-  "patchedFileSha256": "e6e9c96a1bea7cbce1f38f7044bcab5daa63bf0576d029ad49d23874211e688c",
+  "patchedFileSha256": "28e48b50e8925d62909d3c3ebe41fef9f46e4d78c4ab5a47f2f48a7f47d60096",
   "patches": [
     {
       "change": "send before looper wake",
@@ -131,12 +131,16 @@
     {
       "change": "drain pending user events after every poll iteration",
       "upstream": "https://github.com/tauri-apps/tao/pull/1304"
+    },
+    {
+      "change": "select API 30 window metrics or legacy Display.getRealMetrics before JNI lookup",
+      "upstream": "https://github.com/tauri-apps/tao/blob/dev/src/platform_impl/android/mod.rs"
     }
   ],
   "registryArchiveSha256": "1cf65722394c2ac443e80120064987f8914ee1d4e4e36e63cdf10f2990f01159",
   "registryArchiveUrl": "https://static.crates.io/crates/tao/tao-0.35.0.crate",
   "schemaVersion": 1,
-  "scope": "Android only; no API/JNI/non-Android source changes; platform-independent regression does not prove Android runtime.",
+  "scope": "Android only; no exported API/JNI lifecycle/non-Android source changes; platform-independent regression does not prove Android runtime.",
   "version": "0.35.0",
   "nullIntentFile": "src/platform_impl/android/ndk_glue.rs",
   "nullIntentFileSha256": "6342c98cb744dde3438ff016cc3d05da806ac019a2e3d0ac19994c56228facb5"

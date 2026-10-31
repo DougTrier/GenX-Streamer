@@ -47,11 +47,13 @@ import app.tauri.plugin.Plugin
 class NativeVideoArgs {
   var session: Long = 0
   var url: String = ""
-  /** The picture's place in WebView pixels; a width of 0 or less hides it. */
-  var left: Int = 0
-  var top: Int = 0
-  var width: Int = 0
-  var height: Int = 0
+  /** CSS pixels with viewport dimensions; legacy view pixels without them. */
+  var left: Double = 0.0
+  var top: Double = 0.0
+  var width: Double = 0.0
+  var height: Double = 0.0
+  var viewportWidth: Int = 0
+  var viewportHeight: Int = 0
   var positionMs: Long = 0
   var volume: Double = 1.0
   var track: String = ""
@@ -158,9 +160,14 @@ class NativeVideoPlugin(private val activity: Activity) : Plugin(activity) {
   private var view: PlayerView? = null
   private var session = 0L
   private var failure: String? = null
+  private var lastPlacement: NativeVideoArgs? = null
 
   override fun load(webView: WebView) {
     this.webView = webView
+    webView.addOnLayoutChangeListener { _, l, t, r, b, oldL, oldT, oldR, oldB ->
+      if (l != oldL || t != oldT || r != oldR || b != oldB)
+        lastPlacement?.let { applyPlacement(it) }
+    }
     release = { activity.runOnUiThread { stop() } }
   }
 
@@ -177,19 +184,31 @@ class NativeVideoPlugin(private val activity: Activity) : Plugin(activity) {
   }
 
   private fun place(args: NativeVideoArgs) {
+    lastPlacement = args
+    applyPlacement(args)
+  }
+
+  private fun applyPlacement(args: NativeVideoArgs) {
     val target = view ?: return
     val web = webView ?: return
     if (args.width <= 0 || args.height <= 0) {
       target.visibility = View.GONE
       return
     }
-    // WebView pixels to the container's coordinates (the WebView's offset).
+    // Window origins share one coordinate space. FrameLayout adds its padding
+    // to child margins, so subtract it here rather than applying the inset twice.
     val container = target.parent as? ViewGroup ?: return
     val webAt = IntArray(2).also { web.getLocationInWindow(it) }
     val boxAt = IntArray(2).also { container.getLocationInWindow(it) }
-    target.layoutParams = FrameLayout.LayoutParams(args.width, args.height).apply {
-      leftMargin = webAt[0] - boxAt[0] + args.left
-      topMargin = webAt[1] - boxAt[1] + args.top
+    val bounds = NativeVideoGeometry.bounds(
+      args.left, args.top, args.width, args.height,
+      args.viewportWidth, args.viewportHeight, web.width, web.height,
+      NativeVideoGeometry.parentOffset(webAt[0], boxAt[0], container.paddingLeft),
+      NativeVideoGeometry.parentOffset(webAt[1], boxAt[1], container.paddingTop),
+    ) ?: run { target.visibility = View.GONE; return }
+    target.layoutParams = FrameLayout.LayoutParams(bounds.width, bounds.height).apply {
+      leftMargin = bounds.left
+      topMargin = bounds.top
     }
     target.visibility = View.VISIBLE
   }
@@ -390,6 +409,7 @@ class NativeVideoPlugin(private val activity: Activity) : Plugin(activity) {
   }
 
   private fun stop() {
+    lastPlacement = null
     player?.release()
     player = null
     view?.let { (it.parent as? ViewGroup)?.removeView(it) }

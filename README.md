@@ -6,7 +6,7 @@
   Free live TV, a program guide and a public-domain film library for Windows,
   Android TVs, phones and handhelds. Pass it along to a friend with no app store.
 
-  [![Version](https://img.shields.io/badge/Version-0.1.0-brightgreen?style=for-the-badge)](https://github.com/DougTrier/GenX-Streamer/releases)
+  [![Version](https://img.shields.io/badge/Version-0.1.3-brightgreen?style=for-the-badge)](https://github.com/DougTrier/GenX-Streamer/releases)
   [![Tauri](https://img.shields.io/badge/Tauri-2-24C8DB?style=for-the-badge&logo=tauri&logoColor=white)](https://tauri.app/)
   [![Rust](https://img.shields.io/badge/Rust-native%20layer-B7410E?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
   [![Android](https://img.shields.io/badge/Android-TV%20%7C%20phone-3DDC84?style=for-the-badge&logo=android&logoColor=white)](docs/user-guide.md)
@@ -35,13 +35,14 @@
 
 | Evidence | Result |
 | --- | --- |
-| **Version** | 0.1.0, development release |
-| **Development gate** (`npm run verify`) | PASS: 3,310 unit tests, 579 interface tests, 1,503 Rust tests, 114 casting harness checks, 43 tooling tests, types, format, lint, privacy scan |
-| **Windows** | Release build and packaged native smoke test PASS: every test stream format played, the guide opened beside playback, clean exit in 70 ms, saved data intact |
-| **Android release** | Signed with the owner's release key (one universal APK, 32- and 64-bit ARM); installed and run on a Samsung Galaxy S25 |
-| **Install on TV, on real TVs** | Verified first installs from the S25 on a Google TV Streamer (no browser, so the download helper route, including waking it from its screensaver) and a Sansui Google TV (browser route). The installed file matched the file sent, byte for byte |
-| **Independent code review** | No critical or high findings; every medium and low finding fixed or documented ([details](docs/share-links.md#rules-for-passing-the-app-on-sh-009-to-sh-025)) |
-| **Last verified** | October 24, 2026 |
+| **Version** | 0.1.3 |
+| **Development gate** (`npm run verify`) | v0.1.0 baseline, October 24: PASS: 3,310 unit tests, 579 interface tests, 1,503 Rust tests, 114 casting harness checks, 43 tooling tests, types, format, lint, privacy scan |
+| **Windows** | 0.1.3 release build and native smoke test PASS: TS, fMP4, AES and byte-range playback, clean exit, and isolated saved-library integrity. Executable file/product versions are both 0.1.3 |
+| **Android compatibility** | API 24–29 uses compatible Display metrics; API 30+ retains current-window bounds. JNI regression cases pass for APIs 24, 28, 29, 30 and 36. Embedded player coordinates map from the CSS viewport to the actual WebView once. Owner confirmed launch, embedded/fullscreen/return playback with sound, and channel switching on a first-generation Fire TV Stick 4K Max (AFTKA, Fire OS 7) with 0.1.3 |
+| **Android release** | 0.1.3 / build 1003, signed with the same release key, universal 32- and 64-bit ARM. Google TV Streamer update preserved its 10.9K-channel library; ACC Network visual playback, fullscreen/return and switching to ACC Digital Network and back passed. 44 focused browser, Kotlin and Rust checks passed. Physical Flip 2 update testing remains pending |
+| **Install on TV, on real TVs** | v0.1.0 baseline: verified first installs from the S25 on a Google TV Streamer (download helper route, including waking it from its screensaver) and a Sansui Google TV (browser route). The installed file matched the file sent, byte for byte |
+| **Independent code review** | v0.1.0 baseline: no critical or high findings; every medium and low finding fixed or documented ([details](docs/share-links.md#rules-for-passing-the-app-on-sh-009-to-sh-025)) |
+| **Last verified** | October 31, 2026 for 0.1.3 Android compatibility and Windows smoke checks; the full development-gate baseline above is from October 24 |
 
 ---
 

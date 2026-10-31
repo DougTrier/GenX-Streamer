@@ -860,6 +860,49 @@ pub(crate) use crate::icon::NoIcon as PlatformIcon;
 #[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct MonitorHandle;
 
+// Android 11 introduced WindowMetrics. Check the runtime API level before JNI
+// looks up that method: a failed lookup leaves NoSuchMethodError pending on
+// Android 7-10 (including Fire OS 7 / Android 9).
+fn window_manager_size(
+  env: &mut jni::JNIEnv<'_>,
+  window_manager: &jni::objects::JObject<'_>,
+) -> jni::errors::Result<PhysicalSize<u32>> {
+  let sdk_int = env
+    .get_static_field("android/os/Build$VERSION", "SDK_INT", "I")?
+    .i()?;
+  let (width, height) = if sdk_int >= 30 {
+    let metrics = env
+      .call_method(
+        window_manager,
+        "getCurrentWindowMetrics",
+        "()Landroid/view/WindowMetrics;",
+        &[],
+      )?
+      .l()?;
+    let rect = env
+      .call_method(&metrics, "getBounds", "()Landroid/graphics/Rect;", &[])?
+      .l()?;
+    let width = env.call_method(&rect, "width", "()I", &[])?.i()?;
+    let height = env.call_method(&rect, "height", "()I", &[])?.i()?;
+    (width, height)
+  } else {
+    let display = env
+      .call_method(window_manager, "getDefaultDisplay", "()Landroid/view/Display;", &[])?
+      .l()?;
+    let metrics = env.new_object("android/util/DisplayMetrics", "()V", &[])?;
+    env.call_method(
+      &display,
+      "getRealMetrics",
+      "(Landroid/util/DisplayMetrics;)V",
+      &[(&metrics).into()],
+    )?;
+    let width = env.get_field(&metrics, "widthPixels", "I")?.i()?;
+    let height = env.get_field(&metrics, "heightPixels", "I")?.i()?;
+    (width, height)
+  };
+  Ok(PhysicalSize::new(width as u32, height as u32))
+}
+
 impl MonitorHandle {
   pub fn name(&self) -> Option<String> {
     Some("Android Device".to_owned())
@@ -879,32 +922,7 @@ impl MonitorHandle {
     let vm = unsafe { jni::JavaVM::from_raw(ctx.java_vm.cast()) }.unwrap();
     let mut env = vm.attach_current_thread().unwrap();
     let window_manager = w.as_obj();
-    let metrics = env
-      .call_method(
-        window_manager,
-        "getCurrentWindowMetrics",
-        "()Landroid/view/WindowMetrics;",
-        &[],
-      )
-      .unwrap()
-      .l()
-      .unwrap();
-    let rect = env
-      .call_method(&metrics, "getBounds", "()Landroid/graphics/Rect;", &[])
-      .unwrap()
-      .l()
-      .unwrap();
-    let width = env
-      .call_method(&rect, "width", "()I", &[])
-      .unwrap()
-      .i()
-      .unwrap();
-    let height = env
-      .call_method(&rect, "height", "()I", &[])
-      .unwrap()
-      .i()
-      .unwrap();
-    PhysicalSize::new(width as u32, height as u32)
+    window_manager_size(&mut env, window_manager).expect("Android window dimensions")
   }
 
   pub fn position(&self) -> PhysicalPosition<i32> {

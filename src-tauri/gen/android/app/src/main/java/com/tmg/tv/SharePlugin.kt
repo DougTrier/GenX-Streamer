@@ -148,6 +148,7 @@ class SharePlugin(private val activity: Activity) : Plugin(activity) {
       val info = activity.packageManager.getPackageInfo(activity.packageName, AppSigning.flags)
       val application = activity.applicationInfo
       invoke.resolveObject(mapOf(
+        "versionCode" to androidx.core.content.pm.PackageInfoCompat.getLongVersionCode(info),
         "signers" to AppSigning.signers(info).sorted(),
         "debuggable" to ((application.flags and android.content.pm.ApplicationInfo.FLAG_DEBUGGABLE) != 0),
         "split" to !application.splitSourceDirs.isNullOrEmpty()))

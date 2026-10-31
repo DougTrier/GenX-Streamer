@@ -23,7 +23,7 @@ import { nativeAudioSnapshot } from '../../playback/native-vod-engine';
 
 /**
  * Where the native on-demand picture goes (docs/native-vod-player.md): the
- * viewing area's rectangle in WebView pixels, kept current as the layout
+ * viewing area's rectangle in CSS viewport pixels, kept current as the layout
  * changes (Expand, full screen, the Guide's picture). While it plays, the page
  * leaves a see-through hole there; everything GenX draws over the picture
  * (menus, overlays, the full-screen dock, VOD titles) stays on top.
@@ -48,7 +48,11 @@ export function createNativePictureHost(
     root.style.setProperty('--gx-panel-y', `${panel?.top ?? 0}px`);
   };
   return {
-    bridge,
+    bridge(request) {
+      return bridge(
+        request.rect ? { ...request, viewport: [window.innerWidth, window.innerHeight] } : request,
+      );
+    },
     rect(): PictureRect | null {
       const box = elements.screen.getBoundingClientRect();
       if (
@@ -59,8 +63,9 @@ export function createNativePictureHost(
       )
         return null;
       hole();
-      const scale = window.devicePixelRatio || 1;
-      const value = (n: number) => Math.min(16_384, Math.max(0, Math.round(n * scale)));
+      // DPR is not necessarily the CSS-to-view scale on Fire TV. Keep the
+      // fractional CSS rectangle; Android converts against the measured view.
+      const value = (n: number) => Math.min(16_384, Math.max(0, n));
       return [value(box.left), value(box.top), value(box.width), value(box.height)];
     },
     watchRect(changed) {
@@ -75,6 +80,7 @@ export function createNativePictureHost(
       };
       const resize = new ResizeObserver(soon);
       resize.observe(elements.screen);
+      resize.observe(root);
       // Layout modes move the picture without resizing it (the Guide, full screen).
       const modes = new MutationObserver(soon);
       modes.observe(elements.app, {
@@ -82,11 +88,13 @@ export function createNativePictureHost(
         attributeFilter: ['class', 'data-guide-panel', 'data-vod-browsing', 'data-compact-view'],
       });
       window.addEventListener('resize', soon);
+      document.addEventListener('fullscreenchange', soon);
       return () => {
         if (frame) cancelAnimationFrame(frame);
         resize.disconnect();
         modes.disconnect();
         window.removeEventListener('resize', soon);
+        document.removeEventListener('fullscreenchange', soon);
       };
     },
     present(on) {

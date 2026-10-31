@@ -20,7 +20,8 @@
 // package.json, package-lock.json (twice), src-tauri/Cargo.toml,
 // src-tauri/Cargo.lock (the tmg-tv entry), src-tauri/tauri.conf.json (which
 // the Android build turns into versionName and versionCode =
-// major*1000000 + minor*1000 + patch), and the README's version badge.
+// major*1000000 + minor*1000 + patch), the README's badge and version table,
+// and the landing page's visible version and search metadata.
 //
 // Every release needs a higher version: Check for updates compares versions,
 // and Android refuses to update to an equal or lower versionCode.
@@ -74,8 +75,28 @@ const places = [
   },
   {
     file: 'README.md',
-    read: (text) => [/img\.shields\.io\/badge\/Version-([0-9.]+)-/.exec(text)?.[1]],
-    write: (text, from, to) => text.replace(`badge/Version-${from}-`, `badge/Version-${to}-`),
+    read: (text) => [
+      /img\.shields\.io\/badge\/Version-([0-9.]+)-/.exec(text)?.[1],
+      /\| \*\*Version\*\* \| ([0-9.]+)/.exec(text)?.[1],
+    ],
+    write: (text, from, to) =>
+      text
+        .replace(`badge/Version-${from}-`, `badge/Version-${to}-`)
+        .replace(`| **Version** | ${from}`, `| **Version** | ${to}`),
+  },
+  {
+    file: 'site/index.html',
+    read: (text) => [
+      /"softwareVersion": "([0-9.]+)"/.exec(text)?.[1],
+      /class="release-version">Version ([0-9.]+)/.exec(text)?.[1],
+    ],
+    write: (text, from, to) =>
+      text
+        .replace(`"softwareVersion": "${from}"`, `"softwareVersion": "${to}"`)
+        .replace(
+          `class="release-version">Version ${from}`,
+          `class="release-version">Version ${to}`,
+        ),
   },
 ];
 

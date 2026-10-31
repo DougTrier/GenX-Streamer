@@ -23,6 +23,8 @@ import { invoke, isTauri } from '@tauri-apps/api/core';
 
 export interface AppIdentity {
   version: string;
+  /** Actual installed Android package versionCode. */
+  versionCode?: number;
   platform: 'Windows' | 'Android' | 'Other';
   architecture: string;
   build: 'release' | 'development';
@@ -41,6 +43,8 @@ export async function appIdentity(): Promise<AppIdentity | null> {
   if (
     !r ||
     typeof r.version !== 'string' ||
+    (r.versionCode !== undefined &&
+      (!Number.isSafeInteger(r.versionCode) || Number(r.versionCode) < 1)) ||
     !['Windows', 'Android', 'Other'].includes(String(r.platform)) ||
     typeof r.architecture !== 'string' ||
     !['release', 'development'].includes(String(r.build)) ||
@@ -50,6 +54,7 @@ export async function appIdentity(): Promise<AppIdentity | null> {
     throw new Error('identity-unavailable');
   return {
     version: r.version.slice(0, 32),
+    ...(typeof r.versionCode === 'number' ? { versionCode: r.versionCode } : {}),
     platform: r.platform as AppIdentity['platform'],
     architecture: r.architecture.slice(0, 32),
     build: r.build as AppIdentity['build'],

@@ -35,7 +35,8 @@ beforeAll(async () => {
         },
         load(id) {
           if (id === '\0shell')
-            return `export {createShell} from ${JSON.stringify(resolve('src/ui/shell/shell.ts'))};`;
+            return `export {createShell} from ${JSON.stringify(resolve('src/ui/shell/shell.ts'))};
+              export {createNativePictureHost} from ${JSON.stringify(resolve('src/ui/player/native-picture.ts'))};`;
         },
       },
     ],
@@ -79,8 +80,17 @@ afterAll(async () => {
   await browser?.close();
 });
 
-async function shell(layout: { width: number; height: number; tv: boolean; mode?: string }) {
-  const page = await browser.newPage({ viewport: { width: layout.width, height: layout.height } });
+async function shell(layout: {
+  width: number;
+  height: number;
+  tv: boolean;
+  mode?: string;
+  dpr?: number;
+}) {
+  const page = await browser.newPage({
+    viewport: { width: layout.width, height: layout.height },
+    deviceScaleFactor: layout.dpr ?? 1,
+  });
   await page.setContent('<div id="app"></div>');
   await page.addStyleTag({ content: styles });
   await page.addScriptTag({ content: code });
@@ -188,6 +198,56 @@ it('without native video the page paints normally', async () => {
   try {
     await page.evaluate(() => delete document.documentElement.dataset.nativeVideo);
     expect(await painted(page)).not.toEqual([]);
+  } finally {
+    await page.close();
+  }
+});
+
+it('sends CSS bounds at DPR 2 and refreshes them across fullscreen and viewport changes', async () => {
+  const page = await shell({ width: 1920, height: 1080, tv: true, dpr: 2 });
+  try {
+    const initial = await page.evaluate(async () => {
+      const app = document.getElementById('app')!;
+      const screen = document.getElementById('screen')!;
+      const requests: unknown[] = [];
+      const host = Reflect.get(window, 'Fixture').createNativePictureHost(
+        async (request: unknown) => {
+          requests.push(request);
+          return {};
+        },
+        { app, screen, video: document.getElementById('video')! },
+      );
+      const place = () => host.bridge({ action: 'place', session: 1, rect: host.rect() });
+      Reflect.set(window, 'pictureRequests', requests);
+      Reflect.set(window, 'stopPictureWatch', host.watchRect(place));
+      await place();
+      const box = screen.getBoundingClientRect();
+      return {
+        dpr: devicePixelRatio,
+        expected: [box.left, box.top, box.width, box.height],
+        request: requests[0],
+      };
+    });
+    expect(initial.dpr).toBe(2);
+    expect(initial.request).toMatchObject({ rect: initial.expected, viewport: [1920, 1080] });
+    await page.evaluate(() => document.getElementById('app')!.classList.add('viewing-fullscreen'));
+    await page.waitForFunction(() => {
+      const requests = Reflect.get(window, 'pictureRequests');
+      return requests.at(-1)?.rect?.join(',') === '0,0,1920,1080';
+    });
+    await page.evaluate(() =>
+      document.getElementById('app')!.classList.remove('viewing-fullscreen'),
+    );
+    await page.waitForFunction(
+      (expected) =>
+        Reflect.get(window, 'pictureRequests').at(-1)?.rect?.join(',') === expected.join(','),
+      initial.expected,
+    );
+    await page.setViewportSize({ width: 960, height: 540 });
+    await page.waitForFunction(
+      () => Reflect.get(window, 'pictureRequests').at(-1)?.viewport?.join(',') === '960,540',
+    );
+    await page.evaluate(() => Reflect.get(window, 'stopPictureWatch')());
   } finally {
     await page.close();
   }

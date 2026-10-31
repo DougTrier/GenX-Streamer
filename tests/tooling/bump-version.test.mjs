@@ -36,6 +36,7 @@ const files = [
   'src-tauri/Cargo.lock',
   'src-tauri/tauri.conf.json',
   'README.md',
+  'site/index.html',
 ];
 
 /** A scratch copy of the repository's own version files. */
@@ -94,12 +95,11 @@ test('a bump changes every place and nothing else', () => {
         if (line !== now[i]) assert.equal(now[i], line.replace(current, result.to), file);
       });
     }
-    // A dependency that happens to share the old version is not touched.
+    // Dependencies stay identical even when one already has the next app version.
     const lock = JSON.parse(readFileSync(path.join(root, 'package-lock.json'), 'utf8'));
-    const others = Object.entries(lock.packages).filter(
-      ([name, entry]) => name !== '' && entry.version === result.to,
-    );
-    assert.deepEqual(others, []);
+    const previousLock = JSON.parse(before['package-lock.json']);
+    const dependencies = (value) => Object.entries(value.packages).filter(([name]) => name !== '');
+    assert.deepEqual(dependencies(lock), dependencies(previousLock));
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

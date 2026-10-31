@@ -41,7 +41,7 @@ export interface NativeTrackControls {
 }
 export interface NativeEngineHost {
   bridge: NativeVideoBridge;
-  /** The picture's place in WebView pixels, or null while it is not shown. */
+  /** Picture coordinates interpreted by this host's bridge; null while hidden. */
   rect(): PictureRect | null;
   /** Calls back when the picture may have moved; returns the stop function. */
   watchRect(changed: () => void): () => void;

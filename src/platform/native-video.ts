@@ -61,8 +61,10 @@ export interface NativeVideoRequest {
     | 'replay';
   session: number;
   url?: string;
-  /** WebView pixels [left, top, width, height]; zero size hides the picture. */
+  /** [left, top, width, height]; CSS pixels with viewport, legacy view pixels without it. */
   rect?: [number, number, number, number];
+  /** CSS viewport measured with rect; Android maps it to the actual WebView exactly once. */
+  viewport?: [number, number];
   positionMs?: number;
   volume?: number;
   track?: string;

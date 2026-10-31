@@ -199,7 +199,8 @@ test('Send app offers the app file, the download link and a copy, each through t
 });
 
 const androidIdentity = {
-  version: '0.1.0',
+  version: '0.1.1',
+  versionCode: 1001,
   platform: 'Android',
   architecture: 'aarch64',
   build: 'development',
@@ -455,7 +456,7 @@ test('About shows which copy this is and its checksum on request', async ({ page
   });
   const app = page.locator('#app');
   await expect(app.locator('.about-identity-summary')).toHaveText(
-    'GenX Streamer 0.1.0 · Android (aarch64) · Development build',
+    'GenX Streamer 0.1.1 (build 1001) · Android (aarch64) · Development build',
   );
   // The signing certificate is checked inside the app, not shown (owner's decision).
   await expect(app).not.toContainText('Signing certificate');

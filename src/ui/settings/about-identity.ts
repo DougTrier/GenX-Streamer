@@ -24,6 +24,9 @@
 import { appChecksum, appIdentity, type AppIdentity } from '../../platform/app-identity';
 
 export function describeIdentity(identity: AppIdentity): { summary: string } {
+  const version = identity.versionCode
+    ? `${identity.version} (build ${identity.versionCode})`
+    : identity.version;
   const build =
     identity.platform === 'Android' && identity.build === 'release' && !identity.official
       ? 'Unofficial build'
@@ -31,7 +34,7 @@ export function describeIdentity(identity: AppIdentity): { summary: string } {
         ? 'Release build'
         : 'Development build';
   return {
-    summary: `GenX Streamer ${identity.version} · ${identity.platform} (${identity.architecture}) · ${build}`,
+    summary: `GenX Streamer ${version} · ${identity.platform} (${identity.architecture}) · ${build}`,
   };
 }
 

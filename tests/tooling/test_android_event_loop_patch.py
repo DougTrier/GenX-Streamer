@@ -23,6 +23,7 @@ ROOT = Path(__file__).resolve().parents[2]
 VENDOR = ROOT / "src-tauri/vendor/tao"
 # GenX's null-intent fix (GENX-PATCHES.md): (published, patched) snippet pairs.
 NULL_INTENT_FIXES = json.loads((Path(__file__).parent / "tao_null_intent_fixes.json").read_text("utf8"))
+WINDOW_METRICS_FIXES = json.loads((Path(__file__).parent / "tao_window_metrics_fixes.json").read_text("utf8"))
 DRAIN = """      // Backport tauri-apps/tao#1304: an fd event can consume the wake indication.
       // Always drain queued user events before MainEventsCleared, even on fd polls.
       while let Ok(event) = self.receiver.try_recv() {
@@ -71,7 +72,11 @@ class AndroidEventLoopPatchTests(unittest.TestCase):
                 self.assertEqual(hashlib.sha256(data).hexdigest(), self.provenance["patchedFileSha256"])
                 self.assertEqual(self.source.count(DRAIN), 1)
                 self.assertEqual(self.source.count("    let _ = self.queue.send(event);\n    self.looper.wake();"), 1)
-                data = self.source.replace(DRAIN, "").replace(
+                text = self.source
+                for published, patched in WINDOW_METRICS_FIXES:
+                    self.assertEqual(text.count(patched), 1)
+                    text = text.replace(patched, published)
+                data = text.replace(DRAIN, "").replace(
                     "    let _ = self.queue.send(event);\n    self.looper.wake();",
                     "    _ = self.queue.try_send(event);\n    self.looper.wake();").encode("utf8")
             if relative == self.provenance["nullIntentFile"]:

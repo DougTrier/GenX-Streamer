@@ -81,9 +81,11 @@ pub(crate) struct Request {
     session: u64,
     #[serde(default)]
     url: Option<String>,
-    /// Window pixels of the picture; absent or zero size hides it.
+    /// CSS pixels with viewport; legacy view pixels otherwise. Zero size hides it.
     #[serde(default)]
-    rect: Option<[i32; 4]>,
+    rect: Option<[f64; 4]>,
+    #[serde(default)]
+    viewport: Option<[i32; 2]>,
     #[serde(default)]
     position_ms: Option<u64>,
     #[serde(default)]
@@ -121,9 +123,12 @@ pub(crate) fn validate(request: &Request, live: Option<&str>) -> Result<(), &'st
     if request.action != "open" && (request.url.is_some() || request.hls.is_some()) {
         return Err("native-video-invalid");
     }
-    if request
-        .rect
-        .is_some_and(|r| r.iter().any(|v| !(0..=16_384).contains(v)))
+    if request.rect.is_some_and(|r| {
+        r.iter()
+            .any(|v| !v.is_finite() || !(0.0..=16_384.0).contains(v))
+    }) || request
+        .viewport
+        .is_some_and(|v| v.iter().any(|n| !(1..=16_384).contains(n)))
         || request.position_ms.is_some_and(|p| p > WEEK_MS)
         || request
             .volume
@@ -159,7 +164,8 @@ pub(crate) async fn native_video(
         let player = app
             .try_state::<NativeVideo>()
             .ok_or("native-video-unavailable")?;
-        let [left, top, width, height] = request.rect.unwrap_or([0, 0, 0, 0]);
+        let [left, top, width, height] = request.rect.unwrap_or([0.0, 0.0, 0.0, 0.0]);
+        let [viewport_width, viewport_height] = request.viewport.unwrap_or([0, 0]);
         player
             .0
             .run_mobile_plugin_async::<serde_json::Value>(
@@ -168,6 +174,7 @@ pub(crate) async fn native_video(
                     "session": request.session,
                     "url": request.url.unwrap_or_default(),
                     "left": left, "top": top, "width": width, "height": height,
+                    "viewportWidth": viewport_width, "viewportHeight": viewport_height,
                     "positionMs": request.position_ms.unwrap_or(0),
                     "volume": request.volume.unwrap_or(1.0),
                     "track": request.track.unwrap_or_default(),
@@ -269,6 +276,33 @@ mod tests {
     }
     #[test]
     fn commands_and_values_are_bounded() {
+        for viewport in [[0, 1080], [1920, -1], [16_385, 1080]] {
+            assert!(validate(
+                &Request {
+                    viewport: Some(viewport),
+                    ..request("place")
+                },
+                None
+            )
+            .is_err());
+        }
+        assert!(validate(
+            &Request {
+                rect: Some([784.0, 257.5, 1088.0, 612.0]),
+                viewport: Some([1920, 1080]),
+                ..request("place")
+            },
+            None
+        )
+        .is_ok());
+        assert!(validate(
+            &Request {
+                rect: Some([f64::NAN, 0.0, 10.0, 10.0]),
+                ..request("place")
+            },
+            None
+        )
+        .is_err());
         assert!(validate(&request("status"), None).is_ok());
         assert_eq!(
             validate(&request("eval"), None),
@@ -297,7 +331,7 @@ mod tests {
         );
         assert!(validate(
             &Request {
-                rect: Some([0, 0, 1920, 1080]),
+                rect: Some([0.0, 0.0, 1920.0, 1080.0]),
                 ..request("place")
             },
             None
@@ -305,7 +339,7 @@ mod tests {
         .is_ok());
         assert!(validate(
             &Request {
-                rect: Some([-1, 0, 10, 10]),
+                rect: Some([-1.0, 0.0, 10.0, 10.0]),
                 ..request("place")
             },
             None

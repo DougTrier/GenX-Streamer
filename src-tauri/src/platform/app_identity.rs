@@ -48,6 +48,9 @@ pub(crate) fn official(release: &str, signers: &[String]) -> bool {
 #[serde(rename_all = "camelCase")]
 pub(crate) struct AppIdentity {
     pub version: String,
+    /// Installed Android package versionCode; absent on other platforms.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub version_code: Option<u64>,
     pub platform: &'static str,
     pub architecture: &'static str,
     /// "release" or "development" (Android: a debuggable package; Windows: a debug build).
@@ -81,6 +84,7 @@ async fn identity(app: &tauri::AppHandle) -> Result<AppIdentity, String> {
         let official = official(RELEASE_CERTIFICATE_SHA256, &found.signers);
         Ok(AppIdentity {
             version,
+            version_code: Some(found.version_code),
             platform: "Android",
             architecture: std::env::consts::ARCH,
             build: if found.debuggable {
@@ -98,6 +102,7 @@ async fn identity(app: &tauri::AppHandle) -> Result<AppIdentity, String> {
         let _ = app;
         Ok(AppIdentity {
             version,
+            version_code: None,
             platform: if cfg!(windows) { "Windows" } else { "Other" },
             architecture: std::env::consts::ARCH,
             build: if cfg!(debug_assertions) {

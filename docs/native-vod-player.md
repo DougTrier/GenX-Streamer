@@ -81,3 +81,49 @@ ACC Network's sound is MPEG-1 Layer II, 48 kHz stereo, 96 kbit/s. Two separate f
 2. **Audio stamped 296 s early.** Every ACC segment carried audio timestamps about 296 s before its video, so Media3 never released sound to any decoder (the Sansui's hardware decoder waited the same way). The Android player's loopback relay now realigns audio that is more than 10 s from its video, once per session (`src-tauri/src/playback/ts_align.rs`, MA15). Ordinary streams are not touched.
 
 MPEG-2 video still tries Android's software decoder first. The Realtek hardware decoder warned "Output format changed unexpectedly", and Realtek's software path decodes at about 45% of one core. GenX shows "This channel is playing without sound: this device cannot decode its audio format." only when a channel's sound has no decoder at all.
+
+### Fire OS 7 embedded coordinates (October 31, 2026; 0.1.3)
+
+Owner-supplied AFTKA evidence: a 1920×1080 screenshot places the intended
+picture at about (784,257), while the visible video and SurfaceFlinger updates
+start at (1568,515). Fullscreen plays correctly. A TextureView-only 0.1.2
+experiment did not fix it and was removed.
+
+The source trace exposed an incorrect coordinate-space assumption:
+`native-picture.ts` multiplied the CSS `getBoundingClientRect()` by DPR;
+`native_video.rs` forwarded those numbers unchanged; `NativeVideoPlugin.place`
+used them as Android view pixels. Neither Rust nor FrameLayout applies another
+density conversion. Thus DPR 2 incorrectly doubles placement when the CSS
+viewport already maps 1:1 to the actual WebView. The device evidence matches
+that failure; the underlying Amazon DPR/render-scale discrepancy is inferred
+from the measurements, not directly measured here.
+
+The host now sends fractional CSS bounds plus the CSS viewport width/height
+in the same placement request. Rust validates and forwards both. Android maps
+once using actual WebView width / CSS viewport width and actual WebView height /
+CSS viewport height, rounding only the resulting view pixels. Display density,
+DPR and deprecated `WebView.getScale()` are not additional multipliers.
+Android documents `getScale()` as prone to rendering/UI-thread races; see
+[WebView API reference](https://developer.android.com/reference/android/webkit/WebView#getScale()).
+The WebView's window origin is translated into the player's parent coordinate
+space; parent padding is subtracted because FrameLayout adds it during layout.
+Commands without viewport retain the legacy view-pixel contract.
+
+The host watches the player and document sizes, layout-mode attributes,
+window resize and DOM fullscreen changes. Android also reapplies the latest
+placement when the WebView's bounds change, and clears it when the player
+stops. Each channel's open request carries a fresh rectangle and viewport.
+The existing SurfaceView, decoder selection and relays are retained. No
+dependency update, minimum SDK increase or Fire-specific scale constant is needed.
+
+Regression coverage includes the reported origin at a 1:1 viewport, ordinary
+2× handheld scaling, parent offsets, hidden/invalid bounds, and real browser
+DPR-2 embedded → fullscreen → embedded/resize requests. Synthetic density
+tests do not constitute a physical Flip 2 verification. The signed 0.1.3 APK
+was installed over 0.1.2 on the 32-bit Google TV Streamer, retaining the 10.9K
+library. ACC Network visual playback passed embedded → fullscreen → embedded;
+switching to ACC Digital Network and back passed, with no crash-buffer entries.
+Screenshots and test logs are in the ignored `artifacts/fire-tv-testing/` folder.
+The owner confirmed the signed 0.1.3 update fixes embedded playback, fullscreen,
+returning to embedded, sound and channel switching on AFTKA / Fire OS 7.
+Physical Flip 2 update testing remains pending.

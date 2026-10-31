@@ -1,4 +1,4 @@
-# Android IPC event delivery backports
+# Android compatibility and IPC backports
 
 This is the complete published Tao **0.35.0** crate, including its original Apache-2.0 licenses. Its registry archive SHA-256 is `1cf65722394c2ac443e80120064987f8914ee1d4e4e36e63cdf10f2990f01159`, matching the project's original Cargo.lock. `GENX-PATCH-PROVENANCE.json` records the original hash of every archive file.
 
@@ -29,4 +29,28 @@ not-responding report shows the main thread in `Rust.onNewIntent`.
 patched file's hash, and `tests/tooling/test_android_event_loop_patch.py`
 reverses the pairs to reproduce the published hash and checks every nullable
 field is filtered.
+
+## Window dimensions before Android 11 (GenX fix, October 31, 2026)
+
+`MonitorHandle::size()` called `WindowManager.getCurrentWindowMetrics()` by
+name through JNI on every Android version. That method and its return class
+were added in API 30. Fire OS 7 / Android 9 (API 28, AFTKA) throws
+`NoSuchMethodError` during the JNI lookup on the native event thread.
+
+Read `Build.VERSION.SDK_INT` before resolving any WindowMetrics method.
+API 30+ retains `getCurrentWindowMetrics().getBounds()` and its current-window
+semantics. API 24-29 uses `getDefaultDisplay().getRealMetrics(DisplayMetrics)`
+and reads physical `widthPixels` / `heightPixels`. No exception is used to
+detect support, and minimum SDK 24 is retained. Unexpected JNI errors propagate
+to the existing caller instead of being silently replaced with zero dimensions.
+
+The current [upstream Tao implementation](https://github.com/tauri-apps/tao/blob/dev/src/platform_impl/android/mod.rs)
+also selects these APIs by runtime SDK level. This focused backport preserves
+the existing Tauri JNI lifecycle contract and the earlier event/intent fixes.
+`tests/tooling/tao_window_metrics_fixes.json` records the reversible change;
+the provenance test still reconstructs the entire original 0.35.0 source tree.
+`test_android_window_metrics_jni.py` executes the actual helper against Java
+fixtures with the API-30 classes absent on the legacy route and deliberately
+different modern versus legacy dimensions. This checks JNI dispatch but does
+not replace launch and playback testing on Fire OS hardware.
 
