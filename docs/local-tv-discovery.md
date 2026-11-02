@@ -1,6 +1,6 @@
 # Local station and live-event discovery
 
-Current release source and assets use **0.1.25 / build 1025**. Historical measurements below retain their recorded versions.
+**Release status:** 0.1.25 / build 1025 has been withdrawn because of phone/handheld layout and Football/NFL search issues. Public downloads currently provide [0.1.3 / build 1003](https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.3). Features and checks below describe the withdrawn development version unless another version is stated; they do not establish acceptance of a replacement release.
 
 Status: discovery design and source research, November 1, 2026. Web TV,
 My Local and nearest-affiliate discovery remain design work. Sport/league

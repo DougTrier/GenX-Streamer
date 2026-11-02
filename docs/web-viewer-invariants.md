@@ -1,6 +1,6 @@
 # Web viewer invariants (hostile websites)
 
-Current source: **0.1.25 / build 1025**. The dated device evidence below is retained at its original scope; current source does not turn it into new owner-device or hostile-site physical acceptance.
+**Release status:** 0.1.25 / build 1025 has been withdrawn because of phone/handheld layout and Football/NFL search issues. Public downloads currently provide [0.1.3 / build 1003](https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.3). Features and checks below describe the withdrawn development version unless another version is stated; they do not establish acceptance of a replacement release.
 
 > Public copy. Evidence paths (`artifacts/...`) and linked internal reports are kept in the project's private archive; the measurements and decisions are summarised here.
 

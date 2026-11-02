@@ -1,6 +1,6 @@
 # Signing Android releases
 
-Current release source and assets use **0.1.25 / build 1025**. Historical measurements below retain their recorded versions.
+**Release status:** 0.1.25 / build 1025 has been withdrawn because of phone/handheld layout and Football/NFL search issues. Public downloads currently provide [0.1.3 / build 1003](https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.3). Features and checks below describe the withdrawn development version unless another version is stated; they do not establish acceptance of a replacement release.
 
 An Android app's signing key is its identity. Every update must be signed with
 the same key, or Android refuses to install it over the copy people have. GenX

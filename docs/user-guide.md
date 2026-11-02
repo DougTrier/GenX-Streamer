@@ -1,6 +1,6 @@
 # GenX Streamer user guide
 
-Current release assets use **0.1.25 / build 1025**. Device-specific verification is limited to the checks stated below.
+**Release status:** 0.1.25 / build 1025 has been withdrawn because of phone/handheld layout and Football/NFL search issues. Public downloads currently provide [0.1.3 / build 1003](https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.3). Features and checks below describe the withdrawn development version unless another version is stated; they do not establish acceptance of a replacement release.
 
 ## Supported devices
 

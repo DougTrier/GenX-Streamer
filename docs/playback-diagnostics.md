@@ -1,6 +1,6 @@
 # Playback diagnostics
 
-Current source: **0.1.25 / build 1025**. Version-specific failed comparisons and earlier device observations below remain historical evidence.
+**Release status:** 0.1.25 / build 1025 has been withdrawn because of phone/handheld layout and Football/NFL search issues. Public downloads currently provide [0.1.3 / build 1003](https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.3). Features and checks below describe the withdrawn development version unless another version is stated; they do not establish acceptance of a replacement release.
 
 Open **Settings → Advanced → Playback diagnostics** and select
 **Start 15-minute capture**. Close Settings, reproduce the problem, then return

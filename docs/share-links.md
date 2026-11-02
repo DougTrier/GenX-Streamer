@@ -1,6 +1,6 @@
 # Share links
 
-Current release source: **0.1.25 / build 1025**. Dated installation and sharing observations retain their original scope.
+**Release status:** 0.1.25 / build 1025 has been withdrawn because of phone/handheld layout and Football/NFL search issues. Public downloads currently provide [0.1.3 / build 1003](https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.3). Features and checks below describe the withdrawn development version unless another version is stated; they do not establish acceptance of a replacement release.
 
 Two ways to pass GenX Streamer on (owner's idea, October 24, 2026):
 

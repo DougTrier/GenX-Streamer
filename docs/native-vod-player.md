@@ -2,7 +2,7 @@
 
 > Public copy. Evidence paths (`artifacts/...`) and linked internal reports are kept in the project's private archive; the measurements and decisions are summarised here.
 
-Current 0.1.25 / build 1025 changes and verification appear in the final section. Earlier sections retain the original design and version-specific investigations; their measurements do not establish current acceptance.
+**Release status:** 0.1.25 / build 1025 has been withdrawn because of phone/handheld layout and Football/NFL search issues. Public downloads currently provide [0.1.3 / build 1003](https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.3). Features and checks below describe the withdrawn development version unless another version is stated; they do not establish acceptance of a replacement release.
 
 Owner request, October 18, 2026: a Paid TV movie played in a foreign language with no way to change it, and no subtitles.
 
@@ -471,7 +471,7 @@ Their new-version results remain unverified until reported.
 
 ## 0.1.25 sports search and release evidence
 
-The current candidate is 0.1.25 / build 1025, candidate 7.
+The withdrawn 0.1.25 / build 1025 release was built from candidate 7. The evidence below is retained as history; the phone/handheld layout and search regressions require new verification.
 All 17 development checks passed: 4,006 unit tests across 356 files, 600 UI checks, 1,702 native tests with 7 existing ignored, 117 casting checks and 45 Python tooling tests; type, lint, format and the remaining tooling checks passed. Its universal Android package is
 `91e2fb538e3cad35e1d2ccbdca03658c7c3ca8cc2d622da7ea5b2b8b5e50f0e5` (93,111,678 bytes), `com.tmg.tv`, minimum API 24,
 target API 36 and both ARM ABIs under the same official release certificate.
@@ -480,7 +480,7 @@ Windows 0.1.25 x64 Release EXE is 48,686,080 bytes (SHA-256 `106d72b72c154a88866
 No new local Paid-provider stream is opened while the household provider
 client is active. Earlier 0.1.23 playback/Windows and internal 0.1.24 results
 remain version-specific; neither establishes this candidate's acceptance.
-The official release assets use 0.1.25 / build 1025; the release manifest and SHA256SUMS identify the exact verified packages. New Fire TV Stick/Flip 2 upgrade results remain
+The withdrawn assets used 0.1.25 / build 1025; their manifest and SHA256SUMS identify the recorded packages, which are no longer publicly downloadable. New Fire TV Stick/Flip 2 upgrade results remain
 unverified follow-up after the official stable GitHub publication.
 
 This phase adds cached sport/league and bounded team-aware queries,
