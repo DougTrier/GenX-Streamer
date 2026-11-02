@@ -57,7 +57,7 @@ async function fixture(): Promise<Page> {
     const notify=()=>{for(const fn of listeners)fn(state)};
     window.finishBounded=(patch={})=>{state={...state,...patch};notify();window.resolveStart?.();};
     const service={
-      prepare:async()=>{window.calls.prepare++;if(window.mode==='held')await new Promise(resolve=>window.resolvePrepare=resolve);return window.plan;},
+      prepare:async()=>{window.calls.prepare++;if(window.mode==='held')await new Promise(resolve=>window.resolvePrepare=resolve);if(window.mode==='native-expired')throw new ScanUI.ScanCheckpointExpired();return window.plan;},
       snapshot:()=>state,
       subscribe:fn=>{listeners.add(fn);return()=>listeners.delete(fn)},
       start:async()=>{window.calls.start++;state={...state,phase:'checking'};notify();await new Promise(resolve=>window.resolveStart=resolve);if(window.startFailure)throw new Error('Commit not confirmed')},
@@ -247,6 +247,38 @@ it('a scan whose sources were updated while paused says so and keeps its saved c
       'Your channel sources were updated after this scan paused. Its 70 saved channels are kept; Rescan checks the updated sources.',
     );
     expect(shown.canContinue).toBe(false);
+  } finally {
+    await page.evaluate(() => Reflect.get(window, 'scan').dispose());
+    await page.close();
+  }
+});
+it('a joined native expiry explains the24-hour resume window and offers Rescan without losing saved progress', async () => {
+  const page = await fixture();
+  try {
+    await page.evaluate(() => {
+      Reflect.set(window, 'mode', 'native-expired');
+      return Reflect.get(window, 'continueOwned')();
+    });
+    expect(await snapshot(page)).toMatchObject({
+      phase: 'failed',
+      checked: 100,
+      published: 70,
+      busy: false,
+    });
+    const shown = await page.evaluate(() => Reflect.get(window, 'progressUpdates').at(-1));
+    expect(shown.error).toBe(
+      'This saved scan is outside its 24-hour resume window. Choose Rescan; saved channels are kept.',
+    );
+    expect(shown.canContinue).toBe(false);
+    expect(shown.status).toContain('Select Rescan');
+    expect(await calls(page)).toMatchObject({
+      prepare: 1,
+      start: 0,
+      collect: 0,
+      commit: 0,
+      load: 0,
+      dispose: 1,
+    });
   } finally {
     await page.evaluate(() => Reflect.get(window, 'scan').dispose());
     await page.close();

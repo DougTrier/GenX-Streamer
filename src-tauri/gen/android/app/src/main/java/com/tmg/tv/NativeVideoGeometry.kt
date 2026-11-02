@@ -28,4 +28,14 @@ internal object NativeVideoGeometry {
       px(width, sx), px(height, sy),
     ).takeIf { it.width > 0 && it.height > 0 }
   }
+  fun delta(expected: NativePictureBounds, actual: NativePictureBounds): IntArray = intArrayOf(
+    actual.left-expected.left,actual.top-expected.top,actual.width-expected.width,actual.height-expected.height)
+  fun aligned(expected: NativePictureBounds, actual: NativePictureBounds): Boolean = delta(expected,actual).all { kotlin.math.abs(it)<=2 }
+  fun fitted(player: NativePictureBounds, videoWidth: Int, videoHeight: Int, pixelAspect: Float): NativePictureBounds? {
+    if(videoWidth<=0 || videoHeight<=0 || !pixelAspect.isFinite() || pixelAspect<=0)return null
+    val aspect=videoWidth.toDouble()*pixelAspect/videoHeight
+    val width=kotlin.math.min(player.width.toDouble(),player.height*aspect).roundToInt()
+    val height=kotlin.math.min(player.height.toDouble(),player.width/aspect).roundToInt()
+    return NativePictureBounds(player.left+(player.width-width)/2,player.top+(player.height-height)/2,width,height)
+  }
 }

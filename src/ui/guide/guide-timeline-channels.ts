@@ -26,6 +26,7 @@ import {
   channelKey,
   type TimelineChannel,
   type TimelineHost,
+  appendPpvBadge,
 } from './guide-timeline-model';
 
 /** What this part reads from, and writes back to, mountGuideTimeline. */
@@ -35,6 +36,7 @@ export interface TimelineChannelsEnvironment {
   readonly closed: boolean;
   readonly foreground: boolean;
   readonly channelCards: Map<HTMLButtonElement, TimelineChannel>;
+  readonly channelMarkedPpv: (channel: TimelineChannel) => boolean;
   readonly viewport: HTMLDivElement;
   readonly browseChannel: HTMLButtonElement;
   readonly root: HTMLElement;
@@ -118,6 +120,7 @@ export function createTimelineChannels(env: TimelineChannelsEnvironment) {
     const meta = env.doc.createElement('small');
     meta.className = 'media-result-subtitle';
     meta.textContent = channel.category || 'Live channel';
+    appendPpvBadge(meta, env.channelMarkedPpv(channel));
     copy.append(name, meta);
     card.replaceChildren(artwork, copy);
     env.channelCards.set(card, channel);

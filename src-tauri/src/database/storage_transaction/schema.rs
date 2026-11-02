@@ -42,12 +42,42 @@ pub(super) fn refuse_database_links(path: &Path) -> Result<(), String> {
 pub(super) const BACKGROUND_BUSY_TIMEOUT: Duration = Duration::from_secs(30);
 
 pub(super) fn connect_background(path: &Path, readonly: bool) -> Result<Connection, String> {
-    let c = connect(path, readonly)?;
-    sql(c.busy_timeout(BACKGROUND_BUSY_TIMEOUT))?;
-    Ok(c)
+    connect_with_timeout(path, readonly, BACKGROUND_BUSY_TIMEOUT)
 }
 
 pub(super) fn connect(path: &Path, readonly: bool) -> Result<Connection, String> {
+    connect_with_timeout(path, readonly, Duration::from_secs(2))
+}
+
+/// Paid authority may probe a readable database without waiting behind an
+/// unrelated in-process writer. It never opens a writable connection.
+pub(super) fn connect_authority_read(path: &Path, timeout: Duration) -> Result<Connection, String> {
+    // Generic storage historically classifies LOCKED with BUSY. An authority
+    // admission probe must preserve that distinction: only actual BUSY waits.
+    refuse_database_links(path)?;
+    let c = authority_sql(Connection::open_with_flags(
+        path,
+        OpenFlags::SQLITE_OPEN_READ_ONLY,
+    ))?;
+    authority_sql(c.busy_timeout(timeout.min(Duration::from_secs(2))))?;
+    authority_sql(c.execute_batch("PRAGMA foreign_keys=ON;PRAGMA trusted_schema=OFF;"))?;
+    Ok(c)
+}
+
+fn authority_sql<T>(result: rusqlite::Result<T>) -> Result<T, String> {
+    result.map_err(|error| match error.sqlite_error_code() {
+        Some(rusqlite::ErrorCode::DatabaseBusy) => "sqlite-busy".into(),
+        Some(rusqlite::ErrorCode::DatabaseLocked) => "sqlite-locked".into(),
+        Some(rusqlite::ErrorCode::DiskFull) => "sqlite-storage-full".into(),
+        _ => "sqlite-operation-failed".into(),
+    })
+}
+
+fn connect_with_timeout(
+    path: &Path,
+    readonly: bool,
+    timeout: Duration,
+) -> Result<Connection, String> {
     refuse_database_links(path)?;
     let c = sql(Connection::open_with_flags(
         path,
@@ -57,7 +87,9 @@ pub(super) fn connect(path: &Path, readonly: bool) -> Result<Connection, String>
             OpenFlags::SQLITE_OPEN_READ_WRITE
         },
     ))?;
-    sql(c.busy_timeout(Duration::from_secs(2)))?;
+    // Initialization also touches SQLite locks. Install the caller's existing
+    // budget before any PRAGMA, rather than changing it only after connect.
+    sql(c.busy_timeout(timeout))?;
     sql(c.execute_batch("PRAGMA foreign_keys=ON;PRAGMA trusted_schema=OFF;"))?;
     if !readonly {
         sql(c.execute_batch("PRAGMA journal_mode=DELETE;PRAGMA synchronous=FULL;"))?;
@@ -345,4 +377,26 @@ pub(super) fn validate_content_library_schema(c: &Connection) -> Result<(), Stri
         return Err("sqlite-invalid-content-library".into());
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod authority_connection_tests {
+    use super::*;
+    #[test]
+    fn authority_connection_refusals_keep_locked_and_unknown_out_of_busy_admission() {
+        for (code, expected) in [
+            (rusqlite::ffi::SQLITE_BUSY, "sqlite-busy"),
+            (rusqlite::ffi::SQLITE_LOCKED, "sqlite-locked"),
+            (rusqlite::ffi::SQLITE_FULL, "sqlite-storage-full"),
+            (rusqlite::ffi::SQLITE_ERROR, "sqlite-operation-failed"),
+        ] {
+            let error = rusqlite::Error::SqliteFailure(
+                rusqlite::ffi::Error::new(code),
+                Some("https://private.invalid/account/password?secret=fixture".into()),
+            );
+            let result = authority_sql::<()>(Err(error)).unwrap_err();
+            assert_eq!(result, expected);
+            assert!(!result.contains("private.invalid") && !result.contains("secret"));
+        }
+    }
 }

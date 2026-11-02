@@ -35,6 +35,9 @@ struct Fixture {
     candidates: Vec<Value>,
 }
 async fn fixture(alternative_http: bool) -> Fixture {
+    fixture_targets(alternative_http, false).await
+}
+async fn fixture_targets(alternative_http: bool, distinct: bool) -> Fixture {
     let (root, context, _, _, requests) = crate::scan_manifest_work::bookmark_context_fixture();
     let sources = json!([
         {"id":"a","name":"Source A","kind":"url","location":"https://fixture.invalid/a.m3u","allowHttp":false},
@@ -59,7 +62,7 @@ async fn fixture(alternative_http: bool) -> Fixture {
         .unwrap();
     let candidates: Vec<_> = (0..3).map(|i| {
         let id = if i == 0 { "a" } else { "b" };
-        let mut urls = vec![json!("https://fixture.invalid/same.m3u8?token=EXACT")];
+        let mut urls = vec![json!(if distinct {format!("https://fixture.invalid/stream-{i}.m3u8?token=EXACT")}else{"https://fixture.invalid/same.m3u8?token=EXACT".to_owned()})];
         if alternative_http && i != 0 { urls.push(json!("http://fixture.invalid/alternative.m3u8")); }
         json!({"key":format!("key-{i}"),"sourceId":id,"sourceFingerprint":format!("capture-{id}"),"sessionRevision":"session","channel":{"sourceId":id,"providerId":format!("provider-{i}"),"name":format!("Distinct Station {i}"),"category":"News","urls":urls}})
     }).collect();
@@ -111,6 +114,10 @@ async fn fixture(alternative_http: bool) -> Fixture {
         &mut || Ok(()),
     )
     .unwrap();
+    assert_eq!(
+        plan.public_header("normalization-proof").unwrap()["normalization"],
+        json!({"entries":3,"uniqueTargets":if distinct {3}else{1},"duplicates":if distinct {0}else{2}})
+    );
     let origin =
         origin_directory::origin_token("https://fixture.invalid/same.m3u8?token=EXACT").unwrap();
     let episode = Episode {
@@ -199,7 +206,7 @@ impl Fixture {
     }
 }
 #[tokio::test]
-async fn owned_reuse_keeps_two_recipient_identities_and_current_origin_pacing() {
+async fn owned_reuse_keeps_recipient_identities_without_adding_network_delay() {
     let fixture = fixture(false).await;
     let count = Arc::new(AtomicUsize::new(0));
     fixture.reserve(0);
@@ -224,19 +231,79 @@ async fn owned_reuse_keeps_two_recipient_identities_and_current_origin_pacing() 
         .with(|episode| {
             assert!(episode.cache[&0].observation.is_some());
             assert!(episode.cache[&1].observation.is_some());
-            assert!(episode
-                .scheduler
-                .reserve(1, &[], now()?, || Ok("f".repeat(64)))?
-                .is_empty());
-            assert!(
-                episode.scheduler.next_eligible_at(now()?).unwrap()
-                    > first["observedAt"].as_u64().unwrap() + 350
+            assert_eq!(
+                episode
+                    .scheduler
+                    .reserve(1, &[], now()?, || Ok("f".repeat(64)))?
+                    .len(),
+                1
             );
             Ok(())
         })
         .unwrap();
     fixture.registry.close("plan-fixture").await.unwrap();
     assert!(fixture.registry.acquire("plan-fixture").is_err());
+}
+#[tokio::test]
+async fn concurrent_aliases_share_one_request_and_preserve_server_cooldown() {
+    let fixture = fixture(false).await;
+    fixture.reserve(0);
+    fixture.reserve(1);
+    let count = Arc::new(AtomicUsize::new(0));
+    let entered = Arc::new(tokio::sync::Notify::new());
+    let registry = fixture.registry.clone();
+    let context = fixture.context.clone();
+    let first_count = count.clone();
+    let first_entered = entered.clone();
+    let first = tokio::spawn(async move {
+        probe_with_inspector(
+            Probe {
+                schema_version: 1,
+                plan_id: "plan-fixture".into(),
+                candidate_key: "key-0".into(),
+            },
+            registry,
+            context,
+            move |_, _, request_id, _| async move {
+                first_count.fetch_add(1, Ordering::SeqCst);
+                first_entered.notify_one();
+                tokio::time::sleep(Duration::from_millis(100)).await;
+                Ok(network_media_probe::Inspection {
+                    status: "unavailable",
+                    reason_code: "http-status",
+                    checked_resources: 1,
+                    request_id,
+                    header_retry_count: 0,
+                    header_retry_reason: None,
+                    http_status: Some(503),
+                    retry_after: Some("60".into()),
+                })
+            },
+        )
+        .await
+    });
+    entered.notified().await;
+    let alias = fixture.check(1, count.clone()).await.unwrap();
+    let first = first.await.unwrap().unwrap();
+    assert_eq!(count.load(Ordering::SeqCst), 1);
+    assert_eq!(alias["observedAt"], first["observedAt"]);
+    assert_eq!(alias["evidence"], json!({"kind":"http","status":503}));
+    fixture
+        .registry
+        .acquire("plan-fixture")
+        .unwrap()
+        .with(|episode| {
+            assert!(episode.scheduler.cooling_delay(&[], now()?)?.unwrap() > 50_000);
+            assert!(episode.transport_memo.claim(Key::new(
+                "https://fixture.invalid/same.m3u8?token=EXACT",
+                false,
+                "android",
+                "fixture",
+                20_000
+            )));
+            Ok(())
+        })
+        .unwrap();
 }
 #[tokio::test]
 async fn populated_memo_cannot_authorize_an_http_alternative() {
@@ -306,7 +373,7 @@ async fn populated_memo_refuses_changed_sql_authority_and_quarantine() {
     );
 }
 #[tokio::test]
-async fn failed_inspection_is_not_reused_by_another_admitted_recipient() {
+async fn a_normalized_target_failure_is_shared_without_retrying_its_alias() {
     let fixture = fixture(false).await;
     let count = Arc::new(AtomicUsize::new(0));
     fixture.reserve(0);
@@ -330,11 +397,12 @@ async fn failed_inspection_is_not_reused_by_another_admitted_recipient() {
     tokio::time::sleep(Duration::from_millis(355)).await;
     fixture.reserve(1);
     let second = fixture.check(1, count.clone()).await.unwrap();
-    assert_eq!(count.load(Ordering::SeqCst), 2);
-    assert_eq!(second["verdict"], "Reachable");
+    assert_eq!(count.load(Ordering::SeqCst), 1);
+    assert_eq!(second["verdict"], "TimedOut");
+    assert_eq!(second["observedAt"], first["observedAt"]);
 }
 #[tokio::test]
-async fn expired_memo_requires_an_actual_new_inspection() {
+async fn old_evidence_from_this_episode_is_shared_with_its_original_time() {
     let fixture = fixture(false).await;
     let count = Arc::new(AtomicUsize::new(0));
     fixture.reserve(0);
@@ -352,8 +420,9 @@ async fn expired_memo_requires_an_actual_new_inspection() {
                     "fixture",
                     20_000,
                 ),
-                Recognized {
+                ObservedTarget {
                     observed_at: now()? - 20_000,
+                    outcome: Outcome::Reachable,
                 },
             );
             Ok(())
@@ -362,14 +431,14 @@ async fn expired_memo_requires_an_actual_new_inspection() {
     tokio::time::sleep(Duration::from_millis(355)).await;
     fixture.reserve(1);
     fixture.check(1, count.clone()).await.unwrap();
-    assert_eq!(count.load(Ordering::SeqCst), 2);
+    assert_eq!(count.load(Ordering::SeqCst), 1);
 }
 /// Host-aware judging (owner design, October 21, 2026): two connection-level
 /// failures in a row on one site settle its remaining streams in this scan
 /// as no-answer without a request.
 #[tokio::test]
 async fn two_connection_failures_settle_the_site_without_more_requests() {
-    let fixture = fixture(false).await;
+    let fixture = fixture_targets(false, true).await;
     let count = Arc::new(AtomicUsize::new(0));
     let refused = |index: usize, count: Arc<AtomicUsize>| {
         probe_with_inspector(
@@ -414,7 +483,7 @@ async fn two_connection_failures_settle_the_site_without_more_requests() {
 /// Any answer from the site (here, a 404) resets the count.
 #[tokio::test]
 async fn an_answer_between_failures_keeps_the_site_checked() {
-    let fixture = fixture(false).await;
+    let fixture = fixture_targets(false, true).await;
     let count = Arc::new(AtomicUsize::new(0));
     let failing = |index: usize, count: Arc<AtomicUsize>, http: Option<u16>| {
         probe_with_inspector(

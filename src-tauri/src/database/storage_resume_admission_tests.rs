@@ -114,13 +114,19 @@ fn stale_revision_or_policy_between_crypto_phases_refuses_without_writes() {
     let prepared = prepare(&store).unwrap();
     let plaintext = xor(&prepared.encrypted_capsule.ciphertext);
     let c = Connection::open(dir.path().join(DB)).unwrap();
-    c.execute("UPDATE metadata SET health_revision=health_revision+1", [])
-        .unwrap();
+    c.execute(
+        "UPDATE metadata SET catalog_revision=catalog_revision+1",
+        [],
+    )
+    .unwrap();
     assert!(
         matches!(store.finish_scan_resume_admission(prepared, plaintext, || Ok(())), Err(e) if e=="scan-resume-plan-stale")
     );
-    c.execute("UPDATE metadata SET health_revision=health_revision-1", [])
-        .unwrap();
+    c.execute(
+        "UPDATE metadata SET catalog_revision=catalog_revision-1",
+        [],
+    )
+    .unwrap();
     let prepared = prepare(&store).unwrap();
     let plaintext = xor(&prepared.encrypted_capsule.ciphertext);
     c.execute(
@@ -142,7 +148,7 @@ fn stale_revision_or_policy_between_crypto_phases_refuses_without_writes() {
     );
 }
 #[test]
-fn writer_after_coherent_capture_cannot_mix_new_revision_with_old_admission() {
+fn health_writer_after_coherent_capture_preserves_exact_catalog_checkpoint_and_grants() {
     let (store, dir) = fixture();
     let c = Connection::open(dir.path().join(DB)).unwrap();
     let mut checks = 0;
@@ -150,13 +156,20 @@ fn writer_after_coherent_capture_cannot_mix_new_revision_with_old_admission() {
         checks += 1;
         if checks == 2 {
             // The full pair/checkpoint snapshot was captured and its reader TX
-            // ended. A writer is now allowed, but must invalidate this admission.
+            // ended. A playback health writer changes no captured authority.
             c.execute("UPDATE metadata SET health_revision=health_revision+1", [])
                 .unwrap();
         }
         Ok(())
     });
-    assert!(matches!(result, Err(e) if e=="scan-resume-plan-stale"));
+    let prepared = result.unwrap();
+    assert_eq!(prepared.plan.fence().health, 0);
+    let plaintext = xor(&prepared.encrypted_capsule.ciphertext);
+    let admitted = store
+        .finish_scan_resume_admission(prepared, plaintext, || Ok(()))
+        .unwrap();
+    assert_eq!(admitted.plan.fence().catalog, 1);
+    assert_eq!(admitted.directory.rows.len(), 65);
     assert_eq!(
         c.query_row(
             "SELECT revision FROM scan_checkpoint WHERE singleton=1",

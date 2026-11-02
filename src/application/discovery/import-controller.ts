@@ -38,6 +38,11 @@ import {
 } from '../../catalog/daily-refresh';
 import { migrateRefreshCadence } from '../../catalog/refresh-cadence';
 import { createDailyGuideRefresh } from '../../guide/daily-refresh';
+import { createPaidGuideRefresh } from '../guide/paid-guide-refresh';
+import { createAccountGuide } from '../../platform/account-guide';
+import type { createAccountBrowser } from '../accounts/account-browser';
+import type { mountPaidGuide } from '../../ui/guide/paid-guide';
+import type { PlaybackController } from '../../playback/controller';
 import { isTauri } from '@tauri-apps/api/core';
 import { readDailyGuidePlan, refreshDailyGuide } from '../../guide/native';
 import { mountAutomaticGuideUpdates } from '../../ui/guide/automatic-guide-updates';
@@ -50,6 +55,7 @@ import { type mountGuide } from '../../ui/guide/guide';
 import { type createBootstrapBoundary } from '../shell/bootstrap-boundary';
 import { type createDiagnostics } from '../../diagnostics/native';
 import { type ContentLibrary } from '../genxtra/content-library';
+import type { ChannelBrowser } from '../../ui/channels/channel-browser';
 import { type Preferences, type SerializedPreferencesStore } from '../../preferences';
 import { type createVisibleGuideOwner } from '../guide/visible-guide';
 
@@ -58,6 +64,11 @@ import type { PrimaryPage } from '../shell/primary-page';
 
 /** What this area reads from, and writes back to, the rest of the application. */
 export interface ImportEnvironment {
+  readonly browser: ChannelBrowser;
+  readonly accountBrowser: ReturnType<typeof createAccountBrowser>;
+  readonly paidGuide: ReturnType<typeof mountPaidGuide>;
+  readonly player: Pick<PlaybackController, 'snapshot' | 'subscribe'>;
+  readonly scanPlaybackBusy?: () => boolean;
   readonly fileImportTarget: HTMLSelectElement;
   readonly catalog: CatalogRecord;
   readonly element: <T extends HTMLElement = HTMLElement>(id: string) => T;
@@ -667,20 +678,28 @@ export function createImportController(env: ImportEnvironment) {
         'Automatic update could not finish. Your saved channels remain available. Use Refresh to retry.';
     },
   });
-  const dailyGuideRefresh = createDailyGuideRefresh({
-    canRun: () =>
-      env.rendererRecoveryPolicy.allowAutomaticWork() &&
-      isTauri() &&
-      env.settings.automaticGuideUpdates !== false &&
-      !env.guideController.automaticGuideControlPending &&
-      env.element('app').dataset.ready === 'true' &&
-      !document.hidden &&
-      env.nativeViewingForeground &&
-      !env.backgroundSuspension &&
-      !env.applicationClosing &&
-      !env.importRunning &&
-      !env.transferBusy &&
-      !document.querySelector('dialog[open]'),
+  const canRefreshGuide = () =>
+    env.rendererRecoveryPolicy.allowAutomaticWork() &&
+    isTauri() &&
+    env.settings.automaticGuideUpdates !== false &&
+    !env.guideController.automaticGuideControlPending &&
+    env.element('app').dataset.ready === 'true' &&
+    !document.hidden &&
+    env.nativeViewingForeground &&
+    !env.backgroundSuspension &&
+    !env.applicationClosing &&
+    !env.importRunning &&
+    !env.transferBusy &&
+    !document.querySelector('dialog[open]');
+  let guideAcquisitionOwner: 'free' | 'paid' | null = null;
+  const canAcquireGuide = () =>
+    !env.scanPlaybackBusy?.() &&
+    ['idle', 'paused', 'failed', 'disposed'].includes(env.player.snapshot.state) &&
+    env.primaryPage !== 'guide' &&
+    !env.paidGuide.open;
+  const freeGuideRefresh = createDailyGuideRefresh({
+    canRun: canRefreshGuide,
+    canAcquire: () => canAcquireGuide() && guideAcquisitionOwner !== 'paid',
     plan: async (signal) => {
       const result = await readDailyGuidePlan(signal);
       const localNow = Date.now();
@@ -689,16 +708,92 @@ export function createImportController(env: ImportEnvironment) {
         nextDueMs: localNow + Math.max(0, entry.nextDueMs - result.nowMs),
       }));
     },
-    refresh: refreshDailyGuide,
+    refresh: async (entry, signal) => {
+      guideAcquisitionOwner = 'free';
+      try {
+        return await refreshDailyGuide(entry, signal);
+      } finally {
+        guideAcquisitionOwner = null;
+      }
+    },
     onChanged: () => {
       void env.visibleGuide?.refresh().catch(() => undefined);
       env.guide.catalogChanged(true);
       requestCachedGuideConnection();
+      if (env.contentLibrary === 'live' && !env.accountBrowser.selectedAccount)
+        env.browser.refreshProgrammeMembership();
     },
     onError: () => {
       env.element('source-refresh-status').textContent =
         'A program guide could not update. Its previous schedule remains available. Retry from Guide.';
     },
+  });
+  const paidGuideNative = createAccountGuide();
+  const paidGuideRefresh = createPaidGuideRefresh({
+    guide: {
+      status: paidGuideNative.status,
+      async refresh(account, signal) {
+        guideAcquisitionOwner = 'paid';
+        try {
+          return await paidGuideNative.refresh(account, signal, { automatic: true });
+        } finally {
+          guideAcquisitionOwner = null;
+        }
+      },
+    },
+    scope: () => {
+      const account = env.accountBrowser.selectedAccount;
+      return account
+        ? {
+            account,
+            identity: env.accountBrowser.identity(),
+            signal: env.accountBrowser.selectionSignal,
+          }
+        : null;
+    },
+    subscribe: (listener) => env.accountBrowser.subscribeSelection(listener),
+    canRun: canRefreshGuide,
+    canAcquire: () => canAcquireGuide() && guideAcquisitionOwner !== 'free',
+    onChanged: () => {
+      if (
+        env.contentLibrary === 'live' &&
+        env.accountBrowser.selectedAccount &&
+        !env.paidGuide.open
+      )
+        env.browser.refreshProgrammeMembership();
+      void env.paidGuide.cacheChanged().catch(() => undefined);
+    },
+    onError: () => {
+      env.element('source-refresh-status').textContent =
+        'The Paid TV program guide could not update. Its previous schedule remains available.';
+    },
+  });
+  // Existing foreground/background owners keep one joined lifecycle interface.
+  const dailyGuideRefresh = {
+    async wake() {
+      await freeGuideRefresh.wake();
+      await paidGuideRefresh.wake();
+    },
+    suspend: () => joinGuideWork([freeGuideRefresh, paidGuideRefresh]),
+    async dispose() {
+      unsubscribePlayback();
+      const results = await Promise.allSettled([
+        freeGuideRefresh.dispose(),
+        paidGuideRefresh.dispose(),
+      ]);
+      if (results.some((result) => result.status === 'rejected'))
+        throw new Error('Automatic guide cleanup could not be confirmed.');
+    },
+  };
+  let playbackBusy = !['idle', 'paused', 'failed', 'disposed'].includes(env.player.snapshot.state);
+  const unsubscribePlayback = env.player.subscribe((snapshot) => {
+    const busy = !['idle', 'paused', 'failed', 'disposed'].includes(snapshot.state);
+    if (busy === playbackBusy) return;
+    playbackBusy = busy;
+    void dailyGuideRefresh.wake().catch(() => {
+      env.element('source-refresh-status').textContent =
+        'Automatic guide cleanup could not finish. Retry from Guide.';
+    });
   });
   const automaticGuideUpdates = env.bootstrapBoundary.run('settings', () =>
     mountAutomaticGuideUpdates(env.element<HTMLDialogElement>('settings-dialog'), {

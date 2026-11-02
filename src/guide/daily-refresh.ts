@@ -29,6 +29,8 @@ export interface GuideRefreshResult {
 }
 export interface DailyGuideRefreshOptions {
   canRun(): boolean;
+  /** Low-priority acquisition waits while playback or Guide reads need resources. */
+  canAcquire?(): boolean;
   plan(signal: AbortSignal): Promise<GuideRefreshPlanEntry[]>;
   refresh(entry: Readonly<GuideRefreshPlanEntry>, signal: AbortSignal): Promise<GuideRefreshResult>;
   onChanged?(): void;
@@ -85,6 +87,13 @@ export function createDailyGuideRefresh(options: DailyGuideRefreshOptions): {
   const wake = (): Promise<void> => {
     if (closed) return Promise.resolve();
     if (!options.canRun()) return suspend();
+    if (options.canAcquire?.() === false) {
+      // Playback/Guide work may have started after this acquisition began.
+      // Retain ownership until native cancellation has actually joined.
+      return suspend().then(() => {
+        arm(clock.now() + RETRY);
+      });
+    }
     if (pending) return controller?.signal.aborted ? pending.then(wake) : pending;
     clear();
     if (planRetryAt > clock.now()) {
@@ -136,6 +145,10 @@ export function createDailyGuideRefresh(options: DailyGuideRefreshOptions): {
       }
       for (const entry of entries) {
         if (!current()) return;
+        if (options.canAcquire?.() === false) {
+          nextDue = Math.min(nextDue, clock.now() + RETRY);
+          return;
+        }
         const prior = retries.get(entry.sourceId);
         const due = Math.max(
           entry.nextDueMs,

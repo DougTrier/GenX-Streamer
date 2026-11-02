@@ -14,8 +14,8 @@
 
 //! Native on-demand player (Android Media3) for Paid TV movies and episodes,
 //! so embedded audio languages and subtitles can be chosen
-//! (docs/native-vod-player.md). It only ever opens the loopback account relay:
-//! never a provider address, so the sign-in stays in the relay.
+//! (docs/native-vod-player.md). It opens local account/Archive/live proxies,
+//! never provider addresses. Archive and Paid-live opens require exact active grants.
 
 #[cfg(target_os = "android")]
 struct NativeVideo(tauri::plugin::PluginHandle<tauri::Wry>);
@@ -38,13 +38,46 @@ pub(crate) fn init() -> tauri::plugin::TauriPlugin<tauri::Wry> {
         .build()
 }
 
-const ACTIONS: [&str; 11] = [
+const ACTIONS: [&str; 12] = [
     "open", "place", "play", "pause", "seek", "volume", "audio", "text", "status", "close",
-    "replay",
+    "replay", "buffer",
 ];
 /// Instant replay speeds (docs/instant-replay.md).
 const REPLAY_RATES: [f64; 4] = [0.125, 0.25, 0.5, 1.0];
 const WEEK_MS: u64 = 7 * 24 * 3_600_000;
+
+#[derive(serde::Deserialize, Debug)]
+#[serde(tag = "mode", rename_all = "lowercase", deny_unknown_fields)]
+enum BufferPreference {
+    Auto {},
+    Manual {
+        #[serde(rename = "targetSeconds")]
+        target_seconds: u8,
+    },
+}
+
+impl BufferPreference {
+    fn valid(&self) -> bool {
+        match self {
+            Self::Auto {} => true,
+            Self::Manual { target_seconds } => (1..=20).contains(target_seconds),
+        }
+    }
+    #[cfg(target_os = "android")]
+    fn mode(&self) -> &'static str {
+        match self {
+            Self::Auto {} => "auto",
+            Self::Manual { .. } => "manual",
+        }
+    }
+    #[cfg(target_os = "android")]
+    fn target_seconds(&self) -> u8 {
+        match self {
+            Self::Auto {} => 0,
+            Self::Manual { target_seconds } => *target_seconds,
+        }
+    }
+}
 
 /// The account relay's media capability on this device, and nothing else.
 fn relay_url(raw: &str) -> bool {
@@ -95,6 +128,12 @@ pub(crate) struct Request {
     /// The address is an HLS playlist (a live channel's loopback relay).
     #[serde(default)]
     hls: Option<bool>,
+    #[serde(default)]
+    archive: Option<bool>,
+    #[serde(default)]
+    account_live: Option<bool>,
+    #[serde(default)]
+    public_live: Option<bool>,
     /// Replay only: one of REPLAY_RATES.
     #[serde(default)]
     rate: Option<f64>,
@@ -104,23 +143,71 @@ pub(crate) struct Request {
     /// Replay only: play (true) or pause (false).
     #[serde(default)]
     playing: Option<bool>,
+    #[serde(default)]
+    live_buffer: Option<BufferPreference>,
 }
 
-/// `live` is the loopback relay GenX opened for a live channel, if any; an
-/// HLS open may name exactly that address and nothing else.
+/// `live` is the exact current live/Archive proxy grant. Either flagged open
+/// must match it; it never admits arbitrary loopback addresses or expired URLs.
 pub(crate) fn validate(request: &Request, live: Option<&str>) -> Result<(), &'static str> {
     if !ACTIONS.contains(&request.action.as_str()) || request.session == 0 {
         return Err("native-video-invalid");
     }
-    let admitted = match (request.url.as_deref(), request.hls == Some(true)) {
-        (Some(url), false) => relay_url(url),
-        (Some(url), true) => live.is_some_and(|live| live == url),
-        (None, _) => false,
+    if (request.action == "buffer" && request.live_buffer.is_none())
+        || request
+            .live_buffer
+            .as_ref()
+            .is_some_and(|policy| !policy.valid())
+        || (request.live_buffer.is_some() && !matches!(request.action.as_str(), "open" | "buffer"))
+    {
+        return Err("native-video-invalid");
+    }
+    if request.action == "buffer"
+        && (request.rect.is_some()
+            || request.viewport.is_some()
+            || request.position_ms.is_some()
+            || request.volume.is_some()
+            || request.track.is_some())
+    {
+        return Err("native-video-invalid");
+    }
+    if request.archive == Some(true)
+        && (request.hls == Some(true)
+            || request.account_live == Some(true)
+            || request.public_live == Some(true))
+    {
+        return Err("native-video-invalid");
+    }
+    if request.public_live == Some(true) && request.account_live == Some(true) {
+        return Err("native-video-invalid");
+    }
+    let admitted = if request.public_live == Some(true) {
+        request.url.as_deref().is_some_and(|url| live == Some(url))
+    } else if request.account_live == Some(true) {
+        request
+            .url
+            .as_deref()
+            .is_some_and(|url| relay_url(url) && live == Some(url))
+    } else {
+        match (
+            request.url.as_deref(),
+            request.hls == Some(true) || request.archive == Some(true),
+        ) {
+            (Some(url), false) => relay_url(url),
+            (Some(url), true) => live.is_some_and(|live| live == url),
+            (None, _) => false,
+        }
     };
     if request.action == "open" && !admitted {
         return Err("native-video-source-refused");
     }
-    if request.action != "open" && (request.url.is_some() || request.hls.is_some()) {
+    if request.action != "open"
+        && (request.url.is_some()
+            || request.hls.is_some()
+            || request.archive.is_some()
+            || request.account_live.is_some()
+            || request.public_live.is_some())
+    {
         return Err("native-video-invalid");
     }
     if request.rect.is_some_and(|r| {
@@ -153,9 +240,17 @@ pub(crate) async fn native_video(
     request: Request,
     app: tauri::AppHandle,
 ) -> Result<serde_json::Value, String> {
-    let live = match tauri::Manager::try_state::<crate::native_live::NativeLive>(&app) {
-        Some(live) if request.hls == Some(true) => live.current_url().await,
-        _ => None,
+    let live = if request.account_live == Some(true) {
+        crate::account_playback_owner::native_live_url().await
+    } else if request.archive == Some(true) {
+        crate::archive_playback_owner::native_media_url().await
+    } else {
+        match tauri::Manager::try_state::<crate::native_live::NativeLive>(&app) {
+            Some(live) if request.hls == Some(true) || request.public_live == Some(true) => {
+                live.current_url().await
+            }
+            _ => None,
+        }
     };
     validate(&request, live.as_deref())?;
     #[cfg(target_os = "android")]
@@ -179,9 +274,14 @@ pub(crate) async fn native_video(
                     "volume": request.volume.unwrap_or(1.0),
                     "track": request.track.unwrap_or_default(),
                     "hls": request.hls.unwrap_or(false),
+                    "archive": request.archive.unwrap_or(false),
+                    "accountLive": request.account_live.unwrap_or(false),
+                    "publicLive": request.public_live.unwrap_or(false),
                     "rate": request.rate.unwrap_or(0.0),
                     "streamMs": request.stream_ms.map_or(-1, |p| p as i64),
                     "playing": request.playing.map_or(-1, i32::from),
+                    "bufferMode": request.live_buffer.as_ref().map_or("", BufferPreference::mode),
+                    "bufferTargetSeconds": request.live_buffer.as_ref().map_or(0, BufferPreference::target_seconds),
                 }),
             )
             .await
@@ -191,6 +291,48 @@ pub(crate) async fn native_video(
     {
         let _ = app;
         Err("native-video-unavailable".into())
+    }
+}
+
+/// Numeric, read-only geometry/decoder facts; no page or provider addresses.
+pub(crate) async fn playback_diagnostics(app: &tauri::AppHandle) -> Option<serde_json::Value> {
+    #[cfg(target_os = "android")]
+    {
+        use tauri::Manager;
+        app.try_state::<NativeVideo>()?
+            .0
+            .run_mobile_plugin_async::<serde_json::Value>("diagnostics", serde_json::json!({}))
+            .await
+            .ok()
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = app;
+        None
+    }
+}
+
+pub(crate) async fn export_playback_diagnostics(
+    app: &tauri::AppHandle,
+    report: String,
+) -> Result<serde_json::Value, String> {
+    #[cfg(target_os = "android")]
+    {
+        use tauri::Manager;
+        app.try_state::<NativeVideo>()
+            .ok_or("playback-trace-unavailable")?
+            .0
+            .run_mobile_plugin_async::<serde_json::Value>(
+                "exportDiagnostics",
+                serde_json::json!({"report":report}),
+            )
+            .await
+            .map_err(|_| "playback-trace-export".into())
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = (app, report);
+        Err("playback-trace-export-unsupported".into())
     }
 }
 
@@ -205,6 +347,78 @@ mod tests {
         }
     }
     const RELAY: &str = "http://127.0.0.1:41234/account/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/media/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    #[test]
+    fn paid_live_decoder_requires_the_current_account_proxy_for_both_formats() {
+        for hls in [true, false] {
+            let command = Request {
+                url: Some(RELAY.into()),
+                account_live: Some(true),
+                hls: Some(hls),
+                ..request("open")
+            };
+            assert!(validate(&command, Some(RELAY)).is_ok());
+            assert!(validate(&command, None).is_err());
+            assert!(validate(&command, Some(&format!("{RELAY}other"))).is_err());
+            assert!(validate(
+                &Request {
+                    archive: Some(true),
+                    ..command
+                },
+                Some(RELAY)
+            )
+            .is_err());
+        }
+        let remote = "https://provider.invalid/channel.m3u8";
+        assert!(validate(
+            &Request {
+                url: Some(remote.into()),
+                account_live: Some(true),
+                ..request("open")
+            },
+            Some(remote)
+        )
+        .is_err());
+    }
+    #[test]
+    fn archive_decoder_requires_the_exact_current_proxy_grant() {
+        let url = format!(
+            "http://127.0.0.1:41234/archive/{}/{}.mp4",
+            "a".repeat(64),
+            "b".repeat(64)
+        );
+        let command = Request {
+            url: Some(url.clone()),
+            archive: Some(true),
+            ..request("open")
+        };
+        assert!(validate(&command, Some(&url)).is_ok());
+        assert!(validate(&command, None).is_err()); // absent/expired/revoked owner
+        assert!(validate(&command, Some(&format!("{url}?other"))).is_err());
+        assert!(validate(
+            &Request {
+                hls: Some(true),
+                ..command
+            },
+            Some(&url)
+        )
+        .is_err());
+        assert!(validate(
+            &Request {
+                archive: Some(true),
+                ..request("play")
+            },
+            Some(&url)
+        )
+        .is_err());
+        assert!(validate(
+            &Request {
+                url: Some(url),
+                ..request("open")
+            },
+            None
+        )
+        .is_err());
+    }
     #[test]
     fn only_the_loopback_account_relay_can_be_opened() {
         let open = |url: &str| {
@@ -274,6 +488,86 @@ mod tests {
             Err("native-video-invalid")
         );
     }
+    #[test]
+    fn runtime_buffer_policy_is_bounded_and_has_no_other_command_fields() {
+        let decode = |value: serde_json::Value| serde_json::from_value::<Request>(value);
+        for policy in [
+            serde_json::json!({"mode":"auto"}),
+            serde_json::json!({"mode":"manual","targetSeconds":1}),
+            serde_json::json!({"mode":"manual","targetSeconds":20}),
+        ] {
+            let command =
+                decode(serde_json::json!({"action":"buffer","session":1,"liveBuffer":policy}))
+                    .unwrap();
+            assert!(validate(&command, None).is_ok());
+        }
+        for policy in [
+            serde_json::json!({"mode":"manual","targetSeconds":0}),
+            serde_json::json!({"mode":"manual","targetSeconds":21}),
+        ] {
+            let command =
+                decode(serde_json::json!({"action":"buffer","session":1,"liveBuffer":policy}))
+                    .unwrap();
+            assert_eq!(validate(&command, None), Err("native-video-invalid"));
+        }
+        for value in [
+            serde_json::json!({"mode":"manual","targetSeconds":1.5}),
+            serde_json::json!({"mode":"manual","targetSeconds":-1}),
+            serde_json::json!({"mode":"manual","targetSeconds":999}),
+            serde_json::json!({"mode":"auto","targetSeconds":4}),
+            serde_json::json!({"mode":"other"}),
+            serde_json::json!({"mode":"manual","targetSeconds":4,"url":"https://private.invalid"}),
+        ] {
+            assert!(
+                decode(serde_json::json!({"action":"buffer","session":1,"liveBuffer":value}))
+                    .is_err()
+            );
+        }
+        assert_eq!(
+            validate(&request("buffer"), None),
+            Err("native-video-invalid")
+        );
+        for extra in [
+            serde_json::json!({"volume":0.5}),
+            serde_json::json!({"positionMs":20}),
+            serde_json::json!({"rect":[0,0,10,10]}),
+            serde_json::json!({"track":"1:0"}),
+            serde_json::json!({"url":RELAY}),
+        ] {
+            let mut command = serde_json::json!({"action":"buffer","session":1,"liveBuffer":{"mode":"manual","targetSeconds":4}});
+            command
+                .as_object_mut()
+                .unwrap()
+                .extend(extra.as_object().unwrap().clone());
+            assert_eq!(
+                validate(&decode(command).unwrap(), None),
+                Err("native-video-invalid")
+            );
+        }
+    }
+
+    #[test]
+    fn saved_buffer_target_never_bypasses_open_grant_or_session_rules() {
+        let command = |action: &str, session: u64| {
+            serde_json::from_value::<Request>(serde_json::json!({"action":action,"session":session,"liveBuffer":{"mode":"manual","targetSeconds":8}})).unwrap()
+        };
+        assert_eq!(
+            validate(&command("buffer", 0), None),
+            Err("native-video-invalid")
+        );
+        assert_eq!(
+            validate(&command("play", 1), None),
+            Err("native-video-invalid")
+        );
+        let open = Request {
+            url: Some(RELAY.into()),
+            account_live: Some(true),
+            ..command("open", 1)
+        };
+        assert_eq!(validate(&open, None), Err("native-video-source-refused"));
+        assert!(validate(&open, Some(RELAY)).is_ok());
+    }
+
     #[test]
     fn commands_and_values_are_bounded() {
         for viewport in [[0, 1080], [1920, -1], [16_385, 1080]] {
@@ -401,6 +695,26 @@ mod tests {
             None
         )
         .is_err());
+    }
+    #[test]
+    fn public_progressive_requires_the_exact_active_live_grant() {
+        let mut r = Request {
+            public_live: Some(true),
+            hls: Some(false),
+            url: Some(RELAY.into()),
+            ..request("open")
+        };
+        assert!(validate(&r, Some(RELAY)).is_ok());
+        assert!(validate(&r, None).is_err());
+        assert!(validate(&r, Some("http://127.0.0.1:1234/other")).is_err());
+        r.account_live = Some(true);
+        assert!(validate(&r, Some(RELAY)).is_err());
+        r.account_live = None;
+        r.archive = Some(true);
+        assert!(validate(&r, Some(RELAY)).is_err());
+        r.archive = None;
+        r.action = "play".into();
+        assert!(validate(&r, Some(RELAY)).is_err());
     }
     #[test]
     fn a_live_channel_opens_only_the_relay_genx_opened_for_it() {

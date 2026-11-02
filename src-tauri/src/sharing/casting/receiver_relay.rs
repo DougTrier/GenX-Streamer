@@ -57,6 +57,8 @@ struct State {
     root: String,
     /// GenX's own Android player only: realign audio stamped far from its video.
     align: Option<crate::ts_align::TsAligner>,
+    native_clients: Option<Arc<upstream::Clients>>,
+    last_delivery: Option<Instant>,
 }
 impl State {
     fn active(&self) -> bool {
@@ -184,6 +186,16 @@ impl ReceiverRelay {
         let relay = Self::owned(listener, origin, loopback, url, allow_http_upstream)?;
         if let Ok(mut state) = relay.state.lock() {
             state.align = Some(crate::ts_align::TsAligner::default());
+            let clients = Arc::new(upstream::Clients::new());
+            state.native_clients = Some(clients.clone());
+            state.fetch = Arc::new(move |url, range, allow_http| {
+                Box::pin(upstream::fetch_with_clients(
+                    url,
+                    range,
+                    allow_http,
+                    clients.clone(),
+                ))
+            });
         }
         Ok(relay)
     }
@@ -206,6 +218,8 @@ impl ReceiverRelay {
             }),
             root: String::new(),
             align: None,
+            native_clients: None,
+            last_delivery: None,
         };
         let media_url = state.issue(url)?;
         state.root = media_url
@@ -237,6 +251,11 @@ impl ReceiverRelay {
     }
     pub async fn stop(&mut self) -> Result<(), &'static str> {
         let _ = self.cancel.send(true);
+        if let Ok(mut state) = self.state.lock() {
+            if let Some(clients) = state.native_clients.take() {
+                clients.close();
+            }
+        }
         if self.join_failed {
             return Err("cast-relay-shutdown");
         }
@@ -258,6 +277,11 @@ impl ReceiverRelay {
 }
 impl Drop for ReceiverRelay {
     fn drop(&mut self) {
+        if let Ok(mut state) = self.state.lock() {
+            if let Some(clients) = state.native_clients.take() {
+                clients.close();
+            }
+        }
         let _ = self.cancel.send(true);
         if let Some(task) = self.task.take() {
             task.abort();
@@ -437,8 +461,21 @@ async fn client(
             return;
         }
         let ranged = request.range.is_some();
+        let started = Instant::now();
         let reply = fetch(url, request.range, allow_http).await;
+        let native = state.lock().is_ok_and(|s| s.align.is_some());
         let Ok(mut reply) = reply else {
+            if native {
+                let code = reply.err().unwrap_or("unknown");
+                let body = code.contains("body");
+                crate::platform::playback_trace::native_failure(
+                    "free",
+                    code,
+                    code.contains("timeout"),
+                    body,
+                    body,
+                );
+            }
             let _ = write_reply(
                 &mut socket,
                 502,
@@ -451,6 +488,25 @@ async fn client(
             .await;
             return;
         };
+        if native
+            && (200..300).contains(&reply.status)
+            && !reply.body.starts_with(b"#EXTM3U")
+            && !reply.body.starts_with(b"\xef\xbb\xbf#EXTM3U")
+        {
+            if let Ok(mut state) = state.lock() {
+                if state
+                    .last_delivery
+                    .is_none_or(|at| at.elapsed() >= Duration::from_secs(5))
+                {
+                    state.last_delivery = Some(Instant::now());
+                    crate::platform::playback_trace::native_hls_delivery(
+                        reply.body.len(),
+                        started.elapsed().as_secs_f64() * 1000.0,
+                        reply.status,
+                    );
+                }
+            }
+        }
         if (200..300).contains(&reply.status)
             && (reply.body.starts_with(b"#EXTM3U")
                 || reply.body.starts_with(b"\xef\xbb\xbf#EXTM3U"))

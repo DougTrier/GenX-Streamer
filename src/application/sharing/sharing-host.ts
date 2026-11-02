@@ -29,6 +29,8 @@ export interface SharingActionContext {
 }
 export interface SharingHostOptions {
   player: PlaybackController;
+  /** Metadata-only best-feed choice, still re-admitted under this selection owner. */
+  resolveSelection?: (selection: ChannelSelection) => Promise<ChannelSelection>;
   /** Optional local session owner; observations/audio still use the one controller. */
   localSelection?: Pick<PlaybackController, 'select' | 'stop'>;
   /** Rechecked after asynchronous publication/phone gates, immediately before local playback. */
@@ -49,6 +51,9 @@ export function createSharingHost(options: SharingHostOptions) {
   const { player } = options;
   let generation = 0;
   let disposed = false;
+  let bestRetries = 0;
+  let bestLookup = false;
+  let exactChoice = false;
   let disposePromise: Promise<void> | null = null;
   let pending: PlaybackSnapshot | null = null;
   let beforeSelection:
@@ -157,19 +162,35 @@ export function createSharingHost(options: SharingHostOptions) {
       throw error;
     }
   }
-  async function select(selection: ChannelSelection, context?: SharingActionContext) {
+  async function select(
+    selection: ChannelSelection,
+    context?: SharingActionContext,
+    exact = false,
+    automatic = false,
+  ) {
+    if (!automatic) bestRetries = 0;
+    exactChoice = exact;
     const channel = admitted(selection.id);
     if (!channel.urls.includes(selection.url))
       throw new Error('The stream is no longer admitted for this channel.');
     const work = mutate(
       { state: 'connecting', selection: { ...selection, name: channel.name }, error: null },
       async () => {
+        const owned = generation;
+        // Remote commands name an exact admitted channel. Local choices may
+        // resolve an equivalent feed, but Stop/replacement always wins the await.
+        if (!context && !exact && options.resolveSelection) {
+          selection = await options.resolveSelection({ ...selection });
+          current(owned, context);
+        }
         const latest = admitted(selection.id);
         if (!latest.urls.includes(selection.url))
           throw new Error('The stream changed during selection.');
         const authority = { generation, context };
         recoveryAuthority = authority;
-        const urls = [selection.url, ...latest.urls.filter((url) => url !== selection.url)];
+        const urls = exact
+          ? [selection.url]
+          : [selection.url, ...latest.urls.filter((url) => url !== selection.url)];
         if (urls.length > 16) throw new Error('The channel has too many recovery sources.');
         const checkRecovery = (candidate: ChannelSelection, signal: AbortSignal) => {
           if (recoveryAuthority !== authority) throw canceled();
@@ -228,6 +249,41 @@ export function createSharingHost(options: SharingHostOptions) {
       () => selections.delete(work),
     );
     return work;
+  }
+  async function retryBest(): Promise<boolean> {
+    const snapshot = player.snapshot;
+    const selection = snapshot.selection;
+    if (
+      bestLookup ||
+      bestRetries >= 2 ||
+      exactChoice ||
+      !options.resolveSelection ||
+      recoveryAuthority?.context ||
+      !player.canRecoverSource ||
+      !selection ||
+      selection.playMode === 'on-demand'
+    )
+      return false;
+    const owner = generation;
+    bestLookup = true;
+    bestRetries++;
+    try {
+      const candidate = await options.resolveSelection({ ...selection });
+      const latest = player.snapshot;
+      if (
+        owner !== generation ||
+        disposed ||
+        !player.canRecoverSource ||
+        latest.selection?.id !== selection.id ||
+        latest.selection?.url !== selection.url ||
+        (candidate.id === selection.id && candidate.url === selection.url)
+      )
+        return false;
+      await select(candidate, undefined, false, true);
+      return true;
+    } finally {
+      bestLookup = false;
+    }
   }
   async function resume(context?: SharingActionContext) {
     if (player.snapshot.state !== 'paused') {
@@ -347,6 +403,8 @@ export function createSharingHost(options: SharingHostOptions) {
   return {
     host,
     select,
+    selectExact: (selection: ChannelSelection) => select(selection, undefined, true),
+    retryBest,
     resume,
     pause,
     stop,

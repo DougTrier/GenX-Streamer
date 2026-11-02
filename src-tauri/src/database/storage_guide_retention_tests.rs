@@ -86,7 +86,9 @@ fn pair(root: &Path) -> PairStore {
     PairStore {
         root: root.into(),
         require_database: true,
+        cleanup_runtime: Default::default(),
         page_cache: Default::default(),
+        guide_listed_cache: Default::default(),
     }
 }
 fn images(root: &Path) -> (Vec<u8>, Vec<u8>) {

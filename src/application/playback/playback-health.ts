@@ -35,6 +35,37 @@ export interface PlaybackHealthTarget {
   source: Source;
   catalogRevision: string;
 }
+export type PlaybackHealthPhase = 'queue' | 'read' | 'prepare' | 'write' | 'receipt';
+type SupersededReason =
+  | 'disposed'
+  | 'decoder-changed'
+  | 'context-changed'
+  | 'target-missing'
+  | 'catalog-changed'
+  | 'url-slot-changed'
+  | 'source-grant-changed';
+export interface PlaybackHealthDiagnostic {
+  readonly phase: PlaybackHealthPhase;
+  readonly outcome: 'canceled' | 'failed';
+  readonly reason:
+    | SupersededReason
+    | 'owned-abort'
+    | 'unowned-abort'
+    | 'enqueue-failed'
+    | 'read-failed'
+    | 'prepare-failed'
+    | 'write-failed'
+    | 'receipt-invalid'
+    | 'health-conflict-exhausted'
+    | 'health-revision-unchanged';
+  readonly attempt: number;
+}
+/** Only this module can assert that its immutable capture lost authority. */
+class CaptureSuperseded extends Error {
+  constructor(readonly reason: SupersededReason) {
+    super('Decoder observation superseded.');
+  }
+}
 export interface PlaybackHealthHost {
   player: Pick<PlaybackController, 'subscribeDecoded' | 'isDecodedCurrent' | 'subscribe'>;
   resolve(selection: ChannelSelection): PlaybackHealthTarget | null;
@@ -50,6 +81,7 @@ export interface PlaybackHealthHost {
   now?(): number;
   notice?(message: string): void;
   isRevisionConflict?(error: unknown): boolean;
+  diagnostic?(event: Readonly<PlaybackHealthDiagnostic>): void;
 }
 /** Observes deliberately selected local playback; this owner never fetches or probes media. */
 export function createPlaybackHealthCapture(host: PlaybackHealthHost): {
@@ -63,7 +95,6 @@ export function createPlaybackHealthCapture(host: PlaybackHealthHost): {
   const attempted = new WeakSet<object>();
   let work: Promise<void> = Promise.resolve();
   let disposePromise: Promise<void> | null = null;
-  const canceled = () => new DOMException('Decoder observation superseded.', 'AbortError');
   function receive(observation: DecodedPlaybackObservation): void {
     if (
       disposed ||
@@ -104,34 +135,49 @@ export function createPlaybackHealthCapture(host: PlaybackHealthHost): {
     const current = () => {
       controller.signal.throwIfAborted();
       const now = host.resolve(observation.selection);
+      if (disposed) throw new CaptureSuperseded('disposed');
+      if (!host.player.isDecodedCurrent(observation))
+        throw new CaptureSuperseded('decoder-changed');
+      if (!host.isContextCurrent(capturedContext)) throw new CaptureSuperseded('context-changed');
+      if (!now) throw new CaptureSuperseded('target-missing');
+      if (now.catalogRevision !== captured.catalogRevision)
+        throw new CaptureSuperseded('catalog-changed');
       if (
-        disposed ||
-        !host.player.isDecodedCurrent(observation) ||
-        !host.isContextCurrent(capturedContext) ||
-        !now ||
-        now.catalogRevision !== captured.catalogRevision ||
         now.channel.id !== captured.channel.id ||
         now.channel.urls[checkedUrlOrdinal] !== observation.selection.url ||
-        now.channel.urls.filter((url) => url === observation.selection.url).length !== 1 ||
+        now.channel.urls.filter((url) => url === observation.selection.url).length !== 1
+      )
+        throw new CaptureSuperseded('url-slot-changed');
+      if (
         now.channel.sourceId !== captured.source.id ||
         now.source.id !== captured.source.id ||
         now.source.location !== captured.source.location ||
         now.source.kind !== captured.source.kind ||
         (now.source.allowHttp === true) !== (captured.source.allowHttp === true)
       )
-        throw canceled();
+        throw new CaptureSuperseded('source-grant-changed');
     };
+    let phase: PlaybackHealthPhase = 'queue',
+      tries = 0;
+    let failureReason: PlaybackHealthDiagnostic['reason'] | null = null;
     work = (async () => {
       try {
         await host.enqueue(async () => {
           let conflictedRevision: string | undefined;
           let conflictError: unknown;
           for (let attempt = 0; attempt < 3; attempt++) {
+            tries = attempt + 1;
             current();
+            phase = 'read';
             const snapshot = await host.readRecordPair(controller.signal);
             current();
-            if (snapshot.catalogRevision !== captured.catalogRevision) throw canceled();
-            if (conflictedRevision === snapshot.healthRevision) throw conflictError;
+            if (snapshot.catalogRevision !== captured.catalogRevision)
+              throw new CaptureSuperseded('catalog-changed');
+            if (conflictedRevision === snapshot.healthRevision) {
+              failureReason = 'health-revision-unchanged';
+              throw conflictError;
+            }
+            phase = 'prepare';
             const prepared = await (host.prepare ?? prepareDecodedHealthInWorker)(
               {
                 channel: captured.channel,
@@ -147,6 +193,7 @@ export function createPlaybackHealthCapture(host: PlaybackHealthHost): {
             current();
             let receipt: Awaited<ReturnType<PlaybackHealthHost['writeHealth']>>;
             try {
+              phase = 'write';
               receipt = await host.writeHealth(
                 {
                   health: prepared.health,
@@ -156,12 +203,19 @@ export function createPlaybackHealthCapture(host: PlaybackHealthHost): {
                 controller.signal,
               );
             } catch (error) {
+              // A real worker/storage refusal remains observable even if its
+              // owner changes concurrently; only an actual CAS is rebased.
+              if (!host.isRevisionConflict?.(error)) throw error;
               current();
-              if (attempt === 2 || !host.isRevisionConflict?.(error)) throw error;
+              if (attempt === 2) {
+                failureReason = 'health-conflict-exhausted';
+                throw error;
+              }
               conflictedRevision = snapshot.healthRevision;
               conflictError = error;
               continue;
             }
+            phase = 'receipt';
             if (
               receipt.committed !== true ||
               receipt.catalogRevision !== snapshot.catalogRevision ||
@@ -172,8 +226,40 @@ export function createPlaybackHealthCapture(host: PlaybackHealthHost): {
             return;
           }
         });
-      } catch {
-        if (!disposed && !controller.signal.aborted && host.player.isDecodedCurrent(observation))
+      } catch (error) {
+        const owned = error instanceof CaptureSuperseded;
+        const abort = error instanceof DOMException && error.name === 'AbortError';
+        const canceled = owned || (abort && controller.signal.aborted);
+        const defaults: Record<PlaybackHealthPhase, PlaybackHealthDiagnostic['reason']> = {
+          queue: 'enqueue-failed',
+          read: 'read-failed',
+          prepare: 'prepare-failed',
+          write: 'write-failed',
+          receipt: 'receipt-invalid',
+        };
+        const event: PlaybackHealthDiagnostic = {
+          phase,
+          outcome: canceled ? 'canceled' : 'failed',
+          reason: owned
+            ? error.reason
+            : canceled
+              ? 'owned-abort'
+              : abort
+                ? 'unowned-abort'
+                : (failureReason ?? defaults[phase]),
+          attempt: tries,
+        };
+        try {
+          host.diagnostic?.(Object.freeze(event));
+        } catch {
+          /* Observations never replace the original save outcome. */
+        }
+        if (
+          !canceled &&
+          !disposed &&
+          !controller.signal.aborted &&
+          host.player.isDecodedCurrent(observation)
+        )
           host.notice?.('Your channel is playing. Its saved check could not be updated.');
       } finally {
         if (pending?.controller === controller) pending = null;

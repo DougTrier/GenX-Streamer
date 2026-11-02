@@ -29,6 +29,7 @@ fn fixture() -> Fixture {
     // Catalog geography migration is owned elsewhere; this fixture tests guide-only tables.
     c.execute_batch("PRAGMA user_version=3").unwrap();
     migrate_suggestions(&mut c).unwrap();
+    c.execute_batch("ALTER TABLE channel ADD COLUMN name TEXT NOT NULL DEFAULT '';ALTER TABLE channel ADD COLUMN category TEXT NOT NULL DEFAULT '';").unwrap();
     Fixture { _dir: dir, c }
 }
 fn source(id: &str) -> GuideSource {
@@ -72,6 +73,11 @@ fn install(c: &mut Connection, id: &str, title: &str) {
 }
 fn query(id: &str, apps: &[&str]) -> ProgramQuery {
     ProgramQuery {
+        geography: serde_json::Map::new(),
+        ppv: false,
+        sports: None,
+        history_ids: None,
+        hide_adult: None,
         guide_source_id: id.into(),
         app_channel_ids: apps.iter().map(|s| s.to_string()).collect(),
         window_start_ms: 0,
@@ -96,3 +102,113 @@ mod refresh_and_queries;
 mod reviewed_aliases;
 #[path = "database/tests/suggestions.rs"]
 mod suggestions;
+
+#[test]
+fn sports_programmes_match_full_teams_categories_and_only_matching_ppv_before_page() {
+    let mut f = fixture();
+    let c = &mut f.c;
+    save_source(c, &source("sports"), 0).unwrap();
+    let mut data = feed("Chicago Bears at Green Bay Packers");
+    for (n, title, category) in [
+        (1, "NFL PPV Event", "NFL PPV"),
+        (2, "NBA PPV Finals", "Basketball PPV"),
+        (3, "Bears at Cardinals", "Sports"),
+        (4, "Category Only", "NFL"),
+    ] {
+        let mut p = data.programs[0].clone();
+        p.start_ms += n * 100;
+        p.title = title.into();
+        p.categories = vec![crate::guide::category::GuideCategory {
+            text: category.into(),
+            language: None,
+        }];
+        data.programs.push(p);
+    }
+    replace_guide(c, "sports", 1, &data, 3000, &AtomicBool::new(false)).unwrap();
+    save_mapping(c, &mapping("sports", "app-a", "catalog-a")).unwrap();
+    let mut q = query("sports", &["app-a"]);
+    q.search = "NFL".into();
+    q.sports = Some(crate::catalog::sports::Scope {
+        sport: None,
+        league: None,
+        include_ppv: true,
+        window_start_ms: 0,
+        window_end_ms: 7 * 86400000,
+        vocabulary_version: serde_json::from_str::<serde_json::Value>(
+            crate::catalog::sports::VOCABULARY,
+        )
+        .unwrap()["vocabularyVersion"]
+            .as_str()
+            .unwrap()
+            .into(),
+    });
+    let p = query_programs(c, &q).unwrap();
+    assert_eq!(
+        p.programs
+            .iter()
+            .map(|p| p.title.as_str())
+            .collect::<Vec<_>>(),
+        [
+            "Chicago Bears at Green Bay Packers",
+            "NFL PPV Event",
+            "Category Only"
+        ]
+    );
+    q.page_size = 1;
+    let first = query_programs(c, &q).unwrap();
+    q.cursor = first.next_cursor;
+    assert_eq!(
+        query_programs(c, &q).unwrap().programs[0].title,
+        "NFL PPV Event"
+    );
+    q.sports.as_mut().unwrap().include_ppv = false;
+    assert_eq!(query_programs(c, &q).unwrap_err(), "guide-stale-cursor");
+    q.cursor = None;
+    q.page_size = 100;
+    assert_eq!(query_programs(c, &q).unwrap().programs.len(), 2);
+    q.ppv = true;
+    assert_eq!(
+        query_programs(c, &q).unwrap().programs[0].title,
+        "NFL PPV Event"
+    );
+}
+
+#[test]
+fn sports_programme_cursor_binds_literal_punctuation_and_spacing() {
+    let mut f = fixture();
+    let c = &mut f.c;
+    save_source(c, &source("punctuation"), 0).unwrap();
+    let mut data = feed("foo bar");
+    let mut second = data.programs[0].clone();
+    second.start_ms = 1100;
+    data.programs.push(second.clone());
+    second.start_ms = 1200;
+    second.title = "foo-bar".into();
+    data.programs.push(second);
+    replace_guide(c, "punctuation", 1, &data, 3000, &AtomicBool::new(false)).unwrap();
+    save_mapping(c, &mapping("punctuation", "app-a", "catalog-a")).unwrap();
+    let mut q = query("punctuation", &["app-a"]);
+    q.search = "foo bar".into();
+    q.page_size = 1;
+    q.sports = Some(crate::catalog::sports::Scope {
+        sport: None,
+        league: None,
+        include_ppv: false,
+        window_start_ms: 0,
+        window_end_ms: 10000,
+        vocabulary_version: serde_json::from_str::<serde_json::Value>(
+            crate::catalog::sports::VOCABULARY,
+        )
+        .unwrap()["vocabularyVersion"]
+            .as_str()
+            .unwrap()
+            .into(),
+    });
+    q.cursor = query_programs(c, &q).unwrap().next_cursor;
+    assert!(q.cursor.is_some());
+    assert_eq!(query_programs(c, &q).unwrap().programs[0].start_ms, 1100);
+    q.search = "foo-bar".into();
+    assert_eq!(query_programs(c, &q).unwrap_err(), "guide-stale-cursor");
+    q.search = "foo  bar".into();
+    assert_eq!(query_programs(c, &q).unwrap_err(), "guide-stale-cursor");
+}

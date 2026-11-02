@@ -70,6 +70,18 @@ pub(super) fn mapped_row(r: &rusqlite::Row<'_>) -> rusqlite::Result<MappedProgra
 }
 
 pub fn query_programs(c: &Connection, q: &ProgramQuery) -> Result<ProgramPage, String> {
+    crate::guide::listed_channels::validate_history(q.history_ids.as_deref(), q.hide_adult, q.ppv)?;
+    crate::catalog_query::register_watch_history(c, q.history_ids.as_deref().unwrap_or_default())?;
+    crate::catalog::ppv::register(c)?;
+    let sports = q
+        .sports
+        .as_ref()
+        .map(|scope| crate::catalog::sports::Plan::new(scope, &q.search))
+        .transpose()?;
+    if let Some(plan) = &sports {
+        crate::catalog::sports::register(c, plan)?;
+    }
+    crate::guide::location_filter::validate(&q.geography)?;
     valid_text(&q.guide_source_id, 256, false)?;
     valid_text(&q.search, 512, false)?;
     valid_time(q.window_start_ms)?;
@@ -122,8 +134,15 @@ pub fn query_programs(c: &Connection, q: &ProgramQuery) -> Result<ProgramPage, S
         q.window_end_ms,
         q.context_at_ms,
         &search_tokens,
+        normalized(q.search.trim()),
+        crate::catalog::sports::VOCABULARY,
         q.search.trim().is_empty(),
+        &q.geography,
+        q.ppv,
+        &q.sports,
         catalog_revision,
+        &q.history_ids,
+        q.hide_adult,
     ))?;
     if let Some(cursor) = &q.cursor {
         valid_text(&cursor.app_channel_id, 16_384, true)?;
@@ -150,7 +169,22 @@ pub fn query_programs(c: &Connection, q: &ProgramQuery) -> Result<ProgramPage, S
     } else {
         String::new()
     };
-    let search_clause = if q.search.trim().is_empty() {
+    let category = if crate::catalog::sports::present(c, "channel_category_override")? {
+        "COALESCE((SELECT category FROM channel_category_override WHERE channel_id=c.id),c.category)"
+    } else {
+        "c.category"
+    };
+    let extra = if crate::catalog::sports::present(c, "catalog_projection")? {
+        "(SELECT search_text||char(10)||provider_key FROM catalog_projection WHERE channel_id=c.id)"
+    } else {
+        "''"
+    };
+    let semantic = format!(
+        "genx_sports_program(c.name,c.category,{category},p.title,p.description,p.categories_json,{extra})"
+    );
+    let search_clause = if sports.is_some() {
+        format!(" AND {semantic}")
+    } else if q.search.trim().is_empty() {
         String::new()
     } else if search_tokens.is_empty() {
         " AND 0".into()
@@ -172,11 +206,23 @@ pub fn query_programs(c: &Connection, q: &ProgramQuery) -> Result<ProgramPage, S
         })
         .collect::<Vec<_>>()
         .join(",");
-    let channel_clause = if q.app_channel_ids.is_empty() {
+    let mut channel_clause = if q.app_channel_ids.is_empty() {
         String::new()
     } else {
         format!(" AND m.app_channel_id IN({placeholders})")
     };
+    if q.history_ids.is_some() {
+        channel_clause
+            .push_str(" AND m.app_channel_id IN(SELECT value FROM json_each(genx_watch_ids()))");
+        if q.hide_adult.unwrap_or(true) {
+            channel_clause.push_str(&format!(
+                " AND NOT genx_watch_adult(c.category) AND NOT genx_watch_adult({category})"
+            ));
+        }
+    }
+    let (geography_clause, geography_values) =
+        crate::guide::location_filter::clause(&q.geography, "c", values.len() + 1)?;
+    values.extend(geography_values);
     let cursor_clause = if let Some(cursor) = &q.cursor {
         let index = values.len() + 1;
         values.extend([
@@ -199,7 +245,54 @@ pub fn query_programs(c: &Connection, q: &ProgramQuery) -> Result<ProgramPage, S
     } else {
         "p.guide_source_id=?1"
     };
-    let statement=format!("SELECT m.catalog_source_id,m.app_channel_id,p.guide_source_id,p.channel_id,p.start_ms,p.stop_ms,p.title,p.description,p.ordinal,p.categories_json,p.categories_key FROM guide_program p JOIN guide_mapping m ON m.guide_source_id=p.guide_source_id AND m.xmltv_channel_id=p.channel_id JOIN channel c ON c.id=m.app_channel_id AND c.source_id=m.catalog_source_id WHERE {scope_clause} AND p.start_ms<?3 AND ((p.stop_ms IS NOT NULL AND p.stop_ms>?2) OR (p.stop_ms IS NULL AND (p.start_ms>=?2{context_clause}))){search_clause}{channel_clause} AND NOT EXISTS(SELECT 1 FROM removed r WHERE r.id=m.app_channel_id){cursor_clause} ORDER BY p.start_ms,p.guide_source_id,p.ordinal,m.app_channel_id LIMIT {}",q.page_size+1);
+    let grouped = crate::catalog_endpoint_projection::present(&tx)?;
+    let (prefix, member_join, channel_ppv) = if grouped
+        && (!q.app_channel_ids.is_empty() || q.history_ids.is_some())
+    {
+        let evidence = crate::catalog::ppv::indexed_channel_group("c");
+        let requested = if q.app_channel_ids.is_empty() {
+            "c.id IN(SELECT value FROM json_each(genx_watch_ids()))".to_owned()
+        } else {
+            format!("c.id IN({placeholders})")
+        };
+        (format!("WITH ppv_channel_facts AS MATERIALIZED(SELECT c.id,{evidence} AS ppv FROM channel c JOIN catalog_endpoint_projection_v1 requested_projection ON requested_projection.channel_id=c.id WHERE {requested}) "),
+         " JOIN ppv_channel_facts pcf ON pcf.id=c.id".to_owned(), "pcf.ppv".to_owned())
+    } else if grouped {
+        (
+            crate::catalog::ppv::groups_cte(),
+            format!(
+                " JOIN endpoint_members em ON em.channel_id=c.id JOIN ppv_groups ppg ON {}",
+                crate::catalog::ppv::same_group("ppg", "em")
+            ),
+            "ppg.ppv".to_owned(),
+        )
+    } else {
+        let overrides: bool = sql(tx.query_row("SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE name='channel_category_override' AND type='table')", [], |r| r.get(0)))?;
+        let category = if overrides {
+            "COALESCE((SELECT category FROM channel_category_override WHERE channel_id=c.id),c.category)"
+        } else {
+            "c.category"
+        };
+        (
+            String::new(),
+            String::new(),
+            crate::catalog::ppv::channel("c.name", "c.category", category),
+        )
+    };
+    let ppv = format!("({channel_ppv} OR genx_ppv_program(p.title,p.categories_json))");
+    let ppv_clause = if q.history_ids.is_some() {
+        "1".to_owned()
+    } else if q.ppv {
+        ppv
+    } else if sports.as_ref().is_some_and(|p| p.include_ppv()) {
+        format!(
+            "(NOT {ppv} OR {})",
+            semantic.replace("genx_sports_program", "genx_sports_ppv_program")
+        )
+    } else {
+        format!("NOT {ppv}")
+    };
+    let statement=format!("{prefix}SELECT m.catalog_source_id,m.app_channel_id,p.guide_source_id,p.channel_id,p.start_ms,p.stop_ms,p.title,p.description,p.ordinal,p.categories_json,p.categories_key FROM guide_program p JOIN guide_mapping m ON m.guide_source_id=p.guide_source_id AND m.xmltv_channel_id=p.channel_id JOIN channel c ON c.id=m.app_channel_id AND c.source_id=m.catalog_source_id{member_join} WHERE {scope_clause} AND {ppv_clause} AND p.start_ms<?3 AND ((p.stop_ms IS NOT NULL AND p.stop_ms>?2) OR (p.stop_ms IS NULL AND (p.start_ms>=?2{context_clause}))){search_clause}{channel_clause}{geography_clause} AND NOT EXISTS(SELECT 1 FROM removed r WHERE r.id=m.app_channel_id){cursor_clause} ORDER BY p.start_ms,p.guide_source_id,p.ordinal,m.app_channel_id LIMIT {}",q.page_size+1);
     let mut s = sql(tx.prepare(&statement))?;
     let mut programs: Vec<MappedProgram> =
         sql(sql(s.query_map(rusqlite::params_from_iter(values), mapped_row))?.collect())?;

@@ -19,7 +19,7 @@ import { restoreRemoteFocus } from '../shell/remote-navigation';
 
 /** Presentation follows acknowledged fullscreen state; it never owns playback. */
 export function installFullscreenPresentation(root: HTMLElement): {
-  set(active: boolean): void;
+  set(active: boolean, syncLayout?: () => void): void;
   dispose(): void;
 } {
   let active = false;
@@ -116,12 +116,17 @@ export function installFullscreenPresentation(root: HTMLElement): {
   root.addEventListener('pointerdown', motion);
   root.addEventListener('wheel', motion, { passive: true });
   root.addEventListener('focusin', focusin);
-  const set = (next: boolean): void => {
-    if (disposed || next === active) return;
+  const set = (next: boolean, syncLayout?: () => void): void => {
+    if (disposed) return;
+    if (next === active) {
+      syncLayout?.();
+      return;
+    }
     if (next) {
       previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       active = true;
       root.classList.add('viewing-fullscreen');
+      syncLayout?.();
       if (!visible(previous)) restoreRemoteFocus(control);
       reveal(false);
     } else {
@@ -130,6 +135,9 @@ export function installFullscreenPresentation(root: HTMLElement): {
       swallowedKey = null;
       root.classList.remove('viewing-fullscreen', 'fullscreen-dock-hidden');
       if (dock) dock.inert = originalInert;
+      // Layout-owned controls (the Guide preview) must regain their role and
+      // tabindex before eligibility/focus restoration is evaluated.
+      syncLayout?.();
       restoreRemoteFocus(previous, control);
       previous = null;
       lastControl = null;

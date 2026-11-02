@@ -49,4 +49,12 @@ class NativeVideoGeometryTest {
     assertNull(NativeVideoGeometry.bounds(Double.NaN, 0.0, 100.0, 100.0, 1920, 1080, 1920, 1080, 0, 0))
     assertNull(NativeVideoGeometry.bounds(0.0, 0.0, 100.0, 100.0, 1920, 1080, 0, 0, 0, 0))
   }
+  @org.junit.Test fun reportsTheObservedDoubleOffsetAndHandlesLetterboxing() {
+    val expected=NativePictureBounds(784,257,1088,612)
+    val offset=NativePictureBounds(1568,515,1088,612)
+    org.junit.Assert.assertFalse(NativeVideoGeometry.aligned(expected,offset))
+    org.junit.Assert.assertArrayEquals(intArrayOf(784,258,0,0),NativeVideoGeometry.delta(expected,offset))
+    org.junit.Assert.assertTrue(NativeVideoGeometry.aligned(expected,expected))
+    org.junit.Assert.assertEquals(NativePictureBounds(920,257,816,612),NativeVideoGeometry.fitted(expected,640,480,1f))
+  }
 }

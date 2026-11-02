@@ -1,0 +1,169 @@
+/* Copyright 2026 Doug Trier. SPDX-License-Identifier: Apache-2.0 */
+#app:not(.viewing-fullscreen):not(.keyboard-open) .app-signoff.stream-buffer-footer {
+  display: flex !important;
+  min-height: 44px;
+  height: auto;
+  padding: 2px 8px;
+  gap: 8px;
+  letter-spacing: normal;
+  flex: 0 0 auto;
+}
+#app .app-signoff.stream-buffer-footer::before,
+#app .app-signoff.stream-buffer-footer::after {
+  display: none;
+}
+#app .app-signoff.stream-buffer-footer > span {
+  flex: 0 0 auto;
+  font-size: 12px;
+}
+#stream-buffer-footer {
+  flex: 1;
+  min-width: 0;
+}
+.stream-buffer-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: 12px;
+}
+.stream-buffer-controls button {
+  min-width: 36px;
+  min-height: 40px;
+  padding: 2px 6px;
+  font-size: 12px;
+}
+.stream-buffer-channel {
+  max-width: 22%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.stream-buffer-meter {
+  position: relative;
+  min-width: 128px;
+  flex: 1;
+  overflow: hidden;
+  border: 1px solid #8cb9c9;
+  border-radius: 6px;
+  padding: 5px 8px;
+  background: linear-gradient(90deg, #6c1826, #806018 45%, #146340);
+  color: #fff;
+  text-align: center;
+}
+.stream-buffer-meter:focus-visible {
+  outline: 3px solid #7feafa;
+  outline-offset: 2px;
+}
+.stream-buffer-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: #ffffff20;
+  border-inline-end: 2px solid #fff;
+  pointer-events: none;
+}
+.stream-buffer-readout {
+  position: relative;
+  text-shadow: 0 1px 3px #000;
+  white-space: pre-line;
+  line-height: 1.1;
+}
+.stream-buffer-controls[data-buffer-health='empty'] .stream-buffer-meter {
+  border-color: #ff6a7d;
+}
+.stream-buffer-controls[data-buffer-health='low'] .stream-buffer-meter {
+  border-color: #ffd27b;
+}
+.stream-buffer-controls[data-buffer-health='healthy'] .stream-buffer-meter {
+  border-color: #65f0a8;
+}
+.stream-buffer-controls[data-buffer-health='unknown'] .stream-buffer-meter {
+  background: #22313d;
+}
+.stream-buffer-controls[data-buffer-health='unknown'] .stream-buffer-fill {
+  border-color: transparent;
+}
+.stream-buffer-target {
+  display: none;
+}
+.stream-buffer-fullscreen {
+  display: none;
+}
+#app.viewing-fullscreen .stream-buffer-fullscreen {
+  display: flex;
+  order: 20;
+  margin-inline-start: auto;
+  flex: 0 1 330px;
+  align-self: flex-end;
+}
+#app.viewing-fullscreen .stream-buffer-fullscreen .stream-buffer-channel {
+  display: none;
+}
+#app.viewing-fullscreen .stream-buffer-fullscreen .stream-buffer-meter {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+}
+#app.viewing-fullscreen .workspace > .view .dock {
+  flex-wrap: wrap;
+  max-height: calc(100% - 16px);
+  overflow: auto;
+  overflow-x: hidden;
+}
+/* Retain compact TV buttons while allowing the fullscreen status/control rows. */
+body:has(#app[data-device-kind='tv']) #app.viewing-fullscreen .watch-card > .dock {
+  flex-wrap: wrap;
+}
+#app.viewing-fullscreen .workspace > .view .dock #playback-status {
+  position: static;
+  order: -2;
+  flex: 1 0 100%;
+  grid-column: 1 / -1;
+  max-width: 100%;
+  margin: 0;
+}
+#app.viewing-fullscreen .workspace > .view .dock .stream-buffer-fullscreen button {
+  width: auto;
+  flex: 0 0 auto;
+  min-width: 44px;
+  min-height: 44px;
+}
+@media (max-width: 1100px) {
+  #app .stream-buffer-footer > span,
+  .stream-buffer-footer .stream-buffer-channel,
+  .stream-buffer-footer .stream-buffer-target {
+    display: none;
+  }
+}
+
+/* Let the full set of playback actions keep readable widths. The buffer
+   panel takes the next line when it cannot share a line with those actions. */
+@media (min-width: 651px) {
+  #app.viewing-fullscreen .workspace > .view .dock .controls > button,
+  #app.viewing-fullscreen .workspace > .view .dock .secondary-controls > button,
+  #app.viewing-fullscreen .workspace > .view .dock .channel-actions > button,
+  #app.viewing-fullscreen .workspace > .view .dock .video-quality-button {
+    flex: 0 0 auto;
+    width: auto;
+    min-width: 44px;
+    max-width: 100%;
+    white-space: nowrap;
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+  #app.viewing-fullscreen .workspace > .view .dock #video-quality,
+  #app.viewing-fullscreen .workspace > .view .dock #audio-tracks {
+    flex: 0 0 auto;
+    width: auto;
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 650px) {
+  #app.viewing-fullscreen .workspace > .view .dock .stream-buffer-fullscreen {
+    grid-column: 1 / -1;
+    justify-self: end;
+    width: min(330px, 100%);
+  }
+}

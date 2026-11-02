@@ -35,7 +35,12 @@ impl PairStore {
             [],
             |r| r.get(0),
         ))?;
-        if (catalog, health, checkpoint) != (fence.catalog, fence.health, fence.checkpoint) {
+        if !fence.admits_health_progress(Fence {
+            root_generation: fence.root_generation,
+            catalog,
+            health,
+            checkpoint,
+        }) {
             return Err("scan-resume-plan-stale".into());
         }
         Self::manifest_context(&tx, |context| {

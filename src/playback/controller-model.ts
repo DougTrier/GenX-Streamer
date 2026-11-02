@@ -19,6 +19,7 @@
  * pure helpers it uses. Re-exported by controller.ts.
  */
 import { type AudioTracksSnapshot } from './audio-tracks';
+import { type LiveBufferPreference, type LiveBufferTelemetry } from './live-buffer';
 
 export interface ChannelSelection {
   id: string;
@@ -35,6 +36,18 @@ export interface ChannelSelection {
   /** A longer first-start window (ms, 20–45 s) for sources that may make a
    *  start wait, such as a one-connection provider still closing the last channel. */
   startupMs?: number;
+  /** Owner-issued, session-stable stream identity for local health learning only. */
+  performanceKey?: string;
+  /** Validated local preference; never an instruction to restart the stream. */
+  liveBuffer?: LiveBufferPreference;
+  /** Opaque stable local preference digest, never a URL/account identifier. */
+  liveBufferKey?: string;
+}
+
+export interface PlaybackControllerOptions {
+  liveBufferPreference?(
+    selection: Readonly<ChannelSelection>,
+  ): LiveBufferPreference | null | undefined | Promise<LiveBufferPreference | null | undefined>;
 }
 
 /** Transient, local recovery authority. Never enters engine DTOs or snapshots. */
@@ -106,6 +119,7 @@ export interface PlaybackFailure {
 export type EngineEvent =
   | { type: 'audio-tracks'; snapshot: Readonly<AudioTracksSnapshot> | null }
   | { type: 'progress' }
+  | { type: 'source-recovery'; cause: 'live-window' }
   | { type: 'decoded-progress'; evidence: DecodedProgressEvidence }
   | { type: 'buffering' }
   | { type: 'ended' }
@@ -120,6 +134,8 @@ export interface PlaybackEngine {
   setVolume(volume: number): void;
   readAudioTracks?(): Readonly<AudioTracksSnapshot> | null;
   setAudioTrack?(id: string | null): boolean;
+  readLiveBuffer?(): Readonly<LiveBufferTelemetry> | null;
+  setLiveBuffer?(preference: LiveBufferPreference): boolean | Promise<boolean>;
   readVODposition?(): number | null;
   readVODduration?(): number | null;
   /** Must settle and remove temporary work on the captured signal's abort. */
@@ -225,6 +241,8 @@ export interface VODReleaseObservation {
 export interface DecodedSample {
   mediaTime: number;
   decodedFrames: number;
+  /** Positive decoder evidence only; not proof of audible sound. */
+  audioObserved?: boolean;
   width: number;
   height: number;
 }

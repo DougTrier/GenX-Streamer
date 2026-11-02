@@ -22,7 +22,7 @@ interface NativeImeInsets {
   webViewHeightPx: number;
   sequence: number;
 }
-function nativeIme(value: unknown): NativeImeInsets | null {
+export function parseNativeImeInsets(value: unknown): NativeImeInsets | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;
   if (
@@ -74,7 +74,9 @@ export function installViewport(root: HTMLElement): () => void {
   let unobstructedHeight = Math.max(window.innerHeight, height());
   let measuredWidth = window.innerWidth;
   let keyboardOpen = false;
-  let nativeInsets = nativeIme((window as Window & { __genxImeInsets?: unknown }).__genxImeInsets);
+  let nativeInsets = parseNativeImeInsets(
+    (window as Window & { __genxImeInsets?: unknown }).__genxImeInsets,
+  );
   let keyboardDialog: HTMLDialogElement | null = null;
   const scrollPositions = new Map<HTMLElement, number>();
   const restoreModal = (): void => {
@@ -119,11 +121,30 @@ export function installViewport(root: HTMLElement): () => void {
       return;
     }
 
+    const wasCompact = root.classList.contains('compact-content');
+    const focused = document.activeElement;
     // Measure the ordinary split layout synchronously before deciding whether it fits.
     root.classList.remove('compact-content');
     const browser = root.querySelector<HTMLElement>('.browser')!;
     const view = root.querySelector<HTMLElement>('.view')!;
     const top = root.querySelector<HTMLElement>('.topbar')!;
+    const presentCompact = (compact: boolean): void => {
+      if (compact && !wasCompact && focused instanceof HTMLElement) {
+        const panel = browser.contains(focused)
+          ? 'channels'
+          : view.contains(focused)
+            ? 'watch'
+            : null;
+        if (panel) {
+          // A growing search row can require separate panels. Keep the pane
+          // the user is working in visible instead of exposing an old choice.
+          root.dataset.compactView = panel;
+          const selector = root.querySelector<HTMLSelectElement>('#compact-view');
+          if (selector) selector.value = panel;
+        }
+      }
+      root.classList.toggle('compact-content', compact);
+    };
     const outerHeight = (node: HTMLElement): number => {
       const style = getComputedStyle(node);
       return (
@@ -155,7 +176,7 @@ export function installViewport(root: HTMLElement): () => void {
       const fits =
         fixed <= browser.getBoundingClientRect().height + 1 &&
         browser.getBoundingClientRect().bottom <= height() + 1;
-      root.classList.toggle('compact-content', !fits);
+      presentCompact(!fits);
       return;
     }
     const browserNeed = [...browser.children]
@@ -169,8 +190,7 @@ export function installViewport(root: HTMLElement): () => void {
       outerHeight(view.querySelector<HTMLElement>('.dock')!) +
       padding(view) +
       100;
-    root.classList.toggle(
-      'compact-content',
+    presentCompact(
       browserNeed > available * (landscape ? 1 : 0.53) ||
         viewNeed > available * (landscape ? 1 : 0.47),
     );
@@ -256,7 +276,7 @@ export function installViewport(root: HTMLElement): () => void {
   };
   const ime = (event: Event): void => {
     if (!(event instanceof CustomEvent)) return;
-    const measured = nativeIme(event.detail);
+    const measured = parseNativeImeInsets(event.detail);
     if (!measured || (nativeInsets && measured.sequence <= nativeInsets.sequence)) return;
     nativeInsets = measured;
     schedule();

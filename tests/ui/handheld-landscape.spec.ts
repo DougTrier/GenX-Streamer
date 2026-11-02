@@ -90,12 +90,22 @@ for (const configuration of [
     await expect(page.locator('#channel-count')).toHaveText('16 channels');
     const geometry = await page.locator('#channel-list').evaluate((list) => {
       const bounds = list.getBoundingClientRect();
+      const browser = list.closest('.browser')!.getBoundingClientRect();
+      const footer = document.querySelector('.app-signoff')!.getBoundingClientRect();
+      const visibleTop = Math.max(0, bounds.top, browser.top);
+      const visibleBottom = Math.min(
+        innerHeight,
+        bounds.bottom,
+        browser.bottom,
+        footer.height ? footer.top : innerHeight,
+      );
       const complete = [...list.querySelectorAll<HTMLElement>('.channel-row')].filter((row) => {
         const rect = row.getBoundingClientRect();
-        return rect.top >= bounds.top - 0.5 && rect.bottom <= bounds.bottom + 0.5;
+        return rect.top >= visibleTop - 0.5 && rect.bottom <= visibleBottom + 0.5;
       });
       return {
         height: bounds.height,
+        visibleHeight: visibleBottom - visibleTop,
         complete: complete.length,
         rows: complete.slice(0, 3).map((row) => {
           const main = row.querySelector<HTMLElement>('.channel')!;
@@ -116,8 +126,8 @@ for (const configuration of [
               letter.height > 0 &&
               letter.left >= Math.max(box.left, button.left, bounds.left) - 0.5 &&
               letter.right <= Math.min(box.right, button.right, bounds.right) + 0.5 &&
-              letter.top >= bounds.top - 0.5 &&
-              letter.bottom <= bounds.bottom + 0.5,
+              letter.top >= visibleTop - 0.5 &&
+              letter.bottom <= visibleBottom + 0.5,
           };
         }),
       };
@@ -157,6 +167,23 @@ for (const configuration of [
       height,
       { width: kind === 'tv' ? 26 : 44, height: kind === 'tv' ? 34 : 44 },
     );
+    // Reserving complete rows may scroll the surrounding controls. The source
+    // action must remain revealable above the buffer footer, with a real hit target.
+    const sourceAction = page.locator('.sidefoot button');
+    if (
+      kind !== 'tv' &&
+      width >= 700 &&
+      width <= 1100 &&
+      height <= 600 &&
+      (await sourceAction.isVisible())
+    ) {
+      await sourceAction.scrollIntoViewIfNeeded();
+      await visibleTarget(page, sourceAction, width, height);
+      expect(
+        (await sourceAction.boundingBox())!.y + (await sourceAction.boundingBox())!.height,
+      ).toBeLessThanOrEqual((await page.locator('.app-signoff').boundingBox())!.y + 0.5);
+      await page.locator('#search').scrollIntoViewIfNeeded();
+    }
     if (await viewing.isVisible()) await viewing.selectOption('watch');
     const screen = await page.locator('.screen').boundingBox();
     expect(screen).not.toBeNull();

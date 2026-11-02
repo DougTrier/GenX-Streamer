@@ -28,7 +28,10 @@ export const EVENT_CODES = {
   'scan-save-failed': 'scan',
   'scan-failed': 'scan',
   'playback-failed': 'playback',
+  'playback-recovering': 'playback',
   'playback-audio-warning': 'playback',
+  'playback-health-canceled': 'playback',
+  'playback-health-save-failed': 'playback',
   'application-archive-loc-unavailable': 'application',
   'application-archive-nasa-unavailable': 'application',
   'application-archive-commons-unavailable': 'application',
@@ -155,8 +158,13 @@ const descriptions: Record<EventCode, string> = {
   'scan-save-failed': 'Responding channels could not be saved. Retry the scan when ready.',
   'scan-failed': 'The channel scan could not finish. Open Scan and retry when ready.',
   'playback-failed': 'Playback could not continue. Retry this channel or choose another.',
+  'playback-recovering': 'Playback was interrupted and the player is reconnecting.',
   'playback-audio-warning':
     'The player reported an audio-stream warning. Video may continue while audio recovers. This does not identify the cause or confirm audible sound.',
+  'playback-health-canceled':
+    'Playback or source settings changed before this check could be saved.',
+  'playback-health-save-failed':
+    'The channel is playing, but its saved playback check could not be updated.',
   'application-archive-loc-unavailable':
     'Library of Congress could not finish this search. Previously saved results are retained.',
   'application-archive-nasa-unavailable':

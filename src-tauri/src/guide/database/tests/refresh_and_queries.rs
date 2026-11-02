@@ -18,6 +18,46 @@
 use super::*;
 
 #[test]
+fn ppv_programmes_and_channels_require_explicit_scope_and_bind_cursors() {
+    let mut f = fixture();
+    install(&mut f.c, "g", "UFC Countdown");
+    save_mapping(&mut f.c, &mapping("g", "app-a", "catalog-a")).unwrap();
+    f.c.execute_batch("UPDATE channel SET name='UFC',category='Sports' WHERE id='app-a';INSERT INTO guide_program(guide_source_id,channel_id,start_ms,stop_ms,ordinal,title,description,categories_json,categories_key,search_text) SELECT guide_source_id,channel_id,1100,1900,1,'Boxing PPV 17','A match','[]','[]','boxing ppv 17' FROM guide_program LIMIT 1;").unwrap();
+    let mut q = query("g", &["app-a"]);
+    assert_eq!(
+        query_programs(&f.c, &q)
+            .unwrap()
+            .programs
+            .iter()
+            .map(|p| p.title.as_str())
+            .collect::<Vec<_>>(),
+        ["UFC Countdown"]
+    );
+    q.search = "boxing".into();
+    assert!(query_programs(&f.c, &q).unwrap().programs.is_empty());
+    q.ppv = true;
+    assert_eq!(
+        query_programs(&f.c, &q).unwrap().programs[0].title,
+        "Boxing PPV 17"
+    );
+    q.search.clear();
+    f.c.execute_batch("UPDATE channel SET category='Pay Per View' WHERE id='app-a'")
+        .unwrap();
+    q.page_size = 1;
+    let first = query_programs(&f.c, &q).unwrap();
+    assert_eq!(first.programs[0].title, "UFC Countdown");
+    q.cursor = first.next_cursor;
+    assert_eq!(
+        query_programs(&f.c, &q).unwrap().programs[0].title,
+        "Boxing PPV 17"
+    );
+    q.ppv = false;
+    assert_eq!(query_programs(&f.c, &q).unwrap_err(), "guide-stale-cursor");
+    q.cursor = None;
+    assert!(query_programs(&f.c, &q).unwrap().programs.is_empty());
+}
+
+#[test]
 fn real_sqlite_full_guide_refresh_retains_last_good_rows_and_revisions() {
     let mut f = fixture();
     install(&mut f.c, "g", "Last good");
@@ -203,7 +243,7 @@ fn first_and_edited_source_publish_metadata_schedule_and_revision_together() {
 fn empty_channel_scope_searches_every_mapping_beyond_the_scoped_query_cap() {
     let mut f = fixture();
     install(&mut f.c, "g", "Event");
-    f.c.execute_batch("WITH RECURSIVE ids(i) AS(SELECT 1 UNION ALL SELECT i+1 FROM ids WHERE i<101) INSERT INTO channel SELECT 'all-'||i,'catalog-all' FROM ids;INSERT INTO guide_mapping SELECT source_id,id,'g','xml-a' FROM channel WHERE source_id='catalog-all';").unwrap();
+    f.c.execute_batch("WITH RECURSIVE ids(i) AS(SELECT 1 UNION ALL SELECT i+1 FROM ids WHERE i<101) INSERT INTO channel(id,source_id) SELECT 'all-'||i,'catalog-all' FROM ids;INSERT INTO guide_mapping SELECT source_id,id,'g','xml-a' FROM channel WHERE source_id='catalog-all';").unwrap();
     let mut q = query("g", &[]);
     q.page_size = 100;
     q.search = "EVENT".into();
@@ -292,4 +332,106 @@ fn channel_pages_have_revision_filter_guards_and_coverage_does_not_invent_unknow
     assert_eq!(coverage.unknown_end_count, 1);
     replace_guide(&mut f.c, "g", 1, &data, 4000, &AtomicBool::new(false)).unwrap();
     assert!(list_channels(&f.c, "g", "", first.next_cursor.as_ref(), 1).is_err());
+}
+
+#[test]
+fn guide_program_queries_keep_global_search_inside_location_and_fence_paging() {
+    let mut f = fixture();
+    f.c.execute_batch("ALTER TABLE channel ADD COLUMN country TEXT;ALTER TABLE channel ADD COLUMN region TEXT;ALTER TABLE channel ADD COLUMN state TEXT;UPDATE channel SET country='US',region='NA',state=CASE id WHEN 'app-a' THEN 'US-IL' ELSE 'US-NY' END;INSERT INTO channel(id,source_id,country,region,state) VALUES('app-c','catalog-c','CA','NA','CA-ON'),('app-d','catalog-d',NULL,NULL,NULL);").unwrap();
+    install(&mut f.c, "g", "Sports tonight");
+    for (app, catalog) in [
+        ("app-a", "catalog-a"),
+        ("app-b", "catalog-b"),
+        ("app-c", "catalog-c"),
+        ("app-d", "catalog-d"),
+    ] {
+        save_mapping(&mut f.c, &mapping("g", app, catalog)).unwrap();
+    }
+    for (geography, expected) in [
+        (
+            serde_json::json!({}),
+            vec!["app-a", "app-b", "app-c", "app-d"],
+        ),
+        (serde_json::json!({"country":"US"}), vec!["app-a", "app-b"]),
+        (
+            serde_json::json!({"region":"NA"}),
+            vec!["app-a", "app-b", "app-c"],
+        ),
+        (
+            serde_json::json!({"country":"US","state":"US-IL"}),
+            vec!["app-a"],
+        ),
+        (serde_json::json!({"country":null}), vec!["app-d"]),
+        (
+            serde_json::json!({"countries":["US","CA"]}),
+            vec!["app-a", "app-b", "app-c"],
+        ),
+    ] {
+        let mut q = query("", &[]);
+        q.search = "München".into();
+        q.geography = geography.as_object().unwrap().clone();
+        let page = query_programs(&f.c, &q).unwrap();
+        assert_eq!(
+            page.programs
+                .iter()
+                .map(|p| p.app_channel_id.as_str())
+                .collect::<Vec<_>>(),
+            expected
+        );
+    }
+    let mut q = query("", &[]);
+    q.geography = serde_json::json!({"country":"US"})
+        .as_object()
+        .unwrap()
+        .clone();
+    q.page_size = 1;
+    q.cursor = query_programs(&f.c, &q).unwrap().next_cursor;
+    assert!(q.cursor.is_some());
+    q.geography = serde_json::json!({"country":"CA"})
+        .as_object()
+        .unwrap()
+        .clone();
+    assert_eq!(query_programs(&f.c, &q).unwrap_err(), "guide-stale-cursor");
+}
+
+#[test]
+fn guide_program_queries_for_one_row_do_not_scan_other_channel_schedules() {
+    use std::sync::{atomic::AtomicUsize, Arc};
+    let mut f = fixture();
+    install(&mut f.c, "g", "Wanted row");
+    save_mapping(&mut f.c, &mapping("g", "app-a", "catalog-a")).unwrap();
+    f.c.execute_batch("INSERT INTO guide_channel(guide_source_id,id,names_json,search_names) VALUES('g','unmapped','[]','unmapped');WITH RECURSIVE n(x) AS(SELECT 1 UNION ALL SELECT x+1 FROM n WHERE x<20000) INSERT INTO guide_program(guide_source_id,ordinal,channel_id,start_ms,stop_ms,title,search_text) SELECT 'g',x,'unmapped',x,x+1,'Other programme','other programme' FROM n;").unwrap();
+    let steps = Arc::new(AtomicUsize::new(0));
+    let observed = steps.clone();
+    f.c.progress_handler(
+        100,
+        Some(move || {
+            observed.fetch_add(100, Ordering::Relaxed);
+            false
+        }),
+    )
+    .unwrap();
+    let unrelated: i64 =
+        f.c.query_row(
+            "SELECT count(*) FROM guide_program WHERE title LIKE '%Other%'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(unrelated, 20_000);
+    assert!(
+        steps.load(Ordering::Relaxed) > 20_000,
+        "SQLite progress counter was not active"
+    );
+    steps.store(0, Ordering::Relaxed);
+    let page = query_programs(&f.c, &query("g", &["app-a"])).unwrap();
+    f.c.progress_handler(0, None::<fn() -> bool>).unwrap();
+    let steps = steps.load(Ordering::Relaxed);
+    println!("Single-row Guide query executed approximately {steps} SQLite VM operations");
+    assert_eq!(page.programs.len(), 1);
+    assert_eq!(page.programs[0].title, "Wanted row");
+    assert!(
+        steps < 10_000,
+        "A single visible Guide row scanned unrelated programme data: {steps} VM operations"
+    );
 }

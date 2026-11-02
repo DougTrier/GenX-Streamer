@@ -18,13 +18,43 @@
 //! policy as casting (validated destinations, opaque addresses, a lease that
 //! the page renews while the channel plays). One relay at a time.
 
-use crate::casting::ReceiverRelay;
+use crate::{account_playback_proxy::AccountPlaybackProxy, casting::ReceiverRelay};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::Arc;
 use tokio::sync::Mutex;
+use zeroize::Zeroizing;
 
+enum Transport {
+    Hls(ReceiverRelay),
+    Media(AccountPlaybackProxy),
+}
+impl Transport {
+    fn media_url(&self) -> &str {
+        match self {
+            Self::Hls(r) => r.media_url(),
+            Self::Media(r) => r.media_url(),
+        }
+    }
+    fn renew(&self) -> Result<(), &'static str> {
+        match self {
+            Self::Hls(r) => r.renew(),
+            Self::Media(r) => r.renew_public(),
+        }
+    }
+    async fn stop(&mut self) {
+        match self {
+            Self::Hls(r) => {
+                let _ = r.stop().await;
+            }
+            Self::Media(r) => {
+                let _ = r.stop().await;
+            }
+        }
+    }
+}
 #[derive(Default)]
 pub(crate) struct NativeLive {
-    active: Mutex<Option<(u64, ReceiverRelay)>>,
+    active: Mutex<Option<(u64, Transport)>>,
     next: AtomicU64,
     closed: AtomicBool,
 }
@@ -37,14 +67,48 @@ pub(crate) struct Opened {
 }
 
 impl NativeLive {
+    #[cfg(test)]
     pub(crate) async fn open(&self, url: &str, allow_http: bool) -> Result<Opened, &'static str> {
+        self.open_with_kind(url, allow_http, false).await
+    }
+    pub(crate) async fn open_with_kind(
+        &self,
+        url: &str,
+        allow_http: bool,
+        progressive: bool,
+    ) -> Result<Opened, &'static str> {
         if self.closed.load(Ordering::SeqCst) {
             return Err("native-live-closed");
         }
         if url.len() > 16_384 {
             return Err("native-live-source-invalid");
         }
-        let mut relay = ReceiverRelay::start_loopback(url, allow_http).await?;
+        let mut relay = if progressive {
+            let target = reqwest::Url::parse(url).map_err(|_| "native-live-source-invalid")?;
+            crate::relay::validate_url(&target).map_err(|_| "native-live-source-invalid")?;
+            if !matches!(target.scheme(), "https" | "http")
+                || (!allow_http && target.scheme() == "http")
+            {
+                return Err("native-live-source-invalid");
+            }
+            // The streaming proxy pins public DNS/redirect destinations and uses
+            // bounded reads instead of buffering an endless TS response. HLS
+            // keeps the existing relay and its timestamp alignment unchanged.
+            let proxy = AccountPlaybackProxy::start(
+                Zeroizing::new(url.to_owned()),
+                target.origin().ascii_serialization(),
+                0,
+                Arc::new(|| Box::pin(async { Ok(()) })),
+                true,
+                None,
+                None,
+            )
+            .await
+            .map_err(|_| "native-live-source-invalid")?;
+            Transport::Media(proxy)
+        } else {
+            Transport::Hls(ReceiverRelay::start_loopback(url, allow_http).await?)
+        };
         let mut active = self.active.lock().await;
         // A shutdown that began while the relay was starting wins (LX01).
         if self.closed.load(Ordering::SeqCst) {
@@ -101,9 +165,12 @@ impl NativeLive {
 pub(crate) async fn native_live_open(
     url: String,
     allow_http: bool,
+    progressive: Option<bool>,
     live: tauri::State<'_, NativeLive>,
 ) -> Result<Opened, String> {
-    live.open(&url, allow_http).await.map_err(String::from)
+    live.open_with_kind(&url, allow_http, progressive.unwrap_or(false))
+        .await
+        .map_err(String::from)
 }
 #[tauri::command]
 pub(crate) async fn native_live_renew(
@@ -125,6 +192,39 @@ pub(crate) async fn native_live_close(
 mod tests {
     use super::*;
 
+    #[tokio::test]
+    async fn progressive_media_preserves_policy_lease_and_session_cleanup() {
+        let live = NativeLive::default();
+        for url in [
+            "http://fixture.test/live.ts",
+            "https://127.0.0.1/live.ts",
+            "https://10.0.0.5/live.ts",
+            "https://user:secret@fixture.test/live.ts",
+        ] {
+            assert!(live.open_with_kind(url, false, true).await.is_err());
+        }
+        let media = live
+            .open_with_kind("https://fixture.test/live.ts", false, true)
+            .await
+            .unwrap();
+        assert!(media.url.contains("/account/"));
+        assert!(live.renew(media.session).await.is_ok());
+        let hls = live
+            .open("https://fixture.test/live.m3u8", false)
+            .await
+            .unwrap();
+        assert!(hls.url.contains("/media/"));
+        assert_eq!(live.renew(media.session).await, Err("native-live-stale"));
+        live.close(media.session).await;
+        assert_eq!(live.current_url().await.as_deref(), Some(hls.url.as_str()));
+        live.close(hls.session).await;
+        assert!(live.current_url().await.is_none());
+        live.shutdown().await;
+        assert!(live
+            .open_with_kind("https://fixture.test/live.ts", false, true)
+            .await
+            .is_err());
+    }
     #[tokio::test]
     async fn one_relay_at_a_time_and_only_its_own_session_renews_or_closes_it() {
         let live = NativeLive::default();

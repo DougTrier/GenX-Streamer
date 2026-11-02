@@ -46,15 +46,17 @@ const ACTIONS: [&str; 13] = [
 pub(crate) async fn web_page(
     action: String,
     url: Option<String>,
-    rect: Option<[i32; 4]>,
+    rect: Option<[f64; 4]>,
+    viewport: Option<[i32; 2]>,
     app: tauri::AppHandle,
 ) -> Result<serde_json::Value, String> {
     let url = url.unwrap_or_default();
     // Window pixels of the viewing area; absent means the whole window.
-    let [left, top, width, height] = rect.unwrap_or([0, 0, 0, 0]);
+    let [left, top, width, height] = rect.unwrap_or([0.0, 0.0, 0.0, 0.0]);
     if [left, top, width, height]
         .iter()
-        .any(|v| !(0..=16_384).contains(v))
+        .any(|v| !v.is_finite() || !(0.0..=16_384.0).contains(v))
+        || viewport.is_some_and(|v| v.iter().any(|n| !(1..=16_384).contains(n)))
     {
         return Err("web-page-invalid".into());
     }
@@ -68,10 +70,12 @@ pub(crate) async fn web_page(
     {
         use tauri::Manager;
         let page = app.try_state::<WebPage>().ok_or("web-page-unavailable")?;
+        let [viewport_width, viewport_height] = viewport.unwrap_or([0, 0]);
         page.0
             .run_mobile_plugin_async::<serde_json::Value>(
                 &action,
-                serde_json::json!({ "url": url, "left": left, "top": top, "width": width, "height": height }),
+                serde_json::json!({ "url": url, "left": left, "top": top, "width": width, "height": height,
+                    "viewportWidth": viewport_width, "viewportHeight": viewport_height }),
             )
             .await
             .map_err(|_| "web-page-failed".into())
@@ -81,7 +85,12 @@ pub(crate) async fn web_page(
         if action == "status" {
             return desktop::status(&app).await;
         }
-        desktop::run(&app, &action, &url, [left, top, width, height])
+        desktop::run(
+            &app,
+            &action,
+            &url,
+            [left, top, width, height].map(|n| n.round() as i32),
+        )
     }
     #[cfg(not(any(target_os = "android", desktop)))]
     {
@@ -453,5 +462,23 @@ mod tests {
         assert!(!ad_host("notdoubleclick.net"));
         assert!(!ad_host("doubleclick.net.example.com"));
         assert!(!ad_host("www.wtvp.org"));
+    }
+}
+
+/// Numeric, read-only geometry/decoder facts; no page or provider addresses.
+pub(crate) async fn playback_diagnostics(app: &tauri::AppHandle) -> Option<serde_json::Value> {
+    #[cfg(target_os = "android")]
+    {
+        use tauri::Manager;
+        app.try_state::<WebPage>()?
+            .0
+            .run_mobile_plugin_async::<serde_json::Value>("diagnostics", serde_json::json!({}))
+            .await
+            .ok()
+    }
+    #[cfg(not(target_os = "android"))]
+    {
+        let _ = app;
+        None
     }
 }

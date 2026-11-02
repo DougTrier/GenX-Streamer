@@ -16,6 +16,7 @@
 use crate::{
     account_catalog_owner,
     account_playback_proxy::{AccountPlaybackProxy, Authority},
+    platform::playback_trace::{native_authority_failure, AuthorityMode, AuthorityPhase},
     scan_manifest_work,
 };
 use serde::Serialize;
@@ -29,6 +30,15 @@ use zeroize::Zeroizing;
 static ACTIVE: tokio::sync::Mutex<Option<(String, String, AccountPlaybackProxy)>> =
     tokio::sync::Mutex::const_new(None);
 static GENERATION: AtomicU64 = AtomicU64::new(0);
+/// Decoder admission only; the account owner retains transport and credential authority.
+pub(crate) async fn native_live_url() -> Option<String> {
+    let active = ACTIVE.lock().await;
+    let (_, _, proxy) = active.as_ref()?;
+    if proxy.generation().ok()? != GENERATION.load(Ordering::SeqCst) {
+        return None;
+    }
+    proxy.native_live_url()
+}
 /// Per account, the live format ("ts"/"m3u8") that last delivered real video
 /// (XC-026/XC-040). Never set by a failure: providers' error codes differ, so
 /// only media that actually arrived counts. Kept for this run of GenX, so each
@@ -201,10 +211,28 @@ pub(crate) async fn start(
             let captured = captured.clone();
             Box::pin(async move {
                 if GENERATION.load(Ordering::SeqCst) != current {
+                    native_authority_failure(
+                        AuthorityMode::Paid,
+                        AuthorityPhase::GenerationBefore,
+                        "account-playback-session-replaced",
+                    );
                     return Err("account-playback-session-replaced".into());
                 }
-                account_catalog_owner::verify(owner, captured).await?;
+                account_catalog_owner::verify(owner, captured)
+                    .await
+                    .inspect_err(|error| {
+                        native_authority_failure(
+                            AuthorityMode::Paid,
+                            AuthorityPhase::LiveVerify,
+                            error,
+                        );
+                    })?;
                 if GENERATION.load(Ordering::SeqCst) != current {
+                    native_authority_failure(
+                        AuthorityMode::Paid,
+                        AuthorityPhase::GenerationAfter,
+                        "account-playback-session-replaced",
+                    );
                     return Err("account-playback-session-replaced".into());
                 }
                 Ok(())
@@ -301,9 +329,22 @@ pub(crate) async fn start_vod(
             let account = account.clone();
             Box::pin(async move {
                 if GENERATION.load(Ordering::SeqCst) != current {
+                    native_authority_failure(
+                        AuthorityMode::Paid,
+                        AuthorityPhase::GenerationBefore,
+                        "account-playback-session-replaced",
+                    );
                     return Err("account-playback-session-replaced".into());
                 }
-                crate::account_vod::verify(owner, account, revision).await
+                crate::account_vod::verify(owner, account, revision)
+                    .await
+                    .inspect_err(|error| {
+                        native_authority_failure(
+                            AuthorityMode::Paid,
+                            AuthorityPhase::VodVerify,
+                            error,
+                        );
+                    })
             })
         });
         let proxy =

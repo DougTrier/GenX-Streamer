@@ -68,11 +68,36 @@ afterAll(async () => {
 });
 
 async function mount(width = 960, height = 540, fullscreen = false, controlledClock = false) {
-  const page = await browser.newPage({ viewport: { width, height } });
+  const page = await browser.newPage({
+    viewport: { width: controlledClock ? width + 1 : width, height },
+  });
   if (controlledClock) {
-    const instant = new Date('2026-10-11T12:00:00Z');
-    await page.clock.install({ time: instant });
-    await page.clock.pauseAt(instant);
+    try {
+      // The browser can deliver its initial native resize after newPage returns.
+      // Join an acknowledged target resize and a real frame before pausing RAF;
+      // simulated clock advancement does not settle native viewport events.
+      await page.evaluate(
+        ({ width, height }) => {
+          Reflect.set(window, 'qualityViewportReady', false);
+          const resized = () => {
+            if (innerWidth !== width || innerHeight !== height) return;
+            window.removeEventListener('resize', resized);
+            Reflect.set(window, 'qualityViewportReady', true);
+          };
+          window.addEventListener('resize', resized);
+        },
+        { width, height },
+      );
+      await page.setViewportSize({ width, height });
+      await page.waitForFunction(() => Reflect.get(window, 'qualityViewportReady') === true);
+      await page.evaluate(() => new Promise<void>((done) => requestAnimationFrame(() => done())));
+      const instant = new Date('2026-10-11T12:00:00Z');
+      await page.clock.install({ time: instant });
+      await page.clock.pauseAt(instant);
+    } catch (error) {
+      await page.close();
+      throw error;
+    }
   }
   await page.setContent('<div id="app"></div>');
   await page.addStyleTag({ content: css });
@@ -81,6 +106,8 @@ async function mount(width = 960, height = 540, fullscreen = false, controlledCl
   await page.addScriptTag({
     content: `Fixture.createShell(document.querySelector('#app')); window.video=document.querySelector('#video');window.choices=[];window.state={auto:true,currentLevel:7,availableLevelCount:2,levelsTruncated:false,availableLevels:[{index:7,width:426,height:240,bitrate:500000},{index:11,width:1920,height:1080,bitrate:8048000}]};window.remove=Fixture.installVideoQuality(video,document.querySelector('#video-quality'),{read:()=>window.state,set:(_,index)=>{choices.push(index);state.auto=index===null;if(index!==null)state.currentLevel=index;return true;}});window.removeRemote=Fixture.installRemoteNavigation({editMode:Fixture.createRemoteEditMode()});window.fullscreen=Fixture.installFullscreenPresentation(document.querySelector('#app'));fullscreen.set(${fullscreen});`,
   });
+  // Settle initial fullscreen layout before exercising remote activation with a paused clock.
+  if (controlledClock) await page.clock.runFor(250);
   return page;
 }
 
@@ -92,24 +119,83 @@ it('uses actual advertised indices with remote navigation, and Escape closes onl
     expect(await button.textContent()).toBe('Auto · 240p ▴');
     await button.focus();
     await page.keyboard.press('Enter');
+    await page.clock.runFor(32);
     expect(await page.locator('#video-quality').getAttribute('data-video-quality-open')).toBe(
       'true',
     );
     expect(await page.getByRole('menuitemradio', { name: '1080p · 8.05 Mbps' }).count()).toBe(1);
     await page.keyboard.press('End');
-    await page.keyboard.press('Enter');
+    await page.clock.runFor(32);
+    expect(await page.evaluate(() => document.activeElement?.getAttribute('data-quality'))).toBe(
+      '11',
+    );
+    await page
+      .getByRole('menuitemradio', { name: '1080p · 8.05 Mbps', exact: true })
+      .press('Enter');
+    await page.clock.runFor(32);
     expect(await page.evaluate(() => Reflect.get(window, 'choices'))).toEqual([11]);
     await page.keyboard.press('Enter');
+    await page.clock.runFor(32);
     await page.keyboard.press('Home');
-    await page.keyboard.press('Enter');
+    await page.clock.runFor(32);
+    expect(
+      await page.evaluate(() => document.activeElement?.getAttribute('data-quality')),
+      JSON.stringify(
+        await page.evaluate(() => ({
+          active: document.activeElement?.outerHTML,
+          open: document.querySelector('#video-quality')?.getAttribute('data-video-quality-open'),
+          menu: (document.querySelector('.video-quality-menu') as HTMLElement)?.hidden,
+          root: document.querySelector('#app')?.className,
+          dock: (document.querySelector('.dock') as HTMLElement)?.inert,
+        })),
+      ),
+    ).toBe('auto');
+    await page.getByRole('menuitemradio', { name: 'Auto', exact: true }).press('Enter');
+    await page.clock.runFor(32);
     expect(await page.evaluate(() => Reflect.get(window, 'choices'))).toEqual([11, null]);
     await page.keyboard.press('Enter');
+    await page.clock.runFor(32);
     await page.keyboard.press('Escape');
     expect(await button.getAttribute('aria-expanded')).toBe('false');
     expect(await button.evaluate((node) => node === document.activeElement)).toBe(true);
     expect(
       await page.locator('#app').evaluate((node) => node.classList.contains('viewing-fullscreen')),
     ).toBe(true);
+  } finally {
+    await page.close();
+  }
+});
+
+it('joins the initial viewport and closes an open remote popup on a later real resize', async () => {
+  const page = await mount(960, 540, true, true);
+  try {
+    expect(await page.evaluate(() => Reflect.get(window, 'qualityViewportReady'))).toBe(true);
+    const button = page.getByRole('button', { name: 'Video quality', exact: true });
+    await button.focus();
+    await page.keyboard.press('Enter');
+    await page.clock.runFor(32);
+    expect(await page.locator('#video-quality').getAttribute('data-video-quality-open')).toBe(
+      'true',
+    );
+    await page.evaluate(() => {
+      Reflect.set(window, 'qualityLaterResizeReady', false);
+      window.addEventListener(
+        'resize',
+        () => Reflect.set(window, 'qualityLaterResizeReady', true),
+        { once: true },
+      );
+    });
+    await page.setViewportSize({ width: 940, height: 540 });
+    await expect
+      .poll(() => page.evaluate(() => Reflect.get(window, 'qualityLaterResizeReady')))
+      .toBe(true);
+    expect(await page.locator('#video-quality').getAttribute('data-video-quality-open')).toBeNull();
+    expect(await button.getAttribute('aria-expanded')).toBe('false');
+    expect(await button.evaluate((node) => node === document.activeElement)).toBe(true);
+    expect(
+      await page.locator('#app').evaluate((node) => node.classList.contains('viewing-fullscreen')),
+    ).toBe(true);
+    expect(await page.evaluate(() => Reflect.get(window, 'choices'))).toEqual([]);
   } finally {
     await page.close();
   }

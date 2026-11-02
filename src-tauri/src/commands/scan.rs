@@ -16,6 +16,31 @@
 use crate::*;
 
 #[tauri::command]
+pub(crate) async fn begin_source_cleanup(
+    request: storage_transaction::source_cleanup::Begin,
+    request_id: String,
+    app: tauri::AppHandle,
+) -> Result<storage_transaction::source_cleanup::BeginReply, String> {
+    discovery::source_cleanup_owner::begin(request, request_id, app).await
+}
+#[tauri::command]
+pub(crate) async fn finish_source_cleanup(
+    request: storage_transaction::source_cleanup::Finish,
+    request_id: String,
+    app: tauri::AppHandle,
+) -> Result<storage_transaction::source_cleanup::Reply, String> {
+    discovery::source_cleanup_owner::finish(request, request_id, app).await
+}
+#[tauri::command]
+pub(crate) async fn cancel_source_cleanup(
+    request: storage_transaction::source_cleanup::Finish,
+    request_id: String,
+    app: tauri::AppHandle,
+) -> Result<storage_transaction::source_cleanup::CancelReply, String> {
+    discovery::source_cleanup_owner::cancel(request, request_id, app).await
+}
+
+#[tauri::command]
 pub(crate) async fn read_scan_checkpoint(
     app: tauri::AppHandle,
 ) -> Result<scan_checkpoint::Snapshot, String> {

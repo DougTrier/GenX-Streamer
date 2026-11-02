@@ -28,6 +28,8 @@ import { formatGuideTime } from '../../guide/time';
 import type { GuideHost, GuideCatalogChannel } from '../../ui/guide/guide-model';
 import type { GuideCommitAliases } from '../../guide/reviewed-aliases';
 import { readListedGuideChannels } from '../../guide/listed-channels';
+import { captureGuideLocation, guideLocationKey } from '../../guide/location-filter';
+import type { GeographyFilter } from '../../catalog/geography';
 
 export interface OwnedGuideHost extends GuideHost {
   settleProposedPreviews(): Promise<void>;
@@ -74,6 +76,8 @@ function pickGuideFile(signal: AbortSignal): Promise<File | null> {
 }
 /** UI owns intent; native SQLite owns source revisions, mappings and schedule publication. */
 export function createGuideHost(options: {
+  browseScope?: GuideHost['browseScope'];
+  geography?(): GeographyFilter;
   enableTimeline?: boolean;
   channels(): readonly GuideCatalogChannel[];
   selectedChannel(): GuideCatalogChannel | null;
@@ -111,7 +115,23 @@ export function createGuideHost(options: {
   };
   return {
     ...options,
-    listedChannels: readListedGuideChannels,
+    locationScopeKey: () => guideLocationKey(options.geography?.()),
+    listedChannels: (start, end, signal, search, ppv, sports, history) => {
+      const args = [
+        start,
+        end,
+        signal,
+        search,
+        captureGuideLocation(options.geography?.()),
+      ] as const;
+      return history
+        ? readListedGuideChannels(...args, ppv ?? false, sports, history)
+        : sports
+          ? readListedGuideChannels(...args, ppv ?? false, sports)
+          : ppv
+            ? readListedGuideChannels(...args, true)
+            : readListedGuideChannels(...args);
+    },
     summary: readSelectedGuide,
     channelCoverage: readChannelGuideCoverage,
     cancelSummary: (requestId) => invoke('cancel_playlist', { requestId }),
@@ -134,7 +154,16 @@ export function createGuideHost(options: {
       };
     },
     mappings: (signal) => read(signal, nativeGuide.mappings),
-    query: (query, signal) => read(signal, () => nativeGuide.programs(query)),
+    query: (query, signal) =>
+      read(signal, () =>
+        nativeGuide.programs({
+          ...query,
+          // Inventory matched location on every retained Live alias. Its chosen
+          // representative may carry different metadata, so do not filter that
+          // already scoped programme row a second time.
+          geography: query.appChannelIds.length ? {} : captureGuideLocation(options.geography?.()),
+        }),
+      ),
     guideChannels: (query, signal) =>
       read(signal, () => nativeGuide.channels(query.guideSourceId, query.search, query.afterId)),
     settleProposedPreviews: settleProposedDiscards,

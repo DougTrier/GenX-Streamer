@@ -458,10 +458,13 @@ fn main_store_and_remote_removal_are_independent_of_saved_content_and_local_book
 }
 
 pub(crate) fn local_fixture(directory: &Path) -> (Receipt, Vec<u8>) {
+    local_fixture_sized(directory, 131072)
+}
+fn local_fixture_sized(directory: &Path, length: usize) -> (Receipt, Vec<u8>) {
     let store = DownloadStore::open(directory, true, &mut || Ok(()))
         .unwrap()
         .unwrap();
-    let data = bytes(131072, 1);
+    let data = bytes(length, 1);
     let b = body(&store, 1, &data);
     let r = store
         .complete(&capture(data.len()), &b, &mut || Ok(()))
@@ -469,9 +472,12 @@ pub(crate) fn local_fixture(directory: &Path) -> (Receipt, Vec<u8>) {
     (r, data)
 }
 pub(crate) fn local_proxy_fixture() -> (tempfile::TempDir, LocalBody, Vec<u8>) {
+    local_proxy_fixture_sized(131072)
+}
+pub(crate) fn local_proxy_fixture_sized(length: usize) -> (tempfile::TempDir, LocalBody, Vec<u8>) {
     let root = tempfile::tempdir().unwrap();
     let directory = root.path().join("archive-downloads-v1");
-    let (r, data) = local_fixture(&directory);
+    let (r, data) = local_fixture_sized(&directory, length);
     let store = DownloadStore::open(&directory, false, &mut || Ok(()))
         .unwrap()
         .unwrap();

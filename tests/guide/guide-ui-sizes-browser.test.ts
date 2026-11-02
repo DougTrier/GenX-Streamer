@@ -36,9 +36,9 @@ for (const size of [
   { width: 390, height: 844, enlarged: true, deviceKind: 'personal', completeRows: 0 },
   { width: 640, height: 360, enlarged: true, deviceKind: 'personal', completeRows: 0 },
 ]) {
-  // The Guide sits in the right panel beside the channel list: the grid needs
-  // a panel of at least PANEL_AGENDA_WIDTH, which an 854-wide screen lacks.
-  it(`normal Guide uses the real shell with readable ${size.width < 900 ? 'agenda' : 'grid'} ${size.width}x${size.height}`, async () => {
+  // Landscape handhelds give the Guide the workspace, so 854 px fits a grid.
+  // Narrower screens retain the readable agenda.
+  it(`normal Guide uses the real shell with readable ${size.width < 850 ? 'agenda' : 'grid'} ${size.width}x${size.height}`, async () => {
     const page = await fixture(false, true);
     try {
       await page.setViewportSize(size);
@@ -71,7 +71,7 @@ for (const size of [
         const saved=Array.from({length:31},(_,i)=>({id:'channel'+i,sourceId:'catalog',name:'A complete long channel name '+i+' (1080p)',category:'Sports'}));
         host.presentation='page';host.channels=()=>saved;host.selectedChannel=()=>saved[0];
         host.mappings=async()=>saved.slice(0,3).map((c,i)=>({...mapping,appChannelId:c.id,xmltvChannelId:'xml'+i}));
-        const agenda=${JSON.stringify(size.width < 900)};
+        const agenda=${JSON.stringify(size.width < 850)};
         const listing=(id,title,startMs,stopMs,ordinal)=>({catalogSourceId:'catalog',appChannelId:id,guideSourceId:'guide',xmltvChannelId:'xml'+saved.findIndex(c=>c.id===id),title,startMs,stopMs,ordinal,description:'Complete controlled listing details',categories:[{text:'Sports'}]});
         host.query=async q=>{calls.queries.push(q);return {programs:agenda?[listing(q.appChannelIds[0],'Readable current programme',instant-1000,instant+100000,0),listing(q.appChannelIds[0],'Upcoming programme with complete title',instant+200000,instant+300000,1)]:[],nextCursor:null,sourceRevision:1,databaseRevision:1};};
         if(agenda)host.summary=async q=>({...q,catalogRevision:'1',databaseRevision:1,mappingStatus:'mapped',mapping:{catalogSourceId:'catalog',appChannelId:q.appChannelId,guideSourceId:'guide',xmltvChannelId:'xml'+saved.findIndex(c=>c.id===q.appChannelId)},sourceRevision:1,publishedRevision:1,updatedMs:instant,coverage:{startMs:instant-1000,endMs:instant+300000},cacheStatus:'current',currentStatus:'current',nextStatus:'next',current:{title:'Readable current programme',startMs:instant-1000,stopMs:instant+100000},next:{title:'Upcoming programme with complete title',startMs:instant+200000,stopMs:instant+300000}});
@@ -82,7 +82,7 @@ for (const size of [
       `,
         type: 'module',
       });
-      const agenda = size.width < 900;
+      const agenda = size.width < 850;
       if (agenda)
         await page
           .getByRole('button', { name: 'Readable current programme', exact: true })
@@ -186,7 +186,58 @@ for (const size of [
               return problems;
             }),
         );
-        expect(offscreen, `${size.width}x${size.height}`).toEqual([]);
+        if (size.deviceKind === 'tv') {
+          expect(offscreen, `${size.width}x${size.height}`).toEqual([]);
+        } else {
+          // A short landscape Guide reserves its top-left mini and gives the
+          // toolbar a bounded rail. Every remote destination must be revealed,
+          // while the programme grid and the outer page stay in place.
+          const outer = await page.evaluate(() => [scrollX, scrollY]);
+          const toolbar = page.locator('.guide-dialog[open] .gx-timeline-toolbar');
+          await toolbar.getByRole('button', { name: 'All channels', exact: true }).focus();
+          const visited: string[] = [];
+          for (let index = 0; index < 20; index++) {
+            const target = await page.evaluate(() => {
+              const control = document.activeElement as HTMLElement;
+              const rail = document.querySelector('.guide-dialog[open] .gx-timeline-toolbar')!;
+              const r = control.getBoundingClientRect(),
+                frame = rail.getBoundingClientRect();
+              const clip = {
+                left: frame.left + rail.clientLeft,
+                top: frame.top + rail.clientTop,
+                right: frame.left + rail.clientLeft + rail.clientWidth,
+                bottom: frame.top + rail.clientTop + rail.clientHeight,
+              };
+              return {
+                label: control.getAttribute('aria-label') || control.textContent || '',
+                inToolbar: rail.contains(control),
+                complete:
+                  r.width >= 44 &&
+                  r.height >= 44 &&
+                  r.left >= clip.left - 1 &&
+                  r.right <= clip.right + 1 &&
+                  r.top >= clip.top - 1 &&
+                  r.bottom <= clip.bottom + 1,
+                textFits:
+                  control.scrollWidth <= control.clientWidth + 1 &&
+                  control.scrollHeight <= control.clientHeight + 1,
+                hit: control.contains(
+                  document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2),
+                ),
+              };
+            });
+            expect(
+              target.inToolbar && target.complete && target.textFits && target.hit,
+              JSON.stringify(target),
+            ).toBe(true);
+            visited.push(target.label);
+            if (target.label === 'Close guide') break;
+            await page.keyboard.press('ArrowRight');
+          }
+          expect(visited).toContain('Now');
+          expect(visited.at(-1)).toBe('Close guide');
+          expect(await page.evaluate(() => [scrollX, scrollY])).toEqual(outer);
+        }
         // Every programme box fits inside its row (no spilling into the next).
         const spill = await page.locator('.gx-timeline-row').evaluateAll((rows) =>
           rows.flatMap((row) => {
@@ -208,10 +259,25 @@ for (const size of [
               .locator('.gx-timeline-row')
               .first()
               .evaluate((node) => node.getBoundingClientRect().height),
-          ).toBe(64);
+          ).toBeGreaterThanOrEqual(44);
+          expect(
+            await page
+              .locator('.gx-timeline-row')
+              .first()
+              .evaluate((node) => node.getBoundingClientRect().height),
+          ).toBeLessThan(64);
           await page.getByRole('button', { name: 'All channels', exact: true }).focus();
-          for (let step = 0; step < 8; step++) {
+          const visited: string[] = [];
+          for (let step = 0; step < 12; step++) {
             await page.keyboard.press('Tab');
+            visited.push(
+              await page.evaluate(
+                () =>
+                  document.activeElement?.getAttribute('aria-label') ||
+                  document.activeElement?.textContent ||
+                  '',
+              ),
+            );
             expect(
               await page.evaluate(() => {
                 const node = document.activeElement;
@@ -230,7 +296,9 @@ for (const size of [
                 );
               }),
             ).toBe(true);
+            if (visited.at(-1) === 'Close guide') break;
           }
+          expect(visited).toContain('PPV');
           expect(
             await page
               .getByRole('button', { name: 'Close guide', exact: true })

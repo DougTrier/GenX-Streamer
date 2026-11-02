@@ -18,6 +18,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const { invoke, isTauri } = vi.hoisted(() => ({ invoke: vi.fn(), isTauri: vi.fn(() => true) }));
 vi.mock('@tauri-apps/api/core', () => ({ invoke, isTauri }));
 import { readListedGuideChannels } from '../../src/guide/listed-channels';
+import { captureSportsScope } from '../../src/search/sports';
 const item = (id = 'a') => ({
   catalogSourceId: 'catalog',
   appChannelId: id,
@@ -43,6 +44,91 @@ beforeEach(() => {
   isTauri.mockReturnValue(true);
 });
 describe('complete listed Guide membership native bridge', () => {
+  it('captures complete exact History across pages and refuses an unwatched alias', async () => {
+    const history = { ids: ['b', 'a'], hideAdult: true };
+    invoke
+      .mockImplementationOnce(async () => {
+        history.ids.splice(0, 2, 'changed');
+        history.hideAdult = false;
+        return page([item('a')], 'history-next');
+      })
+      .mockResolvedValueOnce(page([item('b')]));
+    await readListedGuideChannels(
+      1000,
+      2000,
+      new AbortController().signal,
+      '',
+      { country: 'US' },
+      false,
+      undefined,
+      history,
+    );
+    expect(invoke.mock.calls.map((call) => call[1].query)).toEqual([
+      expect.objectContaining({
+        historyIds: ['b', 'a'],
+        hideAdult: true,
+        geography: { country: 'US' },
+      }),
+      expect.objectContaining({
+        historyIds: ['b', 'a'],
+        hideAdult: true,
+        geography: { country: 'US' },
+      }),
+    ]);
+    invoke.mockReset();
+    invoke.mockResolvedValue(page([item('unwatched-representative')]));
+    await expect(
+      readListedGuideChannels(
+        1000,
+        2000,
+        new AbortController().signal,
+        '',
+        undefined,
+        false,
+        undefined,
+        { ids: ['b'], hideAdult: true },
+      ),
+    ).rejects.toThrow();
+    invoke.mockReset();
+    invoke.mockResolvedValue(page([]));
+    expect(
+      (
+        await readListedGuideChannels(
+          1000,
+          2000,
+          new AbortController().signal,
+          '',
+          undefined,
+          false,
+          undefined,
+          { ids: [], hideAdult: true },
+        )
+      ).channels,
+    ).toEqual([]);
+    expect(invoke.mock.calls[0][1].query.historyIds).toEqual([]);
+  });
+  it('keeps one captured country scope across every page, including concurrent UI changes', async () => {
+    const geography = { countries: ['US', 'CA'] };
+    invoke
+      .mockImplementationOnce(async () => {
+        geography.countries.push('UK');
+        return page([item('a')], 'next');
+      })
+      .mockResolvedValueOnce(page([item('b')]));
+    await readListedGuideChannels(1000, 2000, new AbortController().signal, 'Sports', geography);
+    expect(invoke.mock.calls.map((call) => call[1].query.geography)).toEqual([
+      { countries: ['CA', 'US'] },
+      { countries: ['CA', 'US'] },
+    ]);
+    invoke.mockClear();
+    await expect(
+      readListedGuideChannels(1000, 2000, new AbortController().signal, '', {
+        countries: ['US', 'CA'],
+        state: 'US-IL',
+      }),
+    ).rejects.toThrow('location filter');
+    expect(invoke).not.toHaveBeenCalled();
+  });
   it('joins pages with per-page request IDs and exact opaque channel identities', async () => {
     invoke
       .mockResolvedValueOnce(page([item('https://opaque/?a=文&b="')], 'opaque1'))
@@ -280,6 +366,53 @@ describe('complete listed Guide membership native bridge', () => {
 });
 
 describe('Live display-group membership protocol', () => {
+  it('captures sports scope before paging even if the caller changes its selection', async () => {
+    const sports = captureSportsScope('NFL', { sport: 'american-football' }, 1000)!;
+    const captured = { ...sports };
+    invoke
+      .mockImplementationOnce(async () => {
+        sports.sport = 'baseball';
+        return page([item('a')], 'next');
+      })
+      .mockResolvedValueOnce(page([item('b')]));
+    await readListedGuideChannels(
+      1000,
+      2000,
+      new AbortController().signal,
+      'NFL',
+      { country: 'US' },
+      false,
+      sports,
+    );
+    expect(invoke.mock.calls.map((call) => call[1].query.sports)).toEqual([captured, captured]);
+    expect(invoke.mock.calls.map((call) => call[1].query.geography)).toEqual([
+      { country: 'US' },
+      { country: 'US' },
+    ]);
+    invoke.mockClear();
+    await expect(
+      readListedGuideChannels(1000, 2000, new AbortController().signal, 'Bears', undefined, false, {
+        ...captured,
+        sport: undefined,
+      }),
+    ).rejects.toThrow();
+    expect(invoke).not.toHaveBeenCalled();
+  });
+  it('captures explicit PPV scope for every native page and accepts the assigned PPV bit', async () => {
+    invoke
+      .mockResolvedValueOnce(page([{ ...item('a'), filterMask: 8 }], 'next'))
+      .mockResolvedValueOnce(page([{ ...item('b'), filterMask: 15 }]));
+    const result = await readListedGuideChannels(
+      1000,
+      2000,
+      new AbortController().signal,
+      'boxing',
+      undefined,
+      true,
+    );
+    expect(result.channels.map((channel) => channel.filterMask)).toEqual([8, 15]);
+    expect(invoke.mock.calls.map((call) => call[1].query.ppv)).toEqual([true, true]);
+  });
   it('admits bounded native group filter facts without exporting aliases or endpoints', async () => {
     invoke.mockResolvedValue({
       ...page([{ ...item(), filterMask: 6 }]),
@@ -293,7 +426,7 @@ describe('Live display-group membership protocol', () => {
       channels: [{ filterMask: 6 }],
     });
   });
-  it.each([{ filterMask: 8 }, { filterMask: -1 }, { filterMask: 1.5 }, { filterMask: true }])(
+  it.each([{ filterMask: 16 }, { filterMask: -1 }, { filterMask: 1.5 }, { filterMask: true }])(
     'refuses malformed group mask %j',
     async (bad) => {
       invoke.mockResolvedValue({

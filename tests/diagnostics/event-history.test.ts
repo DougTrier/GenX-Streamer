@@ -73,6 +73,42 @@ it('bounds history and validates decimal monotonic IDs while allowing clock roll
     }).events,
   ).toHaveLength(2);
 });
+it('persists classified playback-check outcomes with bounded fixed reasons instead of private error text', async () => {
+  const rows = [
+    {
+      operation: 'playback' as const,
+      level: 'info' as const,
+      code: 'playback-health-canceled' as const,
+      reason: 'prepare-source-grant-changed',
+    },
+    {
+      operation: 'playback' as const,
+      level: 'warning' as const,
+      code: 'playback-health-save-failed' as const,
+      reason: 'write-unowned-abort',
+    },
+  ];
+  const saved: unknown[] = [];
+  const owner = createDiagnostics({
+    invoke: async (command, args) => {
+      expect(command).toBe('append_diagnostic_event');
+      saved.push(args!.event);
+      return { id: String(saved.length), timestampMs: 1000, ...(args!.event as object) };
+    },
+  });
+  for (const row of rows) {
+    expect(await owner.emit(row)).toBe(true);
+    expect(describeDiagnosticEvent({ id: '1', timestampMs: 1000, ...row })).not.toMatch(
+      /https|password/,
+    );
+    expect(() => validateDiagnosticInput({ ...row, operation: 'scan' })).toThrow();
+    expect(() =>
+      validateDiagnosticInput({ ...row, reason: 'https://private.invalid/?password=hidden' }),
+    ).toThrow();
+  }
+  expect(saved).toEqual(rows);
+  await owner.dispose();
+});
 it('matches native scan-only counts, total relationships and safe ID bound', () => {
   for (const bad of [
     { ...event, total: 1, checked: 2 },

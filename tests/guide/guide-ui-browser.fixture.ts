@@ -19,11 +19,12 @@
  * browser, page fixtures and helpers. Each guide-ui-*browser.test.ts file calls
  * useGuideUiBrowser() once.
  */
-import { chromium, type Browser, type Page } from '@playwright/test';
-import { afterAll, beforeAll } from 'vitest';
+import { chromium, type Browser, type BrowserServer, type Page } from '@playwright/test';
+import { afterAll, beforeAll, expect } from 'vitest';
 import { build } from 'vite';
 import { resolve } from 'node:path';
 import { readStylesheet } from '../support/stylesheet';
+import { releaseBrowserLogPipesAfterExit } from '../support/browser-process-exit';
 
 export let browser: Browser;
 
@@ -133,7 +134,9 @@ export async function dispose(page: Page): Promise<void> {
 }
 
 /** The hooks every test file of this suite needs; call once at the top of the file. */
-export function useGuideUiBrowser(): void {
+export function useGuideUiBrowser(ownedProcess?: { assertDrained(): void }): void {
+  let server: BrowserServer | undefined;
+  let pipes: ReturnType<typeof releaseBrowserLogPipesAfterExit> | undefined;
   beforeAll(async () => {
     const output = await build({
       configFile: false,
@@ -161,12 +164,33 @@ export function useGuideUiBrowser(): void {
     const chunk = result.output.find((entry) => entry.type === 'chunk');
     if (!chunk || chunk.type !== 'chunk') throw new Error('Missing chunk');
     bundle = chunk.code;
-    browser = await chromium.launch({
+    const launch = {
       headless: true,
       executablePath: 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe',
-    });
+    };
+    if (ownedProcess) {
+      server = await chromium.launchServer(launch);
+      pipes = releaseBrowserLogPipesAfterExit(server.process());
+      browser = await chromium.connect(server.wsEndpoint());
+    } else browser = await chromium.launch(launch);
   });
   afterAll(async () => {
-    await browser?.close();
+    if (!server) {
+      await browser?.close();
+      return;
+    }
+    try {
+      expect(browser.contexts()).toHaveLength(0);
+      ownedProcess!.assertDrained();
+      pipes!.arm();
+    } finally {
+      try {
+        await server.close();
+      } finally {
+        pipes?.dispose();
+      }
+    }
+    expect(server.process().exitCode).toBe(0);
+    expect(server.process().signalCode).toBeNull();
   });
 }

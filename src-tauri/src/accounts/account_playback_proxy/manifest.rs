@@ -31,6 +31,23 @@ pub(super) async fn client(
     // (never a provider address, credential or upstream payload), so a failed
     // start is diagnosable instead of an unexplained dropped connection.
     diag(format_args!("outcome={:?} sent={}", failure, sent));
+    if let Some(code) = failure {
+        // Fixed internal codes only, including failures after headers were sent.
+        // These used to be invisible in release logs during mid-stream recovery.
+        eprintln!("[GenX relay] code={code} response_started={sent}");
+        let mode = if state.lock().is_ok_and(|s| s.generation == 0) {
+            "free"
+        } else {
+            "paid"
+        };
+        crate::platform::playback_trace::native_failure(
+            mode,
+            code,
+            code.contains("timeout"),
+            false,
+            sent,
+        );
+    }
     if let (Some(code), false) = (failure, sent) {
         let reply = format!(
             "HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\nContent-Length: 0\r\nCache-Control: no-store\r\nX-GenX-Proxy-Error: {code}\r\n\r\n"

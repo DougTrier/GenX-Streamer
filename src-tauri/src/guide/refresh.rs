@@ -48,7 +48,7 @@ pub(crate) fn admit_schedule(
     Ok(())
 }
 fn saved_cadence(c: &Connection) -> Result<Cadence, String> {
-    // Guide renewal has its own permission and daily policy. Channel cadence
+    // Guide renewal has its own permission and three-hour policy. Channel cadence
     // must not disable, accelerate or delay program-guide renewal.
     let has_control: bool = db::sql(c.query_row(
         "SELECT EXISTS(SELECT 1 FROM pragma_table_info('metadata') WHERE name='automatic_guide_updates')",
@@ -84,10 +84,21 @@ pub(crate) fn require_automatic_updates(c: &Connection) -> Result<(), String> {
     }
     Ok(())
 }
+/// Guide feeds renew independently of channel-scan cadence. Failed downloads
+/// retain their last published SQLite schedule and the existing retry cooldown.
+pub(crate) const INTERVAL_MS: i64 = 3 * 3_600_000;
+fn next_guide(cadence: Cadence, updated: i64) -> Result<i64, String> {
+    if cadence == Cadence::Off {
+        return Err("guide-refresh-disabled".into());
+    }
+    let next = updated
+        .checked_add(INTERVAL_MS)
+        .ok_or("guide-clock-unavailable")?;
+    db::valid_time(next)?;
+    Ok(next)
+}
 pub(crate) fn next_after_success(c: &Connection, updated: i64) -> Result<i64, String> {
-    saved_cadence(c)?
-        .next(updated)?
-        .ok_or_else(|| "guide-refresh-disabled".into())
+    next_guide(saved_cadence(c)?, updated)
 }
 #[path = "refresh_coverage.rs"]
 mod coverage;
@@ -176,7 +187,7 @@ fn candidate(
         next_due_ms: coverage::due(
             &coverage::read(c, source, source.updated_ms.unwrap_or(0))?,
             source.updated_ms.unwrap_or(0),
-            cadence.next(last)?.ok_or("guide-refresh-disabled")?,
+            next_guide(cadence, last)?,
         ),
     }))
 }
@@ -238,7 +249,7 @@ pub(crate) fn claim_checked(
         now.checked_add(coverage::COOLDOWN)
             .ok_or("guide-clock-unavailable")?
     } else {
-        cadence.next(now)?.ok_or("guide-refresh-disabled")?
+        next_guide(cadence, now)?
     };
     db::valid_time(next_due)?;
     db::sql(tx.execute_batch("CREATE TABLE IF NOT EXISTS guide_refresh_state(source_id TEXT PRIMARY KEY REFERENCES guide_source(id) ON DELETE CASCADE,schema_version INTEGER NOT NULL CHECK(schema_version=1),fingerprint TEXT NOT NULL,attempted_ms INTEGER NOT NULL);"))?;

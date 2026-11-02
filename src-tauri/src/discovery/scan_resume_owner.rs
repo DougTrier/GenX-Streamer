@@ -214,7 +214,21 @@ impl Scheduler {
         r.state = State::Observed;
         let origin = r.origin;
         self.release_busy(origin);
-        self.eligible_at.insert(origin, next);
+        let previous = self.eligible_at.get(&origin).copied().unwrap_or(0);
+        self.eligible_at.insert(origin, next.max(previous));
+        Ok(())
+    }
+    /// Shared evidence performs no network request and must neither add a site
+    /// delay nor shorten a Retry-After already imposed by another request.
+    pub(crate) fn finish_reused(&mut self, id: &str) -> Result<(), String> {
+        self.check()?;
+        let r = self.held.get_mut(id).ok_or(ERR)?;
+        if r.state != State::Active {
+            return Err("scan-resume-probe-stale".into());
+        }
+        r.state = State::Observed;
+        let origin = r.origin;
+        self.release_busy(origin);
         Ok(())
     }
     pub(crate) fn reservation(&self, id: &str) -> Result<&Reservation, String> {

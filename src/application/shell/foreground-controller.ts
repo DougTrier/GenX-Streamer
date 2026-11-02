@@ -153,8 +153,7 @@ export function createForegroundController(env: ForegroundEnvironment) {
   });
   function updateFullscreen(): void {
     const active = fullscreenOwner.active || !!document.fullscreenElement;
-    env.fullscreenPresentation.set(active);
-    env.updatePreviewControl();
+    env.fullscreenPresentation.set(active, env.updatePreviewControl);
     env.element('fullscreen-button').textContent = active ? 'Exit full screen' : 'Full screen';
     env.element('fullscreen-button').setAttribute('aria-pressed', String(active));
   }
@@ -355,7 +354,17 @@ export function createForegroundController(env: ForegroundEnvironment) {
       return;
     }
     if (env.paidGuide.open) {
+      if (env.paidGuide.closeDetails()) return;
       await env.switchPrimaryPage('watch');
+      return;
+    }
+    // VOD's rail is hidden by fullscreen styling. Leave the picture first;
+    // opening its gallery here would trap Back on controls that cannot focus.
+    if (
+      env.element('app').dataset.vod === 'open' &&
+      (fullscreenOwner.active || fullscreenOwner.busy || document.fullscreenElement)
+    ) {
+      await fullscreenOwner.set(false);
       return;
     }
     // Video On Demand steps out one level at a time.

@@ -18,6 +18,14 @@ import { mountSourceScan } from '../../ui/scan/source-scan';
 import { nativeScanCheckpointSummary } from '../../platform/scan-checkpoint-summary';
 import { validateSource, type Source } from '../../catalog';
 import { createSourceSnapshotTransport } from '../../platform/source-snapshot';
+import { createSourceCleanupTransport } from '../../platform/source-cleanup';
+import {
+  createSourceCleanupEpisode,
+  finishAndAdoptSourceCleanup,
+  sourceCleanupOutcomeText,
+  sourceCleanupPlaybackIdle,
+  sourceCleanupRequested,
+} from './source-cleanup-episode';
 import { createPagedSourceCollection } from '../../discovery/paged-source-collection';
 import { inspectSource, readRecordPair, type CommitReceipt } from '../../platform/records';
 import {
@@ -160,6 +168,7 @@ export interface ScanScreenShared {
     guidePending: boolean;
     startedMs: number;
     listPending: boolean;
+    catalogRenderPending: boolean;
   };
   readonly flushScanBatchWork: (slowPass?: boolean) => void;
   readonly checkpointProgressCapture:
@@ -322,6 +331,87 @@ export function mountApplicationScanScreen(env: ScanEnvironment, shared: ScanScr
         const status = await snapshots.status(source.id, signal);
         revisions.push({ source, sourceRevision: status.sourceRevision });
       }
+      const cleanupTransport = createSourceCleanupTransport();
+      const capturedCatalog = env.catalog;
+      const capturedForeground = env.foregroundGeneration;
+      const cleanupStorageCurrent = () =>
+        env.catalog === capturedCatalog &&
+        env.persistedCatalogRevision === initialCatalogRevision &&
+        initialIdentity ===
+          JSON.stringify([
+            env.catalog.sources,
+            env.settings.reviewedChannelProviders,
+            env.settings.preferredRegion,
+          ]);
+      const cleanupCurrent = () =>
+        current() &&
+        env.catalog === capturedCatalog &&
+        env.foregroundGeneration === capturedForeground &&
+        env.nativeViewingForeground &&
+        !document.hidden &&
+        env.contentLibrary === 'live';
+      const cleanupPlaybackIdle = () =>
+        sourceCleanupPlaybackIdle({
+          snapshot: env.player.snapshot,
+          accountSelected: !!env.accountPlayer?.selection,
+          archiveSelected: !!env.archivePlayer?.selection,
+          webPageOpen: env.localStreams?.pageOpen,
+          pendingPlayback: !!(env.pendingAccountPlayback || env.pendingPublicPlayback),
+          retainedPlayback: !!env.backgroundLiveChoice,
+        });
+      const cleanup = sourceCleanupRequested(input)
+        ? createSourceCleanupEpisode(
+            {
+              transport: cleanupTransport,
+              expectedCatalogRevision: initialCatalogRevision,
+              current: cleanupCurrent,
+              playbackIdle: cleanupPlaybackIdle,
+              observe: (changed) => {
+                const unsubscribe = env.player.subscribe(changed);
+                document.addEventListener('visibilitychange', changed);
+                const timer = window.setInterval(changed, 250);
+                return () => {
+                  unsubscribe();
+                  document.removeEventListener('visibilitychange', changed);
+                  window.clearInterval(timer);
+                };
+              },
+              finishAndAdopt: (roundId, ownedSignal) =>
+                finishAndAdoptSourceCleanup(
+                  {
+                    queue: (operation) => {
+                      const work = env.catalogWrites.then(operation);
+                      env.catalogWrites = work.catch(() => undefined);
+                      return work;
+                    },
+                    preferences: env.preferences,
+                    admitted: () => cleanupCurrent() && cleanupPlaybackIdle(),
+                    current: cleanupStorageCurrent,
+                    acknowledge: (receipt) => {
+                      env.persistedCatalogRevision = receipt.catalogRevision;
+                      shared.scanStorageRevision = receipt.catalogRevision;
+                    },
+                    adopt: (settings, receipt) => {
+                      env.settings = settings;
+                      if (receipt.archivedCount) {
+                        env.catalogBrowseViewRevision++;
+                        if (!env.applicationClosing) {
+                          env.guide.catalogChanged(true);
+                          env.applySettings();
+                          env.renderCatalog();
+                        }
+                      }
+                    },
+                  },
+                  cleanupTransport,
+                  roundId,
+                  ownedSignal,
+                ),
+            },
+            signal,
+          )
+        : undefined;
+      let cleanupText: string | null = null;
       let geography: ReturnType<typeof shared.scanCollector.readGeography> | undefined;
       const collection = createPagedSourceCollection({
         inspectSource,
@@ -360,6 +450,14 @@ export function mountApplicationScanScreen(env: ScanEnvironment, shared: ScanScr
         activateChecks: async (scope, promotions, ownedSignal, reused = []) => {
           if (!promotions.length && !reused.length)
             throw new Error('Sources could not be updated. Saved channels are retained.');
+          if (cleanup) {
+            const outcome = await cleanup.finish(ownedSignal);
+            const message = sourceCleanupOutcomeText(outcome);
+            if (message && message !== cleanupText && !env.applicationClosing) env.notice(message);
+            cleanupText = message;
+          }
+          ownedSignal.throwIfAborted();
+          if (!current()) throw new Error('Source refresh configuration changed.');
           activation = await shared.sourceActivation(
             {
               schemaVersion: 1,
@@ -397,9 +495,16 @@ export function mountApplicationScanScreen(env: ScanEnvironment, shared: ScanScr
             progress.phase === 'indexing'
               ? `Reading source ${progress.activeSource ?? progress.indexedSources + progress.failedSources + 1} of ${progress.totalSources ?? sources.length} · ${Math.floor((progress.elapsedMilliseconds ?? 0) / 1000)}s · ${progress.sourceEntries === undefined ? 'Downloading channel list…' : `${progress.stagedEntries ?? 0} of ${progress.sourceEntries} entries read`} · ${progress.indexedEntries} entries indexed · ${progress.failedSources} sources unavailable`
               : `Preparing channel checks · ${progress.indexedSources} sources updated · ${progress.indexedEntries} entries indexed · ${progress.failedSources} sources unavailable`;
+          if (cleanupText && progress.phase !== 'indexing')
+            env.element('inline-scan-status').textContent += ` · ${cleanupText}`;
         },
       });
       try {
+        await cleanup?.begin();
+        if (cleanup?.snapshot().status === 'deferred-playback') {
+          cleanupText = sourceCleanupOutcomeText(cleanup.snapshot());
+          if (cleanupText) env.notice(cleanupText);
+        }
         await coordinator.start(
           {
             scopeId: crypto.randomUUID(),
@@ -418,8 +523,12 @@ export function mountApplicationScanScreen(env: ScanEnvironment, shared: ScanScr
         try {
           await coordinator.dispose();
         } finally {
-          await collection.dispose();
-          geography = undefined;
+          try {
+            await cleanup?.dispose();
+          } finally {
+            await collection.dispose();
+            geography = undefined;
+          }
         }
       }
       signal.throwIfAborted();

@@ -111,7 +111,9 @@ it('Advanced navigation exposes default-on checkbox; actual save ACK controls pe
     expect(bounds.inside).toBe(true);
     expect(
       await page
-        .getByText('You can still refresh program guides manually in Program guide settings.')
+        .getByText(
+          'Check saved program guides about every 3 hours while the app is active and playback is idle. Previous schedules stay available if an update fails. You can also refresh manually.',
+        )
         .isVisible(),
     ).toBe(true);
     await input.focus();

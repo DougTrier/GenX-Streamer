@@ -287,21 +287,24 @@ test('a channel that failed on two days is marked, listed and removable in one s
   expect(f.calls.some((c) => c.command === 'record_channel_checks')).toBe(false);
 });
 
-// Refresh (owner decision, October 21, 2026): channels the daily check
-// confirmed dead are removed, favorites are kept, then new channels are looked
-// for (the scan's Refresh mode; its trust windows are proven in Rust).
-test('Refresh removes confirmed-dead channels but keeps a favorite', async ({ page }) => {
+// A daily failure mark cannot authorize automatic removal before complete
+// source membership and current endpoint failure have been established.
+test('Refresh retains marked channels before refreshed absence and dead proof', async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 1280, height: 720 });
   const f = await fixture(page, { favorites: ['channel-2'], deadTwo: true });
   await expect(page.locator('.channel-row[data-not-responding="true"]')).toHaveCount(2);
   await page.locator('#inline-scan-refresh').dispatchEvent('click');
-  await expect.poll(() => f.preferences().removedChannels).toEqual(['channel-1']);
-  await expect(page.locator('.channel-row', { hasText: 'Dead one' })).toHaveCount(0);
-  // The favorite stays, still marked Not responding.
+  await expect(page.locator('#search-programs')).toBeEnabled();
+  expect(f.preferences().removedChannels).toEqual([]);
+  await expect(page.locator('.channel-row', { hasText: 'Dead one' })).toHaveCount(1);
+  // Both remain marked, including the favorite; explicit manual removal is
+  // covered separately below and still uses the restorable preference action.
   await expect(
     page.locator('.channel-row[data-not-responding="true"]', { hasText: 'Alive two' }),
   ).toHaveCount(1);
-  expect(f.calls.filter((c) => c.command === 'mutate_catalog_group')).toHaveLength(1);
+  expect(f.calls.filter((c) => c.command === 'mutate_catalog_group')).toHaveLength(0);
 });
 
 // Batch removal (owner design, October 21, 2026): every confirmed-dead

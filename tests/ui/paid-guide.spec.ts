@@ -19,7 +19,16 @@ import { expect, test, type Page } from '@playwright/test';
 /** The real Paid TV guide panel and timeline with a controlled guide host (no native, no network). */
 async function mount(
   page: Page,
-  options: { stored: 'none' | 'fresh' | 'old'; download: 'ok' | 'fail' },
+  options: {
+    stored: 'none' | 'fresh' | 'old';
+    download: 'ok' | 'fail';
+    locations?: boolean;
+    ageMs?: number;
+    ppv?: boolean;
+    sharedEpg?: boolean;
+    sports?: boolean;
+    history?: boolean;
+  },
 ): Promise<void> {
   await page.route('**/paid-guide-fixture', (route) =>
     route.fulfill({
@@ -30,6 +39,7 @@ async function mount(
   await page.goto('/paid-guide-fixture');
   await page.evaluate(async (options) => {
     await import('/src/ui/guide-timeline.css' as string);
+    await import('/src/ui/sports-filters.css' as string);
     await import('/src/ui/guide-panel.css' as string);
     const { mountPaidGuide } = await import('/src/ui/guide/paid-guide.ts' as string);
     const hour = 3_600_000;
@@ -43,7 +53,94 @@ async function mount(
       providerId: '32',
       streamReference: 'b'.repeat(32),
       favorite: false,
+      country: 'US',
     };
+    const rows = options.ppv
+      ? [
+          { ...channel, name: 'ESPN Finals', category: 'Sports', favorite: true },
+          {
+            ...channel,
+            id: `account-${accountId}-${'e'.repeat(64)}`,
+            epgId: 'event.ppv',
+            name: 'Event 1',
+            category: 'Sports',
+            ppv: true,
+            favorite: true,
+          },
+        ]
+      : options.locations
+        ? [
+            { ...channel, category: 'Sports' },
+            {
+              ...channel,
+              id: `account-${accountId}-${'e'.repeat(64)}`,
+              name: 'Canada Sports',
+              category: 'Sports',
+              country: 'CA',
+              epgId: 'sports.ca',
+            },
+            {
+              ...channel,
+              id: `account-${accountId}-${'d'.repeat(64)}`,
+              name: 'Unknown News',
+              category: 'News',
+              country: null,
+              epgId: 'unknown',
+            },
+          ]
+        : [channel];
+    if (options.sports) {
+      rows[0]!.name = 'NFL regular';
+      rows[0]!.category = 'US | NFL';
+      rows[1]!.name = 'NFL PPV';
+      rows[1]!.category = 'US | NFL PPV';
+      rows.push({
+        ...channel,
+        id: `account-${accountId}-${'c'.repeat(64)}`,
+        name: 'MLB PPV',
+        category: 'US | MLB PPV',
+        epgId: 'baseball',
+        ppv: true,
+      });
+    }
+    if (options.history) {
+      rows.push(
+        {
+          ...channel,
+          id: `account-${accountId}-${'d'.repeat(64)}`,
+          name: 'Unwatched same EPG',
+          epgId: channel.epgId,
+        },
+        {
+          ...channel,
+          id: `account-${accountId}-${'c'.repeat(64)}`,
+          name: 'Watched hidden adult',
+          category: 'ＡＤＵＬＴ',
+          epgId: 'adult',
+        },
+        {
+          ...channel,
+          id: `account-${accountId}-${'1'.repeat(64)}`,
+          name: 'Watched Canada',
+          country: 'CA',
+          epgId: 'canada',
+        },
+      );
+      Reflect.set(window, 'paidBrowseScope', {
+        filter: 'watched',
+        query: '',
+        history: { ids: [rows[1]!.id, rows[0]!.id, rows[3]!.id, rows[4]!.id], hideAdult: true },
+      });
+    }
+    Reflect.set(
+      window,
+      'guideLocation',
+      options.locations || options.history ? { country: 'US' } : {},
+    );
+    if (options.sharedEpg)
+      rows.forEach((row) => {
+        row.epgId = channel.epgId;
+      });
     const status = (fetchedMs: number, revision: number) => ({
       revision,
       fetchedMs,
@@ -54,7 +151,14 @@ async function mount(
     let stored =
       options.stored === 'none'
         ? null
-        : status(options.stored === 'fresh' ? now - hour : now - 24 * hour, 1);
+        : status(
+            options.ageMs === undefined
+              ? options.stored === 'fresh'
+                ? now - hour
+                : now - 24 * hour
+              : now - options.ageMs,
+            1,
+          );
     const log: string[] = [];
     const guide = {
       status: async () => stored,
@@ -64,25 +168,96 @@ async function mount(
         stored = status(now, (stored?.revision ?? 0) + 1);
         return stored;
       },
-      channels: async () => (stored ? [channel] : []),
-      listed: async () => ({ revision: stored!.revision, epgIds: ['fox32.us'] }),
-      programs: async (_a: unknown, epgId: string) => ({
-        revision: stored!.revision,
-        programs: [
-          {
-            epgId,
-            startMs: now,
-            stopMs: now + 3 * hour,
-            ordinal: 0,
-            title: 'NFL Football: Bears at Saints',
-            description: 'Chicago and New Orleans meet.',
-            categories: [],
-          },
-        ],
-      }),
+      channels: async () => (stored ? rows : []),
+      listed: async (
+        _a: unknown,
+        _from: number,
+        _to: number,
+        search: string,
+        _signal?: AbortSignal,
+        ppv = false,
+        sports?: { sport?: string; league?: string; includePpv?: boolean },
+        history?: { ids: readonly string[]; hideAdult: boolean },
+      ) => {
+        Reflect.set(window, 'lastListedSports', sports);
+        Reflect.set(window, 'lastListedHistory', history);
+        const matched = rows
+          .filter((row) => !history || history.ids.includes(row.id))
+          .filter((row) => !options.sharedEpg || ('ppv' in row && row.ppv === true) === ppv)
+          .filter(
+            (row) =>
+              !options.ppv || history || ppv || sports?.includePpv || !('ppv' in row && row.ppv),
+          )
+          .filter(
+            (row) =>
+              !options.sports ||
+              !sports?.sport ||
+              row.category.includes(sports.sport === 'american-football' ? 'NFL' : 'MLB'),
+          )
+          .filter(
+            (row) =>
+              !search ||
+              (options.ppv && ppv && search.toLowerCase() === 'championship') ||
+              `${row.name} ${row.category}`.toLowerCase().includes(search.toLowerCase()),
+          );
+        return {
+          revision: stored!.revision,
+          epgIds: matched.map((row) => row.epgId),
+          channelIds: matched.map((row) => row.id),
+          ppvChannelIds: matched
+            .filter((row) => ppv || ('ppv' in row && row.ppv))
+            .map((row) => row.id),
+        };
+      },
+      programs: async (
+        _a: unknown,
+        epgId: string,
+        _from: number,
+        _to: number,
+        _after: unknown,
+        _limit: number,
+        _signal?: AbortSignal,
+        ppv = false,
+        channelId?: string,
+        sports?: unknown,
+        search?: string,
+        history?: { ids: readonly string[]; hideAdult: boolean },
+      ) => {
+        Reflect.set(window, 'lastProgramChannelId', channelId);
+        Reflect.set(window, 'lastProgramScope', { sports, search, channelId, history });
+        const currentRow = rows.find((row) => row.id === channelId);
+        const watchedPpv =
+          !!history && !!currentRow && 'ppv' in currentRow && currentRow.ppv === true;
+        return {
+          revision: stored!.revision,
+          programs: [
+            {
+              epgId,
+              startMs: now,
+              stopMs: now + 3 * hour,
+              ordinal: 0,
+              title: options.sports
+                ? rows.find((row) => row.id === channelId)?.category.includes('MLB')
+                  ? 'PPV MLB Cardinals at Cubs'
+                  : 'NFL Chicago Bears at Buffalo Bills'
+                : options.ppv
+                  ? ppv || watchedPpv
+                    ? 'PPV Championship'
+                    : 'Sports roundup'
+                  : 'NFL Football: Bears at Saints',
+              description: 'Chicago and New Orleans meet.',
+              categories: [],
+            },
+          ],
+        };
+      },
     };
     const panel = mountPaidGuide(document.getElementById('host')!, {
+      ...(options.history ? { browseScope: () => Reflect.get(window, 'paidBrowseScope') } : {}),
+      cachedChanged: () =>
+        Reflect.set(window, 'publishedGuides', (Reflect.get(window, 'publishedGuides') ?? 0) + 1),
       guide,
+      geography: () => Reflect.get(window, 'guideLocation'),
       watch: async (row: { name: string }) => {
         log.push(`watch:${row.name}`);
       },
@@ -91,6 +266,7 @@ async function mount(
       formatTime: (ms: number) => new Date(ms).toISOString(),
     });
     Reflect.set(window, 'log', log);
+    Reflect.set(window, 'paidPanel', panel);
     await panel.show({
       schemaVersion: 1,
       id: accountId,
@@ -104,6 +280,147 @@ async function mount(
   }, options);
 }
 const log = (page: Page) => page.evaluate(() => Reflect.get(window, 'log') as string[]);
+
+test('Paid History Guide inherits exact ordered current-account IDs including PPV and intersects country/adult before rows', async ({
+  page,
+}) => {
+  await mount(page, { stored: 'fresh', download: 'ok', ppv: true, history: true });
+  const titles = page.locator('.gx-timeline-channel .media-result-title');
+  await expect(titles).toHaveText(['Event 1', 'ESPN Finals']);
+  await expect(page.getByRole('button', { name: 'History', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect(page.locator('.gx-timeline-cell').first()).toContainText('PPV Championship');
+  const scope = await page.evaluate(() => ({
+    listed: Reflect.get(window, 'lastListedHistory'),
+    program: Reflect.get(window, 'lastProgramScope'),
+  }));
+  expect(scope.listed.ids).toHaveLength(4);
+  expect(scope.program.history).toEqual(scope.listed);
+  expect(scope.listed.ids).toContain(scope.program.channelId);
+  expect(await log(page)).toEqual([]);
+  await page.getByRole('button', { name: 'PPV', exact: true }).click();
+  await expect
+    .poll(() => page.evaluate(() => Reflect.get(window, 'lastListedHistory')))
+    .toBeUndefined();
+  expect(
+    (await page.evaluate(() => Reflect.get(window, 'lastProgramScope'))).history,
+  ).toBeUndefined();
+  await page.getByRole('button', { name: 'All channels', exact: true }).click();
+  await expect(titles).toContainText(['Unwatched same EPG']);
+  await page.evaluate(async () => {
+    Reflect.get(window, 'paidBrowseScope').history.ids = [];
+    await Reflect.get(window, 'paidPanel').locationChanged();
+  });
+  await expect(titles).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'History', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+});
+
+test('Paid Guide PPV is explicit, keeps Favorites/search separate, and leaves ordinary sports available', async ({
+  page,
+}) => {
+  await mount(page, { stored: 'fresh', download: 'ok', ppv: true });
+  const rows = page.locator('.gx-timeline-channel .media-result-title');
+  await expect(rows).toHaveText(['ESPN Finals']);
+  await page.getByRole('button', { name: 'Favorites', exact: true }).click();
+  await expect(rows).toHaveText(['ESPN Finals']);
+  const search = page.getByRole('searchbox', { name: 'Search guide channels and programs' });
+  await search.fill('Championship');
+  await search.press('Enter');
+  await expect(rows).toHaveCount(0);
+  await page.getByRole('button', { name: 'PPV', exact: true }).click();
+  await expect(rows).toHaveText(['ESPN Finals', 'Event 1']);
+  await expect(page.locator('.gx-timeline-cell')).toHaveText([
+    'PPV Championship PPV',
+    'PPV Championship PPV',
+  ]);
+  await expect(page.locator('.gx-timeline-cell .ppv-badge')).toHaveCount(2);
+  await search.fill('');
+  await search.press('Enter');
+  await page.getByRole('button', { name: 'Sports', exact: true }).click();
+  await expect(rows).toHaveText(['ESPN Finals']);
+  expect(await log(page)).toEqual([]);
+});
+
+test('Paid Guide includes matching PPV for a specific sport and league, then restores the ordinary list', async ({
+  page,
+}) => {
+  await mount(page, { stored: 'fresh', download: 'ok', ppv: true, sports: true });
+  const rows = page.locator('.gx-timeline-channel .media-result-title');
+  await page.getByRole('button', { name: 'Sports', exact: true }).click();
+  await page.getByLabel('Sport', { exact: true }).selectOption('american-football');
+  await page.getByLabel('League', { exact: true }).selectOption('nfl');
+  await expect(rows).toHaveText(['NFL regular', 'NFL PPV']);
+  await expect(page.locator('.sports-inclusion-status')).toBeVisible();
+  await expect(page.locator('.gx-timeline-channel .ppv-badge')).toHaveCount(1);
+  expect(await page.evaluate(() => Reflect.get(window, 'lastListedSports'))).toMatchObject({
+    sport: 'american-football',
+    league: 'nfl',
+    includePpv: true,
+  });
+  expect(await page.evaluate(() => Reflect.get(window, 'lastProgramScope'))).toMatchObject({
+    sports: { sport: 'american-football', league: 'nfl', includePpv: true },
+    search: '',
+  });
+  await page.getByRole('button', { name: 'All channels', exact: true }).click();
+  await expect(rows).toHaveText(['NFL regular']);
+  await expect(page.locator('.sports-inclusion-status')).toBeHidden();
+  expect(await log(page)).toEqual([]);
+});
+
+test('Paid Guide keeps an ordinary shared-EPG channel out of PPV and queries the exact admitted identity', async ({
+  page,
+}) => {
+  await mount(page, { stored: 'fresh', download: 'ok', ppv: true, sharedEpg: true });
+  const rows = page.locator('.gx-timeline-channel .media-result-title');
+  await expect(rows).toHaveText(['ESPN Finals']);
+  await page.getByRole('button', { name: 'PPV', exact: true }).click();
+  await expect(rows).toHaveText(['Event 1']);
+  expect(await page.evaluate(() => Reflect.get(window, 'lastProgramChannelId'))).toBe(
+    `account-${'a'.repeat(32)}-${'e'.repeat(64)}`,
+  );
+  await page.getByRole('button', { name: 'All channels', exact: true }).click();
+  await expect(rows).toHaveText(['ESPN Finals']);
+});
+
+test('Paid Guide inherits country choices, Unknown and category/search without downloading again', async ({
+  page,
+}) => {
+  await mount(page, { stored: 'fresh', download: 'ok', locations: true });
+  const rows = page.locator('.gx-timeline-channel .media-result-title');
+  await expect(rows).toHaveText(['FOX 32 Chicago']);
+  await page.getByRole('button', { name: 'Sports', exact: true }).click();
+  const location = async (filter: Record<string, unknown>) => {
+    await page.evaluate(async (filter) => {
+      Reflect.set(window, 'guideLocation', filter);
+      await Reflect.get(window, 'paidPanel').locationChanged();
+    }, filter);
+  };
+  await location({ country: 'CA' });
+  await expect(rows).toHaveText(['Canada Sports']);
+  await location({ countries: ['US', 'CA'] });
+  await expect(rows).toHaveText(['FOX 32 Chicago', 'Canada Sports']);
+  const search = page.getByRole('searchbox', { name: 'Search guide channels and programs' });
+  await search.fill('Canada');
+  await search.press('Enter');
+  await expect(rows).toHaveText(['Canada Sports']);
+  await location({ country: 'US' });
+  await expect(rows).toHaveCount(0);
+  await search.fill('');
+  await search.press('Enter');
+  await expect(rows).toHaveText(['FOX 32 Chicago']);
+  await location({ country: null });
+  await expect(rows).toHaveCount(0);
+  await page.getByRole('button', { name: 'All channels', exact: true }).click();
+  await expect(rows).toHaveText(['Unknown News']);
+  await location({});
+  await expect(rows).toHaveText(['FOX 32 Chicago', 'Canada Sports', 'Unknown News']);
+  expect(await log(page)).toEqual([]);
+});
 
 test('opening the Paid TV guide downloads the provider guide and lists its channels', async ({
   page,
@@ -151,4 +468,28 @@ test('a failed first download shows the reason and no borrowed listings', async 
     "Your provider doesn't offer a program guide for this account. Use Update guide to try again.",
   );
   await expect(page.locator('.gx-timeline-row')).toHaveCount(0);
+});
+
+test('a saved Paid Guide renews at three hours and background receipts reload from storage only', async ({
+  page,
+}) => {
+  await mount(page, { stored: 'fresh', download: 'ok', ageMs: 3 * 3600000 });
+  expect(await log(page)).toEqual(['download']);
+  await page.evaluate(() => Reflect.get(window, 'paidPanel').cacheChanged());
+  expect(await log(page)).toEqual(['download']);
+  await expect(page.locator('.gx-timeline-channel .media-result-title')).toHaveText([
+    'FOX 32 Chicago',
+  ]);
+});
+
+test('a changed committed Paid Guide snapshot publishes membership refresh once, including manual updates', async ({
+  page,
+}) => {
+  await mount(page, { stored: 'fresh', download: 'ok' });
+  expect(await page.evaluate(() => Reflect.get(window, 'publishedGuides'))).toBe(1);
+  await page.getByRole('button', { name: 'Update guide', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => Reflect.get(window, 'publishedGuides'))).toBe(2);
+  await page.evaluate(() => Reflect.get(window, 'paidPanel').cacheChanged());
+  expect(await page.evaluate(() => Reflect.get(window, 'publishedGuides'))).toBe(2);
+  expect(await log(page)).toEqual(['download']);
 });

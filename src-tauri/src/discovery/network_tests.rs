@@ -13,6 +13,83 @@
 // limitations under the License.
 
 use super::*;
+
+#[tokio::test]
+async fn playback_session_reuses_connection_and_releases_it_on_close() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}/fragment", listener.local_addr().unwrap());
+    let server = tokio::spawn(async move {
+        let (mut socket, _) = listener.accept().await.unwrap();
+        for _ in 0..2 {
+            let mut request = Vec::new();
+            while !request.ends_with(b"\r\n\r\n") {
+                let mut byte = [0];
+                assert_eq!(socket.read(&mut byte).await.unwrap(), 1);
+                request.push(byte[0]);
+                assert!(request.len() < 4096);
+            }
+            socket
+                .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 4\r\n\r\ndata")
+                .await
+                .unwrap();
+        }
+        let mut byte = [0];
+        assert_eq!(
+            tokio::time::timeout(Duration::from_secs(3), socket.read(&mut byte))
+                .await
+                .unwrap()
+                .unwrap(),
+            0
+        );
+    });
+    let mut sessions = MediaSessions::default();
+    sessions.open("owner".into()).unwrap();
+    for _ in 0..2 {
+        let client = sessions.client("owner", true).unwrap();
+        let payload = tokio::time::timeout(
+            Duration::from_secs(3),
+            media_with_client(&url, true, None, &client),
+        )
+        .await
+        .unwrap()
+        .unwrap();
+        assert_eq!(payload.data, b"data");
+    }
+    sessions.close("owner");
+    assert_eq!(
+        sessions.client("owner", true).unwrap_err(),
+        "media-session-closed"
+    );
+    server.await.unwrap();
+}
+
+#[test]
+fn playback_session_admission_is_bounded_and_revoked_at_shutdown() {
+    let mut sessions = MediaSessions::default();
+    for id in 0..8 {
+        sessions.open(id.to_string()).unwrap();
+    }
+    assert_eq!(
+        sessions.open("0".into()).unwrap_err(),
+        "duplicate-media-session"
+    );
+    assert_eq!(
+        sessions.open("overflow".into()).unwrap_err(),
+        "media-session-limit"
+    );
+    sessions.close("0");
+    sessions.open("replacement".into()).unwrap();
+    sessions.stop();
+    assert_eq!(
+        sessions.client("replacement", false).unwrap_err(),
+        "media-session-closed"
+    );
+    assert_eq!(
+        sessions.open("late".into()).unwrap_err(),
+        "application-closing"
+    );
+}
 #[test]
 fn media_frame_carries_metadata_then_the_raw_body() {
     let mut headers = std::collections::HashMap::new();
@@ -101,6 +178,72 @@ async fn native_health_body_evidence_rejects_mislabelled_documents_but_keeps_bin
         Some("hls")
     );
     server.await.unwrap();
+}
+#[tokio::test]
+async fn cleanup_health_keeps_root_hls_success_when_child_key_and_segment_are_missing() {
+    use std::sync::{Arc, Mutex};
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let base = format!("http://{}", listener.local_addr().unwrap());
+    let requests = Arc::new(Mutex::new(Vec::<String>::new()));
+    let recorded = requests.clone();
+    let (stop_tx, mut stop_rx) = tokio::sync::oneshot::channel();
+    let server = tokio::spawn(async move {
+        loop {
+            let (mut stream, _) = tokio::select! {
+                accepted = listener.accept() => accepted.unwrap(),
+                _ = &mut stop_rx => break,
+            };
+            let mut request = Vec::new();
+            while !request.ends_with(b"\r\n\r\n") {
+                let mut byte = [0];
+                assert_eq!(stream.read(&mut byte).await.unwrap(), 1);
+                request.push(byte[0]);
+                assert!(request.len() < 4096);
+            }
+            let request = String::from_utf8(request).unwrap();
+            let path = request.split_whitespace().nth(1).unwrap();
+            recorded.lock().unwrap().push(path.to_owned());
+            // These are real missing child resources, not an invalid manifest.
+            // Only a top-level refusal is allowed to become cleanup dead proof.
+            let (status, body) = if path == "/root.m3u8" {
+                ("200 OK", "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-TARGETDURATION:6\n#EXT-X-MEDIA-SEQUENCE:1\n#EXT-X-KEY:METHOD=AES-128,URI=\"/missing.key\"\n#EXTINF:6,\n/missing.ts\n#EXT-X-ENDLIST\n")
+            } else {
+                assert!(matches!(
+                    path,
+                    "/missing.key" | "/missing.ts" | "/gone.m3u8"
+                ));
+                ("404 Not Found", "")
+            };
+            let reply = format!(
+                "HTTP/1.1 {status}\r\nContent-Type: application/vnd.apple.mpegurl\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            stream.write_all(reply.as_bytes()).await.unwrap();
+        }
+    });
+    let root = tokio::time::timeout(
+        Duration::from_secs(2),
+        health_inspect(&format!("{base}/root.m3u8"), true, 20_000),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(root.status, 200);
+    assert_eq!(root.kind, Some("hls"));
+    assert_eq!(*requests.lock().unwrap(), vec!["/root.m3u8"]);
+    let gone = tokio::time::timeout(
+        Duration::from_secs(2),
+        health_inspect(&format!("{base}/gone.m3u8"), true, 20_000),
+    )
+    .await
+    .unwrap()
+    .unwrap();
+    assert_eq!(gone.status, 404);
+    assert!(gone.kind.is_none());
+    stop_tx.send(()).unwrap();
+    server.await.unwrap();
+    assert_eq!(*requests.lock().unwrap(), vec!["/root.m3u8", "/gone.m3u8"]);
 }
 #[tokio::test]
 async fn partial_error_document_prefix_cannot_be_accepted_before_remaining_body_arrives() {

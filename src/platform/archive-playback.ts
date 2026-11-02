@@ -114,6 +114,14 @@ const archiveFailureMessages: Record<ArchiveFailureCategory, string> = {
   unknown: 'This Archive file could not open. Choose another file or retry.',
 };
 const archiveNativeFailureCodes = Object.freeze({
+  'archive-request-timeout': 'network',
+  'archive-dns-unavailable': 'dns',
+  'archive-network-unavailable': 'network',
+  'archive-rate-limited': 'rate-limit',
+  'archive-server-unavailable': 'network',
+  'archive-response-refused': 'network',
+  'archive-response-limit': 'network',
+  'archive-metadata-invalid': 'network',
   'public-archive-audio-codec-unsupported': 'codec',
   'public-archive-video-codec-unsupported': 'codec',
   'public-archive-format-unsupported': 'codec',
@@ -192,20 +200,66 @@ const archiveNativeFailureCodes = Object.freeze({
   'archive-proxy-work-join-failed': 'cleanup',
   'archive-proxy-stop-unconfirmed': 'cleanup',
 } satisfies Record<string, ArchiveFailureCategory>);
+const legacyArchiveReasons = [
+  'archive-request-timeout',
+  'archive-dns-unavailable',
+  'archive-network-unavailable',
+  'archive-rate-limited',
+  'archive-server-unavailable',
+  'archive-response-refused',
+  'archive-response-limit',
+  'archive-metadata-invalid',
+] as const;
+export type ArchivePlaybackDiagnosticReason =
+  | ArchiveFailureCategory
+  | (typeof legacyArchiveReasons)[number]
+  | 'storage-busy'
+  | 'storage-locked'
+  | 'storage-full'
+  | 'storage-failed'
+  | 'worker-failed';
+const nativeStorageReasons = Object.freeze({
+  'sqlite-busy': 'storage-busy',
+  'sqlite-locked': 'storage-locked',
+  'sqlite-storage-full': 'storage-full',
+  'archive-database-failed': 'storage-failed',
+  'storage-lock': 'storage-failed',
+  'storage-worker-failed': 'worker-failed',
+} satisfies Record<string, ArchivePlaybackDiagnosticReason>);
 const classifiedArchiveFailures = new WeakSet<object>();
+const classifiedArchiveReasons = new WeakMap<object, ArchivePlaybackDiagnosticReason>();
 export class ArchivePlaybackFailureError extends Error {
   readonly category: ArchiveFailureCategory;
-  constructor(readonly code: keyof typeof archiveNativeFailureCodes | 'unknown') {
+  constructor(
+    readonly code: keyof typeof archiveNativeFailureCodes | 'unknown',
+    diagnosticReason?: ArchivePlaybackDiagnosticReason,
+  ) {
     const category = code === 'unknown' ? 'unknown' : archiveNativeFailureCodes[code];
     if (!category || !Object.hasOwn(archiveFailureMessages, category)) throw invalid();
     super(archiveFailureMessages[category]);
     this.category = category;
     classifiedArchiveFailures.add(this);
+    const reason =
+      diagnosticReason &&
+      (Object.values(nativeStorageReasons) as readonly string[]).includes(diagnosticReason)
+        ? diagnosticReason
+        : legacyArchiveReasons.includes(code as (typeof legacyArchiveReasons)[number])
+          ? (code as (typeof legacyArchiveReasons)[number])
+          : category;
+    classifiedArchiveReasons.set(this, reason);
     Object.freeze(this);
   }
 }
 export function isArchivePlaybackFailure(error: unknown): error is ArchivePlaybackFailureError {
   return error instanceof ArchivePlaybackFailureError && classifiedArchiveFailures.has(error);
+}
+/** Branded closed facts only; arbitrary native payloads and Error text never escape. */
+export function archivePlaybackDiagnosticReason(
+  error: unknown,
+): ArchivePlaybackDiagnosticReason | null {
+  return isArchivePlaybackFailure(error)
+    ? (classifiedArchiveReasons.get(error) ?? 'unknown')
+    : null;
 }
 export function archivePlaybackFailureGuidance(error: unknown): string {
   if (isArchivePlaybackFailure(error)) return archiveFailureMessages[error.category];
@@ -219,6 +273,11 @@ function rejectArchivePlaybackFailure(error: unknown): never {
   // object payloads or prefix matches, and never retain their private cause.
   if (typeof error === 'string' && Object.hasOwn(archiveNativeFailureCodes, error))
     throw new ArchivePlaybackFailureError(error as keyof typeof archiveNativeFailureCodes);
+  if (typeof error === 'string' && Object.hasOwn(nativeStorageReasons, error))
+    throw new ArchivePlaybackFailureError(
+      'unknown',
+      nativeStorageReasons[error as keyof typeof nativeStorageReasons],
+    );
   throw new ArchivePlaybackFailureError('unknown');
 }
 const cleanupFailed = () => new ArchivePlaybackCleanupError();

@@ -31,11 +31,16 @@ it('channel stepping wraps filtered rows and never reselects the current sole re
     isConnected: true,
     ownerDocument: doc,
     dataset: {},
+    style: { setProperty() {}, removeProperty() {} },
     setAttribute() {},
     addEventListener() {},
     scrollTop: 0,
+    querySelector() {
+      return null;
+    },
   };
   vi.stubGlobal('document', doc);
+  vi.stubGlobal('HTMLElement', class {});
   vi.stubGlobal(
     'ResizeObserver',
     class {

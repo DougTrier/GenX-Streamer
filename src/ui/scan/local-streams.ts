@@ -18,9 +18,11 @@ import { APP_SITES } from '../channels/app-sites';
 import '../local-streams.css';
 import globeUrl from '../../../assets/genx-nav-local.svg';
 import radioUrl from '../../../assets/genx-radio.svg';
+import type { GuidePlaybackIntent } from '../../application/playback/guide-playback-intent';
 import {
   emptyLocalFavorites,
   pageRect,
+  pagePixelScale,
   pageView,
   readLocalFavorites,
   saveLocalFavorites,
@@ -43,6 +45,7 @@ export interface LocalStreamsHost {
   playRadio(station: { id: string; name: string; url: string }): Promise<unknown>;
   /** Stop the GenX player before a station page takes the viewing area. */
   stopPlayback(): Promise<unknown>;
+  beginPlaybackIntent?(): GuidePlaybackIntent;
   run(work: Promise<void>): void;
   /** Lends GenX's voice search to an input (null gives it back to channel search). */
   voice?(target: { container: HTMLElement; input: HTMLInputElement } | null): void;
@@ -179,6 +182,14 @@ export function mountLocalStreams(
   let found: LocalStreams | null = null;
   let owner: AbortController | null = null;
   let pageOpen = false;
+  let pageOpeningGeneration = 0;
+  let nativePageOwned = false;
+  let pageWork: Promise<void> = Promise.resolve();
+  const queuePage = (operation: () => Promise<void>) => {
+    const work = pageWork.then(operation);
+    pageWork = work.catch(() => undefined);
+    return work;
+  };
   let current = '';
   let favorites: LocalFavorites | null = null;
   type Tab = 'results' | 'apps' | 'favorites' | 'websites';
@@ -217,7 +228,9 @@ export function mountLocalStreams(
   });
   into.addEventListener('blur', () => say(statusBefore));
   function closePage(): Promise<void> {
-    if (!pageOpen) return Promise.resolve();
+    ++pageOpeningGeneration;
+    if (!pageOpen && !nativePageOwned) return Promise.resolve();
+    const intent = host.beginPlaybackIntent?.();
     pageOpen = false;
     full = false;
     pageAddress = { url: '', title: '' };
@@ -225,10 +238,14 @@ export function mountLocalStreams(
     document.getElementById('app')?.classList.remove('local-page-open');
     into.hidden = true;
     current = '';
-    return pageView.close().then(
-      () => undefined,
-      () => undefined,
-    );
+    return queuePage(async () => {
+      await pageView.close();
+      nativePageOwned = false;
+    })
+      .catch(() => {
+        say('Station page could not close. Close and reopen GenX Streamer.', true);
+      })
+      .finally(() => intent?.release());
   }
   function heading(text: string) {
     const node = make('h4', { className: 'local-heading', textContent: text });
@@ -708,17 +725,23 @@ export function mountLocalStreams(
     owner?.abort();
     const owned = new AbortController();
     owner = owned;
+    // The deliberate scan enters Results now, so a later tab choice remains
+    // the viewer's choice when its asynchronous lookup completes.
+    if (tab !== 'results') showTab('results');
+    // Disabling the remote's current action drops focus to BODY on Android.
+    // Hand it to an existing control before changing the button; completion
+    // must leave any subsequent navigation with the viewer.
+    if (document.activeElement === scan)
+      (!tabs.hidden && !resultsTab.hidden ? resultsTab : area).focus({ preventScroll: true });
     scan.disabled = true;
     say('Finding local TV and radio… this can take up to half a minute.');
     try {
       const next = await scanLocalStreams(value);
       if (owned.signal.aborted) return;
       found = next;
-      tab = 'results';
       render();
       remember();
       if (!pageOpen) showNote('Choose a station on the left.');
-      results.querySelector<HTMLButtonElement>('.local-item')?.focus();
     } catch (error) {
       if (!owned.signal.aborted)
         say(error instanceof Error ? error.message : 'The local scan could not finish.', true);
@@ -737,11 +760,14 @@ export function mountLocalStreams(
     // Pages belong to Local: one opened behind another library could never be
     // closed by leaving Local (a late voice result, a script), so none opens.
     if (!active) return;
+    const generation = ++pageOpeningGeneration;
+    const currentOpening = () => active && generation === pageOpeningGeneration;
     // Choosing the open page again returns the remote to it.
     // A page the native side no longer has (closed or lost however it went)
     // opens again instead.
     if (pageOpen && current === url) {
       const status = await pageView.status().catch(() => null);
+      if (!currentOpening()) return;
       if (status?.open !== false) {
         await pageView.enter().catch(() => undefined);
         return;
@@ -749,24 +775,36 @@ export function mountLocalStreams(
       pageOpen = false;
     }
     playing = '';
-    await host.stopPlayback();
-    showNote(`Opening ${label}…`);
+    const intent = host.beginPlaybackIntent?.();
     try {
-      await pageView.open(url, pageRect(elements.stage));
-      pageOpen = true;
-      current = url;
-      pageAddress = { url, title: '' };
-      syncDock();
-      follow();
-      into.hidden = false;
-      showNote('');
-      render();
+      await intent?.prepare();
+      if (!currentOpening()) return;
+      await host.stopPlayback();
+      if (!currentOpening()) return;
+      showNote(`Opening ${label}…`);
+      await queuePage(async () => {
+        if (!currentOpening()) return;
+        nativePageOwned = true;
+        await pageView.open(url, pageRect(elements.stage));
+        if (!currentOpening()) return;
+        pageOpen = true;
+        current = url;
+        pageAddress = { url, title: '' };
+        syncDock();
+        follow();
+        into.hidden = false;
+        showNote('');
+        render();
+      });
     } catch (error) {
+      if (!currentOpening()) return;
       showNote(
         String(error) === 'web-page-unavailable'
           ? 'Websites open inside GenX on Android TV and Windows.'
           : 'This page could not open. Try another.',
       );
+    } finally {
+      intent?.release();
     }
   }
   async function choose(node: HTMLElement): Promise<void> {
@@ -842,7 +880,7 @@ export function mountLocalStreams(
   const dock = () => elements.stage.closest('.view')?.querySelector<HTMLElement>('.dock') ?? null;
   const placement = (): PageRect => {
     const rect = pageRect(elements.stage);
-    const scale = window.devicePixelRatio || 1;
+    const scale = pagePixelScale();
     // The PC address strip sits above the page.
     const top = !full && desktop && !strip.hidden ? Math.round(strip.offsetHeight * scale) : 0;
     const placed: PageRect = [rect[0], rect[1] + top, rect[2], Math.max(1, rect[3] - top)];
@@ -879,9 +917,16 @@ export function mountLocalStreams(
   });
   const sizes = new ResizeObserver(follow);
   sizes.observe(elements.stage);
+  sizes.observe(document.documentElement);
   const bar = dock();
   if (bar) sizes.observe(bar);
   window.addEventListener('resize', follow);
+  document.addEventListener('fullscreenchange', follow);
+  if (app)
+    new MutationObserver(follow).observe(app, {
+      attributes: true,
+      attributeFilter: ['class', 'data-guide-panel', 'data-content-library'],
+    });
 
   function open(value: boolean): void {
     active = value;
@@ -940,6 +985,10 @@ export function mountLocalStreams(
     /** A station page holds the viewing area (GenX's Pause and Mute drive it). */
     get pageOpen() {
       return pageOpen;
+    },
+    /** An unfinished or uncertain native close still excludes background Guide writers. */
+    get pageCleanupPending() {
+      return nativePageOwned && !pageOpen;
     },
     /** Plain-HTTP radio is allowed only for streams in the current results or favorites. */
     allowsHttp(url: string): boolean {

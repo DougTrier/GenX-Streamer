@@ -14,9 +14,14 @@
  * limitations under the License.
  */
 
-import { expect, test } from 'vitest';
+import { expect, test, vi } from 'vitest';
 import { CatalogWindow, type CatalogWindowHost } from '../../src/ui/channels/catalog-window';
-import type { CatalogPage, CatalogQueryInput } from '../../src/platform/catalog-query';
+import {
+  CatalogQueryError,
+  type CatalogPage,
+  type CatalogQueryInput,
+} from '../../src/platform/catalog-query';
+import { captureSportsScope } from '../../src/search/sports';
 const query = { query: '', filter: 'all' as const, geography: {}, sort: 'source' as const };
 const row = (i: number) => ({
   id: `c${i}`,
@@ -58,6 +63,249 @@ function deferred<T>() {
   });
   return { promise, resolve };
 }
+
+test('sports offset pages reject a changed Guide snapshot and recapture around the current channel', async () => {
+  let guideRevision = '1';
+  const calls: CatalogQueryInput[] = [];
+  const restored: unknown[] = [];
+  const anchor = { id: 'c60', index: 60, alternatives: ['c61'] };
+  const window: CatalogWindow = new CatalogWindow({
+    revision: () => '7',
+    changed: () => {},
+    captureAnchor: () => (window.row(60) ? anchor : null),
+    restoreAnchor: (saved, index, id) => restored.push([saved, index, id]),
+    query: async (input) => {
+      calls.push(input);
+      if (
+        input.expectedGuideRevision !== undefined &&
+        input.expectedGuideRevision !== guideRevision
+      )
+        throw new CatalogQueryError('view-stale');
+      const shifted = guideRevision === '2';
+      const anchorIndex = input.anchorId ? (shifted ? 61 : 60) : null;
+      const start = anchorIndex === null ? (input.startIndex ?? 0) : anchorIndex - 1;
+      return {
+        ...page(start, shifted ? 201 : 200),
+        guideRevision,
+        anchorIndex,
+        rows: Array.from({ length: 50 }, (_, i) =>
+          start + i === 0 && shifted
+            ? { ...row(0), id: 'inserted' }
+            : row(start + i - (shifted ? 1 : 0)),
+        ),
+      };
+    },
+  });
+  window.reset(
+    { ...query, query: 'NFL', sports: captureSportsScope('NFL', {}, 1800001) },
+    'sports',
+  );
+  await window.settled();
+  window.ensure(60);
+  await window.settled();
+  expect(calls.at(-1)).toMatchObject({ startIndex: 50, expectedGuideRevision: '1' });
+  guideRevision = '2';
+  window.ensure(110);
+  await window.settled();
+  await vi.waitFor(() => expect(restored).toHaveLength(1));
+  expect(calls.find((call) => call.startIndex === 100)).toMatchObject({
+    expectedGuideRevision: '1',
+  });
+  expect(calls.at(-1)).toMatchObject({ anchorId: 'c60' });
+  expect(calls.at(-1)?.expectedGuideRevision).toBeUndefined();
+  expect(window.row(61)?.id).toBe('c60');
+  expect(restored).toEqual([[anchor, 61, 'c60']]);
+  expect(window.state).toBe('ready');
+  await window.dispose();
+});
+
+test('revision refresh relocates the display anchor with bounded native queries and a pinned view', async () => {
+  const calls: CatalogQueryInput[] = [];
+  const restored: unknown[] = [];
+  const anchor = { id: 'c500', index: 500, alternatives: ['c501', 'c499'] };
+  let relocated = false;
+  const window = new CatalogWindow({
+    revision: () => '7',
+    changed: () => {},
+    captureAnchor: () => anchor,
+    restoreAnchor: (saved, index, id) => restored.push([saved, index, id]),
+    query: async (input) => {
+      calls.push(input);
+      if (!relocated) return page(input.startIndex ?? 0);
+      return {
+        ...page(619),
+        anchorIndex: 620,
+        rows: Array.from({ length: 50 }, (_, i) => row(499 + i)),
+      };
+    },
+  });
+  window.reset(query, 'initial');
+  await window.settled();
+  relocated = true;
+  window.reset(query, 'new-view', true);
+  expect(window.total).toBe(100000); // scroll range retained, not an accepted fresh count
+  expect(window.countKnown).toBe(false);
+  expect(window.loadedRows).toBe(0); // no stale page/private proof reuse
+  await window.settled();
+  expect(calls.at(-1)).toMatchObject({
+    anchorId: 'c500',
+    expectedCatalogRevision: '7',
+    pageSize: 50,
+  });
+  expect(restored).toEqual([[anchor, 620, 'c500']]);
+  expect(window.row(620)?.id).toBe('c500');
+  expect(window.loadedRows).toBeLessThanOrEqual(50);
+  await window.dispose();
+});
+
+test.each([false, true])(
+  'missing anchor and retained neighbours use the same bounded ordinal rather than the first page (sports=%j)',
+  async (sportsMode) => {
+    const calls: CatalogQueryInput[] = [];
+    const restored: unknown[] = [];
+    const anchor = { id: 'c500', index: 500, alternatives: ['c501', 'c499'] };
+    const scoped = sportsMode
+      ? { ...query, query: 'NFL', sports: captureSportsScope('NFL', {}, 1800001) }
+      : query;
+    const window = new CatalogWindow({
+      revision: () => '7',
+      changed: () => {},
+      captureAnchor: () => anchor,
+      restoreAnchor: (_saved, index, id) => restored.push([index, id]),
+      query: async (input) => {
+        calls.push(input);
+        if (sportsMode && Number(input.startIndex ?? 0) > 0 && input.expectedGuideRevision !== '1')
+          throw new CatalogQueryError('view-stale');
+        if (input.anchorId)
+          return { ...page(0, 995), ...(sportsMode ? { guideRevision: '1' } : {}) };
+        const result = page(input.startIndex ?? 0, 995);
+        return {
+          ...result,
+          ...(sportsMode ? { guideRevision: '1' } : {}),
+          rows: result.rows.map((_, i) => row(result.startIndex + i + 5)),
+        };
+      },
+    });
+    window.reset(scoped, 'initial');
+    await window.settled();
+    window.reset(scoped, 'removed', true);
+    await window.settled();
+    expect(calls.slice(1).map((c) => c.anchorId ?? c.startIndex)).toEqual([
+      'c500',
+      'c501',
+      'c499',
+      500,
+    ]);
+    expect(calls.slice(2).every((c) => c.expectedViewRevision === '9')).toBe(true);
+    if (sportsMode) expect(calls.slice(2).every((c) => c.expectedGuideRevision === '1')).toBe(true);
+    expect(restored).toEqual([[500, 'c505']]);
+    await window.dispose();
+  },
+);
+
+test.each([false, true])(
+  'byte-bounded anchor pages read the exact missing row without preceding-page traversal (sports=%j)',
+  async (sportsMode) => {
+    const calls: CatalogQueryInput[] = [];
+    const restored: unknown[] = [];
+    const scoped = sportsMode
+      ? { ...query, query: 'NFL', sports: captureSportsScope('NFL', {}, 1800001) }
+      : query;
+    const window = new CatalogWindow({
+      revision: () => '7',
+      changed: () => {},
+      captureAnchor: () => ({ id: 'c500', index: 500, alternatives: [] }),
+      restoreAnchor: (_anchor, index, id) => restored.push([index, id]),
+      query: async (input) => {
+        calls.push(input);
+        if (sportsMode && Number(input.startIndex ?? 0) > 0 && input.expectedGuideRevision !== '1')
+          throw new CatalogQueryError('view-stale');
+        const result = input.anchorId
+          ? { ...page(499, 100000, 1), anchorIndex: 500 }
+          : page(input.startIndex ?? 0, 100000, 1);
+        return { ...result, ...(sportsMode ? { guideRevision: '1' } : {}) };
+      },
+    });
+    window.reset(scoped, 'initial');
+    await window.settled();
+    window.reset(scoped, 'short', true);
+    await window.settled();
+    expect(calls.slice(1).map((c) => c.anchorId ?? c.startIndex)).toEqual(['c500', 500]);
+    expect(calls.at(-1)?.expectedViewRevision).toBe('9');
+    if (sportsMode) expect(calls.at(-1)?.expectedGuideRevision).toBe('1');
+    expect(restored).toEqual([[500, 'c500']]);
+    expect(window.failed).toBe(false);
+    await window.dispose();
+  },
+);
+
+test('anchor fallback cannot combine pages from different native view revisions', async () => {
+  let reads = 0;
+  const restored: unknown[] = [];
+  const window = new CatalogWindow({
+    revision: () => '7',
+    changed: () => {},
+    captureAnchor: () => ({ id: 'removed', index: 500, alternatives: ['c501'] }),
+    restoreAnchor: (_anchor, index, id) => restored.push([index, id]),
+    query: async (input) => {
+      if (!input.anchorId) return page(input.startIndex ?? 0);
+      reads++;
+      if (reads === 1) return page(0);
+      expect(input.expectedViewRevision).toBe('9');
+      return { ...page(500), anchorIndex: 501, viewRevision: '10' };
+    },
+  });
+  window.reset(query, 'initial');
+  await window.settled();
+  window.reset(query, 'new', true);
+  await window.settled();
+  expect(window.state).toBe('error');
+  expect(window.loadedRows).toBe(0);
+  expect(window.countKnown).toBe(false);
+  expect(restored).toEqual([]);
+  await window.dispose();
+});
+
+test('stale anchor retries preserve intent, and disposal joins a held anchor without publishing it', async () => {
+  let fail = true;
+  const restored: unknown[] = [];
+  const held = deferred<CatalogPage>();
+  let hold = false;
+  const window = new CatalogWindow({
+    revision: () => '7',
+    changed: () => {},
+    captureAnchor: () => ({ id: 'c500', index: 500, alternatives: [] }),
+    restoreAnchor: (_anchor, index, id) => restored.push([index, id]),
+    query: async (input) => {
+      if (input.anchorId && fail) {
+        fail = false;
+        throw Object.assign(new Error('stale'), { code: 'view-stale' });
+      }
+      if (input.anchorId && hold) return held.promise;
+      return input.anchorId ? { ...page(499), anchorIndex: 500 } : page(input.startIndex ?? 0);
+    },
+  });
+  window.reset(query, 'initial');
+  await window.settled();
+  window.reset(query, 'stale', true);
+  // The stale reread is queued behind the failed generation, and remains owned.
+  await window.settled();
+  await window.settled();
+  expect(restored).toEqual([[500, 'c500']]);
+  hold = true;
+  window.reset(query, 'held', true);
+  await Promise.resolve();
+  let joined = false;
+  const closing = window.dispose().then(() => {
+    joined = true;
+  });
+  await Promise.resolve();
+  expect(joined).toBe(false);
+  held.resolve({ ...page(499), anchorIndex: 500 });
+  await closing;
+  expect(restored).toHaveLength(1);
+  expect(window.state).toBe('closed');
+});
 
 test('100k catalog uses bounded direct windows rather than preceding-page traversal', async () => {
   const { window, calls } = owner();

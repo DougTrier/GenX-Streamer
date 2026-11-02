@@ -29,13 +29,27 @@ import {
   type ChannelCoverageRequest,
 } from '../../guide/channel-coverage';
 import { guideCategoryKey } from '../../guide/categories';
+import type { ChannelGeography } from '../../catalog/geography';
+import { isPpvChannel, hasPpvMarker } from '../../catalog/ppv';
+import { sportsFacts, type SportsScope } from '../../search/sports';
+import type { GuideHistoryScope } from '../../guide/history-scope';
+
+export interface GuideBrowseScope {
+  filter: string;
+  query: string;
+  sports?: SportsScope;
+  history?: GuideHistoryScope;
+}
 
 export interface TimelineChannel {
+  geography?: ChannelGeography;
   id: string;
   sourceId: string;
   providerId?: string;
   name: string;
   category?: string;
+  originalCategory?: string;
+  ppv?: boolean;
   favorite?: boolean;
   guideSourceId: string | null;
   xmltvChannelId: string | null;
@@ -43,6 +57,8 @@ export interface TimelineChannel {
 }
 
 export interface TimelineHost {
+  /** Seed only from the active tab; Free and Paid timelines retain separate state. */
+  browseScope?(): GuideBrowseScope;
   /** Null is pending; failed distinguishes refusal from a completed empty result. */
   listedCount?(
     count: number | null,
@@ -56,6 +72,9 @@ export interface TimelineHost {
     windowEndMs: number,
     signal: AbortSignal,
     search?: string,
+    ppv?: boolean,
+    sports?: SportsScope,
+    history?: GuideHistoryScope,
   ): Promise<{
     catalogRevision: string;
     databaseRevision: number;
@@ -142,7 +161,26 @@ export function limitConcurrency(limit: number) {
 export const PANEL_AGENDA_WIDTH = (): number =>
   (globalThis.innerWidth ?? 1000) <= 700 ? 650 : 480;
 
-export type TimelineCategory = 'all' | 'favorites' | 'news' | 'sports';
+export type TimelineCategory = 'all' | 'favorites' | 'news' | 'sports' | 'ppv' | 'watched';
+
+export function timelineProgramPpv(
+  channel: TimelineChannel,
+  program: { title: string; categories?: readonly { text: string }[] },
+): boolean {
+  return (
+    isPpvChannel(channel) ||
+    hasPpvMarker(program.title) ||
+    (program.categories ?? []).some((category) => hasPpvMarker(category.text))
+  );
+}
+export function appendPpvBadge(node: HTMLElement, marked: boolean): void {
+  if (!marked) return;
+  const badge = node.ownerDocument.createElement('span');
+  badge.className = 'ppv-badge';
+  badge.textContent = 'PPV';
+  badge.setAttribute('aria-label', 'Pay Per View');
+  node.append(' ', badge);
+}
 
 /** Search words folded like the native guide search text. */
 export const guideSearchWords = (value: string) =>
@@ -161,12 +199,19 @@ export function guideSearchMatches(search: string, text: string): boolean {
 export function timelineCategoryMatches(
   channel: TimelineChannel,
   filter: TimelineCategory,
+  ppv = isPpvChannel(channel),
 ): boolean {
+  if (filter === 'watched') return true;
+  if (ppv !== (filter === 'ppv')) return false;
   return (
     filter === 'all' ||
+    filter === 'ppv' ||
     (filter === 'favorites'
       ? channel.favorite === true
-      : (channel.category ?? '').normalize('NFKC').toLowerCase().includes(filter))
+      : (channel.category ?? '').normalize('NFKC').toLowerCase().includes(filter) ||
+        (filter === 'sports' &&
+          sportsFacts([channel.name, channel.category ?? '', channel.originalCategory ?? '']).sports
+            .size > 0))
   );
 }
 

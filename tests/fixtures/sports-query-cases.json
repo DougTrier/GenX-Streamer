@@ -1,0 +1,479 @@
+{
+  "schemaVersion": 1,
+  "vocabularyVersion": "2026-11-01.2",
+  "scope": "Shared TS/Rust query-plan golden cases. normalMatch retains legacy contiguous literal fallback; strictSemanticMatch requires independent evidence plus every semantic target and leftover term. Programme conflicts suppress channel texts. Query intent never supplies row evidence.",
+  "cases": [
+    {
+      "id": "multi_team_requires_both_missing_second",
+      "query": "Chicago Bears New Orleans Saints",
+      "texts": [
+        "NFL: Chicago Bears practice"
+      ],
+      "specific": true,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "multi_team_requires_both_present",
+      "query": "Chicago Bears New Orleans Saints",
+      "texts": [
+        "Chicago Bears at New Orleans Saints"
+      ],
+      "specific": true,
+      "normalMatch": true,
+      "strictSemanticMatch": true
+    },
+    {
+      "id": "multi_league_requires_all_missing_nba",
+      "query": "NFL NBA",
+      "texts": [
+        "NFL football"
+      ],
+      "specific": true,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "multi_league_requires_all_present",
+      "query": "NFL NBA",
+      "texts": [
+        "NFL and NBA highlights"
+      ],
+      "specific": true,
+      "normalMatch": true,
+      "strictSemanticMatch": true
+    },
+    {
+      "id": "semantic_residual_country_missing",
+      "query": "NFL Canada",
+      "texts": [
+        "NFL football"
+      ],
+      "specific": true,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "semantic_residual_country_present",
+      "query": "NFL Canada",
+      "texts": [
+        "NFL Canada coverage"
+      ],
+      "specific": true,
+      "normalMatch": true,
+      "strictSemanticMatch": true
+    },
+    {
+      "id": "semantic_residual_across_real_fields",
+      "query": "NFL Canada",
+      "texts": [
+        "NFL",
+        "Canada coverage"
+      ],
+      "specific": true,
+      "normalMatch": true,
+      "strictSemanticMatch": true
+    },
+    {
+      "id": "literal_spaces_do_not_invent_punctuation_match",
+      "query": "foo bar",
+      "texts": [
+        "foo-bar"
+      ],
+      "specific": false,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "literal_punctuation_not_silently_removed",
+      "query": "foo-bar",
+      "texts": [
+        "foo bar"
+      ],
+      "specific": false,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "literal_contiguous_match_retained",
+      "query": "foo bar",
+      "texts": [
+        "A foo bar show"
+      ],
+      "specific": false,
+      "normalMatch": true,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "semantic_alias_with_literal_residual_punctuation",
+      "query": "NFL highlights",
+      "texts": [
+        "NFL/highlights"
+      ],
+      "specific": true,
+      "normalMatch": true,
+      "strictSemanticMatch": true
+    },
+    {
+      "id": "split_fields_do_not_invent_franchise_evidence",
+      "query": "NFL",
+      "texts": [
+        "Chicago",
+        "Bears documentary"
+      ],
+      "specific": true,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "split_fields_do_not_invent_target_franchise",
+      "query": "Chicago Bears",
+      "texts": [
+        "Chicago",
+        "Bears documentary"
+      ],
+      "specific": true,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "literal_prefix_is_not_strict_league_evidence",
+      "query": "NFL",
+      "texts": [
+        "NFLive"
+      ],
+      "specific": true,
+      "normalMatch": true,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "nba_programme_overrides_nfl_channel",
+      "query": "NFL",
+      "channelTexts": [
+        "NFL01",
+        "US | NFL"
+      ],
+      "program": {
+        "title": "NBA basketball",
+        "categories": [
+          {
+            "text": "Sports"
+          }
+        ]
+      },
+      "specific": true,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "soccer_programme_overrides_nfl_channel",
+      "query": "NFL",
+      "channelTexts": [
+        "NFL01",
+        "US | NFL"
+      ],
+      "program": {
+        "title": "MLS soccer",
+        "categories": [
+          {
+            "text": "Sports"
+          }
+        ]
+      },
+      "specific": true,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "college_programme_overrides_nfl_same_sport_channel",
+      "query": "NFL",
+      "channelTexts": [
+        "NFL01",
+        "US | NFL"
+      ],
+      "program": {
+        "title": "NCAAF college football"
+      },
+      "specific": true,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "generic_affiliate_full_franchises_prove_nfl",
+      "query": "NFL",
+      "channelTexts": [
+        "FOX",
+        "News"
+      ],
+      "program": {
+        "title": "Chicago Bears at Green Bay Packers"
+      },
+      "specific": true,
+      "normalMatch": true,
+      "strictSemanticMatch": true
+    },
+    {
+      "id": "generic_affiliate_nicknames_do_not_prove_nfl",
+      "query": "NFL",
+      "channelTexts": [
+        "FOX",
+        "News"
+      ],
+      "program": {
+        "title": "Bears at Packers"
+      },
+      "specific": true,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "full_team_query_matches_contextual_nickname_under_nfl",
+      "query": "Chicago Bears",
+      "channelTexts": [
+        "US | NFL"
+      ],
+      "program": {
+        "title": "Bears at Packers"
+      },
+      "specific": true,
+      "normalMatch": true,
+      "strictSemanticMatch": true
+    },
+    {
+      "id": "full_team_query_does_not_invent_context",
+      "query": "Chicago Bears",
+      "channelTexts": [
+        "Sports"
+      ],
+      "program": {
+        "title": "Bears at Packers"
+      },
+      "specific": true,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "other_full_franchise_supplies_independent_nfl_context",
+      "query": "Chicago Bears",
+      "channelTexts": [
+        "FOX"
+      ],
+      "program": {
+        "title": "Bears at Green Bay Packers"
+      },
+      "specific": true,
+      "normalMatch": true,
+      "strictSemanticMatch": true
+    },
+    {
+      "id": "college_football_beats_nested_football_literal",
+      "query": "college football",
+      "texts": [
+        "NCAAF pregame"
+      ],
+      "specific": true,
+      "normalMatch": true,
+      "strictSemanticMatch": true
+    },
+    {
+      "id": "college_basketball_does_not_become_all_nba",
+      "query": "college basketball",
+      "texts": [
+        "NBA basketball"
+      ],
+      "specific": true,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "college_basketball_explicit_code",
+      "query": "college basketball",
+      "texts": [
+        "NCAA BB pregame"
+      ],
+      "specific": true,
+      "normalMatch": true,
+      "strictSemanticMatch": true
+    },
+    {
+      "id": "bare_football_expands_positive_nfl_only",
+      "query": "football",
+      "texts": [
+        "Chicago Bears at New Orleans Saints"
+      ],
+      "specific": false,
+      "normalMatch": true,
+      "strictSemanticMatch": true
+    },
+    {
+      "id": "bare_football_retains_literal_unknown",
+      "query": "football",
+      "texts": [
+        "Football roundup"
+      ],
+      "specific": false,
+      "normalMatch": true,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "bare_football_does_not_infer_soccer",
+      "query": "football",
+      "texts": [
+        "MLS soccer"
+      ],
+      "specific": false,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "explicit_american_football_intent",
+      "query": "American Football",
+      "texts": [
+        "NFL preview"
+      ],
+      "specific": true,
+      "normalMatch": true,
+      "strictSemanticMatch": true
+    },
+    {
+      "id": "bare_nickname_stays_literal_not_semantic",
+      "query": "Bears",
+      "texts": [
+        "Wildlife: bears in spring"
+      ],
+      "specific": false,
+      "normalMatch": true,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "generic_ncaa_stays_literal_not_semantic",
+      "query": "NCAA",
+      "texts": [
+        "NCAA basketball"
+      ],
+      "specific": false,
+      "normalMatch": true,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "franchise_boundary_rejects_suffix",
+      "query": "NFL",
+      "texts": [
+        "Chicago Bearsville"
+      ],
+      "specific": true,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "full_franchise_query_normalizes_nfkc",
+      "query": "Ｃｈｉｃａｇｏ　Ｂｅａｒｓ",
+      "texts": [
+        "Chicago Bears football"
+      ],
+      "specific": true,
+      "normalMatch": true,
+      "strictSemanticMatch": true
+    },
+    {
+      "id": "explicit_epl_alias",
+      "query": "EPL",
+      "texts": [
+        "English Premier League"
+      ],
+      "specific": true,
+      "normalMatch": true,
+      "strictSemanticMatch": true
+    },
+    {
+      "id": "split_city_nickname_are_not_a_franchise",
+      "query": "NFL",
+      "texts": [
+        "San Francisco",
+        "49ers"
+      ],
+      "specific": true,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "programme_title_description_do_not_form_franchise",
+      "query": "NFL",
+      "channelTexts": [
+        "FOX"
+      ],
+      "program": {
+        "title": "Chicago",
+        "description": "Bears documentary"
+      },
+      "specific": true,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "programme_title_category_do_not_form_franchise",
+      "query": "NFL",
+      "channelTexts": [
+        "FOX"
+      ],
+      "program": {
+        "title": "Chicago",
+        "categories": [
+          {
+            "text": "Bears"
+          }
+        ]
+      },
+      "specific": true,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "programme_category_entries_do_not_form_franchise",
+      "query": "NFL",
+      "channelTexts": [
+        "FOX"
+      ],
+      "program": {
+        "title": "Documentary",
+        "categories": [
+          {
+            "text": "Chicago"
+          },
+          {
+            "text": "Bears"
+          }
+        ]
+      },
+      "specific": true,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "multileague_channel_conflict_drops_unplayed_nba",
+      "query": "NBA",
+      "channelTexts": [
+        "NFL NBA"
+      ],
+      "program": {
+        "title": "NFL Chicago Bears practice"
+      },
+      "specific": true,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "multileague_channel_conflict_retains_direct_nfl",
+      "query": "NFL",
+      "channelTexts": [
+        "NFL NBA"
+      ],
+      "program": {
+        "title": "NFL Chicago Bears practice"
+      },
+      "specific": true,
+      "normalMatch": true,
+      "strictSemanticMatch": true
+    }
+  ]
+}

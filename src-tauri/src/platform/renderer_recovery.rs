@@ -116,6 +116,9 @@ mod android {
         if let Ok(mut requests) = state.requests.lock() {
             requests.stop();
         }
+        if let Ok(mut sessions) = state.media_sessions.lock() {
+            sessions.stop();
+        }
         if !owner.begin() {
             return;
         }
@@ -177,6 +180,9 @@ mod android {
                 state.closing.store(true, Ordering::SeqCst);
                 if let Ok(mut requests) = state.requests.lock() {
                     requests.stop();
+                }
+                if let Ok(mut sessions) = state.media_sessions.lock() {
+                    sessions.stop();
                 }
                 let event = app
                     .state::<Adapter>()

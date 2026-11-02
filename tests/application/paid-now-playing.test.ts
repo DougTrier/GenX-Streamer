@@ -100,6 +100,169 @@ function fixture() {
 }
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
+it('retains independently cached league categories and description without any additional guide read', async () => {
+  const cached = {
+    ...program('Bears vs Packers', NOW - 1000, NOW + 3600000),
+    description: 'Replay from the saved provider schedule',
+    categories: [{ text: 'NFL' }],
+  };
+  const published: (readonly NowPlayingRow[])[] = [];
+  let calls = 0;
+  const owner = createPaidNowPlaying({
+    guide: {
+      programs: async () => {
+        calls++;
+        return { revision: 1, programs: [cached] };
+      },
+    } as Parameters<typeof createPaidNowPlaying>[0]['guide'],
+    account: () => account('a1'),
+    epgId: () => 'cached-epg',
+    now: () => NOW,
+    publish: (rows) => published.push(rows),
+    setInterval: () => 1,
+    clearInterval: () => {},
+  });
+  try {
+    owner.setScope([{ catalogSourceId: 'account-a1', appChannelId: 'one' }]);
+    await settle();
+    expect(calls).toBe(1);
+    expect(published.at(-1)?.[0]).toMatchObject({
+      title: 'Bears vs Packers',
+      description: cached.description,
+      categories: [{ text: 'NFL' }],
+    });
+    cached.categories[0]!.text = 'NBA';
+    expect(published.at(-1)?.[0]?.categories).toEqual([{ text: 'NFL' }]);
+  } finally {
+    await owner.dispose();
+  }
+});
+
+it('binds the existing local read to exact channel and PPV permission, rereads changed capability, and drops late old scope', async () => {
+  let ppv = true;
+  let release!: () => void;
+  const held = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  const calls: {
+    epgId: string;
+    channelId: string | undefined;
+    ppv: boolean | undefined;
+    signal: AbortSignal | undefined;
+  }[] = [];
+  const published: (readonly NowPlayingRow[])[] = [];
+  const current = account('a1');
+  const owner = createPaidNowPlaying({
+    guide: {
+      programs: async (
+        _account,
+        epgId,
+        _from,
+        _to,
+        _after,
+        _limit,
+        signal,
+        scopePpv,
+        channelId,
+      ) => {
+        calls.push({ epgId, channelId, ppv: scopePpv, signal });
+        if (calls.length === 1) await held;
+        return {
+          revision: 1,
+          programs: [
+            program(scopePpv ? 'Scoped PPV title' : 'Ordinary title', NOW - 1000, NOW + 3600000),
+          ],
+        };
+      },
+    },
+    account: () => current,
+    epgId: () => 'shared-epg',
+    scopeFor: () => ({ epgId: 'shared-epg', ppv }),
+    now: () => NOW,
+    publish: (rows) => published.push(rows),
+    setInterval: () => 1,
+    clearInterval: () => {},
+  });
+  const rows = [{ catalogSourceId: 'account-a1', appChannelId: 'exact-channel' }];
+  try {
+    owner.setScope(rows);
+    expect(calls).toHaveLength(1);
+    ppv = false;
+    owner.setScope(rows);
+    await settle();
+    expect(calls.map(({ epgId, channelId, ppv }) => ({ epgId, channelId, ppv }))).toEqual([
+      { epgId: 'shared-epg', channelId: 'exact-channel', ppv: true },
+      { epgId: 'shared-epg', channelId: 'exact-channel', ppv: false },
+    ]);
+    expect(calls[0]!.signal?.aborted).toBe(true);
+    expect(published.at(-1)?.[0]?.title).toBe('Ordinary title');
+    release();
+    await settle();
+    expect(published.flatMap((rows) => rows.map((row) => row.title))).not.toContain(
+      'Scoped PPV title',
+    );
+  } finally {
+    release();
+    owner.dispose();
+  }
+});
+
+it('retires an already published PPV title before a changed-capability read settles, retaining same-key refresh titles', async () => {
+  let ppv = true;
+  let hold = false;
+  let release!: () => void;
+  let calls = 0;
+  const published: (readonly NowPlayingRow[])[] = [];
+  const owner = createPaidNowPlaying({
+    guide: {
+      programs: async (_account, _epg, _from, _to, _after, _limit, _signal, scopePpv) => {
+        calls++;
+        if (hold)
+          await new Promise<void>((resolve) => {
+            release = resolve;
+          });
+        return {
+          revision: 1,
+          programs: [program(scopePpv ? 'PPV title' : 'Ordinary title', NOW - 1000, NOW + 3600000)],
+        };
+      },
+    },
+    account: () => account('a1'),
+    epgId: () => 'shared-epg',
+    scopeFor: () => ({ epgId: 'shared-epg', ppv }),
+    now: () => NOW,
+    publish: (rows) => published.push(rows),
+    setInterval: () => 1,
+    clearInterval: () => {},
+  });
+  const rows = [{ catalogSourceId: 'account-a1', appChannelId: 'same-visible-id' }];
+  try {
+    owner.setScope(rows);
+    await settle();
+    expect(published.at(-1)?.[0]?.title).toBe('PPV title');
+    const changedAt = published.length;
+    hold = true;
+    ppv = false;
+    owner.setScope(rows);
+    expect(calls).toBe(2);
+    expect(published.at(-1)).toEqual([]);
+    release();
+    await settle();
+    expect(published.at(-1)?.[0]?.title).toBe('Ordinary title');
+    expect(
+      published.slice(changedAt).flatMap((rows) => rows.map((row) => row.title)),
+    ).not.toContain('PPV title');
+    owner.refresh();
+    expect(calls).toBe(3);
+    expect(published.at(-1)?.[0]?.title).toBe('Ordinary title');
+    release();
+    await settle();
+  } finally {
+    release?.();
+    owner.dispose();
+  }
+});
+
 describe('Paid TV now playing', () => {
   it("reads only the selected account's rows on screen and publishes what is on now", async () => {
     const f = fixture();

@@ -22,14 +22,27 @@ import {
   type PlaybackFailure,
 } from '../playback/controller';
 import { createOwnedAbortSignals } from './abort';
-import { createAdaptiveBuffer, learnedLiveBuffer } from '../playback/adaptive-buffer';
+import {
+  createAdaptiveBuffer,
+  learnedLiveBuffer,
+  liveBufferIdentity,
+} from '../playback/adaptive-buffer';
 import { SourceRequestError, readConfiguredSource, type ConfiguredSource } from '../sources';
 import { classifyHttpFailure, classifyTransportFailure } from '../playback/failure';
 import { startTiming } from '../playback/start-timing';
+import { createEngineWarningTrace, engineFailureFacts } from '../diagnostics/engine-failure';
+import { mpegtsFailureProvenance } from '../diagnostics/mpegts-failure';
+import {
+  createPlaybackDeliverySampler,
+  playbackTraceMode,
+  recordPlaybackTrace,
+  traceEnabled,
+} from '../diagnostics/playback-trace';
 import Hls from 'hls.js';
 import { isTauri } from '@tauri-apps/api/core';
 import { createNativeHlsSession } from './native-hls-loader';
 import Mpegts from 'mpegts.js';
+import { normalizeLiveBufferPreference } from '../playback/live-buffer';
 import { type createBrowserAudioHealth } from './browser-audio-health';
 import { type createBrowserAudioTracks } from './browser-audio-tracks';
 import { type ResourceOwners, type createOwnedWork } from '../playback/resource-owners';
@@ -108,6 +121,9 @@ export interface BrowserEngineStartEnvironment {
   readonly play: () => Promise<void>;
   nativeSession: ReturnType<typeof createNativeHlsSession> | null;
   readonly inspectFragment: (bytes: Uint8Array) => void;
+  readonly measuredTransfer: (bytes: number, milliseconds: number) => void;
+  readonly measuredRate: (bitsPerSecond: number) => void;
+  readonly resetLiveBufferMeasurements: () => void;
   hls: Hls | null;
   releaseHls: (() => void) | null;
   readonly hlsListeners: Array<() => void>;
@@ -148,10 +164,15 @@ export function createBrowserEngineStart(env: BrowserEngineStartEnvironment) {
     env.buffer = liveBufferProfile(selection.buffer).profile;
     env.endHold(false);
     env.livePlayed = false;
-    env.adaptiveChannel = selection.id;
+    env.adaptiveChannel = liveBufferIdentity(selection);
     env.adaptive = env.finiteMode
       ? null
-      : createAdaptiveBuffer(env.buffer, learnedLiveBuffer.get(selection.id));
+      : createAdaptiveBuffer(
+          env.buffer,
+          learnedLiveBuffer.get(env.adaptiveChannel),
+          normalizeLiveBufferPreference(selection.liveBuffer) ?? { mode: 'auto' },
+        );
+    env.resetLiveBufferMeasurements();
     env.signal = env.signalOwner.signal;
     env.signal.addEventListener('abort', env.disposeOnAbort, { once: true });
     env.releaseAbortListener = env.owners.acquire('abortListeners');
@@ -329,6 +350,11 @@ export function createBrowserEngineStart(env: BrowserEngineStartEnvironment) {
       env.report({ type: 'ended' });
     });
     env.listen('error', () => {
+      recordPlaybackTrace(
+        playbackTraceMode({ selection }),
+        'error',
+        engineFailureFacts('html5', env.video.error?.code),
+      );
       if (env.video.error?.code === 4) env.unsupported();
       else if (env.video.error?.code === 3) env.decodeFailure();
       else env.report({ type: 'error', failure: classifyHttpFailure(0) });
@@ -390,6 +416,7 @@ export function createBrowserEngineStart(env: BrowserEngineStartEnvironment) {
       startTiming.mark('library-ready');
       if (!Library.isSupported()) {
         if (nativeHls) {
+          env.adaptive?.setPreference({ mode: 'auto' });
           env.audio.attachNative();
           env.video.src = url.href;
           env.video.load();
@@ -409,14 +436,30 @@ export function createBrowserEngineStart(env: BrowserEngineStartEnvironment) {
         timeoutRetry: null,
         errorRetry: null,
       };
+      const sampleNativeDelivery = createPlaybackDeliverySampler();
       if (isTauri() || env.options.nativeTransport)
         env.nativeSession = createNativeHlsSession({
           allowHttp: () => allowHttp,
           inspectFragment: env.inspectFragment,
+          observeDelivery: (facts) =>
+            measure(() => {
+              if (traceEnabled() && sampleNativeDelivery(performance.now()))
+                recordPlaybackTrace(playbackTraceMode({ selection }), 'delivery', {
+                  transport: 'hls',
+                  phase: 'body',
+                  receivedBytes: facts.bytes,
+                  elapsedMs: facts.elapsedMs,
+                  nativeElapsedMs: facts.nativeElapsedMs,
+                  deliveryOverheadMs: facts.deliveryOverheadMs,
+                  ttfbEstimate: facts.firstByteMs,
+                });
+            }),
           requestAllowed: env.options.requestAllowed,
           transport: env.options.nativeTransport,
           owners: env.owners,
         });
+      const hlsBuffer = liveBufferProfile(env.buffer).hls;
+      const learnedGoal = env.adaptive?.target ?? 0;
       env.hls = new Library({
         enableWorker: true,
         // Admit the manifest first so the initial request uses the user's
@@ -424,7 +467,15 @@ export function createBrowserEngineStart(env: BrowserEngineStartEnvironment) {
         autoStartLoad: false,
         // Fast start / balanced / extra smooth: seconds of media held ahead,
         // and how many segments behind the live edge playback starts.
-        ...liveBufferProfile(env.buffer).hls,
+        ...hlsBuffer,
+        maxBufferLength:
+          env.adaptive?.mode === 'manual'
+            ? learnedGoal
+            : Math.max(hlsBuffer.maxBufferLength, learnedGoal),
+        maxMaxBufferLength:
+          env.adaptive?.mode === 'manual'
+            ? learnedGoal
+            : Math.max(hlsBuffer.maxMaxBufferLength, learnedGoal),
         backBufferLength: HLS_BACK_BUFFER_SECONDS,
         ...(env.nativeSession ? { loader: env.nativeSession.Loader } : {}),
         manifestLoadPolicy: { default: noRetry },
@@ -444,7 +495,22 @@ export function createBrowserEngineStart(env: BrowserEngineStartEnvironment) {
       }
       env.hls.on(Library.Events.LEVEL_SWITCHED, env.notifyQuality);
       env.hlsListeners.push(env.owners.acquire('hlsListeners'));
+      let lastDeliveryTrace = -Infinity;
       env.hls.on(Library.Events.FRAG_BUFFERED, (_name, data) => {
+        if (
+          traceEnabled() &&
+          data.frag?.type === 'main' &&
+          performance.now() - lastDeliveryTrace >= 5000
+        ) {
+          lastDeliveryTrace = performance.now();
+          recordPlaybackTrace(playbackTraceMode({ selection }), 'delivery', {
+            transport: 'hls',
+            mediaStartMs: data.frag.start * 1000,
+            mediaDurationMs: data.frag.duration * 1000,
+            receivedBytes: data.frag.stats.loaded,
+            ...(typeof data.frag.sn === 'number' ? { fragmentSequence: data.frag.sn } : {}),
+          });
+        }
         measure(() => {
           if (data.frag.type === 'main') startTiming.mark('first-segment-buffered');
         });
@@ -472,6 +538,7 @@ export function createBrowserEngineStart(env: BrowserEngineStartEnvironment) {
         measure(() => {
           if (data.frag.type !== 'main') return;
           const loading = data.frag.stats.loading;
+          env.measuredTransfer(data.frag.stats.loaded, loading.end - loading.start);
           startTiming.mark('first-segment-request', loading.start);
           startTiming.mark('first-segment-first-byte', loading.first);
           startTiming.mark('first-segment-loaded', loading.end);
@@ -480,9 +547,19 @@ export function createBrowserEngineStart(env: BrowserEngineStartEnvironment) {
         }),
       );
       env.hlsListeners.push(...[1, 2, 3].map(() => env.owners.acquire('hlsListeners')));
+      const warningTrace = createEngineWarningTrace();
       env.hls.on(Library.Events.ERROR, (_event, data) => {
         env.audioHealth.fault(data);
-        if (!data.fatal) return;
+        if (!data.fatal) {
+          const warning = warningTrace(data.details, { code: data.response?.code });
+          if (warning) recordPlaybackTrace(playbackTraceMode({ selection }), 'warning', warning);
+          return;
+        }
+        recordPlaybackTrace(
+          playbackTraceMode({ selection }),
+          'error',
+          engineFailureFacts('hls', data.details, { code: data.response?.code }),
+        );
         if (
           data.details === 'manifestIncompatibleCodecsError' ||
           data.details === 'bufferIncompatibleCodecsError'
@@ -554,7 +631,9 @@ export function createBrowserEngineStart(env: BrowserEngineStartEnvironment) {
                   best = score;
                 }
               }
-              if (highest >= 0) env.hls!.nextLevel = highest;
+              // Seed the first rendition without pinning manual quality. Auto must
+              // remain free to choose a sustainable rendition for this stream.
+              if (highest >= 0) env.hls!.startLevel = highest;
               env.readyToPlay = true;
               env.audio.refresh();
               env.notifyQuality();
@@ -613,8 +692,25 @@ export function createBrowserEngineStart(env: BrowserEngineStartEnvironment) {
       );
       env.tsPlayer = player;
       env.releaseTsPlayer = env.owners.acquire('hlsInstances');
-      player.on(library.Events.ERROR, (type: string, details: string) => {
+      player.on(library.Events.ERROR, (type: string, details: string, info: unknown) => {
         if (env.tsPlayer !== player || env.disposed) return;
+        if (traceEnabled())
+          measure(() =>
+            recordPlaybackTrace(playbackTraceMode({ selection }), 'error', {
+              ...engineFailureFacts('mpegts', details, info),
+              ...mpegtsFailureProvenance(
+                type === library!.ErrorTypes.MEDIA_ERROR
+                  ? 'media'
+                  : type === library!.ErrorTypes.NETWORK_ERROR
+                    ? 'network'
+                    : 'unknown',
+                info,
+                env.video,
+                () => player.statisticsInfo,
+                env.signal?.aborted === true,
+              ),
+            }),
+          );
         if (type === library!.ErrorTypes.MEDIA_ERROR) {
           if (
             details === library!.ErrorDetails.MEDIA_CODEC_UNSUPPORTED ||
@@ -626,6 +722,13 @@ export function createBrowserEngineStart(env: BrowserEngineStartEnvironment) {
       });
       // Measurement only: the stream's description has been parsed.
       player.on(library.Events.MEDIA_INFO, () => startTiming.mark('media-info'));
+      if (typeof library.Events.STATISTICS_INFO === 'string')
+        player.on(library.Events.STATISTICS_INFO, (facts: { speed?: unknown }) => {
+          if (env.tsPlayer !== player || env.disposed || env.signal?.aborted) return;
+          measure(() => {
+            if (typeof facts?.speed === 'number') env.measuredRate(facts.speed * 1024 * 8);
+          });
+        });
       env.audio.attachNative();
       player.attachMediaElement(env.video);
       player.load();
@@ -634,6 +737,7 @@ export function createBrowserEngineStart(env: BrowserEngineStartEnvironment) {
       env.notifyQuality();
       await env.play();
     } else {
+      env.adaptive?.setPreference({ mode: 'auto' });
       env.audio.attachNative();
       env.video.src = url.href;
       env.video.load();

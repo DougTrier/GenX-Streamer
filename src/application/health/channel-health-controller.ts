@@ -16,7 +16,7 @@
 /**
  * Saved channels' health as the viewer sees it: the quiet daily check of saved
  * Free TV channels, slow and not-responding marks, removing one channel or
- * every confirmed-dead channel, and Refresh (remove dead, then look for new).
+ * every confirmed-dead channel, and starting a source Refresh.
  * Moved out of main.ts; main.ts passes the shared state it owns through the
  * environment.
  */
@@ -308,15 +308,15 @@ export function createChannelHealthController(env: ChannelHealthEnvironment) {
     return ids.length;
   }
   /**
-   * Refresh (owner request, October 21, 2026): remove the channels the daily
-   * check confirmed dead (favorites kept), then look for new channels only.
+   * Refresh sources before considering automatic cleanup. A generic daily
+   * failure mark does not establish absence from the refreshed source lists.
+   * Automatic cleanup separately requires native, owned absence/dead proof.
    * The scan's Refresh mode checks just what is due: never-seen streams, and
    * failures past their trust window (source_snapshot_activation.rs). Rescan
    * still checks everything from scratch.
    */
   async function refreshFreeTv(): Promise<void> {
     if (env.applicationClosing || env.addChannelsEntryWork) return;
-    await removeDeadChannels({ keepFavorites: true });
     env.startInlineDiscovery(false);
   }
   env

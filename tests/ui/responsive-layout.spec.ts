@@ -36,6 +36,13 @@ for (const size of [
     await page.setViewportSize(size);
     await page.goto('/');
     await expect(page.locator('#app')).toHaveAttribute('data-ready', 'true');
+    if (size.width === 736 && size.height === 414) {
+      await expect(page.locator('#channel-list')).toHaveAttribute('data-catalog-empty', 'true');
+      await expect(page.locator('.channel-row')).toHaveCount(0);
+      const refresh = await page.locator('#refresh-button').boundingBox();
+      const footer = await page.locator('.app-signoff').boundingBox();
+      expect(refresh!.y + refresh!.height).toBeLessThanOrEqual(footer!.y + 0.5);
+    }
     if (size.height === 480) await page.getByLabel('Viewing panel').selectOption('channels');
     const clipped = await page.evaluate(() =>
       [...document.querySelectorAll<HTMLButtonElement>('#app button')]

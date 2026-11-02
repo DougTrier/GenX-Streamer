@@ -289,7 +289,7 @@ export function useTimelineBrowser(): void {
     const shellChunk = shellResult.output.find((item) => item.type === 'chunk');
     if (!shellChunk || shellChunk.type !== 'chunk') throw new Error('Shell entry missing.');
     shellBundle = shellChunk.code;
-    css = await readStylesheet('src/ui/guide-timeline.css');
+    css = `${await readStylesheet('src/ui/guide-timeline.css')}\n${await readStylesheet('src/ui/sports-filters.css')}`;
     fullCss = (
       await Promise.all(
         [
@@ -301,6 +301,7 @@ export function useTimelineBrowser(): void {
           'in-app-select',
           'modal-viewport',
           'guide-panel',
+          'sports-filters',
         ].map((name) => readStylesheet(`src/ui/${name}.css`)),
       )
     ).join('\n');

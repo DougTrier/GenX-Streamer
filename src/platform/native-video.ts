@@ -15,6 +15,11 @@
  */
 
 import { invoke, isTauri } from '@tauri-apps/api/core';
+import {
+  normalizeLiveBufferTelemetry,
+  type LiveBufferPreference,
+  type LiveBufferTelemetry,
+} from '../playback/live-buffer';
 
 /** One embedded track as Media3 lists it ("group:index" identity). */
 export interface NativeVideoTrack {
@@ -33,7 +38,7 @@ export interface NativeVideoStatus {
   /** -1 while unknown. */
   durationMs: number;
   /** A fixed failure code (never provider text). */
-  error?: 'network' | 'missing' | 'unsupported' | 'decode' | 'unknown';
+  error?: 'network' | 'access' | 'missing' | 'unsupported' | 'decode' | 'unknown';
   audio: NativeVideoTrack[];
   text: NativeVideoTrack[];
   /** 'unsupported': the stream has video, but no decoder here can show it. */
@@ -45,6 +50,14 @@ export interface NativeVideoStatus {
   rate?: number;
   /** Live only: one picture in microseconds; 0 while unknown. */
   frameMicros?: number;
+  renderedFrames?: number;
+  audioRenderedFrames?: number;
+  videoWidth?: number;
+  videoHeight?: number;
+  liveWindowRecoveries?: number;
+  httpStatus?: number;
+  /** Measured player ingress and buffered media; missing on older/unsupported hosts. */
+  liveBuffer?: LiveBufferTelemetry;
 }
 export interface NativeVideoRequest {
   action:
@@ -58,7 +71,8 @@ export interface NativeVideoRequest {
     | 'text'
     | 'status'
     | 'close'
-    | 'replay';
+    | 'replay'
+    | 'buffer';
   session: number;
   url?: string;
   /** [left, top, width, height]; CSS pixels with viewport, legacy view pixels without it. */
@@ -70,10 +84,18 @@ export interface NativeVideoRequest {
   track?: string;
   /** Open only: the address is a live channel's HLS relay. */
   hls?: boolean;
+  /** GenXtra only: native side must authorize the exact active Archive proxy URL. */
+  archive?: boolean;
+  /** Paid live channel: open only the account owner's exact active loopback grant. */
+  accountLive?: boolean;
+  /** Public live: exact active native-live relay grant, HLS or progressive. */
+  publicLive?: boolean;
   /** Replay only (docs/instant-replay.md): a speed, a stream position, play or pause. */
   rate?: number;
   streamMs?: number;
   playing?: boolean;
+  /** Open or buffer only; applies to the existing session without replacing media. */
+  liveBuffer?: LiveBufferPreference;
 }
 export type NativeVideoBridge = (request: NativeVideoRequest) => Promise<NativeVideoStatus>;
 
@@ -83,7 +105,7 @@ export const nativeVideoAvailable = (): boolean =>
 
 const invalid = () => new Error('Native player reply is invalid.');
 const STATES = new Set(['closed', 'idle', 'buffering', 'ready', 'ended', 'error']);
-const ERRORS = new Set(['network', 'missing', 'unsupported', 'decode', 'unknown']);
+const ERRORS = new Set(['network', 'access', 'missing', 'unsupported', 'decode', 'unknown']);
 function track(value: unknown): NativeVideoTrack {
   if (!value || typeof value !== 'object') throw invalid();
   const row = value as Record<string, unknown>;
@@ -124,10 +146,22 @@ export function validateNativeVideoStatus(value: unknown, session: number): Nati
       text: [],
     };
   const count = (v: unknown) => v === undefined || (Number.isSafeInteger(v) && (v as number) >= 0);
+  const liveBuffer =
+    row.liveBuffer === undefined ? undefined : normalizeLiveBufferTelemetry(row.liveBuffer);
+  if (row.liveBuffer !== undefined && liveBuffer === null) throw invalid();
   if (
+    (row.httpStatus !== undefined &&
+      (!Number.isSafeInteger(row.httpStatus) ||
+        (row.httpStatus as number) < 100 ||
+        (row.httpStatus as number) > 599)) ||
     !count(row.streamMs) ||
     !count(row.streamBufferedMs) ||
     !count(row.frameMicros) ||
+    !count(row.renderedFrames) ||
+    !count(row.audioRenderedFrames) ||
+    !count(row.videoWidth) ||
+    !count(row.videoHeight) ||
+    !count(row.liveWindowRecoveries) ||
     (row.rate !== undefined &&
       !(typeof row.rate === 'number' && Number.isFinite(row.rate) && row.rate > 0 && row.rate <= 4))
   )
@@ -154,6 +188,7 @@ export function validateNativeVideoStatus(value: unknown, session: number): Nati
     playing: row.playing,
     positionMs: row.positionMs as number,
     durationMs: row.durationMs as number,
+    ...(liveBuffer !== undefined && liveBuffer !== null ? { liveBuffer } : {}),
     ...(row.error !== undefined ? { error: row.error as NativeVideoStatus['error'] } : {}),
     ...(row.picture !== undefined
       ? { picture: row.picture as NonNullable<NativeVideoStatus['picture']> }
@@ -164,6 +199,18 @@ export function validateNativeVideoStatus(value: unknown, session: number): Nati
       : {}),
     ...(row.rate !== undefined ? { rate: row.rate as number } : {}),
     ...(row.frameMicros !== undefined ? { frameMicros: row.frameMicros as number } : {}),
+    ...Object.fromEntries(
+      [
+        'renderedFrames',
+        'audioRenderedFrames',
+        'videoWidth',
+        'videoHeight',
+        'liveWindowRecoveries',
+        'httpStatus',
+      ]
+        .filter((key) => row[key] !== undefined)
+        .map((key) => [key, row[key]]),
+    ),
     audio: audio.map(track),
     text: text.map(track),
   };

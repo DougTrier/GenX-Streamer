@@ -19,6 +19,7 @@ import {
   createAdaptiveBuffer,
   ADAPTIVE_MAX_SECONDS,
   learnedLiveBuffer,
+  liveBufferIdentity,
 } from '../../src/playback/adaptive-buffer';
 
 it('starts at the chosen profile and asks for that much video before resuming', () => {
@@ -64,4 +65,28 @@ it('a reconnect keeps the level the channel reached, never below the profile', (
   for (let i = 0; i < 100; i++) learnedLiveBuffer.set(`channel-${i}`, 5);
   expect(learnedLiveBuffer.get('game')).toBe(0); // bounded: oldest forgotten
   expect(learnedLiveBuffer.get('channel-99')).toBe(5);
+});
+
+it('learns each source independently while retaining the same source across reconnects', () => {
+  const a = { id: 'same-programme', url: 'https://one.invalid/live' },
+    b = { ...a, url: 'https://two.invalid/live' };
+  learnedLiveBuffer.set(liveBufferIdentity(a), 12.8);
+  expect(learnedLiveBuffer.get(liveBufferIdentity({ ...a }))).toBe(12.8);
+  expect(learnedLiveBuffer.get(liveBufferIdentity(b))).toBe(0);
+  expect(learnedLiveBuffer.get(liveBufferIdentity({ ...a, id: 'different-channel' }))).toBe(0);
+});
+
+it('a manual target stays exact through stalls and Auto restores profile plus learned level', () => {
+  const buffer = createAdaptiveBuffer('smooth', 8, { mode: 'manual', targetSeconds: 2 });
+  expect(buffer.target).toBe(2);
+  expect(buffer.stalled()).toBe(2);
+  expect(buffer.ready(1.9)).toBe(false);
+  expect(buffer.ready(2)).toBe(true);
+  buffer.setPreference({ mode: 'manual', targetSeconds: 19 });
+  expect(buffer.stalled()).toBe(19);
+  buffer.setPreference({ mode: 'auto' });
+  expect(buffer.target).toBe(8);
+  expect(buffer.stalled()).toBe(12.8);
+  expect(buffer.setPreference({ mode: 'manual', targetSeconds: 99 })).toBe(false);
+  expect(buffer.target).toBe(12.8);
 });

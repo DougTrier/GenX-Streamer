@@ -166,6 +166,7 @@ it('plays a title as on-demand media in the one account session, never as a reme
     id: 'vod:episode:9',
     name: 'Show S1E2',
     url: mediaUrl,
+    liveBufferKey: 'f661dfa1c4b0d731cd6917b01a9304e494557972e60625c590ce4bb453e1057d',
     mediaKind: 'media',
     playMode: 'on-demand',
     crossOrigin: 'anonymous',

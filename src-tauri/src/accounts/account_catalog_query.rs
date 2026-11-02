@@ -20,11 +20,12 @@ use crate::scan_manifest_work::{self, Context};
 use rusqlite::{Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use unicode_normalization::UnicodeNormalization;
 
 const ERR: &str = "account-catalog-query-invalid";
 const LIMIT: usize = 1024 * 1024;
 const MAX: i64 = 100_000;
-pub(crate) const QUERY_VERSION: &str = "account-sqlite-ascii-v2";
+pub(crate) const QUERY_VERSION: &str = "account-sqlite-ascii-v4-sports";
 #[derive(Clone, Copy, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub(crate) enum Sort {
@@ -43,6 +44,8 @@ pub(crate) enum Filter {
     Sports,
     Favorites,
     Movies,
+    Ppv,
+    Watched,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -54,10 +57,16 @@ pub(crate) struct Query {
     pub expected_media_revision: Option<String>,
     /// Capture on an initial scope/reset read; every offset continuation is exact.
     pub expected_preferences_revision: Option<String>,
+    #[serde(default)]
+    pub expected_guide_revision: Option<String>,
     pub query: String,
+    #[serde(default)]
+    pub sports: Option<crate::catalog::sports::Scope>,
     pub category: Option<String>,
     #[serde(default)]
     pub filter: Filter,
+    #[serde(default)]
+    pub history_ids: Option<Vec<String>>,
     pub sort: Sort,
     #[serde(default = "favorites_first")]
     pub favorites_first: bool,
@@ -79,6 +88,8 @@ pub(crate) struct Page {
     pub account_revision: String,
     pub media_revision: String,
     pub preferences_revision: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub guide_revision: Option<String>,
     pub query_version: &'static str,
     pub start_index: usize,
     pub anchor_index: Option<usize>,
@@ -96,11 +107,13 @@ pub(crate) struct Channel {
     pub epg_id: Option<String>,
     pub stream_reference: String,
     pub favorite: bool,
+    pub ppv: bool,
 }
 struct Snapshot {
     account_revision: i64,
     media_revision: i64,
     preferences_revision: i64,
+    guide_revision: Option<i64>,
 }
 fn favorites_first() -> bool {
     true
@@ -153,6 +166,16 @@ fn text(value: &str, max: usize, empty: bool) -> bool {
         && !value.contains("://")
 }
 fn validate(request: &Query) -> Result<(), String> {
+    if !crate::catalog_query::valid_history_ids(
+        request.history_ids.as_deref(),
+        request.filter == Filter::Watched,
+    ) || request
+        .history_ids
+        .as_ref()
+        .is_some_and(|ids| ids.iter().any(|id| !scoped_id(id, &request.account_id)))
+    {
+        return Err(ERR.into());
+    }
     if request.schema_version != 1
         || !opaque(&request.account_id)
         || !text(&request.query, 256, true)
@@ -172,6 +195,18 @@ fn validate(request: &Query) -> Result<(), String> {
             .is_some_and(|id| !scoped_id(id, &request.account_id))
     {
         return Err(ERR.into());
+    }
+    if request.sports.is_none() && request.expected_guide_revision.is_some() {
+        return Err("account-guide-revision-invalid".into());
+    }
+    if request.sports.is_some()
+        && request.start_index > 0
+        && request.expected_guide_revision.is_none()
+    {
+        return Err("account-guide-revision-conflict".into());
+    }
+    if let Some(value) = &request.expected_guide_revision {
+        preferences_revision(value).map_err(|_| "account-guide-revision-invalid")?;
     }
     revision(&request.expected_account_revision)?;
     if let Some(media) = &request.expected_media_revision {
@@ -199,8 +234,22 @@ fn country_code(value: &str) -> bool {
 /// reliably known) and that country's name for ordering. One resolver serves
 /// filtering, sorting and the country summary alike.
 pub(crate) fn register_functions(c: &Connection) -> Result<(), String> {
+    crate::catalog::ppv::register(c)?;
+    crate::catalog::sports::register_evidence(c)?;
     use rusqlite::functions::FunctionFlags;
     let flags = FunctionFlags::SQLITE_UTF8 | FunctionFlags::SQLITE_DETERMINISTIC;
+    sql(
+        c.create_scalar_function("genx_watch_paid_adult", 1, flags, |ctx| {
+            let category = ctx
+                .get::<String>(0)?
+                .nfkc()
+                .collect::<String>()
+                .to_lowercase();
+            Ok(["adult", "xxx", "18+", "🔞", "porn"]
+                .iter()
+                .any(|term| category.contains(term)))
+        }),
+    )?;
     sql(
         c.create_scalar_function("genx_group_country", 1, flags, |ctx| {
             Ok(crate::group_country::group_country(&ctx.get::<String>(0)?))
@@ -216,6 +265,14 @@ pub(crate) fn register_functions(c: &Connection) -> Result<(), String> {
 /// Adult groups, independent of country: "Adult", "XXX", "18+", "🔞", "Porn".
 pub(crate) fn adult_predicate(category: &str) -> String {
     format!("(instr(lower({category}),'adult')>0 OR instr(lower({category}),'xxx')>0 OR instr({category},'18+')>0 OR instr({category},'🔞')>0 OR instr(lower({category}),'porn')>0)")
+}
+/// History uses the complete existing Paid adult vocabulary after NFKC folding.
+/// Retain the legacy predicate too; ordinary filters keep their exact policy.
+pub(crate) fn history_adult_predicate(category: &str) -> String {
+    format!(
+        "({} OR genx_watch_paid_adult({category}))",
+        adult_predicate(category)
+    )
 }
 /// Extra conditions for adult visibility and the chosen country, bound as
 /// parameter ?20 (see `bound`). No country choice (NULL) adds no condition, so
@@ -308,7 +365,25 @@ fn snapshot(c: &Connection, request: &Query) -> Result<Snapshot, String> {
     {
         return Err("account-preferences-revision-conflict".into());
     }
+    let guide_revision = if request.sports.is_some() || request.expected_guide_revision.is_some() {
+        let actual =
+            crate::account_guide::status(c, &request.account_id)?.map_or(0, |s| s.revision);
+        if actual < 0
+            || request
+                .expected_guide_revision
+                .as_deref()
+                .map(|v| preferences_revision(v).map_err(|_| "account-guide-revision-invalid"))
+                .transpose()?
+                .is_some_and(|v| v != actual)
+        {
+            return Err("account-guide-revision-conflict".into());
+        }
+        Some(actual)
+    } else {
+        None
+    };
     Ok(Snapshot {
+        guide_revision,
         account_revision: account.0,
         media_revision: media.3,
         preferences_revision: preferences,
@@ -338,13 +413,13 @@ struct Scope {
     category: &'static str,
     favorite: &'static str,
 }
-/// Provider group words that mean sport. Paid providers rarely say "sports":
-/// "US| NFL PPV", "US| SPORT ᴴᴰ", "NBA TEAM PPV" (October 18, 2026 trial).
+/// Provider group words that mean sport. Explicit PPV groups are separately
+/// isolated, even when the same metadata also contains a league or sport.
 const SPORT_WORDS: [&str; 20] = [
     "sport", "nfl", "nba", "nhl", "mlb", "mls", "ncaa", "ufc", "wwe", "boxing", "espn", "dazn",
     "golf", "tennis", "rugby", "cricket", "nascar", "racing", "soccer", "football",
 ];
-fn scope(c: &Connection) -> Result<Scope, String> {
+fn scope(c: &Connection, plan: Option<&crate::catalog::sports::Plan>) -> Result<Scope, String> {
     let meta = present(c, "account_preferences_meta_v1")?;
     let preferences = present(c, "account_channel_preferences_v1")?;
     if meta != preferences {
@@ -365,11 +440,27 @@ fn scope(c: &Connection) -> Result<Scope, String> {
         .map(|word| format!("instr(lower({category}),'{word}')>0"))
         .collect::<Vec<_>>()
         .join(" OR ");
+    let ppv = crate::catalog::ppv::channel("e.name", "e.category", category);
+    let search = if plan.is_some() {
+        format!("(?2 IS NOT NULL AND (genx_sports_list_channel(e.name,e.category,{category},COALESCE(e.provider_id,'')||char(10)||COALESCE(e.epg_id,'')||char(10)||COALESCE(genx_sports_country(e.category),'')) OR genx_sports_cached(e.channel_id)))")
+    } else {
+        format!("(?2='' OR instr(lower(e.name)||char(10)||lower(e.category)||char(10)||lower({category})||char(10)||lower(COALESCE(e.provider_id,''))||char(10)||lower(COALESCE(e.epg_id,'')),lower(?2))>0)")
+    };
+    let ppv_scope = if plan.is_some_and(|p| p.include_ppv()) {
+        format!("((?4='ppv' AND {ppv}) OR (?4<>'ppv' AND (NOT {ppv} OR genx_sports_ppv_list_channel(e.name,e.category,{category},COALESCE(e.provider_id,'')||char(10)||COALESCE(e.epg_id,'')||char(10)||COALESCE(genx_sports_country(e.category),'')) OR genx_sports_ppv_cached(e.channel_id))))")
+    } else {
+        format!("((?4='ppv' AND {ppv}) OR (?4<>'ppv' AND NOT {ppv}))")
+    };
+    let ppv_scope = format!("(?4='watched' OR {ppv_scope})");
+    let sports = if plan.is_some_and(|p| p.sports_filter()) {
+        "1".to_owned()
+    } else {
+        format!("{sports} OR genx_sports_evidence(e.name,e.category,{category})")
+    };
     Ok(Scope {
         live: format!("{LIVE}{join} WHERE e.account_id=?1 AND {removed}=0"),
-        predicate: format!(" AND (?2='' OR instr(lower(e.name)||char(10)||lower({category})||char(10)||lower(COALESCE(e.provider_id,''))||char(10)||lower(COALESCE(e.epg_id,'')),lower(?2))>0)
-            AND (?3 IS NULL OR {category}=?3 COLLATE NOCASE)
-            AND (?4='all' OR (?4='news' AND instr(lower({category}),'news')>0) OR (?4='sports' AND ({sports})) OR (?4='movies' AND (instr(lower({category}),'movie')>0 OR instr(lower({category}),'cinema')>0 OR instr(lower({category}),'film')>0)) OR (?4='favorites' AND {favorite}=1))"),
+        predicate:format!(" AND {search} AND (?3 IS NULL OR {category}=?3 COLLATE NOCASE) AND {ppv_scope}
+            AND (?4 IN ('all','ppv','watched') OR (?4='news' AND instr(lower({category}),'news')>0) OR (?4='sports' AND ({sports})) OR (?4='movies' AND (instr(lower({category}),'movie')>0 OR instr(lower({category}),'cinema')>0 OR instr(lower({category}),'film')>0)) OR (?4='favorites' AND {favorite}=1))"),
         category,favorite,
     })
 }
@@ -382,7 +473,7 @@ pub(crate) struct LiveScope {
     pub favorite: &'static str,
 }
 pub(crate) fn live_scope(c: &Connection) -> Result<LiveScope, String> {
-    let scoped = scope(c)?;
+    let scoped = scope(c, None)?;
     Ok(LiveScope {
         from: scoped.live,
         category: scoped.category,
@@ -424,7 +515,12 @@ fn channel_valid(item: &Channel, account: &str) -> bool {
 /// re-counting the six-table join each time (about a second per page on a TV).
 /// Building the list costs more than one page, so a query's first page is read
 /// directly and the list is built when a second page of it is requested.
-type Listed = (i64, i64, Arc<Vec<String>>);
+type Listed = (
+    i64,
+    i64,
+    Arc<Vec<String>>,
+    Arc<std::collections::HashSet<String>>,
+);
 static LISTED: std::sync::Mutex<Option<(String, Option<Listed>)>> = std::sync::Mutex::new(None);
 /// Changes with every committed write (rollback journal rewrites the file).
 fn database_stamp(c: &Connection) -> Option<String> {
@@ -436,7 +532,9 @@ fn database_stamp(c: &Connection) -> Option<String> {
         .duration_since(std::time::UNIX_EPOCH)
         .ok()?
         .as_nanos();
-    Some(format!("{path}\n{}:{modified}", meta.len()))
+    let identity =
+        crate::guide::listed_channels::database_stamp(std::path::Path::new(path)).ok()?;
+    Some(format!("{identity}\n{path}\n{}:{modified}", meta.len()))
 }
 
 // This module's parts, by area, are in account_catalog_query/.

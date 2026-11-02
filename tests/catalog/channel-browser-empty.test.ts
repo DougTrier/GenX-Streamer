@@ -31,6 +31,7 @@ it('selection-only updates retain the admitted empty reason until an explicit ca
     isConnected: true,
     ownerDocument: doc,
     dataset: {},
+    style: { setProperty() {}, removeProperty() {} },
     setAttribute() {},
     addEventListener() {},
   };

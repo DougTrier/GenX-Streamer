@@ -23,6 +23,8 @@ export interface NowPlayingRow extends VisibleGuideChannel {
   title: string;
   startMs: number;
   stopMs: number;
+  description?: string | null;
+  categories?: readonly { text: string }[];
 }
 export interface PaidNowPlayingHost {
   guide: Pick<AccountGuide, 'programs'>;
@@ -30,6 +32,8 @@ export interface PaidNowPlayingHost {
   account(): AccountMetadata | null;
   /** The row's provider EPG ID from the current channel page, or null. */
   epgId(channelId: string): string | null;
+  /** Current visible capability; PPV is permission for a scoped local guide read, not channel evidence. */
+  scopeFor?(channelId: string): { epgId: string | null; ppv?: boolean } | null;
   now(): number;
   publish(rows: readonly NowPlayingRow[]): void;
   setInterval?(callback: () => void, ms: number): number;
@@ -46,6 +50,7 @@ const REFRESH_MS = 60_000;
  */
 export function createPaidNowPlaying(host: PaidNowPlayingHost) {
   let scope: readonly VisibleGuideChannel[] = [];
+  let scopeKey = '';
   let generation = 0;
   let owner: AbortController | null = null;
   let published = '';
@@ -60,11 +65,24 @@ export function createPaidNowPlaying(host: PaidNowPlayingHost) {
     published = key;
     host.publish(rows);
   };
+  const metadata = (row: VisibleGuideChannel) =>
+    host.scopeFor
+      ? host.scopeFor(row.appChannelId)
+      : { epgId: host.epgId(row.appChannelId), ppv: false };
+  const keyFor = (rows: readonly VisibleGuideChannel[], account: AccountMetadata | null) =>
+    JSON.stringify([
+      account?.id,
+      account?.revision,
+      rows.map((row) => [row.catalogSourceId, row.appChannelId, metadata(row)]),
+    ]);
   async function load(): Promise<void> {
     owner?.abort();
     owner = null;
     const mine = ++generation;
     const account = host.account();
+    const capturedKey = keyFor(scope, account);
+    if (capturedKey !== scopeKey) publish([]);
+    scopeKey = capturedKey;
     const source = account ? `account-${account.id}` : null;
     const wanted = source
       ? scope.filter((row) => row.catalogSourceId === source).slice(0, ROWS)
@@ -77,7 +95,8 @@ export function createPaidNowPlaying(host: PaidNowPlayingHost) {
     const at = host.now();
     const rows = await Promise.all(
       wanted.map(async (row): Promise<NowPlayingRow | null> => {
-        const epgId = host.epgId(row.appChannelId);
+        const admitted = metadata(row);
+        const epgId = admitted?.epgId;
         if (!epgId) return null;
         try {
           const { programs } = await host.guide.programs(
@@ -88,6 +107,8 @@ export function createPaidNowPlaying(host: PaidNowPlayingHost) {
             null,
             3,
             controller.signal,
+            admitted?.ppv === true,
+            row.appChannelId,
           );
           const current = programs.find(
             (program) => program.startMs <= at && program.stopMs !== null && program.stopMs > at,
@@ -98,6 +119,10 @@ export function createPaidNowPlaying(host: PaidNowPlayingHost) {
                 title: current.title,
                 startMs: current.startMs,
                 stopMs: current.stopMs!,
+                ...(current.description ? { description: current.description } : {}),
+                ...(current.categories?.length
+                  ? { categories: current.categories.map((category) => ({ ...category })) }
+                  : {}),
               }
             : null;
         } catch {
@@ -107,7 +132,12 @@ export function createPaidNowPlaying(host: PaidNowPlayingHost) {
       }),
     );
     if (disposed || mine !== generation || controller.signal.aborted) return;
-    if (host.account()?.id !== account.id) return;
+    if (
+      host.account()?.id !== account.id ||
+      host.account()?.revision !== account.revision ||
+      keyFor(scope, host.account()) !== capturedKey
+    )
+      return;
     owner = null;
     publish(rows.filter((row): row is NowPlayingRow => row !== null));
   }
@@ -119,7 +149,7 @@ export function createPaidNowPlaying(host: PaidNowPlayingHost) {
     setScope(rows: readonly VisibleGuideChannel[]) {
       if (disposed) return;
       const next = rows.map((row) => ({ ...row }));
-      if (JSON.stringify(next) === JSON.stringify(scope)) return;
+      if (keyFor(next, host.account()) === scopeKey) return;
       scope = next;
       if (scope.length && timer === null) timer = every(reload, REFRESH_MS);
       if (!scope.length && timer !== null) {

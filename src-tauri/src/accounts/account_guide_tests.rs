@@ -305,12 +305,573 @@ fn stored(c: &mut Connection) -> Status {
 }
 
 #[test]
+fn guide_history_paid_exact_channel_scope_admits_ppv_without_shared_epg_fanout() {
+    let mut c = database();
+    stored(&mut c);
+    c.execute(
+        "UPDATE account_media_entry_v1 SET epg_id='fox32.us' WHERE channel_id=?1",
+        [channel_id('b')],
+    )
+    .unwrap();
+    let history = vec![channel_id('b')];
+    let listed = listed_channels_history(
+        &c,
+        ACCOUNT,
+        NOW,
+        NOW + HOUR,
+        "",
+        false,
+        None,
+        Some(&history),
+        None,
+    )
+    .unwrap();
+    assert_eq!(listed.channel_ids, history);
+    assert_eq!(listed.ppv_channel_ids, history);
+    assert!(!programs_history(
+        &c,
+        ACCOUNT,
+        "fox32.us",
+        NOW,
+        NOW + HOUR,
+        None,
+        100,
+        false,
+        Some(&channel_id('b')),
+        None,
+        "",
+        Some(&history),
+        None
+    )
+    .unwrap()
+    .is_empty());
+    assert!(programs_history(
+        &c,
+        ACCOUNT,
+        "fox32.us",
+        NOW,
+        NOW + HOUR,
+        None,
+        100,
+        false,
+        Some(&channel_id('a')),
+        None,
+        "",
+        Some(&history),
+        None
+    )
+    .unwrap()
+    .is_empty());
+    c.execute(
+        "UPDATE account_media_entry_v1 SET category='US Ａｄｕｌｔ PPV' WHERE channel_id=?1",
+        [channel_id('b')],
+    )
+    .unwrap();
+    c.execute(
+        "INSERT INTO account_channel_preferences_v1 VALUES(?1,?2,0,0,'News')",
+        params![ACCOUNT, channel_id('b')],
+    )
+    .unwrap();
+    assert!(listed_channels_history(
+        &c,
+        ACCOUNT,
+        NOW,
+        NOW + HOUR,
+        "",
+        false,
+        None,
+        Some(&history),
+        None
+    )
+    .unwrap()
+    .channel_ids
+    .is_empty());
+    assert_eq!(
+        listed_channels_history(
+            &c,
+            ACCOUNT,
+            NOW,
+            NOW + HOUR,
+            "",
+            false,
+            None,
+            Some(&history),
+            Some(false)
+        )
+        .unwrap()
+        .channel_ids,
+        history
+    );
+    assert!(listed_channels_history(
+        &c,
+        ACCOUNT,
+        NOW,
+        NOW + HOUR,
+        "",
+        false,
+        None,
+        Some(&[]),
+        None
+    )
+    .unwrap()
+    .channel_ids
+    .is_empty());
+    let wrong = vec![format!("account-{}-{}", "f".repeat(32), "b".repeat(64))];
+    assert!(listed_channels_history(
+        &c,
+        ACCOUNT,
+        NOW,
+        NOW + HOUR,
+        "",
+        false,
+        None,
+        Some(&wrong),
+        None
+    )
+    .is_err());
+    assert!(programs_history(
+        &c,
+        ACCOUNT,
+        "fox32.us",
+        NOW,
+        NOW + HOUR,
+        None,
+        100,
+        false,
+        None,
+        None,
+        "",
+        Some(&history),
+        None
+    )
+    .is_err());
+    assert!(programs_history(
+        &c,
+        ACCOUNT,
+        "fox32.us",
+        NOW,
+        NOW + HOUR,
+        None,
+        100,
+        false,
+        Some(&channel_id('b')),
+        None,
+        "",
+        Some(&history),
+        None
+    )
+    .unwrap()
+    .is_empty());
+    assert!(!programs_history(
+        &c,
+        ACCOUNT,
+        "fox32.us",
+        NOW,
+        NOW + HOUR,
+        None,
+        100,
+        false,
+        Some(&channel_id('b')),
+        None,
+        "",
+        Some(&history),
+        Some(false)
+    )
+    .unwrap()
+    .is_empty());
+    c.execute(
+        "UPDATE account_channel_preferences_v1 SET removed=1 WHERE channel_id=?1",
+        [channel_id('b')],
+    )
+    .unwrap();
+    assert!(listed_channels_history(
+        &c,
+        ACCOUNT,
+        NOW,
+        NOW + HOUR,
+        "",
+        false,
+        None,
+        Some(&history),
+        Some(false)
+    )
+    .unwrap()
+    .channel_ids
+    .is_empty());
+}
+
+#[test]
+fn guide_history_paid_adult_normalization_keeps_all_five_existing_terms() {
+    let mut c = database();
+    stored(&mut c);
+    c.execute(
+        "UPDATE account_media_entry_v1 SET epg_id='fox32.us' WHERE channel_id=?1",
+        [channel_id('b')],
+    )
+    .unwrap();
+    c.execute(
+        "INSERT INTO account_channel_preferences_v1 VALUES(?1,?2,0,0,'News')",
+        params![ACCOUNT, channel_id('b')],
+    )
+    .unwrap();
+    let history = vec![channel_id('b')];
+    for term in ["Ａｄｕｌｔ", "ＸＸＸ", "１８＋", "🔞", "ＰＯＲＮ"] {
+        c.execute(
+            "UPDATE account_media_entry_v1 SET category=?1 WHERE channel_id=?2",
+            params![format!("US {term} PPV"), channel_id('b')],
+        )
+        .unwrap();
+        assert!(
+            listed_channels_history(
+                &c,
+                ACCOUNT,
+                NOW,
+                NOW + HOUR,
+                "",
+                false,
+                None,
+                Some(&history),
+                None
+            )
+            .unwrap()
+            .channel_ids
+            .is_empty(),
+            "original marker {term}"
+        );
+        assert!(programs_history(
+            &c,
+            ACCOUNT,
+            "fox32.us",
+            NOW,
+            NOW + HOUR,
+            None,
+            100,
+            false,
+            Some(&channel_id('b')),
+            None,
+            "",
+            Some(&history),
+            None
+        )
+        .unwrap()
+        .is_empty());
+        assert_eq!(
+            listed_channels_history(
+                &c,
+                ACCOUNT,
+                NOW,
+                NOW + HOUR,
+                "",
+                false,
+                None,
+                Some(&history),
+                Some(false)
+            )
+            .unwrap()
+            .channel_ids,
+            history
+        );
+    }
+}
+
+#[test]
+fn paid_ppv_metadata_and_programmes_stay_out_of_regular_guide_search() {
+    let mut c = database();
+    stored(&mut c);
+    c.execute("INSERT INTO account_channel_preferences_v1 VALUES(?1,?2,1,0,'Sports') ON CONFLICT(account_id,channel_id) DO UPDATE SET category='Sports'", params![ACCOUNT, channel_id('b')]).unwrap();
+    let rows = channels(&c, ACCOUNT).unwrap();
+    assert!(rows.iter().find(|r| r.id == channel_id('b')).unwrap().ppv);
+    assert!(!rows.iter().find(|r| r.id == channel_id('a')).unwrap().ppv);
+    let ppv = listed_in_scope(&c, ACCOUNT, NOW, NOW + 3 * HOUR, "", true).unwrap();
+    assert_eq!(ppv, ["unlisted.us"]);
+    assert!(
+        programs(&c, ACCOUNT, "unlisted.us", NOW, NOW + 3 * HOUR, None, 100)
+            .unwrap()
+            .is_empty()
+    );
+    assert!(!programs_in_scope(
+        &c,
+        ACCOUNT,
+        "unlisted.us",
+        NOW,
+        NOW + 3 * HOUR,
+        None,
+        100,
+        true,
+        Some(&channel_id('b'))
+    )
+    .unwrap()
+    .is_empty());
+    c.execute("INSERT INTO account_guide_program_v1 VALUES(?1,'fox32.us',?2,?3,10,'Boxing PPV 17','Sports match','[]')",params![ACCOUNT,NOW,NOW+HOUR]).unwrap();
+    assert!(listed(&c, ACCOUNT, NOW, NOW + HOUR, "boxing")
+        .unwrap()
+        .is_empty());
+    assert_eq!(
+        listed_in_scope(&c, ACCOUNT, NOW, NOW + HOUR, "boxing", true).unwrap(),
+        ["fox32.us"]
+    );
+    assert!(
+        programs(&c, ACCOUNT, "fox32.us", NOW, NOW + HOUR, None, 100)
+            .unwrap()
+            .iter()
+            .all(|p| p.title != "Boxing PPV 17")
+    );
+    assert_eq!(
+        programs_in_scope(
+            &c,
+            ACCOUNT,
+            "fox32.us",
+            NOW,
+            NOW + HOUR,
+            None,
+            100,
+            true,
+            Some(&channel_id('a'))
+        )
+        .unwrap()
+        .iter()
+        .map(|p| p.title.as_str())
+        .collect::<Vec<_>>(),
+        ["Boxing PPV 17"]
+    );
+    // Current live membership remains authoritative even when stale guide rows exist.
+    c.execute(
+        "UPDATE account_channel_preferences_v1 SET removed=1 WHERE account_id=?1 AND channel_id=?2",
+        params![ACCOUNT, channel_id('b')],
+    )
+    .unwrap();
+    assert!(listed_in_scope(&c, ACCOUNT, NOW, NOW + 3 * HOUR, "", true)
+        .unwrap()
+        .iter()
+        .all(|epg| epg != "unlisted.us"));
+}
+
+#[test]
+fn ppv_guide_membership_is_exact_channel_not_a_shared_epg_alias() {
+    let mut c = database();
+    stored(&mut c);
+    c.execute(
+        "UPDATE account_media_entry_v1 SET epg_id='fox32.us' WHERE channel_id=?1",
+        [channel_id('b')],
+    )
+    .unwrap();
+    assert_eq!(
+        listed_channels_in_scope(&c, ACCOUNT, NOW, NOW + HOUR, "", true)
+            .unwrap()
+            .channel_ids,
+        [channel_id('b')]
+    );
+    assert_eq!(
+        listed_channels_in_scope(&c, ACCOUNT, NOW, NOW + HOUR, "", false)
+            .unwrap()
+            .channel_ids,
+        [channel_id('a')]
+    );
+    assert!(programs_in_scope(
+        &c,
+        ACCOUNT,
+        "fox32.us",
+        NOW,
+        NOW + HOUR,
+        None,
+        100,
+        true,
+        Some(&channel_id('a'))
+    )
+    .unwrap()
+    .is_empty());
+    assert!(!programs_in_scope(
+        &c,
+        ACCOUNT,
+        "fox32.us",
+        NOW,
+        NOW + HOUR,
+        None,
+        100,
+        true,
+        Some(&channel_id('b'))
+    )
+    .unwrap()
+    .is_empty());
+    assert!(programs_in_scope(
+        &c,
+        ACCOUNT,
+        "fox32.us",
+        NOW,
+        NOW + HOUR,
+        None,
+        100,
+        false,
+        Some(&channel_id('b'))
+    )
+    .unwrap()
+    .is_empty());
+    assert_eq!(
+        programs_in_scope(
+            &c,
+            ACCOUNT,
+            "fox32.us",
+            NOW,
+            NOW + HOUR,
+            None,
+            100,
+            true,
+            None
+        )
+        .unwrap_err(),
+        "account-guide-channel-invalid"
+    );
+    let foreign = format!("account-{}-{}", "c".repeat(32), "a".repeat(64));
+    assert_eq!(
+        programs_in_scope(
+            &c,
+            ACCOUNT,
+            "fox32.us",
+            NOW,
+            NOW + HOUR,
+            None,
+            100,
+            true,
+            Some(&foreign)
+        )
+        .unwrap_err(),
+        "account-guide-channel-invalid"
+    );
+    assert!(programs_in_scope(
+        &c,
+        ACCOUNT,
+        "unlisted.us",
+        NOW,
+        NOW + HOUR,
+        None,
+        100,
+        true,
+        Some(&channel_id('b'))
+    )
+    .unwrap()
+    .is_empty());
+    assert!(programs_in_scope(
+        &c,
+        ACCOUNT,
+        "fox32.us",
+        NOW,
+        NOW + HOUR,
+        None,
+        100,
+        true,
+        Some(&channel_id('f'))
+    )
+    .unwrap()
+    .is_empty());
+    c.execute("INSERT INTO account_guide_program_v1 VALUES(?1,'fox32.us',?2,?3,10,'Boxing PPV17',NULL,'[]')",params![ACCOUNT,NOW,NOW+HOUR]).unwrap();
+    assert_eq!(
+        listed_channels_in_scope(&c, ACCOUNT, NOW, NOW + HOUR, "boxing", true)
+            .unwrap()
+            .channel_ids,
+        [channel_id('a'), channel_id('b')]
+    );
+    assert!(
+        listed_channels_in_scope(&c, ACCOUNT, NOW, NOW + HOUR, "boxing", false)
+            .unwrap()
+            .channel_ids
+            .is_empty()
+    );
+    assert_eq!(
+        programs_in_scope(
+            &c,
+            ACCOUNT,
+            "fox32.us",
+            NOW,
+            NOW + HOUR,
+            None,
+            100,
+            true,
+            Some(&channel_id('a'))
+        )
+        .unwrap()
+        .iter()
+        .map(|p| p.title.as_str())
+        .collect::<Vec<_>>(),
+        ["Boxing PPV17"]
+    );
+}
+
+#[test]
+fn paid_guide_membership_classifies_live_rows_once_and_uses_indexed_programme_lookups() {
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
+    let mut c = database();
+    stored(&mut c);
+    let add = |from: i64, to: i64| {
+        c.execute(&format!("WITH RECURSIVE n(i) AS(VALUES(?1) UNION ALL SELECT i+1 FROM n WHERE i<?2) INSERT INTO account_vault_references_v1 SELECT printf('%032x',i+100),'{ACCOUNT}',1,'media' FROM n"), params![from,to]).unwrap();
+        c.execute(&format!("WITH RECURSIVE n(i) AS(VALUES(?1) UNION ALL SELECT i+1 FROM n WHERE i<?2) INSERT INTO account_media_entry_v1 SELECT '{ACCOUNT}','account-{ACCOUNT}-'||printf('%064x',i+100),'Sports channel','US Sports',NULL,'unrelated-'||i,printf('%032x',i+100),'page-1' FROM n"), params![from,to]).unwrap();
+        c.execute(&format!("WITH RECURSIVE n(i) AS(VALUES(?1) UNION ALL SELECT i+1 FROM n WHERE i<?2) INSERT INTO account_guide_program_v1 SELECT '{ACCOUNT}','unrelated-'||i,{NOW},{},0,'Ordinary football',NULL,'[]' FROM n",NOW+HOUR),params![from,to]).unwrap();
+    };
+    let measure = || {
+        let count = Arc::new(AtomicUsize::new(0));
+        let counter = count.clone();
+        c.progress_handler(
+            100,
+            Some(move || {
+                counter.fetch_add(1, Ordering::SeqCst);
+                false
+            }),
+        )
+        .unwrap();
+        let result =
+            listed_channels_in_scope(&c, ACCOUNT, NOW, NOW + HOUR, "football", false).unwrap();
+        c.progress_handler(0, None::<fn() -> bool>).unwrap();
+        (result.channel_ids.len(), count.load(Ordering::SeqCst))
+    };
+    add(1, 1000);
+    let (first_rows, first) = measure();
+    add(1001, 2000);
+    let (second_rows, second) = measure();
+    assert_eq!(second_rows - first_rows, 1000);
+    assert!(
+        first > 0 && second < first * 3,
+        "doubling unrelated rows must stay below quadratic work: {first}, {second}"
+    );
+}
+
+#[test]
 fn the_accounts_epg_ids_come_from_its_live_channels() {
     let c = database();
     assert_eq!(
         super::wanted(&c, ACCOUNT).unwrap(),
         ids(&["fox32.us", "unlisted.us"])
     );
+}
+#[test]
+fn guide_location_uses_the_same_country_resolver_and_original_group_as_paid_browsing() {
+    let mut c = database();
+    stored(&mut c);
+    for (group, expected) in [
+        ("USA | LOCALS", Some("US")),
+        ("US| SPORTS", Some("US")),
+        ("Canada | NEWS", Some("CA")),
+        ("Unknown group", None),
+    ] {
+        c.execute(
+            "UPDATE account_media_entry_v1 SET category=?2 WHERE channel_id=?1",
+            params![channel_id('a'), group],
+        )
+        .unwrap();
+        c.execute(
+            "UPDATE account_channel_preferences_v1 SET category='Sports' WHERE channel_id=?1",
+            [channel_id('a')],
+        )
+        .unwrap();
+        let row = channels(&c, ACCOUNT)
+            .unwrap()
+            .into_iter()
+            .find(|row| row.id == channel_id('a'))
+            .unwrap();
+        assert_eq!(row.country.as_deref(), expected);
+        assert_eq!(row.category, "Sports");
+    }
 }
 
 #[test]
@@ -337,10 +898,7 @@ fn a_committed_guide_lists_channels_listings_and_search_for_this_account() {
     assert_eq!(rows[0].stream_reference, "a".repeat(32));
     let mut window = listed(&c, ACCOUNT, NOW, NOW + 3 * HOUR, "").unwrap();
     window.sort();
-    assert_eq!(
-        window,
-        vec!["fox32.us".to_string(), "unlisted.us".to_string()]
-    );
+    assert_eq!(window, vec!["fox32.us".to_string()]);
     assert_eq!(
         listed(&c, ACCOUNT, NOW, NOW + 3 * HOUR, "bears SAINTS").unwrap(),
         vec!["fox32.us".to_string()]
@@ -404,9 +962,19 @@ fn a_failed_or_stale_publication_keeps_the_last_good_guide() {
     );
     assert_eq!(status(&c, ACCOUNT).unwrap(), Some(good));
     assert_eq!(
-        programs(&c, ACCOUNT, "unlisted.us", NOW, NOW + 4 * HOUR, None, 100)
-            .unwrap()
-            .len(),
+        programs_in_scope(
+            &c,
+            ACCOUNT,
+            "unlisted.us",
+            NOW,
+            NOW + 4 * HOUR,
+            None,
+            100,
+            true,
+            Some(&channel_id('b'))
+        )
+        .unwrap()
+        .len(),
         1
     );
 }
@@ -458,15 +1026,328 @@ fn search_matches_whole_words_not_letters_inside_words() {
         listed(&c, ACCOUNT, NOW, NOW + HOUR, "NFL foot").unwrap(),
         vec!["fox32.us".to_string()]
     );
-    assert_eq!(
-        listed(&c, ACCOUNT, NOW, NOW + HOUR, "conflict").unwrap(),
-        vec!["unlisted.us".to_string()]
-    );
-    assert_eq!(
-        listed(&c, ACCOUNT, NOW, NOW + HOUR, "battles").unwrap(),
-        vec!["unlisted.us".to_string()]
-    );
-    assert!(listed(&c, ACCOUNT, NOW, NOW + HOUR, "flict")
+    assert!(listed(&c, ACCOUNT, NOW, NOW + HOUR, "conflict")
         .unwrap()
         .is_empty());
+    assert_eq!(
+        listed_in_scope(&c, ACCOUNT, NOW, NOW + HOUR, "conflict", true).unwrap(),
+        vec!["unlisted.us".to_string()]
+    );
+    assert_eq!(
+        listed_in_scope(&c, ACCOUNT, NOW, NOW + HOUR, "battles", true).unwrap(),
+        vec!["unlisted.us".to_string()]
+    );
+    assert!(listed_in_scope(&c, ACCOUNT, NOW, NOW + HOUR, "flict", true)
+        .unwrap()
+        .is_empty());
+}
+
+fn automatic_policy(c: &Connection) {
+    c.execute_batch("CREATE TABLE metadata(singleton INTEGER PRIMARY KEY,automatic_guide_updates INTEGER);INSERT INTO metadata VALUES(1,1)").unwrap();
+}
+#[test]
+fn automatic_guide_requires_permission_due_cached_schedule_and_manual_refresh_stays_independent() {
+    let mut c = database();
+    automatic_policy(&c);
+    let before = c.total_changes();
+    assert_eq!(
+        admit_automatic(&c, ACCOUNT, 1, NOW).unwrap_err(),
+        "account-guide-not-cached"
+    );
+    assert_eq!(before, c.total_changes());
+    let saved = stored(&mut c);
+    let due = NOW + crate::guide::refresh::INTERVAL_MS;
+    assert_eq!(
+        admit_automatic(&c, ACCOUNT, 1, due - 1).unwrap_err(),
+        "account-guide-not-due"
+    );
+    admit_automatic(&c, ACCOUNT, 1, due).unwrap();
+    c.execute("UPDATE metadata SET automatic_guide_updates=0", [])
+        .unwrap();
+    assert_eq!(
+        admit_automatic(&c, ACCOUNT, 1, due).unwrap_err(),
+        "guide-refresh-disabled"
+    );
+    let parsed = read(GUIDE, &["fox32.us"]).unwrap();
+    let manual = commit(&mut c, ACCOUNT, 1, &parsed, due, &mut || Ok(())).unwrap();
+    assert_eq!(manual.revision, saved.revision + 1);
+}
+#[test]
+fn automatic_guide_rechecks_midfetch_permission_account_and_manual_winner_before_commit() {
+    let mut c = database();
+    automatic_policy(&c);
+    let saved = stored(&mut c);
+    let due = NOW + crate::guide::refresh::INTERVAL_MS;
+    let parsed = read(GUIDE, &["fox32.us"]).unwrap();
+    admit_automatic(&c, ACCOUNT, 1, due).unwrap();
+    // A revoked toggle while XML was in flight cannot publish its response.
+    c.execute("UPDATE metadata SET automatic_guide_updates=0", [])
+        .unwrap();
+    assert_eq!(
+        commit_automatic(&mut c, ACCOUNT, 1, &parsed, due, &mut || Ok(())).unwrap_err(),
+        "guide-refresh-disabled"
+    );
+    assert_eq!(status(&c, ACCOUNT).unwrap(), Some(saved.clone()));
+    c.execute("UPDATE metadata SET automatic_guide_updates=1", [])
+        .unwrap();
+    admit_automatic(&c, ACCOUNT, 1, due).unwrap();
+    c.execute(
+        "UPDATE account_vault_versions_v1 SET active=0 WHERE id=?1",
+        [ACCOUNT],
+    )
+    .unwrap();
+    assert_eq!(
+        commit_automatic(&mut c, ACCOUNT, 1, &parsed, due, &mut || Ok(())).unwrap_err(),
+        "account-revision-conflict"
+    );
+    c.execute(
+        "UPDATE account_vault_versions_v1 SET active=1 WHERE id=?1",
+        [ACCOUNT],
+    )
+    .unwrap();
+    assert_eq!(status(&c, ACCOUNT).unwrap(), Some(saved));
+    admit_automatic(&c, ACCOUNT, 1, due).unwrap();
+    let manual = commit(&mut c, ACCOUNT, 1, &parsed, due, &mut || Ok(())).unwrap();
+    assert_eq!(
+        commit_automatic(&mut c, ACCOUNT, 1, &parsed, due + 1, &mut || Ok(())).unwrap_err(),
+        "account-guide-not-due"
+    );
+    assert_eq!(status(&c, ACCOUNT).unwrap(), Some(manual));
+}
+#[test]
+fn automatic_guide_cancel_and_expired_response_keep_last_good_schedule() {
+    let mut c = database();
+    automatic_policy(&c);
+    let saved = stored(&mut c);
+    let due = NOW + crate::guide::refresh::INTERVAL_MS;
+    let mut parsed = read(GUIDE, &["fox32.us"]).unwrap();
+    assert_eq!(
+        commit_automatic(&mut c, ACCOUNT, 1, &parsed, due, &mut || Err(
+            "canceled".into()
+        ))
+        .unwrap_err(),
+        "canceled"
+    );
+    assert_eq!(status(&c, ACCOUNT).unwrap(), Some(saved.clone()));
+    for p in &mut parsed.programs {
+        p.stop_ms = Some(due);
+    }
+    assert_eq!(
+        commit_automatic(&mut c, ACCOUNT, 1, &parsed, due, &mut || Ok(())).unwrap_err(),
+        "account-guide-no-future-schedule"
+    );
+    assert_eq!(status(&c, ACCOUNT).unwrap(), Some(saved));
+}
+
+#[test]
+fn sports_paid_guide_uses_categories_exact_channels_and_matching_ppv_only() {
+    let mut c = database();
+    stored(&mut c);
+    c.execute(
+        "UPDATE account_media_entry_v1 SET epg_id='fox32.us' WHERE account_id=?1 AND channel_id=?2",
+        params![ACCOUNT, channel_id('b')],
+    )
+    .unwrap();
+    c.execute(r#"UPDATE account_guide_program_v1 SET title='Bears at Packers',description=NULL,categories='[{"text":"NFL"}]' WHERE account_id=?1 AND epg_id='fox32.us'"#,[ACCOUNT]).unwrap();
+    assert_eq!(
+        listed_channels_in_scope(&c, ACCOUNT, NOW, NOW + HOUR, "NFL", false)
+            .unwrap()
+            .channel_ids,
+        [channel_id('a')],
+        "legacy metadata parity includes stored categories"
+    );
+    let mut scope = crate::catalog::sports::Scope {
+        sport: None,
+        league: None,
+        include_ppv: true,
+        window_start_ms: NOW,
+        window_end_ms: NOW + 7 * 24 * HOUR,
+        vocabulary_version: serde_json::from_str::<serde_json::Value>(
+            crate::catalog::sports::VOCABULARY,
+        )
+        .unwrap()["vocabularyVersion"]
+            .as_str()
+            .unwrap()
+            .into(),
+    };
+    assert_eq!(
+        listed_channels_sports(&c, ACCOUNT, NOW, NOW + HOUR, "NFL", false, Some(&scope))
+            .unwrap()
+            .channel_ids,
+        [channel_id('a'), channel_id('b')]
+    );
+    let rows = programs_sports(
+        &c,
+        ACCOUNT,
+        "fox32.us",
+        NOW,
+        NOW + HOUR,
+        None,
+        100,
+        false,
+        Some(&channel_id('b')),
+        Some(&scope),
+        "NFL",
+    )
+    .unwrap();
+    assert!(!rows.is_empty());
+    assert!(programs_sports(
+        &c,
+        ACCOUNT,
+        "fox32.us",
+        NOW,
+        NOW + HOUR,
+        None,
+        100,
+        false,
+        None,
+        Some(&scope),
+        "NFL"
+    )
+    .is_err());
+    c.execute("INSERT INTO account_guide_program_v1 VALUES(?1,'fox32.us',?2,?3,99,'NBA PPV Finals',NULL,'[]')",params![ACCOUNT,NOW,NOW+HOUR]).unwrap();
+    assert!(programs_sports(
+        &c,
+        ACCOUNT,
+        "fox32.us",
+        NOW,
+        NOW + HOUR,
+        None,
+        100,
+        false,
+        Some(&channel_id('b')),
+        Some(&scope),
+        "NFL"
+    )
+    .unwrap()
+    .iter()
+    .all(|p| p.ordinal != 99));
+    let before =
+        listed_channels_sports(&c, ACCOUNT, NOW, NOW + HOUR, "NFL", false, Some(&scope)).unwrap();
+    assert_eq!(before.ppv_channel_ids, [channel_id('b')]);
+    c.execute("UPDATE account_guide_program_v1 SET title='NFL PPV Game' WHERE account_id=?1 AND epg_id='fox32.us' AND ordinal<>99",[ACCOUNT]).unwrap();
+    let ppv_only =
+        listed_channels_sports(&c, ACCOUNT, NOW, NOW + HOUR, "NFL", false, Some(&scope)).unwrap();
+    assert_eq!(ppv_only.ppv_channel_ids, [channel_id('a'), channel_id('b')]);
+    c.execute("INSERT INTO account_guide_program_v1 VALUES(?1,'fox32.us',?2,?3,100,'NFL Pregame',NULL,'[]')",params![ACCOUNT,NOW,NOW+HOUR]).unwrap();
+    assert_eq!(
+        listed_channels_sports(&c, ACCOUNT, NOW, NOW + HOUR, "NFL", false, Some(&scope))
+            .unwrap()
+            .ppv_channel_ids,
+        [channel_id('b')]
+    );
+    scope.include_ppv = false;
+    assert_eq!(
+        listed_channels_sports(&c, ACCOUNT, NOW, NOW + HOUR, "NFL", false, Some(&scope))
+            .unwrap()
+            .channel_ids,
+        [channel_id('a')]
+    );
+    scope.window_start_ms = NOW + 8 * 24 * HOUR;
+    scope.window_end_ms = scope.window_start_ms + HOUR;
+    assert!(
+        listed_channels_sports(&c, ACCOUNT, NOW, NOW + HOUR, "NFL", false, Some(&scope))
+            .unwrap()
+            .channel_ids
+            .is_empty()
+    );
+    c.execute(
+        "UPDATE account_vault_versions_v1 SET active=0 WHERE id=?1",
+        [ACCOUNT],
+    )
+    .unwrap();
+    assert!(
+        listed_channels_sports(&c, ACCOUNT, NOW, NOW + HOUR, "NFL", false, Some(&scope))
+            .unwrap()
+            .channel_ids
+            .is_empty()
+    );
+}
+
+#[test]
+fn sports_paid_cached_membership_keeps_live_classification_and_programme_work_linear() {
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
+    let mut c = database();
+    stored(&mut c);
+    let add = |from: i64, to: i64| {
+        c.execute(&format!("WITH RECURSIVE n(i) AS(VALUES(?1) UNION ALL SELECT i+1 FROM n WHERE i<?2) INSERT INTO account_vault_references_v1 SELECT printf('%032x',i+100),'{ACCOUNT}',1,'media' FROM n"),params![from,to]).unwrap();
+        c.execute(&format!("WITH RECURSIVE n(i) AS(VALUES(?1) UNION ALL SELECT i+1 FROM n WHERE i<?2) INSERT INTO account_media_entry_v1 SELECT '{ACCOUNT}','account-{ACCOUNT}-'||printf('%064x',i+100),'Local affiliate','US Locals',NULL,'sport-'||i,printf('%032x',i+100),'page-1' FROM n"),params![from,to]).unwrap();
+        c.execute(&format!("WITH RECURSIVE n(i) AS(VALUES(?1) UNION ALL SELECT i+1 FROM n WHERE i<?2) INSERT INTO account_guide_program_v1 SELECT '{ACCOUNT}','sport-'||i,{NOW},{},0,'Chicago Bears at Detroit Lions',NULL,'[]' FROM n",NOW+HOUR),params![from,to]).unwrap();
+    };
+    let scope = crate::catalog::sports::Scope {
+        sport: None,
+        league: None,
+        include_ppv: true,
+        window_start_ms: NOW,
+        window_end_ms: NOW + 7 * 24 * HOUR,
+        vocabulary_version: serde_json::from_str::<serde_json::Value>(
+            crate::catalog::sports::VOCABULARY,
+        )
+        .unwrap()["vocabularyVersion"]
+            .as_str()
+            .unwrap()
+            .into(),
+    };
+    let measure = || {
+        let steps = Arc::new(AtomicUsize::new(0));
+        let observed = steps.clone();
+        c.progress_handler(
+            100,
+            Some(move || observed.fetch_add(1, Ordering::SeqCst) > 100_000),
+        )
+        .unwrap();
+        let listed =
+            listed_channels_sports(&c, ACCOUNT, NOW, NOW + HOUR, "NFL", false, Some(&scope))
+                .unwrap();
+        let plan = crate::catalog::sports::Plan::new(&scope, "NFL").unwrap();
+        let matched =
+            crate::catalog::sports::register_paid_list(&c, &plan, ACCOUNT, false).unwrap();
+        let explain = crate::catalog::sports::paid_plan();
+        assert!(
+            explain
+                .iter()
+                .any(|p| p.contains("SEARCH g USING PRIMARY KEY")
+                    && p.contains("epg_id=?")
+                    && p.contains("start_ms>?")
+                    && p.contains("start_ms<?")),
+            "{explain:?}"
+        );
+        assert!(
+            !explain.iter().any(|p| p.starts_with("SCAN g")),
+            "{explain:?}"
+        );
+        c.progress_handler(0, None::<fn() -> bool>).unwrap();
+        assert!(listed.channel_ids.iter().all(|id| matched.all.contains(id)));
+        (listed.channel_ids.len(), steps.load(Ordering::SeqCst))
+    };
+    add(1, 1000);
+    let (count1, steps1) = measure();
+    let red_steps = Arc::new(AtomicUsize::new(0));
+    let red_observed = red_steps.clone();
+    c.progress_handler(
+        100,
+        Some(move || red_observed.fetch_add(1, Ordering::SeqCst) > 10000),
+    )
+    .unwrap();
+    let red = crate::catalog::sports::reordered_paid_probe(&c, ACCOUNT, &scope);
+    c.progress_handler(0, None::<fn() -> bool>).unwrap();
+    assert!(
+        matches!(red,Err(rusqlite::Error::SqliteFailure(ref e,_)) if e.code==rusqlite::ErrorCode::OperationInterrupted),
+        "reordered join must exceed bounded VM work: {red:?}"
+    );
+    eprintln!(
+        "sports Paid reordered control interrupted_vm_blocks={}",
+        red_steps.load(Ordering::SeqCst)
+    );
+    add(1001, 2000);
+    let (count2, steps2) = measure();
+    assert_eq!(count2 - count1, 1000);
+    assert!(
+        steps1 > 0 && steps2 < steps1 * 3,
+        "1000={steps1};2000={steps2}"
+    );
+    eprintln!("sports Paid indexed fixture channels1000_vm_blocks={steps1} channels2000_vm_blocks={steps2}");
 }

@@ -41,6 +41,11 @@ for (const viewport of [
     await expect(page.locator('#speech-control .speech-search-button')).toHaveCount(1);
     await expect(page.locator('.speech-search-button')).toHaveCount(1);
     await query.fill('Chicago Bears');
+    if (viewport.width === 360) {
+      await expect(page.locator('#app')).toHaveAttribute('data-compact-view', 'channels');
+      await expect(query).toBeVisible();
+      await expect(query).toBeFocused();
+    }
     await query.press('Enter');
     await expect(page.locator('#channel-list .channel strong')).toHaveText(['Chicago Bears TV']);
     await expect(page.locator('#primary-view-host')).toBeHidden();

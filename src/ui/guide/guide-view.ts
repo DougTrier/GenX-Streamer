@@ -168,6 +168,7 @@ export function createGuideView(env: GuideViewEnvironment) {
     const channel = chosen();
     return JSON.stringify([
       env.host.catalogRevision?.() ?? null,
+      env.host.locationScopeKey?.() ?? null,
       !!env.host.summary,
       channel?.sourceId,
       channel?.id,

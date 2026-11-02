@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//! Paid TV guide commands. The download runs only when the viewer asks for the
-//! guide (opening it, or Refresh); nothing here starts on its own. The guide
+//! Paid TV guide commands. Explicit requests and enabled, due cached-guide
+//! renewal share one cancellable writer; nothing here starts on its own. The guide
 //! address carries the sign-in, so it never leaves native code or a log.
 use crate::{account_guide, account_vault, account_vault_owner, scan_manifest_work};
 use serde::{Deserialize, Serialize};
@@ -56,8 +56,24 @@ fn sweep(directory: &Path) {
     }
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub(crate) struct RefreshRequest {
+    schema_version: u8,
+    account_id: String,
+    expected_revision: String,
+    #[serde(default)]
+    automatic: bool,
+}
+impl RefreshRequest {
+    fn inspection(&self) -> Result<account_vault_owner::InspectRequest, String> {
+        serde_json::from_value(serde_json::json!({"schemaVersion":self.schema_version,
+            "accountId":self.account_id,"expectedRevision":self.expected_revision}))
+        .map_err(|_| "account-reference-invalid".into())
+    }
+}
 pub(crate) async fn refresh(
-    request: account_vault_owner::InspectRequest,
+    request: RefreshRequest,
     request_id: String,
     app: tauri::AppHandle,
 ) -> Result<account_guide::Status, String> {
@@ -65,13 +81,19 @@ pub(crate) async fn refresh(
     let paths_app = app.clone();
     scan_manifest_work::owned(request_id, app, move |owner| async move {
         let _writer = GUIDE_WRITER.try_lock().map_err(|_| "account-guide-busy")?;
+        let automatic = request.automatic;
+        let request = request.inspection()?;
         let revision = request.revision()?;
+        let admitted_ms = now_ms()?;
         let id = request.account_id().to_owned();
         let root = account_vault_owner::directory(&crypto_app).await?;
         let read_id = id.clone();
         let ((prepared, wanted), generation) = owner
             .storage_with_generation(None, move |store, generation, check| {
                 store.with_guide_read(|c| {
+                    if automatic {
+                        account_guide::admit_automatic(c, &read_id, revision as i64, admitted_ms)?;
+                    }
                     let prepared =
                         account_vault::prepare_resolve(c, &read_id, revision, generation, check)?;
                     Ok((prepared, account_guide::wanted(c, &read_id)?))
@@ -139,7 +161,18 @@ pub(crate) async fn refresh(
         let (status, _) = owner
             .storage_with_generation(Some(generation), move |store, _, check| {
                 store.with_guide_write(|c| {
-                    account_guide::commit(c, &account, revision as i64, &parsed, now, check)
+                    if automatic {
+                        account_guide::commit_automatic(
+                            c,
+                            &account,
+                            revision as i64,
+                            &parsed,
+                            now,
+                            check,
+                        )
+                    } else {
+                        account_guide::commit(c, &account, revision as i64, &parsed, now, check)
+                    }
                 })
             })
             .await?;
@@ -162,11 +195,21 @@ pub(crate) struct ReadRequest {
     #[serde(default)]
     epg_id: Option<String>,
     #[serde(default)]
+    channel_id: Option<String>,
+    #[serde(default)]
     after_start_ms: Option<i64>,
     #[serde(default)]
     after_ordinal: Option<i64>,
     #[serde(default)]
     limit: Option<usize>,
+    #[serde(default)]
+    ppv: bool,
+    #[serde(default)]
+    sports: Option<crate::catalog::sports::Scope>,
+    #[serde(default)]
+    history_ids: Option<Vec<String>>,
+    #[serde(default)]
+    hide_adult: Option<bool>,
 }
 const SAFE: i64 = 9_007_199_254_740_991;
 impl ReadRequest {
@@ -202,6 +245,8 @@ impl ReadRequest {
 pub(crate) struct Listed {
     revision: i64,
     epg_ids: Vec<String>,
+    channel_ids: Vec<String>,
+    ppv_channel_ids: Vec<String>,
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -258,9 +303,22 @@ pub(crate) async fn listed(
     }
     read(request_id, app, move |c| {
         let revision = account_guide::status(c, &account)?.map_or(0, |s| s.revision);
+        let membership = account_guide::listed_channels_history(
+            c,
+            &account,
+            from,
+            to,
+            &search,
+            request.ppv,
+            request.sports.as_ref(),
+            request.history_ids.as_deref(),
+            request.hide_adult,
+        )?;
         Ok(Listed {
             revision,
-            epg_ids: account_guide::listed(c, &account, from, to, &search)?,
+            epg_ids: membership.epg_ids,
+            channel_ids: membership.channel_ids,
+            ppv_channel_ids: membership.ppv_channel_ids,
         })
     })
     .await
@@ -289,7 +347,21 @@ pub(crate) async fn programs(
         let revision = account_guide::status(c, &account)?.map_or(0, |s| s.revision);
         Ok(Programs {
             revision,
-            programs: account_guide::programs(c, &account, &epg, from, to, after, limit)?,
+            programs: account_guide::programs_history(
+                c,
+                &account,
+                &epg,
+                from,
+                to,
+                after,
+                limit,
+                request.ppv,
+                request.channel_id.as_deref(),
+                request.sports.as_ref(),
+                request.search.as_deref().unwrap_or_default(),
+                request.history_ids.as_deref(),
+                request.hide_adult,
+            )?,
         })
     })
     .await

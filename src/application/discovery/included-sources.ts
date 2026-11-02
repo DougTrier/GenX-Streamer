@@ -16,6 +16,11 @@
 
 import { validateSource, type CatalogRecord, type Source } from '../../catalog';
 import type { Preferences } from '../../preferences';
+import {
+  distinctSourceDocuments,
+  publishedSourceTemplate,
+  sourceDocumentKey,
+} from '../../discovery/source-documents';
 
 const href = (location: string) => new URL(location).href;
 
@@ -24,9 +29,11 @@ export function providerScanSources(catalog: CatalogRecord, settings: Preference
   const sources = catalog.sources
     .filter((source) => source.kind === 'url')
     .map((source) => ({ ...source }));
-  const locations = new Set(sources.map((source) => href(source.location)));
+  const documents = new Set(sources.map(sourceDocumentKey));
   for (const provider of settings.reviewedChannelProviders ?? []) {
-    if (locations.has(provider.location)) continue;
+    if (publishedSourceTemplate(provider.location)) continue;
+    const key = sourceDocumentKey(provider);
+    if (documents.has(key)) continue;
     if (sources.length >= 100)
       throw new Error('Keep at most 100 saved and discovery sources for one scan.');
     sources.push(
@@ -38,9 +45,9 @@ export function providerScanSources(catalog: CatalogRecord, settings: Preference
         allowHttp: provider.allowHttp ?? false,
       }),
     );
-    locations.add(provider.location);
+    documents.add(key);
   }
-  return sources;
+  return distinctSourceDocuments(sources);
 }
 
 /**

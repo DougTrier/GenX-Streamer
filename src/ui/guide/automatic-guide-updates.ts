@@ -39,7 +39,8 @@ export function mountAutomaticGuideUpdates(
   label.append(input, text);
   const help = document.createElement('p');
   help.id = 'automatic-guide-updates-help';
-  help.textContent = 'You can still refresh program guides manually in Program guide settings.';
+  help.textContent =
+    'Check saved program guides about every 3 hours while the app is active and playback is idle. Previous schedules stay available if an update fails. You can also refresh manually.';
   input.setAttribute('aria-describedby', help.id);
   const status = document.createElement('p');
   status.id = 'automatic-guide-updates-status';
@@ -58,7 +59,7 @@ export function mountAutomaticGuideUpdates(
     }
     const requested = input.checked;
     input.disabled = true;
-    status.textContent = 'Saving program guide preference…';
+    status.textContent = 'Saving program guide preferenceâ€¦';
     const work = Promise.resolve()
       .then(() => host.save(requested))
       .then(

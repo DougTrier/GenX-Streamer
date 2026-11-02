@@ -200,7 +200,8 @@
 #app .search-controls #search-programs {
   position: absolute;
   inset-inline-start: 0;
-  inset-block-start: 0;
+  inset-block-start: 50%;
+  transform: translateY(-50%);
   width: 44px;
   min-width: 44px;
   height: 100%;
@@ -223,6 +224,8 @@
   inset-inline-end: 0;
   inset-block-start: 0;
   height: 100%;
+  display: grid;
+  align-items: center;
 }
 #app .search-controls .speech-search-button {
   width: 44px;
@@ -237,6 +240,8 @@
 }
 #app .search-controls #clear-search {
   inset-inline-end: 44px;
+  inset-block-start: 50%;
+  transform: translateY(-50%);
   width: 44px;
   min-width: 44px;
 }

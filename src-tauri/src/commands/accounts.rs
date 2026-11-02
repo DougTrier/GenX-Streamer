@@ -64,7 +64,7 @@ pub(crate) async fn refresh_iptv_account(
 }
 #[tauri::command]
 pub(crate) async fn refresh_iptv_account_guide(
-    request: account_vault_owner::InspectRequest,
+    request: account_guide_owner::RefreshRequest,
     request_id: String,
     app: tauri::AppHandle,
 ) -> Result<account_guide::Status, String> {

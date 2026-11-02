@@ -75,6 +75,63 @@ fn admit(
     )
 }
 #[test]
+fn concurrent_health_samples_preserve_the_exact_root_catalog_and_checkpoint_authority() {
+    let (raw, prefs, catalog, _, _, fence, now) = fixture(2);
+    let plan = admit(&raw, &prefs, &catalog, fence, now).unwrap();
+    let current = Fence {
+        health: fence.health + 4,
+        ..fence
+    };
+    plan.check_fence(current, now).unwrap();
+    for invalid in [
+        Fence {
+            health: fence.health - 1,
+            ..fence
+        },
+        Fence {
+            root_generation: fence.root_generation + 1,
+            ..current
+        },
+        Fence {
+            catalog: fence.catalog + 1,
+            ..current
+        },
+        Fence {
+            checkpoint: fence.checkpoint + 1,
+            ..current
+        },
+    ] {
+        assert_eq!(
+            plan.check_fence(invalid, now).unwrap_err(),
+            "scan-resume-plan-stale"
+        );
+    }
+}
+
+#[test]
+fn continue_restores_target_evidence_without_renewing_its_observation_time() {
+    let (mut raw, prefs, catalog, _, entries, fence, now) = fixture(2);
+    raw["observations"] =
+        json!([[0,now,"Reachable",{"kind":"http","status":200,"contentRecognized":true}]]);
+    let mut plan = admit(&raw, &prefs, &catalog, fence, now + 1000).unwrap();
+    let mut targets = plan.take_transport_memo();
+    let key = crate::scan_resume_runtime::probe_memo::Key::new(
+        &entries[0].urls[0],
+        false,
+        "android",
+        "fixture",
+        20_000,
+    );
+    assert_eq!(
+        targets
+            .get(&key, now + 3_600_000, 20_000)
+            .unwrap()
+            .observed_at,
+        now
+    );
+    assert!(plan.take_transport_memo().is_empty());
+}
+#[test]
 fn complete_admission_retains_no_review_or_urls_and_bounds_page() {
     let (raw, prefs, catalog, metadata, entries, fence, now) = fixture(65);
     let plan = admit(&raw, &prefs, &catalog, fence, now).unwrap();

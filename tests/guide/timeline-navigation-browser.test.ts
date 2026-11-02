@@ -58,15 +58,27 @@ describe('actual timeline component', () => {
       for (let press = 0; press < 40; press++) {
         await page.keyboard.press('ArrowDown');
         reached++;
-        if ((await page.evaluate(() => typeof Reflect.get(window, 'release'))) === 'function')
-          break;
+        // Scrolling can start a blocked background query while its rows still
+        // exist. Pending-key ownership starts only when that query also hands
+        // focus to the viewport; otherwise keep asserting each row movement.
+        let pending = false;
         await expect
-          .poll(() =>
-            page.evaluate(
-              () => document.activeElement?.querySelector('.media-result-title')?.textContent,
-            ),
-          )
-          .toBe(`Channel ${reached}`);
+          .poll(async () => {
+            const state = await page.evaluate((name) => {
+              return {
+                pending:
+                  typeof Reflect.get(window, 'release') === 'function' &&
+                  document.activeElement === document.querySelector('.gx-timeline-viewport'),
+                focused:
+                  document.activeElement?.querySelector('.media-result-title')?.textContent ===
+                  name,
+              };
+            }, `Channel ${reached}`);
+            pending = state.pending;
+            return state.pending || state.focused;
+          })
+          .toBe(true);
+        if (pending) break;
       }
       await expect
         .poll(() => page.evaluate(() => typeof Reflect.get(window, 'release')))
@@ -75,9 +87,18 @@ describe('actual timeline component', () => {
       await page.keyboard.press('ArrowDown');
       await page.keyboard.press('ArrowDown');
       await page.keyboard.press('ArrowUp');
-      expect(
-        await page.locator('.gx-timeline-viewport').evaluate((n) => n === document.activeElement),
-      ).toBe(true);
+      // Progressive rows can already restore the requested channel control
+      // while its listings wait. Otherwise focus remains on the owned viewport.
+      await expect
+        .poll(() =>
+          page.evaluate(
+            (name) =>
+              document.activeElement === document.querySelector('.gx-timeline-viewport') ||
+              document.activeElement?.querySelector('.media-result-title')?.textContent === name,
+            `Channel ${reached + 1}`,
+          ),
+        )
+        .toBe(true);
       expect(await page.evaluate(() => Reflect.get(window, 'calls'))).toBe(pendingCalls);
       await page.evaluate(() => {
         Reflect.set(window, 'mode', 'normal');

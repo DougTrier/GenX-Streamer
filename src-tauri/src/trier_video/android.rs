@@ -260,6 +260,15 @@ extern "C" {
     ) -> i32;
     fn ANativeWindow_unlockAndPost(window: *mut c_void) -> i32;
 }
+
+/// One acquired NDK window reference; replacing a Surface generation releases
+/// the old queue exactly once, including failed acquisition/configuration paths.
+struct AndroidWindow(*mut c_void);
+impl Drop for AndroidWindow {
+    fn drop(&mut self) {
+        unsafe { ANativeWindow_release(self.0) };
+    }
+}
 #[repr(C)]
 /// `struct timespec`: `time_t` and `long` are both `long` in bionic, so 32
 /// bits on 32-bit ARM and 64 on AArch64.
@@ -357,9 +366,7 @@ pub extern "system" fn Java_com_tmg_tv_TrierMpegVideoNative_create(
         }),
         frames: Mutex::new(HashMap::new()),
         window: Mutex::new(Window {
-            window: std::ptr::null_mut(),
-            surface: None,
-            geometry: (0, 0),
+            binding: super::surface_binding::SurfaceBinding::new(),
             drawn: 0,
             last_result: 0,
         }),
@@ -578,7 +585,7 @@ pub extern "system" fn Java_com_tmg_tv_TrierMpegVideoNative_flush(
 /// Copies frame `id` into the surface; 0 on success.
 #[no_mangle]
 pub extern "system" fn Java_com_tmg_tv_TrierMpegVideoNative_render(
-    mut env: JNIEnv,
+    env: JNIEnv,
     _this: JObject,
     handle: jlong,
     id: jlong,
@@ -590,7 +597,7 @@ pub extern "system" fn Java_com_tmg_tv_TrierMpegVideoNative_render(
         return -2;
     };
     let mut w = lock(&n.window);
-    let result = draw(&mut env, &mut w, &frame, &surface);
+    let result = draw(&env, &mut w, &frame, &surface);
     w.last_result = result as i64;
     if result == 0 {
         w.drawn += 1;
@@ -600,31 +607,47 @@ pub extern "system" fn Java_com_tmg_tv_TrierMpegVideoNative_render(
     result
 }
 
-fn draw(env: &mut JNIEnv, n: &mut Window, frame: &Frame, surface: &JObject) -> jint {
-    // Reuse the window while the surface is the same object.
-    let same = n
-        .surface
-        .as_ref()
-        .is_some_and(|g| env.is_same_object(g, surface).unwrap_or(false));
-    if !same {
-        if !n.window.is_null() {
-            unsafe { ANativeWindow_release(n.window) };
-            n.window = std::ptr::null_mut();
-        }
-        n.window = unsafe { ANativeWindow_fromSurface(env.get_raw(), surface.as_raw()) };
-        if n.window.is_null() {
-            return -3;
-        }
-        n.surface = env.new_global_ref(surface).ok();
-        n.geometry = (0, 0);
+fn acquire_window(env: &JNIEnv, surface: &JObject) -> Result<AndroidWindow, jint> {
+    let window = unsafe { ANativeWindow_fromSurface(env.get_raw(), surface.as_raw()) };
+    if window.is_null() {
+        Err(-3)
+    } else {
+        Ok(AndroidWindow(window))
     }
+}
+
+fn draw(env: &JNIEnv, n: &mut Window, frame: &Frame, surface: &JObject) -> jint {
+    // SurfaceView can keep the Java wrapper while replacing its native queue.
+    // Acquire its current NDK window every frame; a Java-object comparison (or
+    // hidden Surface generation APIs) cannot safely identify that replacement.
+    super::surface_binding::draw_current_window(
+        || acquire_window(env, surface),
+        |window| window.0 as usize,
+        |acquired| match draw_window(n, frame, acquired) {
+            0 => Ok(()),
+            error => Err(error),
+        },
+    )
+    .map_or_else(|error| error, |()| 0)
+}
+
+fn draw_window(n: &mut Window, frame: &Frame, acquired: Result<AndroidWindow, jint>) -> jint {
     let (w, h) = (frame.width as i32, frame.height as i32);
-    if n.geometry != (w, h) {
-        if unsafe { ANativeWindow_setBuffersGeometry(n.window, w, h, YV12) } != 0 {
-            return -4;
-        }
-        n.geometry = (w, h);
-    }
+    let window = match n.binding.prepare(
+        acquired,
+        |window| window.0 as usize,
+        (w, h),
+        |window, (width, height)| {
+            if unsafe { ANativeWindow_setBuffersGeometry(window.0, width, height, YV12) } == 0 {
+                Ok(())
+            } else {
+                Err(-4)
+            }
+        },
+    ) {
+        Ok(window) => window.0,
+        Err(error) => return error,
+    };
     let mut buffer = NativeWindowBuffer {
         width: 0,
         height: 0,
@@ -633,9 +656,11 @@ fn draw(env: &mut JNIEnv, n: &mut Window, frame: &Frame, surface: &JObject) -> j
         bits: std::ptr::null_mut(),
         reserved: [0; 6],
     };
-    if unsafe { ANativeWindow_lock(n.window, &mut buffer, std::ptr::null_mut()) } != 0
-        || buffer.bits.is_null()
-    {
+    if unsafe { ANativeWindow_lock(window, &mut buffer, std::ptr::null_mut()) } != 0 {
+        return -5;
+    }
+    if buffer.bits.is_null() {
+        unsafe { ANativeWindow_unlockAndPost(window) };
         return -5;
     }
     let planes = &frame.planes;
@@ -669,7 +694,9 @@ fn draw(env: &mut JNIEnv, n: &mut Window, frame: &Frame, surface: &JObject) -> j
                 cw,
             );
         }
-        ANativeWindow_unlockAndPost(n.window);
+    }
+    if unsafe { ANativeWindow_unlockAndPost(window) } != 0 {
+        return -6;
     }
     0
 }

@@ -17,6 +17,44 @@
 
 use super::*;
 
+fn write_failure(error: std::io::Error) -> &'static str {
+    // These are local player socket facts, not evidence of provider failure.
+    match error.kind() {
+        std::io::ErrorKind::BrokenPipe
+        | std::io::ErrorKind::ConnectionReset
+        | std::io::ErrorKind::ConnectionAborted => "account-proxy-consumer-closed",
+        _ => "account-proxy-write-failed",
+    }
+}
+
+/// Diagnose body delivery without logging reqwest's URL-bearing error text.
+fn body_failure(error: reqwest::Error, mode: &str) -> &'static str {
+    use std::error::Error;
+    let mut source = error.source();
+    let mut io = None;
+    while let Some(cause) = source {
+        if let Some(cause) = cause.downcast_ref::<std::io::Error>() {
+            io = Some(cause.kind());
+        }
+        source = cause.source();
+    }
+    eprintln!(
+        "[GenX relay] body_failure timeout={} body={} connect={} io={:?}",
+        error.is_timeout(),
+        error.is_body(),
+        error.is_connect(),
+        io
+    );
+    crate::platform::playback_trace::native_failure(
+        mode,
+        "network",
+        error.is_timeout(),
+        error.is_body(),
+        true,
+    );
+    "account-proxy-network-failed"
+}
+
 pub(super) fn mime(response: &reqwest::Response) -> &'static str {
     let raw = response
         .headers()
@@ -155,8 +193,84 @@ pub(super) async fn chunk(socket: &mut TcpStream, bytes: &[u8]) -> Result<(), &'
         };
         tokio::time::timeout(Duration::from_secs(5), work)
             .await
-            .map_err(|_| "account-proxy-write-failed")?
-            .map_err(|_| "account-proxy-write-failed")?;
+            .map_err(|_| "account-proxy-write-timeout")?
+            .map_err(write_failure)?;
+    }
+    Ok(())
+}
+
+pub(super) trait VodBodyOutput {
+    fn writable(&self) -> impl Future<Output = std::io::Result<()>> + Send;
+    fn try_body_write(&self, bytes: &[u8]) -> std::io::Result<usize>;
+}
+impl VodBodyOutput for TcpStream {
+    fn writable(&self) -> impl Future<Output = std::io::Result<()>> + Send {
+        TcpStream::writable(self)
+    }
+    fn try_body_write(&self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.try_write(bytes)
+    }
+}
+fn vod_body_current(state: &Arc<Mutex<State>>) -> Result<(), &'static str> {
+    let s = state.lock().map_err(|_| "account-proxy-state")?;
+    if !s.vod {
+        return Err("account-proxy-state");
+    }
+    if !s.active() {
+        return Err("account-proxy-expired");
+    }
+    Ok(())
+}
+/// Finite files may fill the decoder's buffers or be paused for longer than a
+/// network IO deadline. Wait without writing bytes, periodically obtain fresh
+/// authority, then recheck after readiness before an immediate partial write.
+/// This is owned only by the active VOD client; no-client idle expiry, MAXLIFE,
+/// cancellation and the supervisor's retained callback joins stay in force.
+pub(super) async fn write_vod_body<W: VodBodyOutput + Sync>(
+    socket: &W,
+    state: &Arc<Mutex<State>>,
+    bytes: &[u8],
+) -> Result<(), &'static str> {
+    let mut offset = 0;
+    let mut resumed = false;
+    while offset < bytes.len() {
+        vod_body_current(state)?;
+        tokio::select! {biased;
+            _=tokio::time::sleep(AUTHORITY_INTERVAL)=>{
+                resumed = true;
+                fresh_vod_authority(state).await?;
+                vod_body_current(state)?;
+                continue;
+            }
+            ready=socket.writable()=>{ready.map_err(write_failure)?;}
+        }
+        if resumed {
+            fresh_vod_authority(state).await?;
+        } else {
+            authority(state).await?;
+        }
+        vod_body_current(state)?;
+        match socket.try_body_write(&bytes[offset..]) {
+            Ok(0) => return Err("account-proxy-write-failed"),
+            Ok(count) => {
+                offset += count;
+                resumed = false;
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => resumed = true,
+            Err(error) => return Err(write_failure(error)),
+        }
+    }
+    Ok(())
+}
+pub(super) async fn vod_chunk<W: VodBodyOutput + Sync>(
+    socket: &W,
+    state: &Arc<Mutex<State>>,
+    bytes: &[u8],
+) -> Result<(), &'static str> {
+    for part in bytes.chunks(CHUNK) {
+        write_vod_body(socket, state, format!("{:x}\r\n", part.len()).as_bytes()).await?;
+        write_vod_body(socket, state, part).await?;
+        write_vod_body(socket, state, b"\r\n").await?;
     }
     Ok(())
 }
@@ -224,6 +338,11 @@ pub(super) async fn process(
         .await?;
         return Ok(());
     }
+    let trace_mode = if state.lock().is_ok_and(|s| s.generation == 0) {
+        "free"
+    } else {
+        "paid"
+    };
     let deadline = Instant::now()
         + if live_start {
             LIVE_BUSY_WINDOW
@@ -298,13 +417,6 @@ pub(super) async fn process(
                 | "application/octet-stream"
                 | "pending"
         );
-    if !media_file
-        && response
-            .content_length()
-            .is_some_and(|n| n > FINITE_BODY_LIMIT as u64)
-    {
-        return Err("account-proxy-body-limit");
-    }
     let base = response.url().clone();
     {
         // Remember where the provider sent this playback so its manifest's
@@ -323,7 +435,7 @@ pub(super) async fn process(
         let part = tokio::time::timeout_at(deadline, response.chunk())
             .await
             .map_err(|_| "account-proxy-timeout")?
-            .map_err(|_| "account-proxy-network-failed")?;
+            .map_err(|error| body_failure(error, trace_mode))?;
         let Some(part) = part else { break };
         if part.len() > FINITE_BODY_LIMIT.saturating_sub(prefix.len()) {
             return Err("account-proxy-body-limit");
@@ -371,7 +483,7 @@ pub(super) async fn process(
         while let Some(part) = tokio::time::timeout_at(deadline, response.chunk())
             .await
             .map_err(|_| "account-proxy-timeout")?
-            .map_err(|_| "account-proxy-network-failed")?
+            .map_err(|error| body_failure(error, trace_mode))?
         {
             if part.len() > MANIFEST_LIMIT.saturating_sub(prefix.len()) {
                 return Err("account-proxy-manifest-limit");
@@ -408,13 +520,28 @@ pub(super) async fn process(
         }
         return Ok(());
     }
-    let continuous = response.content_length().is_none()
-        && request.range.is_none()
-        && (kind == "video/mp2t"
-            || (prefix.len() >= 377
-                && prefix[0] == 0x47
-                && prefix[188] == 0x47
-                && prefix[376] == 0x47));
+    // A live root transport is not a finite HLS segment, even if a provider
+    // supplies a length or a decoder requests a range. Generation zero is the
+    // public native-live owner, which also supports progressive video files.
+    let continuous = (live_start
+        || state
+            .lock()
+            .is_ok_and(|s| s.generation == 0 && request.id == s.root))
+        && (matches!(
+            kind,
+            "video/mp2t" | "audio/aac" | "audio/mpeg" | "audio/mp4"
+        ) || (prefix.len() >= 377
+            && prefix[0] == 0x47
+            && prefix[188] == 0x47
+            && prefix[376] == 0x47));
+    if !continuous
+        && !media_file
+        && response
+            .content_length()
+            .is_some_and(|n| n > FINITE_BODY_LIMIT as u64)
+    {
+        return Err("account-proxy-body-limit");
+    }
     authority(state).await?;
     *sent = true;
     // Real video is reaching the player: this format works for this account.
@@ -439,11 +566,18 @@ pub(super) async fn process(
         return Ok(());
     }
     let mut received = prefix.len();
-    chunk(socket, &prefix).await?;
+    let body_started = Instant::now();
+    if media_file {
+        vod_chunk(socket, state, &prefix).await?;
+    } else {
+        chunk(socket, &prefix).await?;
+    }
     time_start(timed, |t| t.player_first_byte_ms = Some(unix_ms()));
     loop {
         authority(state).await?;
-        let until = if continuous || media_file {
+        let until = if continuous {
+            Instant::now() + LIVE_BODY_IDLE
+        } else if media_file {
             Instant::now() + Duration::from_secs(5)
         } else {
             deadline
@@ -451,21 +585,36 @@ pub(super) async fn process(
         let part = tokio::time::timeout_at(until, response.chunk())
             .await
             .map_err(|_| "account-proxy-timeout")?
-            .map_err(|_| "account-proxy-network-failed")?;
-        let Some(part) = part else { break };
+            .map_err(|error| body_failure(error, trace_mode))?;
+        let Some(part) = part else {
+            if continuous {
+                let elapsed_ms = body_started.elapsed().as_millis().min(u64::MAX as u128) as u64;
+                eprintln!("[GenX relay] upstream_eof continuous=true bytes={received} elapsed_ms={elapsed_ms}");
+                crate::platform::playback_trace::upstream_end(trace_mode, received, elapsed_ms);
+            }
+            break;
+        };
         if !continuous && !media_file && part.len() > FINITE_BODY_LIMIT.saturating_sub(received) {
             return Err("account-proxy-body-limit");
         }
         received = received.saturating_add(part.len());
         for piece in part.chunks(CHUNK) {
             authority(state).await?;
-            chunk(socket, piece).await?;
+            if media_file {
+                vod_chunk(socket, state, piece).await?;
+            } else {
+                chunk(socket, piece).await?;
+            }
         }
     }
     authority(state).await?;
-    socket
-        .write_all(b"0\r\n\r\n")
-        .await
-        .map_err(|_| "account-proxy-write-failed")?;
+    if media_file {
+        write_vod_body(socket, state, b"0\r\n\r\n").await?;
+    } else {
+        socket
+            .write_all(b"0\r\n\r\n")
+            .await
+            .map_err(|_| "account-proxy-write-failed")?;
+    }
     Ok(())
 }

@@ -111,7 +111,7 @@ export function validateBoundedScanResumePlan(raw: unknown): BoundedScanResumePl
       'counts',
       'revisions',
     ],
-    ['commitWindow', 'takeTiming'],
+    ['commitWindow', 'takeTiming', 'normalization'],
   );
   if (
     raw.schemaVersion !== 1 ||
@@ -129,6 +129,17 @@ export function validateBoundedScanResumePlan(raw: unknown): BoundedScanResumePl
   )
     throw refusal();
   counts(raw.counts);
+  if (raw.normalization !== undefined) {
+    fields(raw.normalization, ['entries', 'uniqueTargets', 'duplicates']);
+    const n = raw.normalization;
+    if (
+      ![n.entries, n.uniqueTargets, n.duplicates].every((value) => integer(value, 100000)) ||
+      n.entries !== (raw.counts as { total: number }).total ||
+      Number(n.uniqueTargets) + Number(n.duplicates) !== n.entries ||
+      (Number(n.entries) > 0 && Number(n.uniqueTargets) < 1)
+    )
+      throw refusal();
+  }
   revisions(raw.revisions);
   if (raw.commitWindow !== undefined) validateScanResumeCommitWindow(raw.commitWindow);
   if (raw.takeTiming !== undefined) {

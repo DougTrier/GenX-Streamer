@@ -174,6 +174,61 @@ fn cold_plan(f: &Fixture) -> Plan {
     .unwrap()
 }
 #[test]
+fn playback_health_can_advance_before_scan_commit_without_losing_newer_target_evidence() {
+    for publish in [false, true] {
+        let source = json!({"id":"s","name":"Fixture","kind":"url","location":"https://fixture.invalid/list.m3u"});
+        let playing = json!({"id":"playing","sourceId":"s","providerId":"station","name":"Playing","category":"Sports","urls":["https://media.fixture.invalid/playing.m3u8"]});
+        let catalog =
+            json!({"schemaVersion":1,"sources":[source.clone()],"channels":[playing.clone()]});
+        let preferences = json!({"schemaVersion":1,"sources":[source.clone()],"favorites":["playing"],"removedChannels":[],"volume":0.5,"muted":false,"panelWidth":300});
+        let candidate = json!({"key":"key-0","sourceId":"s","sourceFingerprint":"capture-s","sessionRevision":"session","channel":{"sourceId":"s","providerId":"station","name":"Playing","category":"Sports","urls":playing["urls"]}});
+        let mut f = install(catalog, preferences, vec![candidate]);
+        let fingerprint = crate::health_storage::fingerprint(&source, &playing, 0).unwrap();
+        for offset in [10, 20] {
+            let snapshot = f.store.read_snapshot().unwrap();
+            let record = json!({"schemaVersion":1,"channelId":"playing","sourceId":"s","checkedUrlOrdinal":0,"targetFingerprint":fingerprint,"platform":"android","observerProfile":"fixture-v1","observedAt":f.now+offset,"verdict":"PlayedHere","origin":"local","evidence":{"kind":"decoded","before":{"mediaTime":1,"decodedFrames":10,"width":1280,"height":720},"after":{"mediaTime":3,"decodedFrames":130,"width":1280,"height":720},"elapsedMilliseconds":2000}});
+            f.store
+                .write_health_guarded(
+                    &json!({"schemaVersion":1,"records":[record]}).to_string(),
+                    &snapshot.catalog_revision,
+                    &snapshot.health_revision,
+                    || Ok(()),
+                )
+                .unwrap();
+        }
+        assert_eq!(f.plan.fence().health, 0);
+        f.store
+            .validate_scan_resume_authority(f.plan.fence(), f.plan.header(), || Ok(()))
+            .unwrap();
+        if !publish {
+            f.observations[0]["verdict"] = json!("TimedOut");
+            f.observations[0]["evidence"] = json!({"kind":"timeout"});
+        }
+        let committed = f
+            .store
+            .commit_scan_resume_selection(&f.plan, 7, &rows(&f, &[0], publish), || Ok(()))
+            .unwrap();
+        assert_eq!(committed.delta.base().health, 2);
+        assert_eq!(committed.receipt.checkpoint_revision.as_deref(), Some("2"));
+        f.plan
+            .accept_delta(&committed.receipt, &committed.delta)
+            .unwrap();
+        let snapshot = f.store.read_snapshot().unwrap();
+        let health: Value = serde_json::from_str(snapshot.health.as_ref().unwrap()).unwrap();
+        let kept = health["records"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|r| r["channelId"] == "playing")
+            .unwrap();
+        assert_eq!(kept["verdict"], "PlayedHere");
+        assert_eq!(kept["observedAt"], f.now + 20);
+        assert_eq!(f.plan.counts().checked, 1);
+        assert_eq!(f.plan.counts().published, usize::from(publish));
+    }
+}
+
+#[test]
 fn atomic_positive_negative_original_indices_preserve_preferences_and_guide_ids() {
     let mut f = fixture();
     let c = connect(&f.store.root.join(DB), false).unwrap();
@@ -404,7 +459,6 @@ fn stale_revisions_root_policy_and_forged_original_metadata_refuse_without_ack()
     for reason in [
         "root",
         "catalog",
-        "health",
         "checkpoint",
         "policy",
         "metadata",
@@ -417,7 +471,7 @@ fn stale_revisions_root_policy_and_forged_original_metadata_refuse_without_ack()
         let mut root = 7;
         match reason {
             "root" => root = 8,
-            "catalog" | "health" => {
+            "catalog" => {
                 let c = connect(&f.store.root.join(DB), false).unwrap();
                 c.execute(
                     &format!("UPDATE metadata SET {reason}_revision={reason}_revision+1 WHERE singleton=1"),

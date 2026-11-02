@@ -27,8 +27,155 @@ import {
 } from '../../src/application/discovery/bounded-scan-resume';
 import { createHealthObservation } from '../../src/discovery/health';
 import { fixture, observation, candidate, gate } from './bounded-scan-resume.fixture';
+it('admits bounded normalization counts and refuses inconsistent or extra inventory fields', () => {
+  const plan = fixture(4).plan;
+  const normalization = { entries: 4, uniqueTargets: 2, duplicates: 2 };
+  expect(validateBoundedScanResumePlan({ ...plan, normalization }).normalization).toEqual(
+    normalization,
+  );
+  for (const invalid of [
+    { ...normalization, entries: 5 },
+    { ...normalization, uniqueTargets: 3 },
+    { ...normalization, duplicates: -1 },
+    { entries: 4, uniqueTargets: 0, duplicates: 4 },
+    { ...normalization, urls: [] },
+  ]) {
+    expect(() => validateBoundedScanResumePlan({ ...plan, normalization: invalid })).toThrow();
+  }
+});
 
 describe('disabled bounded native resume owner', () => {
+  it('drains existing reservations after idle-to-viewing transition without canceling or aging queued work', async () => {
+    vi.useFakeTimers();
+    try {
+      const f = fixture(24),
+        holds = Array.from({ length: 24 }, gate);
+      f.host.probe = vi.fn(async (c) => {
+        await holds[Number(c.key.slice(4))]!.promise;
+        return observation(c);
+      });
+      const owner = createBoundedScanResumeOwner(f.host);
+      const run = owner.start();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(owner.snapshot().active).toBe(16);
+      owner.setPlaybackBusy(true);
+      // Retained reservations can wait beyond a normal transport deadline;
+      // no request/cancellation or replacement probe is manufactured meanwhile.
+      await vi.advanceTimersByTimeAsync(60_000);
+      expect(f.host.probe).toHaveBeenCalledTimes(16);
+      expect(f.host.defer).not.toHaveBeenCalled();
+      holds.slice(0, 15).forEach((h) => h.resolve());
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(owner.snapshot().active).toBe(1);
+      expect(f.host.probe).toHaveBeenCalledTimes(16);
+      holds[15]!.resolve();
+      await vi.advanceTimersByTimeAsync(2_000);
+      expect(f.host.probe).toHaveBeenCalledTimes(17);
+      expect(owner.snapshot().active).toBe(1);
+      owner.setPlaybackBusy(false);
+      holds.forEach((h) => h.resolve());
+      await run;
+      expect(owner.snapshot()).toMatchObject({
+        phase: 'completed',
+        failure: 'none',
+        counts: { checked: 24, published: 24 },
+      });
+      expect(f.host.defer).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it('adopts a native acknowledged health-only revision advance without changing scan authority', async () => {
+    const f = fixture(1),
+      commit = f.host.commit;
+    f.host.commit = vi.fn(async (id, request, signal) => ({
+      ...(await commit(id, request, signal)),
+      healthRevision: '7',
+    }));
+    const owner = createBoundedScanResumeOwner(f.host);
+    await owner.start();
+    expect(owner.snapshot()).toMatchObject({
+      phase: 'completed',
+      failure: 'none',
+      revisions: { healthRevision: '7', catalogRevision: '2', checkpointRevision: '2' },
+      counts: { checked: 1 },
+    });
+  });
+  it('keeps one paced probe while viewing and immediately restores full capacity when idle', async () => {
+    vi.useFakeTimers();
+    try {
+      const f = fixture(24),
+        holds = Array.from({ length: 24 }, gate);
+      f.host.probe = vi.fn(async (c) => {
+        await holds[Number(c.key.slice(4))]!.promise;
+        return observation(c);
+      });
+      const owner = createBoundedScanResumeOwner(f.host);
+      owner.setPlaybackBusy(true);
+      const work = owner.start();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(f.host.probe).toHaveBeenCalledTimes(1);
+      expect(f.requests[0]!.limit).toBe(1);
+      await vi.advanceTimersByTimeAsync(500);
+      expect(f.host.probe).toHaveBeenCalledTimes(1);
+      owner.setPlaybackBusy(false);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(owner.snapshot().active).toBe(16);
+      expect(f.host.probe).toHaveBeenCalledTimes(16);
+      holds.forEach((h) => h.resolve());
+      await work;
+      expect(owner.snapshot()).toMatchObject({ phase: 'completed', counts: { checked: 24 } });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it('paces small publication batches during viewing without pausing the scan', async () => {
+    vi.useFakeTimers();
+    try {
+      const f = fixture(40, false, true);
+      const owner = createBoundedScanResumeOwner(f.host);
+      owner.setPlaybackBusy(true);
+      const work = owner.start();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(f.host.probe).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(749);
+      expect(f.host.probe).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(60_000);
+      await work;
+      expect(owner.snapshot()).toMatchObject({
+        phase: 'completed',
+        failure: 'none',
+        counts: { checked: 40 },
+      });
+      expect(f.requests.every((r) => r.limit === 1)).toBe(true);
+      expect(f.batches.every((r) => r.observations.length <= 16)).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+  it('Stop wakes a cooperative delay and saves confirmed work without another probe', async () => {
+    vi.useFakeTimers();
+    try {
+      const f = fixture(4, false, true);
+      const owner = createBoundedScanResumeOwner(f.host);
+      owner.setPlaybackBusy(true);
+      const work = owner.start();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(f.host.probe).toHaveBeenCalledTimes(1);
+      await owner.suspend();
+      await work;
+      expect(f.host.probe).toHaveBeenCalledTimes(1);
+      expect(owner.snapshot()).toMatchObject({
+        phase: 'paused',
+        counts: { checked: 1 },
+        ownedReservations: 0,
+      });
+      await owner.dispose();
+      expect(vi.getTimerCount()).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   it('streams13000 original candidates without a fullreview IPC or accumulating owner history', async () => {
     const f = fixture(13000),
       owner = createBoundedScanResumeOwner(f.host, { now: () => 1000 });
@@ -296,7 +443,7 @@ describe('disabled bounded native resume owner', () => {
       if (settles) {
         await expect(disposing).resolves.toBeUndefined();
         expect(f.host.close).toHaveBeenCalledOnce();
-        expect(owner.snapshot().phase).toBe('disposed');
+        expect(owner.snapshot()).toMatchObject({ phase: 'disposed', failure: 'none' });
       } else {
         await expect(disposing).rejects.toThrow();
         expect(owner.snapshot().failure).toBe('cleanup-unconfirmed');

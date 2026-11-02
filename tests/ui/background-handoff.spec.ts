@@ -166,7 +166,7 @@ async function fixture(
           accountRevision: '1',
           mediaRevision: '1',
           preferencesRevision: '0',
-          queryVersion: 'account-sqlite-ascii-v2',
+          queryVersion: 'account-sqlite-ascii-v4-sports',
           startIndex: 0,
           anchorIndex: null,
           total: 1,

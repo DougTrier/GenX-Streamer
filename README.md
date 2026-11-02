@@ -7,12 +7,12 @@
   Android TV, Google TV and Amazon Fire TV, plus Android phones and handhelds.
   Pass it along to a friend with no app store.
 
-  [![Version](https://img.shields.io/badge/Version-0.1.3-brightgreen?style=for-the-badge)](https://github.com/DougTrier/GenX-Streamer/releases)
+  [![Version](https://img.shields.io/badge/Version-0.1.25-brightgreen?style=for-the-badge)](https://github.com/DougTrier/GenX-Streamer/releases)
   [![Tauri](https://img.shields.io/badge/Tauri-2-24C8DB?style=for-the-badge&logo=tauri&logoColor=white)](https://tauri.app/)
   [![Rust](https://img.shields.io/badge/Rust-native%20layer-B7410E?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
   [![Android](https://img.shields.io/badge/Android-TV%20%7C%20phone-3DDC84?style=for-the-badge&logo=android&logoColor=white)](docs/user-guide.md)
   [![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?style=for-the-badge&logo=windows&logoColor=white)](docs/user-guide.md)
-  [![Verify](https://img.shields.io/badge/Verify-PASS-45ba4b?style=for-the-badge)](#-current-verified-state)
+  [![Last verified](https://img.shields.io/badge/Local_verified-0.1.25%20PASS-45ba4b?style=for-the-badge)](#-current-verified-state)
   [![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge)](LICENSE)
 
   [Website](https://dougtrier.github.io/GenX-Streamer/) •
@@ -34,16 +34,26 @@
 
 ## ✅ Current Verified State
 
-| Evidence | Result |
+**0.1.25 / build 1025** adds a live buffer meter with saved per-stream adjustments, History for Free and Paid TV, and focused Sports/Guide browsing.
+
+- **See and adjust this stream:** read measured incoming rate and buffered seconds. Supported players offer Auto or a saved 1–20 second target for this stream, including fullscreen controls and unchanged-stream rescan retention.
+- **Return to watched channels:** History keeps successfully decoded Free and Paid live channels newest first. Remove an entry or clear the current Free/account history; adult visibility remains in effect.
+- **Find the sport:** choose a sport and league, or search cached channel and programme metadata with explicit league/full NFL team names. A specific sport/league or unambiguous league/full-team query includes positively matching PPV with visible disclosure; ordinary browsing keeps it separate.
+- **Keep each tab's choices:** Free TV and Paid TV retain their own category, query, sport/league, chosen geography and sort. The Guide follows the active tab.
+- **Read the full name and matchup:** channel names and programme headings use smaller, fully wrapping text while retaining the original channel name. On short screens, the controls scroll within the sidebar so focused text stays reachable. Unknown teams and abbreviations are not invented.
+- **Reuse saved listings:** Specific sport/league and semantic searches use saved Guide mappings and reuse metadata work, without per-keystroke network searches or stream rescans. My Local, Web TV and nearest-affiliate discovery remain [design/research](docs/local-tv-discovery.md).
+
+| Current evidence | Scope |
 | --- | --- |
-| **Version** | 0.1.3 |
-| **Development gate** (`npm run verify`) | v0.1.0 baseline, October 24: PASS: 3,310 unit tests, 579 interface tests, 1,503 Rust tests, 114 casting harness checks, 43 tooling tests, types, format, lint, privacy scan |
-| **Windows** | 0.1.3 release build and native smoke test PASS: TS, fMP4, AES and byte-range playback, clean exit, and isolated saved-library integrity. Executable file/product versions are both 0.1.3 |
-| **Android compatibility** | API 24–29 uses compatible Display metrics; API 30+ retains current-window bounds. JNI regression cases pass for APIs 24, 28, 29, 30 and 36. Embedded player coordinates map from the CSS viewport to the actual WebView once. Owner confirmed launch, embedded/fullscreen/return playback with sound, and channel switching on a first-generation Fire TV Stick 4K Max (AFTKA, Fire OS 7) with 0.1.3 |
-| **Android release** | 0.1.3 / build 1003, signed with the same release key, universal 32- and 64-bit ARM. Google TV Streamer update preserved its 10.9K-channel library; ACC Network visual playback, fullscreen/return and switching to ACC Digital Network and back passed. 44 focused browser, Kotlin and Rust checks passed. Physical Flip 2 update testing remains pending |
-| **Install on TV, on real TVs** | v0.1.0 baseline: verified first installs from the S25 on a Google TV Streamer (download helper route, including waking it from its screensaver) and a Sansui Google TV (browser route). The installed file matched the file sent, byte for byte |
-| **Independent code review** | v0.1.0 baseline: no critical or high findings; every medium and low finding fixed or documented ([details](docs/share-links.md#rules-for-passing-the-app-on-sh-009-to-sh-025)) |
-| **Last verified** | October 31, 2026 for 0.1.3 Android compatibility and Windows smoke checks; the full development-gate baseline above is from October 24 |
+| **Version** | 0.1.25 |
+| Development checks | All 17 development checks passed: 4,006 unit tests across 356 files, 600 UI checks, 1,702 native tests with 7 existing ignored, 117 casting checks and 45 Python tooling tests; type, lint, format and the remaining tooling checks passed |
+| Android | Signed universal ARM32/ARM64, `com.tmg.tv`, minimum API 24, target API 36; 93,111,678 bytes. SHA-256: `91e2fb538e3cad35e1d2ccbdca03658c7c3ca8cc2d622da7ea5b2b8b5e50f0e5` |
+| Windows | 0.1.25 x64 Release; four fresh native fixture decodes and a joined ordinary exit passed |
+| Local checks | Current local Google Streamer and Thor checks cover one public Free source each, viewing modes, remote controls, buffering controls and normal Exit; Thor also covers the cached Guide and focused two-card layout. Both apps are closed. Platform image-acquisition warnings remain documented; new Firestick/Flip 2 and current Paid-provider checks are pending. Sport/league, matching PPV and tab/account boundaries passed controlled source tests. Current physical browsing checked cached US/Sports Guide rows on Thor and one Free History channel on Google; broader Paid-provider and all-channel coverage is not claimed. |
+
+New-version Fire TV Stick and Flip 2 follow-up testing is pending. No new local Paid-provider playback is claimed. Historical 0.1.23 development/Windows and internal 0.1.24 PPV checks remain version-specific; see [technical evidence and limits](docs/native-vod-player.md#0125-sports-search-and-release-evidence). Historical physical Fire TV verification applies to 0.1.3 on AFTKA, not every Amazon model or this new version.
+
+[Official 0.1.25 release](https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.25) · [Universal Android APK](https://github.com/DougTrier/GenX-Streamer/releases/download/v0.1.25/GenX-Streamer-0.1.25-Android.apk) · [SHA256SUMS](https://github.com/DougTrier/GenX-Streamer/releases/download/v0.1.25/SHA256SUMS) · [Verify a download](docs/verify-a-download.md)
 
 ---
 
@@ -248,10 +258,18 @@ Device checks need an approved device in the environment:
 `GENX_APPROVED_FLIP_SERIAL`, `GENX_APPROVED_TV_SERIAL`, and `ADB` for the adb
 path. Without them the device scripts refuse to run.
 
+Use [Playback diagnostics](docs/playback-diagnostics.md) to capture playback,
+buffering, errors and expected versus measured player bounds across Free TV,
+Paid TV, GenXtra and Web Stream. The [release quality gate](docs/release-signing.md)
+uses short targeted Scan, Menu, Guide and remote-navigation checks on the exact candidate,
+with scoped local physical results. Fire TV Stick/Flip 2 follow-up testing is pending. Existing sustained captures remain
+supporting evidence; no additional five-minute interval is required by the current owner request.
+
 ### Release
 
-Every release needs a **higher version**: Check for updates compares
-versions, and Android refuses to update to an equal or lower one. The version
+Every public release needs a **higher version** and Android version code. Check for
+updates compares versions; Android normally refuses lower version codes. Unpublished
+test rebuilds can share a version when installed manually with the same signing key. The version
 is written in several files; one command changes them all and checks they
 agree:
 

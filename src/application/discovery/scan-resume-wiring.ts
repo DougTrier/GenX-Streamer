@@ -27,7 +27,11 @@ import {
   type BoundedScanServiceDiagnostic,
 } from './bounded-scan-resume-service';
 import { nativeScanCheckpointSummary } from '../../platform/scan-checkpoint-summary';
-import { ScanSourcesChanged, sourcesChangedRefusal } from '../../ui/scan/source-scan-model';
+import {
+  ScanCheckpointExpired,
+  ScanSourcesChanged,
+  sourcesChangedRefusal,
+} from '../../ui/scan/source-scan-model';
 import { type mountApplicationScanScreen } from './scan-screen';
 import { type createSlowPassGate } from './slow-pass-gate';
 import { type createPlaybackProbeGate } from '../health/playback-probe-gate';
@@ -45,6 +49,7 @@ export interface ScanResumeWiringShared {
     guidePending: boolean;
     startedMs: number;
     listPending: boolean;
+    catalogRenderPending: boolean;
   };
   readonly SCAN_LIST_BATCH: number;
   readonly sourceScan: ReturnType<typeof mountApplicationScanScreen>['sourceScan'];
@@ -119,26 +124,28 @@ export function createScanResumeWiring(env: ScanEnvironment, shared: ScanResumeW
     if (!current()) throw new Error('Saved channels changed before publication adoption.');
     env.catalogRevision++;
     if (!projection.channels.length && !projection.sources.length) return;
+    if (shared.automaticScanActive) shared.scanBatchThrottle.guidePending = true;
     env.catalog = { ...base, sources, channels };
     if (projection.sources.length) env.settings = { ...env.settings, sources: [...adoptedSources] };
     env.catalogBrowseViewRevision++;
     if (!env.applicationClosing) {
-      if (projection.sources.length) env.renderCatalog();
-      else if (shared.automaticScanActive) {
+      if (shared.automaticScanActive) {
         // Owner rule (October 21, 2026): while a scan runs the list refreshes
         // only after 300 new channels, and the guide waits for the scan's end
         // (flushScanBatchWork). A page the list scrolls into later re-reads
         // itself if the catalog has moved on (catalog-window.ts).
         shared.scanBatchThrottle.listPending = true;
+        shared.scanBatchThrottle.catalogRenderPending ||= projection.sources.length > 0;
         if (
-          env.catalog.channels.length - shared.scanBatchThrottle.listed >=
-          shared.SCAN_LIST_BATCH
+          !env.scanPlaybackBusy() &&
+          env.catalog.channels.length - shared.scanBatchThrottle.listed >= shared.SCAN_LIST_BATCH
         ) {
           shared.scanBatchThrottle.listed = env.catalog.channels.length;
           env.browser.search(env.element<HTMLInputElement>('search').value);
         }
         return;
-      } else {
+      } else if (projection.sources.length) env.renderCatalog();
+      else {
         // Existing indexed apply reads the new revision/window; it does not rebuild all search metadata.
         env.browser.search(env.element<HTMLInputElement>('search').value);
         env.guide.catalogChanged();
@@ -289,6 +296,7 @@ export function createScanResumeWiring(env: ScanEnvironment, shared: ScanResumeW
       }),
     });
     let quarantined = false;
+    let closedAdmissionExpired = false;
     let acknowledgedCounts: BoundedScanAck['counts'] | null = null;
     const current = () => {
       if (quarantined || env.applicationClosing)
@@ -298,19 +306,33 @@ export function createScanResumeWiring(env: ScanEnvironment, shared: ScanResumeW
       ...transport.host,
       admit: async (...args: Parameters<typeof transport.host.admit>) => {
         // Window negotiation belongs to this episode's transport, not the entry capability cache.
-        if (!(await transport.capabilities(args[0])))
+        recordRoot('capability-negotiating');
+        if (!(await transport.capabilities(args[0]))) {
+          recordRoot('capability-refused');
           throw new Error('Native scan support changed. Reopen the app before continuing.');
+        }
         args[0].throwIfAborted();
+        recordRoot('native-admission');
         const plan = await transport.host.admit(...args).catch((error: unknown) => {
+          // The native opener's joined closure remains authoritative even when
+          // diagnostics now reveal its underlying policy/configuration refusal.
+          if (error instanceof Error && error.name === 'ScanAdmissionClosedError') {
+            closedAdmissionExpired =
+              boundedTransportFailure?.command === 'open_scan_resume_plan' &&
+              boundedTransportFailure.code === 'scan-checkpoint-expired';
+            throw error;
+          }
           throw sourcesChangedRefusal(boundedTransportFailure?.code, error);
         });
         if (scope.jobId !== null && scope.jobId !== plan.jobId) {
+          recordRoot('admission-job-refused');
           await transport.host.close(plan.planId);
           throw Object.assign(new Error('Saved scan ownership changed before Continue.'), {
             name: 'ScanAdmissionClosedError',
           });
         }
         acknowledgedCounts = { ...plan.counts };
+        recordRoot('admission-acknowledged');
         return plan;
       },
       take: (...args: Parameters<typeof transport.host.take>) => {
@@ -368,8 +390,6 @@ export function createScanResumeWiring(env: ScanEnvironment, shared: ScanResumeW
             BigInt(receipt.catalogRevision) >
               BigInt(request.expectedRevisions.catalogRevision) + 1n ||
             BigInt(receipt.healthRevision) < BigInt(request.expectedRevisions.healthRevision) ||
-            BigInt(receipt.healthRevision) >
-              BigInt(request.expectedRevisions.healthRevision) + 1n ||
             BigInt(receipt.checkpointRevision) !==
               BigInt(request.expectedRevisions.checkpointRevision) + 1n ||
             !sameIndices(
@@ -397,16 +417,6 @@ export function createScanResumeWiring(env: ScanEnvironment, shared: ScanResumeW
               },
               new AbortController().signal,
             );
-            queueMicrotask(() => {
-              if (!env.applicationClosing)
-                void env.automaticGuides
-                  .request()
-                  .catch(() =>
-                    env.notice(
-                      'Channels saved. Some program guides could not connect; open Guide to retry.',
-                    ),
-                  );
-            });
           } catch {
             recordRoot('projection-refused');
             quarantined = true;
@@ -422,8 +432,9 @@ export function createScanResumeWiring(env: ScanEnvironment, shared: ScanResumeW
         return pending;
       },
     };
-    return createBoundedScanResumeService(host, {
+    const service = createBoundedScanResumeService(host, {
       signal,
+      playbackBusy: env.scanPlaybackBusy,
       onDiagnostic: (event) => {
         if (diagnosticGeneration !== boundedScanGeneration) return;
         boundedServiceDiagnostic = event;
@@ -433,6 +444,22 @@ export function createScanResumeWiring(env: ScanEnvironment, shared: ScanResumeW
         }
       },
     });
+    return {
+      ...service,
+      async prepare() {
+        try {
+          return await service.prepare();
+        } catch (error) {
+          if (
+            closedAdmissionExpired &&
+            diagnosticGeneration === boundedScanGeneration &&
+            !signal.aborted
+          )
+            throw new ScanCheckpointExpired();
+          throw error;
+        }
+      },
+    };
   }
   return {
     createApplicationBoundedResume,

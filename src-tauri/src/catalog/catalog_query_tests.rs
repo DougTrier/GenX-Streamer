@@ -49,8 +49,11 @@ fn query(text: &str) -> Query {
         request_id: "fixture-request".into(),
         expected_catalog_revision: None,
         expected_view_revision: None,
+        expected_guide_revision: None,
+        sports: None,
         query: text.into(),
         filter: Filter::All,
+        history_ids: None,
         geography: Map::new(),
         sort: Sort::Source,
         favorites_first: false,
@@ -66,6 +69,82 @@ fn run(c: &Connection, q: &Query) -> Page {
 }
 fn ids(page: &Page) -> Vec<&str> {
     page.rows.iter().map(|r| r.id.as_str()).collect()
+}
+
+#[test]
+fn ppv_filter_is_explicit_even_for_search_favorites_and_category_overrides() {
+    let mut c = fixture();
+    c.execute_batch(
+        "CREATE TABLE channel_category_override(channel_id TEXT PRIMARY KEY,category TEXT)",
+    )
+    .unwrap();
+    add(
+        &c,
+        "ppv",
+        "Boxing Night",
+        "Sports | PPV01",
+        None,
+        [Some("US"), None, None],
+    );
+    add(
+        &c,
+        "ordinary",
+        "UFC Countdown",
+        "Sports",
+        None,
+        [Some("US"), None, None],
+    );
+    add(
+        &c,
+        "false-positive",
+        "PPVision",
+        "News",
+        None,
+        [Some("CA"), None, None],
+    );
+    add(
+        &c,
+        "movie",
+        "Movie Event",
+        "Pay-Per-View",
+        None,
+        [Some("US"), None, None],
+    );
+    c.execute_batch("INSERT INTO favorite VALUES('ppv');INSERT INTO channel_category_override VALUES('ppv','Sports')").unwrap();
+    refresh(&mut c);
+    for filter in [
+        Filter::All,
+        Filter::Sports,
+        Filter::Favorites,
+        Filter::News,
+        Filter::Movies,
+    ] {
+        let mut q = query("");
+        q.filter = filter;
+        let page = run(&c, &q);
+        assert!(!ids(&page).contains(&"ppv"));
+        assert!(!ids(&page).contains(&"movie"));
+    }
+    assert_eq!(run(&c, &query("Boxing")).total_count, 0);
+    assert_eq!(run(&c, &query("PPV01")).total_count, 0);
+    let mut q = query("");
+    q.filter = Filter::Ppv;
+    assert_eq!(ids(&run(&c, &q)), ["ppv", "movie"]);
+    q.geography.insert("country".into(), "CA".into());
+    assert!(run(&c, &q).rows.is_empty());
+    q.geography.clear();
+    q.page_size = 1;
+    let first = run(&c, &q);
+    assert_eq!(first.total_count, 2);
+    q.expected_catalog_revision = Some(first.catalog_revision);
+    q.expected_view_revision = Some(first.view_revision);
+    q.after = first.after;
+    assert_eq!(ids(&run(&c, &q)), ["movie"]);
+    q.filter = Filter::All;
+    assert_eq!(
+        query_page(&c, &q, &Arc::new(AtomicBool::new(false))).unwrap_err(),
+        "catalog-query-cursor-stale"
+    );
 }
 #[test]
 fn not_responding_filter_lists_only_channels_failed_on_two_days() {
@@ -686,4 +765,907 @@ fn favorites_first_intersects_search_country_and_removed_scope_without_inference
     let page = run(&c, &q);
     assert_eq!(page.rows[0].id, "n3");
     assert_eq!(page.rows.len(), 3);
+}
+
+#[test]
+fn sports_cached_programmes_original_categories_ppv_counts_and_cursors() {
+    let mut c = fixture();
+    c.execute_batch("CREATE TABLE channel_category_override(channel_id TEXT PRIMARY KEY,category TEXT);CREATE TABLE guide_meta(singleton INTEGER PRIMARY KEY,revision INTEGER);INSERT INTO guide_meta VALUES(1,1);CREATE TABLE guide_source(id TEXT PRIMARY KEY,revision INTEGER,published_revision INTEGER);INSERT INTO guide_source VALUES('g',1,1);CREATE TABLE guide_mapping(catalog_source_id TEXT,app_channel_id TEXT,guide_source_id TEXT,xmltv_channel_id TEXT);CREATE INDEX guide_mapping_target ON guide_mapping(guide_source_id,xmltv_channel_id,app_channel_id);CREATE TABLE guide_program(guide_source_id TEXT,channel_id TEXT,start_ms INTEGER,stop_ms INTEGER,title TEXT,description TEXT,categories_json TEXT);CREATE INDEX guide_program_global_time ON guide_program(start_ms,guide_source_id);CREATE INDEX guide_program_channel_time ON guide_program(guide_source_id,channel_id,start_ms);").unwrap();
+    for (id, name, category, country) in [
+        ("a", "Event 1", "US | NFL", "US"),
+        ("b", "Chicago Bears PPV", "US | PPV", "US"),
+        ("c", "NFLive PPV", "US | PPV", "US"),
+        ("d", "NBA PPV", "US | PPV", "US"),
+        ("e", "FOX 43", "News", "US"),
+        ("f", "FOX Late", "News", "US"),
+        ("g", "Chicago Bears Canada", "Sports", "CA"),
+        ("h", "Bears at Cardinals", "Sports", "US"),
+    ] {
+        add(&c, id, name, category, None, [Some(country), None, None]);
+    }
+    c.execute_batch("INSERT INTO channel_category_override VALUES('a','Sports');INSERT INTO guide_mapping VALUES('s','e','g','fox'),('s','f','g','late');INSERT INTO guide_program VALUES('g','fox',1200,1800,'Chicago Bears at Detroit Lions',NULL,'[]'),('g','late',691201000,691202000,'NFL Live',NULL,'[]');").unwrap();
+    refresh(&mut c);
+    assert_eq!(ids(&run(&c, &query("NFL"))), ["a"]);
+    let mut q = query("NFL");
+    q.sports = Some(crate::catalog::sports::Scope {
+        sport: None,
+        league: None,
+        include_ppv: true,
+        window_start_ms: 1000,
+        window_end_ms: 1000 + 7 * 86400000,
+        vocabulary_version: serde_json::from_str::<Value>(crate::catalog::sports::VOCABULARY)
+            .unwrap()["vocabularyVersion"]
+            .as_str()
+            .unwrap()
+            .into(),
+    });
+    q.geography.insert("country".into(), "US".into());
+    let full = run(&c, &q);
+    assert_eq!(ids(&full), ["a", "b", "e"]);
+    assert_eq!(
+        full.rows.iter().map(|r| r.ppv).collect::<Vec<_>>(),
+        [false, true, false]
+    );
+    assert_eq!(full.total_count, 3);
+    q.page_size = 1;
+    let first = run(&c, &q);
+    assert_eq!(first.total_count, 3);
+    assert_eq!(ids(&first), ["a"]);
+    q.expected_catalog_revision = Some(first.catalog_revision);
+    q.expected_view_revision = Some(first.view_revision);
+    q.after = first.after;
+    assert_eq!(ids(&run(&c, &q)), ["b"]);
+    c.execute_batch("UPDATE guide_meta SET revision=2").unwrap();
+    assert_eq!(
+        query_page(&c, &q, &Arc::new(AtomicBool::new(false))).unwrap_err(),
+        "catalog-query-cursor-stale"
+    );
+    c.execute_batch("UPDATE guide_meta SET revision=1").unwrap();
+    q.sports.as_mut().unwrap().window_start_ms += 1;
+    q.sports.as_mut().unwrap().window_end_ms += 1;
+    assert_eq!(
+        query_page(&c, &q, &Arc::new(AtomicBool::new(false))).unwrap_err(),
+        "catalog-query-cursor-stale"
+    );
+    q.after = None;
+    q.page_size = 50;
+    q.query = "football".into();
+    q.filter = Filter::Sports;
+    q.sports.as_mut().unwrap().include_ppv = false;
+    assert_eq!(ids(&run(&c, &q)), ["a", "e"]);
+    q.query.clear();
+    q.sports.as_mut().unwrap().league = Some("nfl".into());
+    q.sports.as_mut().unwrap().include_ppv = true;
+    assert_eq!(ids(&run(&c, &q)), ["a", "b", "e"]);
+    q.filter = Filter::Ppv;
+    assert_eq!(ids(&run(&c, &q)), ["b"]);
+    let cancel = Arc::new(AtomicBool::new(true));
+    assert!(query_page(&c, &q, &cancel).is_err());
+}
+
+#[test]
+fn sports_large_literal_search_keeps_indexes_and_reuses_programme_inventory() {
+    let mut memory = fixture();
+    memory.execute_batch("CREATE TABLE guide_meta(singleton INTEGER PRIMARY KEY,revision INTEGER);INSERT INTO guide_meta VALUES(1,1);CREATE TABLE guide_source(id TEXT PRIMARY KEY,revision INTEGER,published_revision INTEGER);INSERT INTO guide_source VALUES('g',1,1);CREATE TABLE guide_mapping(catalog_source_id TEXT,app_channel_id TEXT,guide_source_id TEXT,xmltv_channel_id TEXT);CREATE INDEX guide_mapping_target ON guide_mapping(guide_source_id,xmltv_channel_id,app_channel_id);CREATE TABLE guide_program(guide_source_id TEXT,channel_id TEXT,start_ms INTEGER,stop_ms INTEGER,title TEXT,description TEXT,categories_json TEXT);CREATE INDEX guide_program_global_time ON guide_program(start_ms,guide_source_id);CREATE INDEX guide_program_channel_time ON guide_program(guide_source_id,channel_id,start_ms);").unwrap();
+    {
+        let tx = memory.transaction().unwrap();
+        let mut ch = tx
+            .prepare("INSERT INTO channel VALUES(?1,'s',NULL,?2,'News',?3,'US',NULL,NULL,NULL)")
+            .unwrap();
+        let mut map = tx
+            .prepare("INSERT INTO guide_mapping VALUES('s',?1,'g',?1)")
+            .unwrap();
+        let mut program = tx
+            .prepare("INSERT INTO guide_program VALUES('g',?1,?2,?3,?4,NULL,'[]')")
+            .unwrap();
+        for n in 0..10000 {
+            let id = format!("c{n:05}");
+            let name = if n % 1000 == 0 {
+                "Hallmark"
+            } else {
+                "Other channel"
+            };
+            ch.execute(params![id, name, n]).unwrap();
+            map.execute([&id]).unwrap();
+            for hour in 0..5 {
+                program
+                    .execute(params![
+                        id,
+                        1000 + hour * 3600000,
+                        1000 + (hour + 1) * 3600000,
+                        if n % 100 == 0 {
+                            "Hallmark Classics"
+                        } else {
+                            "Ordinary programme"
+                        }
+                    ])
+                    .unwrap();
+            }
+        }
+        drop(program);
+        drop(map);
+        drop(ch);
+        tx.commit().unwrap();
+    }
+    refresh(&mut memory);
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("catalog.sqlite3");
+    let mut c = Connection::open(&path).unwrap();
+    rusqlite::backup::Backup::new(&memory, &mut c)
+        .unwrap()
+        .run_to_completion(100, std::time::Duration::ZERO, None)
+        .unwrap();
+    let mut q = query("Hallmark");
+    q.page_size = 10;
+    q.sports = Some(crate::catalog::sports::Scope {
+        sport: None,
+        league: None,
+        include_ppv: false,
+        window_start_ms: 1000,
+        window_end_ms: 1000 + 7 * 86400000,
+        vocabulary_version: serde_json::from_str::<Value>(crate::catalog::sports::VOCABULARY)
+            .unwrap()["vocabularyVersion"]
+            .as_str()
+            .unwrap()
+            .into(),
+    });
+    let cache = PageCache::default();
+    let cancel = Arc::new(AtomicBool::new(false));
+    let steps = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let observed = steps.clone();
+    let hook: Arc<dyn Fn() + Send + Sync> = Arc::new(move || {
+        observed.fetch_add(1, Ordering::SeqCst);
+    });
+    let before = crate::catalog::sports::fact_calls();
+    let first =
+        query_page_inner(&c, &q, &cancel, Some((&cache, &path)), Some(hook.clone())).unwrap();
+    let cold = steps.swap(0, Ordering::SeqCst);
+    assert_eq!(first.total_count, 100);
+    assert_eq!(
+        crate::catalog::sports::fact_calls(),
+        before,
+        "ordinary literal search never invokes ontology evidence"
+    );
+    q.expected_catalog_revision = Some(first.catalog_revision);
+    q.expected_view_revision = Some(first.view_revision);
+    q.after = first.after;
+    let next = query_page_inner(&c, &q, &cancel, Some((&cache, &path)), Some(hook)).unwrap();
+    let warm = steps.load(Ordering::SeqCst);
+    assert_eq!(next.total_count, 100);
+    assert_eq!(next.rows.len(), 10);
+    assert!(warm * 20 < cold, "cold VM blocks={cold}; cached={warm}");
+    eprintln!("sports fixture channels=10000 programmes=50000 cold_vm_blocks={cold} cached_vm_blocks={warm}");
+}
+
+#[test]
+fn sports_real_facets_bound_evidence_work_and_keep_programme_parity() {
+    let mut memory = fixture();
+    memory.execute_batch("CREATE TABLE guide_meta(singleton INTEGER PRIMARY KEY,revision INTEGER);INSERT INTO guide_meta VALUES(1,1);CREATE TABLE guide_source(id TEXT PRIMARY KEY,revision INTEGER,published_revision INTEGER);INSERT INTO guide_source VALUES('g',1,1);CREATE TABLE guide_mapping(catalog_source_id TEXT,app_channel_id TEXT,guide_source_id TEXT,xmltv_channel_id TEXT);CREATE INDEX guide_mapping_target ON guide_mapping(guide_source_id,xmltv_channel_id,app_channel_id);CREATE TABLE guide_program(guide_source_id TEXT,channel_id TEXT,start_ms INTEGER,stop_ms INTEGER,title TEXT,description TEXT,categories_json TEXT);CREATE INDEX guide_program_global_time ON guide_program(start_ms,guide_source_id);CREATE INDEX guide_program_channel_time ON guide_program(guide_source_id,channel_id,start_ms);").unwrap();
+    {
+        let tx = memory.transaction().unwrap();
+        let mut channel = tx
+            .prepare("INSERT INTO channel VALUES(?1,'s',NULL,?2,'News',?3,'US',NULL,NULL,NULL)")
+            .unwrap();
+        let mut mapping = tx
+            .prepare("INSERT INTO guide_mapping VALUES('s',?1,'g',?1)")
+            .unwrap();
+        let mut program = tx
+            .prepare("INSERT INTO guide_program VALUES('g',?1,?2,?3,?4,?5,'[]')")
+            .unwrap();
+        for n in 0..10_000 {
+            let id = format!("c{n:05}");
+            channel
+                .execute(params![id, format!("Affiliate {n:05}"), n])
+                .unwrap();
+            mapping.execute([&id]).unwrap();
+            for hour in 0..5 {
+                let title = match n % 100 {
+                    0 => "Chicago Bears at Green Bay Packers",
+                    1 => "College Football Championship",
+                    2 => "MLB Cardinals at Giants",
+                    3 => "Bears wildlife documentary",
+                    _ => "Ordinary programme",
+                };
+                program
+                    .execute(params![
+                        id,
+                        1000 + hour * 3_600_000,
+                        1000 + (hour + 1) * 3_600_000,
+                        title,
+                        "A cached programme description with no independent league evidence."
+                    ])
+                    .unwrap();
+            }
+        }
+        drop(program);
+        drop(mapping);
+        drop(channel);
+        tx.commit().unwrap();
+    }
+    refresh(&mut memory);
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("catalog.sqlite3");
+    let mut c = Connection::open(&path).unwrap();
+    rusqlite::backup::Backup::new(&memory, &mut c)
+        .unwrap()
+        .run_to_completion(100, std::time::Duration::ZERO, None)
+        .unwrap();
+    let cache = PageCache::default();
+    let cancel = Arc::new(AtomicBool::new(false));
+    for (league, expected) in [(None, 200), (Some("nfl"), 100)] {
+        let mut q = query("");
+        q.filter = Filter::Sports;
+        q.sports = Some(crate::catalog::sports::Scope {
+            sport: Some("american-football".into()),
+            league: league.map(str::to_owned),
+            include_ppv: true,
+            window_start_ms: 1000,
+            window_end_ms: 1000 + 7 * 86_400_000,
+            vocabulary_version: serde_json::from_str::<Value>(crate::catalog::sports::VOCABULARY)
+                .unwrap()["vocabularyVersion"]
+                .as_str()
+                .unwrap()
+                .into(),
+        });
+        let before = crate::catalog::sports::fact_calls();
+        let started = std::time::Instant::now();
+        let first = query_page_cached(&c, &q, &cancel, &cache, &path).unwrap();
+        let work = crate::catalog::sports::fact_calls() - before;
+        eprintln!("real facet channels=10000 programmes=50000 league={league:?} evidence_computations={work} elapsed_ms={}", started.elapsed().as_millis());
+        assert_eq!(first.total_count, expected);
+        assert!(first.rows.iter().all(|r| {
+            let n: usize = r.id.trim_start_matches('c').parse().unwrap();
+            n.is_multiple_of(100) || (league.is_none() && n % 100 == 1)
+        }));
+        assert!(
+            work <= 10_010,
+            "facet evidence work must reuse channel/programme facts, got {work}"
+        );
+        q.expected_catalog_revision = Some(first.catalog_revision);
+        q.expected_view_revision = Some(first.view_revision);
+        q.expected_guide_revision = first.guide_revision;
+        q.start_index = Some(50);
+        let before = crate::catalog::sports::fact_calls();
+        let next = query_page_cached(&c, &q, &cancel, &cache, &path).unwrap();
+        assert_eq!(next.total_count, expected);
+        assert_eq!(
+            crate::catalog::sports::fact_calls(),
+            before,
+            "same-scope page reuses completed membership"
+        );
+    }
+
+    // Unique descriptions defeat programme memoization. Unrelated ASCII text
+    // must still avoid the full ontology classifier, not merely rely on five
+    // repeated fixture titles.
+    c.execute_batch("UPDATE guide_program SET description='Distinct cached episode '||channel_id||' '||start_ms;UPDATE guide_meta SET revision=2 WHERE singleton=1;").unwrap();
+    for (league, expected) in [(None, 200), (Some("nfl"), 100)] {
+        let mut q = query("");
+        q.filter = Filter::Sports;
+        q.sports = Some(crate::catalog::sports::Scope {
+            sport: Some("american-football".into()),
+            league: league.map(str::to_owned),
+            include_ppv: true,
+            window_start_ms: 1000,
+            window_end_ms: 1000 + 7 * 86_400_000,
+            vocabulary_version: serde_json::from_str::<Value>(crate::catalog::sports::VOCABULARY)
+                .unwrap()["vocabularyVersion"]
+                .as_str()
+                .unwrap()
+                .into(),
+        });
+        let before = crate::catalog::sports::full_fact_calls();
+        let started = std::time::Instant::now();
+        let page = query_page_cached(&c, &q, &cancel, &cache, &path).unwrap();
+        let full = crate::catalog::sports::full_fact_calls() - before;
+        assert_eq!(page.total_count, expected);
+        assert!(
+            full <= 2000,
+            "only explicit/contextual candidate titles need ontology, got {full}"
+        );
+        eprintln!("diverse real facet channels=10000 programmes=50000 league={league:?} full_ontology_computations={full} elapsed_ms={}", started.elapsed().as_millis());
+    }
+
+    c.execute_batch("UPDATE guide_program SET description='Épisode 東京 éducation '||channel_id||' '||start_ms;UPDATE guide_meta SET revision=3 WHERE singleton=1;").unwrap();
+    for (league, expected) in [(None, 200), (Some("nfl"), 100)] {
+        let mut q = query("");
+        q.filter = Filter::Sports;
+        q.sports = Some(crate::catalog::sports::Scope {
+            sport: Some("american-football".into()),
+            league: league.map(str::to_owned),
+            include_ppv: true,
+            window_start_ms: 1000,
+            window_end_ms: 1000 + 7 * 86_400_000,
+            vocabulary_version: serde_json::from_str::<Value>(crate::catalog::sports::VOCABULARY)
+                .unwrap()["vocabularyVersion"]
+                .as_str()
+                .unwrap()
+                .into(),
+        });
+        let before = crate::catalog::sports::full_fact_calls();
+        let started = std::time::Instant::now();
+        let page = query_page_cached(&c, &q, &cancel, &cache, &path).unwrap();
+        let full = crate::catalog::sports::full_fact_calls() - before;
+        assert_eq!(page.total_count, expected);
+        eprintln!("Unicode real facet channels=10000 programmes=50000 league={league:?} full_ontology_computations={full} elapsed_ms={}", started.elapsed().as_millis());
+        assert!(
+            full <= 2000,
+            "unrelated Unicode descriptions must not force full ontology: {full}"
+        );
+    }
+}
+
+#[test]
+fn sports_multifeed_programme_scan_ignores_unmapped_growth_and_keeps_contexts() {
+    let mut measurements = Vec::new();
+    for (feeds, unmapped) in [(4usize, 1500), (4, 20_000), (8, 20_000)] {
+        let mut c = fixture();
+        c.execute_batch("PRAGMA user_version=1;").unwrap();
+        crate::guide::database::migrate(&mut c).unwrap();
+        let now = 1_000_000_000i64;
+        let mut expected = std::collections::HashSet::new();
+        {
+            let tx = c.transaction().unwrap();
+            let mut source = tx.prepare("INSERT INTO guide_source VALUES(?1,?1,'https://fixture.invalid/guide','url',0,1,0,?2)").unwrap();
+            let mut guide_channel = tx
+                .prepare("INSERT INTO guide_channel VALUES(?1,?2,'[]','')")
+                .unwrap();
+            let mut channel = tx
+                .prepare("INSERT INTO channel VALUES(?1,'s',NULL,?2,'News',?3,'US',NULL,NULL,NULL)")
+                .unwrap();
+            let mut program = tx.prepare("INSERT INTO guide_program(guide_source_id,ordinal,channel_id,start_ms,stop_ms,title,description,search_text,categories_json,categories_key) VALUES(?1,?2,?3,?4,?5,?6,'Cached description','','[]','[]')").unwrap();
+            for feed in 0..feeds {
+                let id = format!("guide-{feed}");
+                let published = (feed + 1 < feeds).then_some(1);
+                source.execute(params![id, published]).unwrap();
+                guide_channel.execute(params![id, "old-unmapped"]).unwrap();
+                for n in 0..unmapped {
+                    program
+                        .execute(params![
+                            id,
+                            n as i64,
+                            "old-unmapped",
+                            if n < unmapped / 2 { n as i64 } else { now },
+                            Some(if n < unmapped / 2 {
+                                n as i64 + 1
+                            } else {
+                                now + 3600000
+                            }),
+                            "Unmapped NFL replay"
+                        ])
+                        .unwrap();
+                }
+                for n in 0..125usize {
+                    let ordinal = feed * 125 + n;
+                    let channel_id = format!("c{ordinal:05}");
+                    channel
+                        .execute(params![
+                            channel_id,
+                            if n % 10 == 9 {
+                                format!("NFL affiliate {ordinal}")
+                            } else {
+                                format!("Affiliate {ordinal}")
+                            },
+                            ordinal as i64
+                        ])
+                        .unwrap();
+                    guide_channel.execute(params![id, channel_id]).unwrap();
+                    let mapped_id = if n % 10 == 9 {
+                        format!("c{:05}", ordinal - 1)
+                    } else {
+                        channel_id.clone()
+                    };
+                    tx.execute(
+                        "INSERT INTO guide_mapping VALUES('s',?1,?2,?3)",
+                        params![channel_id, id, mapped_id],
+                    )
+                    .unwrap();
+                    for hour in 0..5 {
+                        let (start, stop, title) = if hour > 0 {
+                            (
+                                now + hour * 3_600_000,
+                                Some(now + (hour + 1) * 3_600_000),
+                                "Ordinary programme",
+                            )
+                        } else {
+                            match n % 10 {
+                                0 => (
+                                    now,
+                                    Some(now + 3_600_000),
+                                    "Chicago Bears at Green Bay Packers",
+                                ),
+                                1 => (now, Some(now + 3_600_000), "MLB Cardinals at Giants"),
+                                2 => (now, Some(now + 3_600_000), "PPV NFL Live"),
+                                4 => (0, Some(now + 100), "NFL long ongoing programme"),
+                                5 => (now - 1, None, "NFL unknown end before scope"),
+                                6 => (now + 1, None, "NFL unknown end inside scope"),
+                                _ => (now, Some(now + 3_600_000), "Ordinary programme"),
+                            }
+                        };
+                        program
+                            .execute(params![
+                                id,
+                                (unmapped + n * 5 + hour as usize) as i64,
+                                channel_id,
+                                start,
+                                stop,
+                                title
+                            ])
+                            .unwrap();
+                    }
+                    if published.is_some() && matches!(n % 10, 0 | 2 | 4 | 6 | 9) {
+                        expected.insert(channel_id);
+                    }
+                }
+            }
+            drop(program);
+            drop(channel);
+            drop(guide_channel);
+            drop(source);
+            tx.commit().unwrap();
+        }
+        refresh(&mut c);
+        crate::catalog::ppv::register(&c).unwrap();
+        let scope = crate::catalog::sports::Scope {
+            sport: Some("american-football".into()),
+            league: Some("nfl".into()),
+            include_ppv: true,
+            window_start_ms: now,
+            window_end_ms: now + 7 * 86_400_000,
+            vocabulary_version: serde_json::from_str::<Value>(crate::catalog::sports::VOCABULARY)
+                .unwrap()["vocabularyVersion"]
+                .as_str()
+                .unwrap()
+                .into(),
+        };
+        let plan = crate::catalog::sports::Plan::new(&scope, "").unwrap();
+        let steps = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let observed = steps.clone();
+        c.progress_handler(
+            1000,
+            Some(move || observed.fetch_add(1, Ordering::SeqCst) > 10_000),
+        )
+        .unwrap();
+        let result = crate::catalog::sports::register_public_list(&c, &plan, false);
+        c.progress_handler(0, None::<fn() -> bool>).unwrap();
+        let vm = steps.load(Ordering::SeqCst);
+        let query_plan = crate::catalog::sports::public_plan();
+        eprintln!("multifeed Free sources={feeds} mapped_channels={} programmes={} vm_blocks={vm} plan={query_plan:?} outcome={}", feeds * 125, feeds * (unmapped + 625), if result.is_ok() { "complete" } else { "interrupted" });
+        let matched =
+            result.expect("programme work must finish inside the deterministic VM budget");
+        assert_eq!(matched.all, expected);
+        assert!(
+            query_plan.first().is_some_and(|p| p.contains("SCAN m")),
+            "current mapping must be the outer loop: {query_plan:?}"
+        );
+        assert!(query_plan.iter().any(|p| p.contains("SEARCH p USING INDEX guide_program_channel_time (guide_source_id=? AND channel_id=? AND start_ms<?)")), "programmes must use a source/channel time lookup: {query_plan:?}");
+        // Persisted databases can carry cardinality statistics. Do not assume
+        // SQLite's empty-statistics join choice remains the production plan.
+        c.execute_batch("ANALYZE;").unwrap();
+        steps.store(0, Ordering::SeqCst);
+        let observed = steps.clone();
+        c.progress_handler(
+            1000,
+            Some(move || observed.fetch_add(1, Ordering::SeqCst) > 10_000),
+        )
+        .unwrap();
+        let result = crate::catalog::sports::register_public_list(&c, &plan, false);
+        c.progress_handler(0, None::<fn() -> bool>).unwrap();
+        let analyzed_vm = steps.load(Ordering::SeqCst);
+        let analyzed_plan = crate::catalog::sports::public_plan();
+        eprintln!("analyzed multifeed Free sources={feeds} vm_blocks={analyzed_vm} plan={analyzed_plan:?} outcome={}", if result.is_ok() { "complete" } else { "interrupted" });
+        let matched = result.expect("statistics must not allow repeated global programme scans");
+        assert_eq!(matched.all, expected);
+        assert!(
+            analyzed_plan.first().is_some_and(|p| p.contains("SCAN m")),
+            "analyzed mapping must stay outer: {analyzed_plan:?}"
+        );
+        assert!(analyzed_plan.iter().any(|p| p.contains("SEARCH p USING INDEX guide_program_channel_time (guide_source_id=? AND channel_id=? AND start_ms<?)")), "analyzed programme lookup must stay target-scoped: {analyzed_plan:?}");
+        measurements.push(vm);
+    }
+    assert!(
+        measurements[1] <= measurements[0] + 20,
+        "unmapped programme growth must not expand mapped work: {measurements:?}"
+    );
+    assert!(
+        measurements[2] < measurements[1] * 3,
+        "doubling mapped sources/rows must stay linear: {measurements:?}"
+    );
+}
+
+#[test]
+fn sports_event_only_ppv_badge_requires_matching_event_and_clears_for_normal_match() {
+    let mut c = fixture();
+    c.execute_batch("CREATE TABLE guide_meta(singleton INTEGER PRIMARY KEY,revision INTEGER);INSERT INTO guide_meta VALUES(1,1);CREATE TABLE guide_source(id TEXT PRIMARY KEY,revision INTEGER,published_revision INTEGER);INSERT INTO guide_source VALUES('g',1,1);CREATE TABLE guide_mapping(catalog_source_id TEXT,app_channel_id TEXT,guide_source_id TEXT,xmltv_channel_id TEXT);CREATE INDEX guide_mapping_target ON guide_mapping(guide_source_id,xmltv_channel_id,app_channel_id);CREATE TABLE guide_program(guide_source_id TEXT,channel_id TEXT,start_ms INTEGER,stop_ms INTEGER,title TEXT,description TEXT,categories_json TEXT);CREATE INDEX guide_program_global_time ON guide_program(start_ms,guide_source_id);CREATE INDEX guide_program_channel_time ON guide_program(guide_source_id,channel_id,start_ms);").unwrap();
+    add(&c, "a", "FOX", "News", None, [None, None, None]);
+    add(&c, "b", "Other", "News", None, [None, None, None]);
+    c.execute_batch("INSERT INTO guide_mapping VALUES('s','a','g','a'),('s','b','g','b');INSERT INTO guide_program VALUES('g','a',1200,1800,'NFL PPV Chicago Bears',NULL,'[]'),('g','b',1200,1800,'NFLive PPV',NULL,'[]')").unwrap();
+    refresh(&mut c);
+    let mut q = query("NFL");
+    q.sports = Some(crate::catalog::sports::Scope {
+        sport: None,
+        league: None,
+        include_ppv: true,
+        window_start_ms: 1000,
+        window_end_ms: 2000,
+        vocabulary_version: serde_json::from_str::<Value>(crate::catalog::sports::VOCABULARY)
+            .unwrap()["vocabularyVersion"]
+            .as_str()
+            .unwrap()
+            .into(),
+    });
+    let page = run(&c, &q);
+    assert_eq!(ids(&page), ["a"]);
+    assert!(page.rows[0].ppv);
+    c.execute_batch("INSERT INTO guide_program VALUES('g','a',1300,1900,'NFL Pregame',NULL,'[]')")
+        .unwrap();
+    assert!(!run(&c, &q).rows[0].ppv);
+    c.execute_batch("UPDATE channel SET country='CA' WHERE id='a'")
+        .unwrap();
+    refresh(&mut c);
+    q.query = "NFL Canada".into();
+    assert_eq!(
+        ids(&run(&c, &q)),
+        ["a"],
+        "cached programme inherits only safe country search text"
+    );
+}
+
+#[test]
+fn sports_targeted_inventory_keeps_source_projection_overlap_and_ppv_fences() {
+    let mut c = fixture();
+    c.execute_batch("PRAGMA user_version=1;").unwrap();
+    crate::guide::database::migrate(&mut c).unwrap();
+    for id in ["good", "foreign", "missing-projection"] {
+        add(
+            &c,
+            id,
+            "Generic affiliate",
+            "News",
+            None,
+            [Some("US"), None, None],
+        );
+    }
+    c.execute_batch("INSERT INTO guide_source VALUES('g','Guide','https://fixture.invalid/guide','url',0,1,0,1);INSERT INTO guide_channel VALUES('g','target','[]','');INSERT INTO guide_mapping VALUES('s','good','g','target'),('other','foreign','g','target'),('s','missing-projection','g','target'),('s','orphan','g','target');INSERT INTO guide_program VALUES('g',0,'target',0,1000000001,'PPV NFL game',NULL,'','[]','[]'),('g',1,'target',999999999,NULL,'NFL unknown end before scope',NULL,'','[]','[]'),('g',2,'target',1000000000,1003600000,'NBA game',NULL,'','[]','[]');").unwrap();
+    refresh(&mut c);
+    c.execute(
+        "DELETE FROM catalog_projection WHERE channel_id='missing-projection'",
+        [],
+    )
+    .unwrap();
+    crate::catalog::ppv::register(&c).unwrap();
+    let scope = crate::catalog::sports::Scope {
+        sport: Some("american-football".into()),
+        league: Some("nfl".into()),
+        include_ppv: true,
+        window_start_ms: 1_000_000_000,
+        window_end_ms: 1_000_000_000 + 7 * 86_400_000,
+        vocabulary_version: serde_json::from_str::<Value>(crate::catalog::sports::VOCABULARY)
+            .unwrap()["vocabularyVersion"]
+            .as_str()
+            .unwrap()
+            .into(),
+    };
+    let plan = crate::catalog::sports::Plan::new(&scope, "").unwrap();
+    let matched = crate::catalog::sports::register_public_list(&c, &plan, false).unwrap();
+    let expected: std::collections::HashSet<String> = ["good".into()].into_iter().collect();
+    assert_eq!(
+        matched.all, expected,
+        "wrong catalog source, orphan and missing projection remain excluded"
+    );
+    assert_eq!(matched.specific, expected);
+    assert_eq!(matched.event_only_ppv, expected, "old-start ongoing overlap is retained; unrelated NBA/old unknown-end rows cannot clear the PPV badge");
+    c.execute_batch("INSERT INTO guide_program VALUES('g',3,'target',1000000001,NULL,'NFL normal unknown end inside scope',NULL,'','[]','[]');").unwrap();
+    let matched = crate::catalog::sports::register_public_list(&c, &plan, false).unwrap();
+    assert_eq!(matched.all, expected);
+    assert!(
+        matched.event_only_ppv.is_empty(),
+        "a genuinely matching normal programme clears the event-only badge"
+    );
+}
+
+#[test]
+fn sports_default_metadata_filter_counts_shared_registry_evidence_before_page() {
+    let mut c = fixture();
+    add(
+        &c,
+        "a",
+        "Event 1",
+        "US | NFL",
+        None,
+        [Some("US"), None, None],
+    );
+    add(
+        &c,
+        "b",
+        "Chicago Bears Channel",
+        "News",
+        None,
+        [Some("US"), None, None],
+    );
+    add(
+        &c,
+        "c",
+        "Bears at Cardinals",
+        "News",
+        None,
+        [Some("US"), None, None],
+    );
+    add(
+        &c,
+        "d",
+        "NFL PPV",
+        "Sports PPV",
+        None,
+        [Some("US"), None, None],
+    );
+    refresh(&mut c);
+    let mut q = query("");
+    q.filter = Filter::Sports;
+    q.page_size = 1;
+    let first = run(&c, &q);
+    assert_eq!(first.total_count, 2);
+    assert_eq!(ids(&first), ["a"]);
+    q.expected_catalog_revision = Some(first.catalog_revision);
+    q.expected_view_revision = Some(first.view_revision);
+    q.after = first.after;
+    assert_eq!(ids(&run(&c, &q)), ["b"]);
+}
+
+#[test]
+fn sports_offset_pages_bind_guide_revision_and_anchors_recapture_current_membership() {
+    let mut c = fixture();
+    c.execute_batch("CREATE TABLE guide_meta(singleton INTEGER PRIMARY KEY,revision INTEGER);INSERT INTO guide_meta VALUES(1,1);CREATE TABLE guide_source(id TEXT PRIMARY KEY,revision INTEGER,published_revision INTEGER);INSERT INTO guide_source VALUES('g',1,1);CREATE TABLE guide_mapping(catalog_source_id TEXT,app_channel_id TEXT,guide_source_id TEXT,xmltv_channel_id TEXT);CREATE INDEX guide_mapping_target ON guide_mapping(guide_source_id,xmltv_channel_id,app_channel_id);CREATE TABLE guide_program(guide_source_id TEXT,channel_id TEXT,start_ms INTEGER,stop_ms INTEGER,title TEXT,description TEXT,categories_json TEXT);CREATE INDEX guide_program_global_time ON guide_program(start_ms,guide_source_id);CREATE INDEX guide_program_channel_time ON guide_program(guide_source_id,channel_id,start_ms);").unwrap();
+    for id in ["a", "b", "c"] {
+        add(
+            &c,
+            id,
+            "Local affiliate",
+            "News",
+            None,
+            [Some("US"), None, None],
+        );
+    }
+    c.execute_batch("INSERT INTO guide_mapping VALUES('s','a','g','a'),('s','b','g','b'),('s','c','g','c');INSERT INTO guide_program VALUES('g','a',1200,1800,'Chicago Bears at Detroit Lions',NULL,'[]'),('g','b',1200,1800,'NFL Pregame',NULL,'[]'),('g','c',1200,1800,'NBA Basketball',NULL,'[]')").unwrap();
+    refresh(&mut c);
+    let scope = crate::catalog::sports::Scope {
+        sport: None,
+        league: None,
+        include_ppv: true,
+        window_start_ms: 1000,
+        window_end_ms: 2000,
+        vocabulary_version: serde_json::from_str::<Value>(crate::catalog::sports::VOCABULARY)
+            .unwrap()["vocabularyVersion"]
+            .as_str()
+            .unwrap()
+            .into(),
+    };
+    let mut q = query("NFL");
+    q.sports = Some(scope.clone());
+    q.start_index = Some(0);
+    q.page_size = 1;
+    let first = run(&c, &q);
+    assert_eq!(first.guide_revision.as_deref(), Some("1"));
+    assert_eq!(first.total_count, 2);
+    assert_eq!(ids(&first), ["a"]);
+    q.expected_catalog_revision = Some(first.catalog_revision);
+    q.expected_view_revision = Some(first.view_revision);
+    q.expected_guide_revision = first.guide_revision;
+    q.start_index = Some(1);
+    assert_eq!(ids(&run(&c, &q)), ["b"]);
+    c.execute_batch("BEGIN IMMEDIATE;DELETE FROM guide_program WHERE channel_id='a';UPDATE guide_program SET title='NFL Game' WHERE channel_id='c';UPDATE guide_meta SET revision=2;COMMIT;").unwrap();
+    let cancel = Arc::new(AtomicBool::new(false));
+    assert_eq!(
+        query_page(&c, &q, &cancel).unwrap_err(),
+        "catalog-view-revision-stale"
+    );
+    q.expected_guide_revision = None;
+    assert_eq!(
+        query_page(&c, &q, &cancel).unwrap_err(),
+        "catalog-view-revision-stale"
+    );
+    for malformed in ["01", "-1", "9223372036854775808", "unknown"] {
+        q.expected_guide_revision = Some(malformed.into());
+        assert_eq!(
+            query_page(&c, &q, &cancel).unwrap_err(),
+            "catalog-query-invalid"
+        );
+    }
+    q.expected_guide_revision = Some("2".into());
+    q.sports = None;
+    assert_eq!(
+        query_page(&c, &q, &cancel).unwrap_err(),
+        "catalog-query-invalid"
+    );
+    q.sports = Some(scope.clone());
+    q.expected_guide_revision = None;
+    q.start_index = None;
+    q.anchor_id = Some("b".into());
+    let refreshed = run(&c, &q);
+    assert_eq!(refreshed.guide_revision.as_deref(), Some("2"));
+    assert_eq!(refreshed.anchor_index, Some(0));
+    assert_eq!(refreshed.total_count, 2);
+    assert_eq!(ids(&refreshed), ["b"]);
+    q.expected_guide_revision = refreshed.guide_revision;
+    q.anchor_id = None;
+    q.start_index = Some(1);
+    assert_eq!(ids(&run(&c, &q)), ["c"]);
+    let mut empty = fixture();
+    add(
+        &empty,
+        "plain",
+        "NFL Channel",
+        "News",
+        None,
+        [None, None, None],
+    );
+    refresh(&mut empty);
+    let mut capture = query("NFL");
+    capture.sports = Some(scope);
+    let no_guide = run(&empty, &capture);
+    assert_eq!(no_guide.guide_revision.as_deref(), Some("0"));
+    capture.sports = None;
+    let legacy = run(&empty, &capture);
+    assert!(legacy.guide_revision.is_none());
+    assert!(serde_json::to_value(legacy)
+        .unwrap()
+        .get("guideRevision")
+        .is_none());
+}
+
+#[test]
+fn watched_history_is_exact_ordered_before_count_page_visibility_and_cursor() {
+    let mut c = fixture();
+    for (id, category, country) in [
+        ("one", "News", "US"),
+        ("two", "Sports PPV", "CA"),
+        ("adult", "Adult", "US"),
+        ("removed", "News", "US"),
+        ("unwatched", "News", "US"),
+    ] {
+        add(&c, id, id, category, None, [Some(country), None, None]);
+    }
+    c.execute_batch("CREATE TABLE channel_category_override(channel_id TEXT PRIMARY KEY,category TEXT);INSERT INTO channel_category_override VALUES('adult','News');INSERT INTO removed VALUES('removed');INSERT INTO favorite VALUES('one')").unwrap();
+    refresh(&mut c);
+    let mut q = query("");
+    q.filter = Filter::Watched;
+    q.history_ids = Some(vec![
+        "two".into(),
+        "adult".into(),
+        "one".into(),
+        "removed".into(),
+        "deleted".into(),
+    ]);
+    q.favorites_first = true;
+    q.page_size = 1;
+    let first = run(&c, &q);
+    assert_eq!(first.total_count, 3);
+    assert_eq!(ids(&first), ["two"]);
+    assert!(first.rows[0].ppv);
+    q.expected_catalog_revision = Some(first.catalog_revision);
+    q.expected_view_revision = Some(first.view_revision);
+    q.after = first.after;
+    assert_eq!(ids(&run(&c, &q)), ["adult"]);
+    q.history_ids.as_mut().unwrap().swap(0, 2);
+    assert_eq!(
+        query_page(&c, &q, &Arc::new(AtomicBool::new(false))).unwrap_err(),
+        "catalog-query-cursor-stale"
+    );
+    q.after = None;
+    q.page_size = 50;
+    q.hide_adult = true;
+    assert_eq!(ids(&run(&c, &q)), ["one", "two"]);
+    q.geography.insert("country".into(), "US".into());
+    assert_eq!(ids(&run(&c, &q)), ["one"]);
+    q.query = "two".into();
+    assert_eq!(run(&c, &q).total_count, 0);
+    q.geography.clear();
+    assert_eq!(ids(&run(&c, &q)), ["two"]);
+    q.history_ids = Some(vec![]);
+    assert_eq!(run(&c, &q).total_count, 0);
+    q.history_ids = None;
+    assert!(query_page(&c, &q, &Arc::new(AtomicBool::new(false))).is_err());
+    q.history_ids = Some(vec!["one".into(), "one".into()]);
+    assert!(query_page(&c, &q, &Arc::new(AtomicBool::new(false))).is_err());
+    q.filter = Filter::All;
+    q.history_ids = Some(vec!["one".into()]);
+    assert!(query_page(&c, &q, &Arc::new(AtomicBool::new(false))).is_err());
+    assert!(
+        !ids(&run(&c, &query(""))).contains(&"two"),
+        "History never changes ordinary PPV isolation"
+    );
+}
+
+#[test]
+fn watched_history_programme_search_includes_only_watched_ppv_events() {
+    let mut c = fixture();
+    c.execute_batch("CREATE TABLE guide_meta(singleton INTEGER PRIMARY KEY,revision INTEGER);INSERT INTO guide_meta VALUES(1,1);CREATE TABLE guide_source(id TEXT PRIMARY KEY,revision INTEGER,published_revision INTEGER);INSERT INTO guide_source VALUES('g',1,1);CREATE TABLE guide_mapping(catalog_source_id TEXT,app_channel_id TEXT,guide_source_id TEXT,xmltv_channel_id TEXT);CREATE INDEX guide_mapping_target ON guide_mapping(guide_source_id,xmltv_channel_id,app_channel_id);CREATE TABLE guide_program(guide_source_id TEXT,channel_id TEXT,start_ms INTEGER,stop_ms INTEGER,title TEXT,description TEXT,categories_json TEXT);CREATE INDEX guide_program_channel_time ON guide_program(guide_source_id,channel_id,start_ms);").unwrap();
+    for id in ["one", "two"] {
+        add(&c, id, "Local TV", "News", None, [None, None, None]);
+        c.execute("INSERT INTO guide_mapping VALUES('s',?1,'g',?1)", [id])
+            .unwrap();
+        c.execute(
+            "INSERT INTO guide_program VALUES('g',?1,1000,2000,'Boxing PPV final',NULL,'[]')",
+            [id],
+        )
+        .unwrap();
+    }
+    refresh(&mut c);
+    let mut q = query("Boxing");
+    q.sports = Some(crate::catalog::sports::Scope {
+        sport: None,
+        league: None,
+        include_ppv: false,
+        window_start_ms: 1000,
+        window_end_ms: 3000,
+        vocabulary_version: serde_json::from_str::<Value>(crate::catalog::sports::VOCABULARY)
+            .unwrap()["vocabularyVersion"]
+            .as_str()
+            .unwrap()
+            .into(),
+    });
+    assert_eq!(run(&c, &q).total_count, 0);
+    q.filter = Filter::Watched;
+    q.history_ids = Some(vec!["two".into()]);
+    let page = run(&c, &q);
+    assert_eq!(ids(&page), ["two"]);
+    assert!(page.rows[0].ppv);
+}
+
+#[test]
+fn watched_history_admission_uses_projection_identity_index() {
+    let mut c = fixture();
+    for n in 0..300 {
+        add(
+            &c,
+            &format!("c{n}"),
+            "News",
+            "News",
+            None,
+            [None, None, None],
+        );
+    }
+    refresh(&mut c);
+    register_watch_history(&c, &["c299".into(), "c1".into()]).unwrap();
+    let plan=c.prepare("EXPLAIN QUERY PLAN SELECT p.channel_id FROM catalog_projection p JOIN channel c ON c.id=p.channel_id WHERE p.channel_id IN(SELECT value FROM json_each(genx_watch_ids()))").unwrap().query_map([],|r|r.get::<_,String>(3)).unwrap().collect::<rusqlite::Result<Vec<_>>>().unwrap();
+    assert!(
+        plan.iter()
+            .any(|p| p.contains("SEARCH p USING COVERING INDEX")
+                || p.contains("SEARCH p USING INDEX")),
+        "{plan:?}"
+    );
+    let mut q = query("");
+    q.filter = Filter::Watched;
+    q.history_ids = Some(vec!["c299".into(), "c1".into()]);
+    assert_eq!(ids(&run(&c, &q)), ["c299", "c1"]);
+}
+
+#[test]
+fn watched_history_original_adult_fold_survives_category_override() {
+    let mut c = fixture();
+    c.execute_batch(
+        "CREATE TABLE channel_category_override(channel_id TEXT PRIMARY KEY,category TEXT)",
+    )
+    .unwrap();
+    add(&c, "wide", "Local", "ＡＤＵＬＴ", None, [None, None, None]);
+    refresh(&mut c);
+    let mut q = query("");
+    q.filter = Filter::Watched;
+    q.history_ids = Some(vec!["wide".into()]);
+    q.hide_adult = true;
+    assert_eq!(
+        run(&c, &q).total_count,
+        0,
+        "existing projection folds the original category"
+    );
+    c.execute_batch("INSERT INTO channel_category_override VALUES('wide','News')")
+        .unwrap();
+    refresh(&mut c);
+    assert_eq!(
+        run(&c, &q).total_count,
+        0,
+        "an effective category cannot erase folded original adult evidence in History"
+    );
+    q.hide_adult = false;
+    assert_eq!(ids(&run(&c, &q)), ["wide"]);
 }

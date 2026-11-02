@@ -269,6 +269,7 @@ it.each([
     },
   });
   await transport.host.admit(new AbortController().signal);
+  events.length = 0; // Admission diagnostics have their own exact tests below.
   await expect(
     transport.host.take('plan', { limit: 1, blockedOrigins: [] }, new AbortController().signal),
   ).rejects.toThrow('Native command could not finish.');
@@ -294,6 +295,7 @@ it('distinguishes local commit rejection from malformed native reply without pub
     onDiagnostic: (event) => events.push(event),
   });
   const plan = await t.host.admit(new AbortController().signal);
+  events.length = 0;
   await expect(
     t.host.commit(
       'plan',
@@ -415,4 +417,151 @@ it('refuses a timing capability without the independent commit-window agreement'
     currentFence: () => ({ expectedCatalogRevision: '1', expectedCheckpointRevision: '1' }),
   });
   await expect(t.capabilities()).rejects.toThrow();
+});
+
+it.each([
+  ['scan-checkpoint-expired', 'scan-checkpoint-expired'],
+  ['scan-checkpoint-policy-stale', 'scan-checkpoint-policy-stale'],
+  ['scan-resume-profile-stale', 'scan-resume-profile-stale'],
+  ['https://private.invalid/account/password?token=secret', 'native-refusal-unclassified'],
+])(
+  'admission diagnostics retain only allowlisted native refusal and still close the exact opener (%s)',
+  async (failure, code) => {
+    const events: unknown[] = [],
+      calls: { command: string; args?: Record<string, unknown> }[] = [];
+    const t = createBoundedNativeScanResumeTransport({
+      runtime: {
+        idFactory: () => 'owned-opening',
+        invoke: async (command, args) => {
+          calls.push({ command, args });
+          if (command === 'scan_resume_capabilities') return { schemaVersion: 1, boundedResume: 1 };
+          if (command === 'open_scan_resume_plan') throw failure;
+          if (command === 'cancel_playlist' || command === 'close_scan_resume_open') return null;
+          throw new Error('unexpected');
+        },
+      },
+      currentFence: () => ({ expectedCatalogRevision: '831', expectedCheckpointRevision: '865' }),
+      onDiagnostic: (event) => {
+        events.push(event);
+        throw new Error('observer cannot replace refusal');
+      },
+    });
+    expect(await t.capabilities()).toBe(true);
+    await expect(t.host.admit(new AbortController().signal)).rejects.toMatchObject({
+      name: 'ScanAdmissionClosedError',
+    });
+    expect(events).toEqual([
+      { command: 'scan_resume_capabilities', stage: 'native-dispatch', code: null },
+      { command: 'scan_resume_capabilities', stage: 'response-accepted', code: null },
+      { command: 'open_scan_resume_plan', stage: 'native-dispatch', code: null },
+      { command: 'open_scan_resume_plan', stage: 'native-refusal', code },
+    ]);
+    expect(calls.slice(-2)).toEqual([
+      { command: 'cancel_playlist', args: { requestId: 'owned-opening' } },
+      { command: 'close_scan_resume_open', args: { openingRequestId: 'owned-opening' } },
+    ]);
+    expect(t.lastPlanSnapshot()).toBeNull();
+    expect(t.sources()).toEqual([]);
+    expect(events.every(Object.isFrozen)).toBe(true);
+    expect(JSON.stringify(events)).not.toMatch(
+      /private|password|token|secret|sourcePolicies|location/,
+    );
+  },
+);
+
+it('malformed opener reply is distinguished from native refusal without retaining its payload', async () => {
+  const events: unknown[] = [];
+  const t = createBoundedNativeScanResumeTransport({
+    runtime: {
+      invoke: async (command) => {
+        if (command === 'open_scan_resume_plan')
+          return {
+            ...header(),
+            sourcePolicies: [
+              {
+                source: { ...source, privatePayload: 'https://secret.invalid/password' },
+                definitionFingerprint: 'b'.repeat(64),
+                capturedFingerprint: 'captured',
+              },
+            ],
+          };
+        if (command === 'cancel_playlist' || command === 'close_scan_resume_open') return null;
+        throw new Error('unexpected');
+      },
+    },
+    currentFence: () => ({ expectedCatalogRevision: '1', expectedCheckpointRevision: '1' }),
+    onDiagnostic: (event) => events.push(event),
+  });
+  await expect(t.host.admit(new AbortController().signal)).rejects.toMatchObject({
+    name: 'ScanAdmissionClosedError',
+  });
+  expect(events).toEqual([
+    { command: 'open_scan_resume_plan', stage: 'native-dispatch', code: null },
+    {
+      command: 'open_scan_resume_plan',
+      stage: 'response-validation',
+      code: 'bounded-response-invalid',
+    },
+  ]);
+  expect(JSON.stringify(events)).not.toMatch(/secret|password|privatePayload|sourcePolicies/);
+  expect(t.lastPlanSnapshot()).toBeNull();
+});
+
+it('invalid local admission fence is diagnosed without native invocation or inferred authority', async () => {
+  const events: unknown[] = [],
+    invoke = vi.fn(async () => header());
+  const t = createBoundedNativeScanResumeTransport({
+    runtime: { invoke },
+    currentFence: () => ({ expectedCatalogRevision: 'invalid', expectedCheckpointRevision: '1' }),
+    onDiagnostic: (event) => events.push(event),
+  });
+  await expect(t.host.admit(new AbortController().signal)).rejects.toThrow();
+  expect(invoke).not.toHaveBeenCalled();
+  expect(events).toEqual([
+    {
+      command: 'open_scan_resume_plan',
+      stage: 'local-validation',
+      code: 'bounded-request-invalid',
+    },
+  ]);
+});
+
+it('capability validation failures and successful admission expose structural phases only', async () => {
+  for (const malformed of [false, true]) {
+    const events: unknown[] = [];
+    const t = createBoundedNativeScanResumeTransport({
+      runtime: {
+        invoke: async (command) => {
+          if (command === 'scan_resume_capabilities')
+            return malformed
+              ? { schemaVersion: 1, boundedResume: 1, private: 'password' }
+              : { schemaVersion: 1, boundedResume: 1, commitWindow: scanResumeCommitWindow };
+          if (command === 'open_scan_resume_plan') return header();
+          if (command === 'close_scan_resume_plan') return null;
+          throw new Error('unexpected');
+        },
+      },
+      currentFence: () => ({ expectedCatalogRevision: '1', expectedCheckpointRevision: '1' }),
+      onDiagnostic: (event) => events.push(event),
+    });
+    if (malformed) {
+      await expect(t.capabilities()).rejects.toThrow();
+      expect(events.at(-1)).toEqual({
+        command: 'scan_resume_capabilities',
+        stage: 'response-validation',
+        code: 'bounded-response-invalid',
+      });
+    } else {
+      expect(await t.capabilities()).toBe(true);
+      const plan = await t.host.admit(new AbortController().signal);
+      expect(plan.commitWindow).toEqual(scanResumeCommitWindow);
+      expect(events.at(-1)).toEqual({
+        command: 'open_scan_resume_plan',
+        stage: 'response-accepted',
+        code: null,
+      });
+      await t.host.close(plan.planId);
+    }
+    expect(JSON.stringify(events)).not.toMatch(/password|sourcePolicies|capturedFingerprint/);
+  }
 });

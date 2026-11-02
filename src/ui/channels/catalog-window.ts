@@ -14,17 +14,29 @@
  * limitations under the License.
  */
 
-import type { CatalogPage, CatalogQuery, CatalogRow } from '../../platform/catalog-query';
+import {
+  CatalogQueryError,
+  type CatalogPage,
+  type CatalogQuery,
+  type CatalogRow,
+} from '../../platform/catalog-query';
 
 export type BrowseQuery = Pick<
   CatalogQuery,
-  'query' | 'filter' | 'geography' | 'sort' | 'hideAdult'
+  'query' | 'filter' | 'geography' | 'sort' | 'hideAdult' | 'sports' | 'historyIds'
 >;
 export type CatalogWindowState = 'uninitialized' | 'pending' | 'ready' | 'error' | 'closed';
+export interface CatalogWindowAnchor {
+  readonly id: string;
+  readonly index: number;
+  readonly alternatives: readonly string[];
+}
 export interface CatalogWindowHost {
   revision(): string;
   query(input: Omit<CatalogQuery, 'requestId'>, signal: AbortSignal): Promise<CatalogPage>;
   changed(): void;
+  captureAnchor?(): CatalogWindowAnchor | null;
+  restoreAnchor?(anchor: CatalogWindowAnchor, index: number, id: string): void;
 }
 const PAGE_SIZE = 50;
 /** One joined query owner, three metadata pages, and no whole-catalog JS search. */
@@ -37,6 +49,7 @@ export class CatalogWindow {
   private input: BrowseQuery = { query: '', filter: 'all', geography: {}, sort: 'source' };
   private revision = '';
   private viewRevision: string | undefined;
+  private guideRevision: string | undefined;
   private key = '';
   private identity = '';
   /** Quiet re-reads after the catalog moved on, since the last page accepted. */
@@ -94,12 +107,13 @@ export class CatalogWindow {
     }
     return -1;
   }
-  reset(input: BrowseQuery, identity: string): void {
+  reset(input: BrowseQuery, identity: string, preserve = false): void {
     if (this.closed) return;
     this.identity = identity;
     const revision = this.host.revision();
     const key = JSON.stringify([input, identity, revision]);
     if (key === this.key) return;
+    const anchor = preserve ? this.host.captureAnchor?.() : null;
     this.key = key;
     this.generation++;
     this.controller.abort();
@@ -107,12 +121,122 @@ export class CatalogWindow {
     this.input = structuredClone(input);
     this.revision = revision;
     this.viewRevision = undefined;
+    this.guideRevision = undefined;
     this.pages.clear();
     this.requests.clear();
-    this.count = 0;
+    // Retain the old scroll range only while relocating this display anchor.
+    // All query pages/proofs are still discarded at the generation boundary.
+    if (!anchor) this.count = 0;
     this.counted = false;
     this.failure = false;
-    this.ensure(0);
+    if (anchor) this.relocate(anchor);
+    else this.ensure(0);
+  }
+  private relocate(anchor: CatalogWindowAnchor): void {
+    const generation = this.generation,
+      signal = this.controller.signal;
+    const revision = this.revision,
+      input = structuredClone(this.input);
+    this.requests.add(-1);
+    this.work = this.work.then(async () => {
+      if (signal.aborted || generation !== this.generation || this.closed) return;
+      try {
+        const scope = {
+          schemaVersion: 1 as const,
+          ...input,
+          expectedCatalogRevision: revision,
+          pageSize: PAGE_SIZE,
+        };
+        let page: CatalogPage | undefined;
+        let id = anchor.id;
+        for (const candidate of [anchor.id, ...anchor.alternatives].slice(0, 3)) {
+          page = await this.host.query(
+            {
+              ...scope,
+              ...(page ? { expectedViewRevision: page.viewRevision } : {}),
+              ...(page?.guideRevision === undefined
+                ? {}
+                : { expectedGuideRevision: page.guideRevision }),
+              anchorId: candidate,
+            },
+            signal,
+          );
+          if (signal.aborted || generation !== this.generation || this.closed) return;
+          this.accept(page);
+          if (page.anchorIndex !== null) {
+            id = candidate;
+            break;
+          }
+        }
+        if (!page) throw new Error('Catalog anchor unavailable.');
+        let index = page.anchorIndex;
+        if (index === null) {
+          index = Math.max(0, Math.min(anchor.index, page.totalCount - 1));
+          page = await this.host.query(
+            {
+              ...scope,
+              expectedViewRevision: page.viewRevision,
+              ...(page.guideRevision === undefined
+                ? {}
+                : { expectedGuideRevision: page.guideRevision }),
+              startIndex: index,
+            },
+            signal,
+          );
+          if (signal.aborted || generation !== this.generation || this.closed) return;
+          const row = page.rows[index - page.startIndex];
+          if (page.totalCount && !row) throw new Error('Catalog anchor window mismatch.');
+          id = row?.id ?? '';
+        } else {
+          // A byte-bounded page may contain only the preceding row. Read the
+          // anchor directly rather than treating that legitimate short page as
+          // a missing channel (or traversing the catalog from its beginning).
+          if (!page.rows[index - page.startIndex]) {
+            page = await this.host.query(
+              {
+                ...scope,
+                expectedViewRevision: page.viewRevision,
+                ...(page.guideRevision === undefined
+                  ? {}
+                  : { expectedGuideRevision: page.guideRevision }),
+                startIndex: index,
+              },
+              signal,
+            );
+            if (signal.aborted || generation !== this.generation || this.closed) return;
+          }
+          if (page.rows[index - page.startIndex]?.id !== id)
+            throw new Error('Catalog anchor mismatch.');
+        }
+        this.accept(page, page.startIndex);
+        this.staleRereads = 0;
+        this.host.restoreAnchor?.(anchor, index, id);
+      } catch (error) {
+        this.readFailure(error, generation, signal);
+      } finally {
+        if (generation === this.generation && !this.closed) {
+          this.requests.delete(-1);
+          this.notify();
+        }
+      }
+    });
+  }
+  private readFailure(error: unknown, generation: number, signal: AbortSignal): void {
+    if (signal.aborted || generation !== this.generation || this.closed) return;
+    const code = (error as { code?: unknown } | null)?.code;
+    if ((code === 'catalog-stale' || code === 'view-stale') && this.staleRereads < 2) {
+      this.staleRereads++;
+      queueMicrotask(() => {
+        if (this.closed || generation !== this.generation) return;
+        this.key = '';
+        this.reset(this.input, this.identity, true);
+      });
+      return;
+    }
+    this.failure = true;
+    this.failureCode = typeof code === 'string' ? code : null;
+    this.pages.clear();
+    this.count = 0;
   }
   ensure(index: number): void {
     if (this.closed || this.failure || index < 0 || (this.counted && index >= this.count)) return;
@@ -134,6 +258,9 @@ export class CatalogWindow {
             ...input,
             expectedCatalogRevision: revision,
             ...(this.viewRevision ? { expectedViewRevision: this.viewRevision } : {}),
+            ...(this.guideRevision === undefined
+              ? {}
+              : { expectedGuideRevision: this.guideRevision }),
             startIndex: start,
             pageSize: PAGE_SIZE,
           },
@@ -144,31 +271,7 @@ export class CatalogWindow {
         this.accept(page, start);
         this.staleRereads = 0;
       } catch (error) {
-        const code = (error as { code?: unknown } | null)?.code;
-        if (
-          !signal.aborted &&
-          generation === this.generation &&
-          !this.closed &&
-          (code === 'catalog-stale' || code === 'view-stale') &&
-          this.staleRereads < 2
-        ) {
-          // The catalog moved on (a scan saved more channels): read this view
-          // again at its new revision instead of showing an error.
-          this.staleRereads++;
-          queueMicrotask(() => {
-            if (this.closed || generation !== this.generation) return;
-            this.key = '';
-            this.reset(this.input, this.identity);
-          });
-          return;
-        }
-        if (!signal.aborted && generation === this.generation && !this.closed) {
-          this.failure = true;
-          const code = (error as { code?: unknown } | null)?.code;
-          this.failureCode = typeof code === 'string' ? code : null;
-          this.pages.clear();
-          this.count = 0;
-        }
+        this.readFailure(error, generation, signal);
       } finally {
         if (generation === this.generation && !this.closed) {
           this.requests.delete(start);
@@ -187,11 +290,21 @@ export class CatalogWindow {
   }
   private accept(page: CatalogPage, start?: number): void {
     if (
+      this.input.sports &&
+      (typeof page.guideRevision !== 'string' ||
+        !/^(0|[1-9][0-9]{0,18})$/.test(page.guideRevision) ||
+        BigInt(page.guideRevision) > 9223372036854775807n)
+    )
+      throw new CatalogQueryError('invalid-page');
+    if (this.guideRevision !== undefined && this.guideRevision !== page.guideRevision)
+      throw new CatalogQueryError('view-stale');
+    if (
       page.catalogRevision !== this.revision ||
       (this.viewRevision !== undefined && page.viewRevision !== this.viewRevision)
     )
       throw new Error('Catalog window revision mismatch.');
     this.viewRevision = page.viewRevision;
+    this.guideRevision = page.guideRevision;
     this.count = page.totalCount;
     this.counted = true;
     if (start !== undefined) {
@@ -219,6 +332,9 @@ export class CatalogWindow {
           ...input,
           expectedCatalogRevision: revision,
           ...(this.viewRevision ? { expectedViewRevision: this.viewRevision } : {}),
+          ...(this.guideRevision === undefined
+            ? {}
+            : { expectedGuideRevision: this.guideRevision }),
           pageSize: PAGE_SIZE,
         };
         let page = await this.host.query(
@@ -240,6 +356,9 @@ export class CatalogWindow {
             {
               ...scope,
               expectedViewRevision: page.viewRevision,
+              ...(page.guideRevision === undefined
+                ? {}
+                : { expectedGuideRevision: page.guideRevision }),
               startIndex: Math.floor(next / PAGE_SIZE) * PAGE_SIZE,
             },
             signal,
@@ -250,8 +369,8 @@ export class CatalogWindow {
         const row = page.rows[next - page.startIndex];
         if (!row) throw new Error('Catalog adjacency mismatch.');
         if (row.id !== id) select(row, next);
-      } catch {
-        if (!signal.aborted && generation === this.generation && !this.closed) this.failure = true;
+      } catch (error) {
+        this.readFailure(error, generation, signal);
       } finally {
         if (generation === this.generation && !this.closed) this.notify();
       }

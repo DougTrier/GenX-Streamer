@@ -1,3 +1,5 @@
+import { installPlaybackDiagnostics } from '../../ui/settings/playback-diagnostics';
+import type { PlaybackController } from '../../playback/controller';
 /*
  * Copyright 2026 Doug Trier
  *
@@ -40,6 +42,7 @@ import { type createBootstrapBoundary } from './bootstrap-boundary';
 
 /** What this area reads from, and writes back to, the rest of the application. */
 export interface ShellSetupEnvironment {
+  readonly player: PlaybackController;
   readonly bootstrapBoundary: ReturnType<typeof createBootstrapBoundary>;
   readonly element: <T extends HTMLElement = HTMLElement>(id: string) => T;
   readonly applicationClosing: boolean;
@@ -49,6 +52,15 @@ export interface ShellSetupEnvironment {
 }
 
 export function createShellSetup(env: ShellSetupEnvironment) {
+  const playbackDiagnostics = env.bootstrapBoundary.run('shell', () =>
+    installPlaybackDiagnostics({
+      button: env.element<HTMLButtonElement>('playback-diagnostics-button'),
+      app: env.element('app'),
+      video: env.element<HTMLVideoElement>('video'),
+      screen: env.element('screen'),
+      snapshot: () => env.player.snapshot,
+    }),
+  );
   const diagnostics = env.bootstrapBoundary.run('shell', () => createDiagnostics());
   const audioDiagnostics = env.bootstrapBoundary.run('shell', () =>
     installAudioDiagnostics(env.element<HTMLVideoElement>('video'), { emit: diagnostics.emit }),
@@ -112,6 +124,7 @@ export function createShellSetup(env: ShellSetupEnvironment) {
     installRemoteNavigation({ editMode: remoteEditMode }),
   );
   return {
+    playbackDiagnostics,
     audioDiagnostics,
     categoryMenu,
     diagnostics,

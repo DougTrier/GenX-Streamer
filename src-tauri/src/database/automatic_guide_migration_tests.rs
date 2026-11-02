@@ -65,7 +65,9 @@ fn schema10_migration_preserves_legacy_absence_and_verified_preupgrade_backup() 
     let pending = PairStore {
         root: root.path().into(),
         require_database: true,
+        cleanup_runtime: Default::default(),
         page_cache: Default::default(),
+        guide_listed_cache: Default::default(),
     };
     let mut observed_preupgrade_backup = false;
     pending

@@ -84,7 +84,16 @@ async function mount(page: Page, stored: unknown, native = false): Promise<void>
             if (command === 'local_favorites_read') return structuredClone(file);
             if (command === 'local_favorites_save')
               return structuredClone((file = args.favorites as typeof file));
-            if (command === 'local_streams_scan') return structuredClone(elsewhere);
+            if (command === 'local_streams_scan') {
+              if (Reflect.get(window, 'holdLocalScan'))
+                await new Promise<void>((resolve, reject) => {
+                  Reflect.set(window, 'releaseLocalScan', resolve);
+                  Reflect.set(window, 'rejectLocalScan', () =>
+                    reject(new Error('Fixture lookup unavailable')),
+                  );
+                });
+              return structuredClone(elsewhere);
+            }
             if (command === 'web_page') {
               const request = args as { action: string; url?: string | null };
               calls.push(`web_page:${request.action}:${request.url ?? ''}`);
@@ -94,6 +103,16 @@ async function mount(page: Page, stored: unknown, native = false): Promise<void>
                   url: 'https://news.fixture.invalid/story',
                   title: 'Fixture Story',
                 };
+              if (request.action === 'open' && Reflect.get(window, 'holdPageOpen'))
+                await new Promise<void>((resolve) =>
+                  Reflect.set(window, 'releasePageOpen', resolve),
+                );
+              if (request.action === 'close' && Reflect.get(window, 'holdPageClose'))
+                await new Promise<void>((resolve) =>
+                  Reflect.set(window, 'releasePageClose', resolve),
+                );
+              if (request.action === 'close' && Reflect.get(window, 'failPageClose'))
+                throw new Error('Fixture native close unconfirmed');
               return { schemaVersion: 1 };
             }
             throw new Error(`unexpected ${command}`);
@@ -104,14 +123,27 @@ async function mount(page: Page, stored: unknown, native = false): Promise<void>
       else localStorage.removeItem('genx-local-streams-v1');
       const path = '/src/ui/scan/local-streams.ts';
       const { mountLocalStreams } = await import(path);
+      const intentPath = '/src/application/playback/guide-playback-intent.ts';
+      const { createGuidePlaybackIntents } = await import(intentPath);
       const log: string[] = [];
       const pending: Promise<void>[] = [];
+      const intents = createGuidePlaybackIntents({
+        prepare: async () => {
+          if (Reflect.get(window, 'holdGuideAdmission'))
+            await new Promise<void>((resolve) =>
+              Reflect.set(window, 'releaseGuideAdmission', resolve),
+            );
+        },
+        wake: () => void log.push('guide-wake'),
+      });
+      Reflect.set(window, 'playbackIntents', intents);
       const local = mountLocalStreams(
         {
           showLive: async () => void log.push('live'),
           playRadio: async (radio: { id: string; url: string }) =>
             void log.push(`radio:${radio.id}:${radio.url}`),
           stopPlayback: async () => void log.push('stop'),
+          beginPlaybackIntent: () => intents.begin(),
           run: (work: Promise<void>) => void pending.push(work),
         },
         {
@@ -170,6 +202,71 @@ test('the scan refuses a bad area and says plainly that it needs the app', async
   await expect(page.locator('.local-status')).toHaveAttribute('data-error', '');
 });
 
+test('remote Scan hands focus to Results while lookup waits and success never steals later navigation', async ({
+  page,
+}) => {
+  await mount(page, saved, true);
+  await page.getByRole('button', { name: 'Local TV and radio' }).click();
+  await settle(page);
+  await page.evaluate(() => Reflect.set(window, 'holdLocalScan', true));
+  await page.locator('#local-area').fill('60607');
+  const scan = page.getByRole('button', { name: 'Scan', exact: true });
+  await scan.focus();
+  await page.keyboard.press('Enter');
+  await expect(scan).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Results', exact: true })).toBeFocused();
+  // Move somewhere deliberately while the native read is still outstanding.
+  await page.getByRole('button', { name: 'Websites · 0', exact: true }).click();
+  await page.locator('#local-web').focus();
+  await page.evaluate(() => Reflect.get(window, 'releaseLocalScan')());
+  await settle(page);
+  await expect(page.locator('.local-scan')).toBeEnabled();
+  await expect(page.locator('#local-web')).toBeFocused();
+  await expect(page.getByRole('button', { name: 'Websites · 0', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await page.getByRole('button', { name: 'Results', exact: true }).click();
+  await expect(page.locator('.local-status')).toHaveText('1 found near Springfield.');
+});
+test('remote Scan keeps Results focused on refusal and never reclaims focus after leaving Local', async ({
+  page,
+}) => {
+  await mount(page, saved, true);
+  await page.getByRole('button', { name: 'Local TV and radio' }).click();
+  await settle(page);
+  await page.evaluate(() => Reflect.set(window, 'holdLocalScan', true));
+  const scan = page.getByRole('button', { name: 'Scan', exact: true });
+  await scan.focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('button', { name: 'Results', exact: true })).toBeFocused();
+  await page.evaluate(() => Reflect.get(window, 'rejectLocalScan')());
+  await settle(page);
+  await expect(scan).toBeEnabled();
+  await expect(page.getByRole('button', { name: 'Results', exact: true })).toBeFocused();
+  await expect(page.locator('.local-status')).toHaveAttribute('data-error', '');
+  await scan.focus();
+  await page.keyboard.press('Enter');
+  await expect(scan).toBeDisabled();
+  await page.locator('#free').click();
+  await page.evaluate(() => Reflect.get(window, 'releaseLocalScan')());
+  await settle(page);
+  await expect(page.locator('#local-streams')).toBeHidden();
+  await expect(page.locator('#free')).toBeFocused();
+});
+test('a Scan started outside its action preserves the current input focus', async ({ page }) => {
+  await mount(page, saved, true);
+  await page.getByRole('button', { name: 'Local TV and radio' }).click();
+  await settle(page);
+  await page.evaluate(() => Reflect.set(window, 'holdLocalScan', true));
+  await page.locator('#local-area').focus();
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('button', { name: 'Scan', exact: true })).toBeDisabled();
+  await expect(page.locator('#local-area')).toBeFocused();
+  await page.evaluate(() => Reflect.get(window, 'releaseLocalScan')());
+  await settle(page);
+  await expect(page.locator('#local-area')).toBeFocused();
+});
 test('saved results list TV and radio; radio plays and HTTP is limited to listed streams', async ({
   page,
 }) => {
@@ -359,6 +456,139 @@ test('no page opens behind another library', async ({ page }) => {
   await settle(page);
   const calls = await page.evaluate(() => Reflect.get(window, 'calls') as string[]);
   expect(calls.filter((c) => c.startsWith('web_page:open'))).toEqual([]);
+});
+
+test('a Web page joins Guide writers before opening and holds admission through native completion', async ({
+  page,
+}) => {
+  await mount(page, saved, true);
+  await page.getByRole('button', { name: 'Local TV and radio' }).click();
+  await settle(page);
+  await page.getByRole('button', { name: 'Websites · 0' }).click();
+  await page.evaluate(() => {
+    Reflect.set(window, 'holdGuideAdmission', true);
+    Reflect.set(window, 'holdPageOpen', true);
+  });
+  await page.locator('#local-web').fill('wtvp.org/live');
+  await page.getByRole('button', { name: 'Go', exact: true }).click();
+  const pending = () =>
+    page.evaluate(() => (Reflect.get(window, 'playbackIntents') as { pending: number }).pending);
+  const opens = () =>
+    page.evaluate(() =>
+      (Reflect.get(window, 'calls') as string[]).filter((c) => c.startsWith('web_page:open')),
+    );
+  await expect.poll(pending).toBe(1);
+  expect(await opens()).toEqual([]);
+  expect(await log(page)).not.toContain('stop');
+  await page.evaluate(() => (Reflect.get(window, 'releaseGuideAdmission') as () => void)());
+  await expect.poll(opens).toEqual(['web_page:open:https://wtvp.org/live']);
+  expect(await pending()).toBe(1);
+  await page.evaluate(() => (Reflect.get(window, 'releasePageOpen') as () => void)());
+  await settle(page);
+  expect(await pending()).toBe(0);
+  expect(await log(page)).toContain('stop');
+});
+
+test('leaving Web during a delayed Guide admission cannot open the old page', async ({ page }) => {
+  await mount(page, saved, true);
+  await page.getByRole('button', { name: 'Local TV and radio' }).click();
+  await settle(page);
+  await page.getByRole('button', { name: 'Websites · 0' }).click();
+  await page.evaluate(() => Reflect.set(window, 'holdGuideAdmission', true));
+  await page.locator('#local-web').fill('wtvp.org/live');
+  await page.getByRole('button', { name: 'Go', exact: true }).click();
+  await page.waitForFunction(() => Reflect.has(window, 'releaseGuideAdmission'));
+  await page.locator('#free').click();
+  await page.evaluate(() => (Reflect.get(window, 'releaseGuideAdmission') as () => void)());
+  await settle(page);
+  expect(
+    await page.evaluate(() =>
+      (Reflect.get(window, 'calls') as string[]).filter((c) => c.startsWith('web_page:open')),
+    ),
+  ).toEqual([]);
+  expect(await log(page)).not.toContain('stop');
+  expect(
+    await page.evaluate(
+      () => (Reflect.get(window, 'playbackIntents') as { pending: number }).pending,
+    ),
+  ).toBe(0);
+});
+
+test('leaving Web joins an already submitted native open before its close', async ({ page }) => {
+  await mount(page, saved, true);
+  await page.getByRole('button', { name: 'Local TV and radio' }).click();
+  await settle(page);
+  await page.getByRole('button', { name: 'Websites · 0' }).click();
+  await page.evaluate(() => {
+    Reflect.set(window, 'holdPageOpen', true);
+    Reflect.set(window, 'holdPageClose', true);
+  });
+  await page.locator('#local-web').fill('wtvp.org/live');
+  await page.getByRole('button', { name: 'Go', exact: true }).click();
+  await page.waitForFunction(() => Reflect.has(window, 'releasePageOpen'));
+  await page.locator('#free').click();
+  expect(
+    await page.evaluate(() =>
+      (Reflect.get(window, 'calls') as string[]).filter((c) => c.startsWith('web_page:close')),
+    ),
+  ).toEqual([]);
+  await page.evaluate(() => (Reflect.get(window, 'releasePageOpen') as () => void)());
+  await settle(page);
+  await page.waitForFunction(() => Reflect.has(window, 'releasePageClose'));
+  expect(
+    await page.evaluate(
+      () => (Reflect.get(window, 'playbackIntents') as { pending: number }).pending,
+    ),
+  ).toBe(1);
+  expect(
+    await page.evaluate(
+      () => (Reflect.get(window, 'local') as { pageCleanupPending: boolean }).pageCleanupPending,
+    ),
+  ).toBe(true);
+  await page.evaluate(() => (Reflect.get(window, 'releasePageClose') as () => void)());
+  await expect
+    .poll(() =>
+      page.evaluate(() => (Reflect.get(window, 'playbackIntents') as { pending: number }).pending),
+    )
+    .toBe(0);
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (Reflect.get(window, 'calls') as string[]).filter((c) => c.startsWith('web_page:close'))
+            .length,
+      ),
+    )
+    .toBe(1);
+  expect(
+    await page.evaluate(() => (Reflect.get(window, 'local') as { pageOpen: boolean }).pageOpen),
+  ).toBe(false);
+  await expect(page.locator('.local-stage-enter')).toBeHidden();
+});
+
+test('an unconfirmed native page close retains background exclusion and fixed guidance', async ({
+  page,
+}) => {
+  await mount(page, saved, true);
+  await page.getByRole('button', { name: 'Local TV and radio' }).click();
+  await settle(page);
+  await page.getByRole('button', { name: 'Websites · 0' }).click();
+  await page.locator('#local-web').fill('wtvp.org/live');
+  await page.getByRole('button', { name: 'Go', exact: true }).click();
+  await settle(page);
+  await page.evaluate(() => Reflect.set(window, 'failPageClose', true));
+  await page.locator('#free').click();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () => (Reflect.get(window, 'local') as { pageCleanupPending: boolean }).pageCleanupPending,
+      ),
+    )
+    .toBe(true);
+  await expect(page.locator('.local-status')).toHaveText(
+    'Station page could not close. Close and reopen GenX Streamer.',
+  );
+  await expect(page.locator('.local-status')).toHaveAttribute('data-error', '');
 });
 
 test('W07: a hostile page title is stored and shown as plain, bounded text', async ({ page }) => {

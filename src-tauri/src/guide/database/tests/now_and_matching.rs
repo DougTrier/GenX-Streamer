@@ -17,6 +17,61 @@
 use super::*;
 
 #[test]
+fn guide_history_programs_keep_exact_ids_ppv_and_cursor_scope() {
+    let mut f = fixture();
+    save_source(&mut f.c, &source("g"), 0).unwrap();
+    let mut data = feed("PPV Championship");
+    data.programs.push(GuideProgram {
+        channel_id: "xml-a".into(),
+        start_ms: 1500,
+        stop_ms: Some(2500),
+        title: "Second PPV".into(),
+        description: None,
+        categories: Vec::new(),
+    });
+    replace_guide(&mut f.c, "g", 1, &data, 3000, &AtomicBool::new(false)).unwrap();
+    save_mapping(&mut f.c, &mapping("g", "app-a", "catalog-a")).unwrap();
+    save_mapping(&mut f.c, &mapping("g", "app-b", "catalog-b")).unwrap();
+    let mut request = query("g", &[]);
+    request.history_ids = Some(vec!["app-b".into()]);
+    let rows = query_programs(&f.c, &request).unwrap().programs;
+    assert_eq!(
+        rows.iter()
+            .map(|r| r.app_channel_id.as_str())
+            .collect::<Vec<_>>(),
+        ["app-b", "app-b"]
+    );
+    assert!(query_programs(&f.c, &query("g", &[]))
+        .unwrap()
+        .programs
+        .is_empty());
+    request.page_size = 1;
+    let page = query_programs(&f.c, &request).unwrap();
+    request.cursor = page.next_cursor;
+    assert!(request.cursor.is_some());
+    request.history_ids = Some(vec!["app-a".into()]);
+    assert_eq!(
+        query_programs(&f.c, &request).unwrap_err(),
+        "guide-stale-cursor"
+    );
+    request.history_ids = Some(vec!["app-b".into()]);
+    request.hide_adult = Some(false);
+    assert_eq!(
+        query_programs(&f.c, &request).unwrap_err(),
+        "guide-stale-cursor"
+    );
+    request.cursor = None;
+    request.hide_adult = None;
+    request.page_size = 100;
+    f.c.execute_batch("UPDATE channel SET category='Ａｄｕｌｔ' WHERE id='app-b';CREATE TABLE channel_category_override(channel_id TEXT PRIMARY KEY,category TEXT);INSERT INTO channel_category_override VALUES('app-b','News')").unwrap();
+    assert!(query_programs(&f.c, &request).unwrap().programs.is_empty());
+    request.hide_adult = Some(false);
+    assert_eq!(query_programs(&f.c, &request).unwrap().programs.len(), 2);
+    request.history_ids = Some(vec![]);
+    assert!(query_programs(&f.c, &request).unwrap().programs.is_empty());
+}
+
+#[test]
 fn now_context_admits_only_latest_started_unknown_in_exact_channel() {
     let mut f = fixture();
     save_source(&mut f.c, &source("g"), 0).unwrap();
@@ -126,7 +181,7 @@ fn now_context_scope_range_and_cursor_are_guarded() {
 #[test]
 fn commit_and_match_preserves_stream_variants_existing_mappings_and_exact_id_scope() {
     let mut f = fixture();
-    f.c.execute_batch("ALTER TABLE channel ADD COLUMN provider_id TEXT;UPDATE channel SET provider_id='xml-a' WHERE id='app-a';INSERT INTO channel VALUES('duplicate-1','catalog-a','collision'),('duplicate-2','catalog-b','collision'),('missing','catalog-a',NULL),('case-only','catalog-a','XML-A'),('removed-match','catalog-a','removed-id');INSERT INTO removed VALUES('removed-match');").unwrap();
+    f.c.execute_batch("ALTER TABLE channel ADD COLUMN provider_id TEXT;UPDATE channel SET provider_id='xml-a' WHERE id='app-a';INSERT INTO channel(id,source_id,provider_id) VALUES('duplicate-1','catalog-a','collision'),('duplicate-2','catalog-b','collision'),('missing','catalog-a',NULL),('case-only','catalog-a','XML-A'),('removed-match','catalog-a','removed-id');INSERT INTO removed VALUES('removed-match');").unwrap();
     install(&mut f.c, "other", "Existing");
     save_mapping(&mut f.c, &mapping("other", "app-b", "catalog-b")).unwrap();
     save_source(&mut f.c, &source("g"), 0).unwrap();

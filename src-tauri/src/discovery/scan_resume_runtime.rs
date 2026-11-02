@@ -62,7 +62,7 @@ impl Episode {
         self.transport_memo.clear();
         self.quarantined = true;
     }
-    pub(crate) fn admitted(plan: Plan, directory: AdmittedDirectory) -> Result<Self, String> {
+    pub(crate) fn admitted(mut plan: Plan, directory: AdmittedDirectory) -> Result<Self, String> {
         plan.validate_directory(&directory)?;
         let mut pending = Vec::new();
         let mut origins = HashMap::new();
@@ -83,6 +83,7 @@ impl Episode {
             }
         }
         let scheduler = Scheduler::new(pending)?;
+        let transport_memo = plan.take_transport_memo();
         Ok(Self {
             plan,
             scheduler,
@@ -92,7 +93,7 @@ impl Episode {
             taking: false,
             latest_projection: None,
             quarantined: false,
-            transport_memo: probe_memo::Memo::default(),
+            transport_memo,
             origin_failures: HashMap::new(),
         })
     }

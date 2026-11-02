@@ -44,6 +44,9 @@ const FINITE_BODY_LIMIT: usize = 32 * 1024 * 1024;
 const CHUNK: usize = 64 * 1024;
 const RESOURCE_LIFETIME: Duration = Duration::from_secs(180);
 const LEASE: Duration = Duration::from_secs(60);
+// The playback controller owns a 20-second no-progress episode. A five-second
+// reqwest body timeout prematurely restarted bursty healthy live transports.
+const LIVE_BODY_IDLE: Duration = Duration::from_secs(20);
 const MAX_LIFETIME: Duration = Duration::from_secs(24 * 60 * 60);
 
 pub(crate) type AuthorityFuture = Pin<Box<dyn Future<Output = Result<(), String>> + Send>>;
@@ -342,6 +345,20 @@ impl AccountPlaybackProxy {
     }
     pub(crate) fn media_url(&self) -> &str {
         &self.media_url
+    }
+    pub(crate) fn native_live_url(&self) -> Option<String> {
+        let state = self.state.lock().ok()?;
+        (self.task.is_some() && !self.join_failed && state.active() && !state.vod)
+            .then(|| self.media_url.clone())
+    }
+    /// Explicit lease renewal by the public native-live owner.
+    pub(crate) fn renew_public(&self) -> Result<(), &'static str> {
+        let mut state = self.state.lock().map_err(|_| "account-proxy-state")?;
+        if self.task.is_none() || self.join_failed || !state.active() || state.generation != 0 {
+            return Err("account-proxy-expired");
+        }
+        state.renewed = Instant::now();
+        Ok(())
     }
     pub(crate) fn generation(&self) -> Result<u64, String> {
         self.state

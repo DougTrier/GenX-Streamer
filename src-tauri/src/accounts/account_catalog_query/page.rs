@@ -28,14 +28,35 @@ pub(crate) fn read_page(
     let mut progress = Progress { c, active: true };
     let result = (|| {
         register_functions(c)?;
+        crate::catalog_query::register_watch_history(
+            c,
+            request.history_ids.as_deref().unwrap_or_default(),
+        )?;
         let tx = sql(c.unchecked_transaction())?;
         let captured = snapshot(&tx, request)?;
-        let scoped = scope(&tx)?;
+        let plan = request
+            .sports
+            .as_ref()
+            .map(|scope| crate::catalog::sports::Plan::new(scope, &request.query))
+            .transpose()?;
+        if let Some(plan) = &plan {
+            crate::catalog::sports::register(&tx, plan)?;
+        }
+        let scoped = scope(&tx, plan.as_ref())?;
         let live = &scoped.live;
         let predicate = &format!(
-            "{}{}",
+            "{}{}{}",
             scoped.predicate,
-            visibility(scoped.category, request.hide_adult)
+            visibility(scoped.category, request.hide_adult),
+            if request.filter == Filter::Watched {
+                if request.hide_adult {
+                    format!(" AND e.channel_id IN(SELECT value FROM json_each(genx_watch_ids())) AND NOT {} AND NOT {}", history_adult_predicate("e.category"), history_adult_predicate(scoped.category))
+                } else {
+                    " AND e.channel_id IN(SELECT value FROM json_each(genx_watch_ids()))".to_owned()
+                }
+            } else {
+                String::new()
+            }
         );
         let effective_category = scoped.category;
         let favorite = scoped.favorite;
@@ -46,6 +67,8 @@ pub(crate) fn read_page(
             Filter::Sports => "sports",
             Filter::Favorites => "favorites",
             Filter::Movies => "movies",
+            Filter::Ppv => "ppv",
+            Filter::Watched => "watched",
         };
         let order = match request.sort {
             // There is no persisted acquisition ordinal: Source is deterministic ID order.
@@ -61,6 +84,11 @@ pub(crate) fn read_page(
         } else {
             order
         };
+        let order = if request.filter == Filter::Watched {
+            format!("genx_watch_rank(e.channel_id),{order}")
+        } else {
+            order
+        };
         // The stamp is read while this transaction holds its shared lock (the
         // snapshot above read the database), so no write lands in between.
         let cache_key = database_stamp(&tx).map(|stamp| {
@@ -70,9 +98,13 @@ pub(crate) fn read_page(
                 captured.account_revision,
                 captured.media_revision,
                 captured.preferences_revision,
+                captured.guide_revision,
                 request.query,
+                request.sports,
+                crate::catalog::sports::VOCABULARY,
                 request.category,
                 filter,
+                request.history_ids,
                 request.country,
                 order,
                 request.hide_adult,
@@ -93,10 +125,46 @@ pub(crate) fn read_page(
                 }
             }
         };
+        let mut event_only_ppv = Arc::new(std::collections::HashSet::new());
+        if let Some(plan) = &plan {
+            if let Some(Some((_, _, ids, flags))) = &seen {
+                let admitted = ids
+                    .iter()
+                    .cloned()
+                    .collect::<std::collections::HashSet<_>>();
+                crate::catalog::sports::register_list(
+                    &tx,
+                    &crate::catalog::sports::Matches {
+                        all: admitted.clone(),
+                        specific: admitted,
+                        event_only_ppv: Default::default(),
+                    },
+                )?;
+                event_only_ppv = flags.clone();
+            } else {
+                event_only_ppv = Arc::new(
+                    (if request.filter == Filter::Watched {
+                        crate::catalog::sports::register_paid_watched_list(
+                            &tx,
+                            plan,
+                            &request.account_id,
+                        )?
+                    } else {
+                        crate::catalog::sports::register_paid_list(
+                            &tx,
+                            plan,
+                            &request.account_id,
+                            request.filter == Filter::Ppv,
+                        )?
+                    })
+                    .event_only_ppv,
+                );
+            }
+        }
+        let build = matches!(&seen, Some(None)) || (plan.is_some() && seen.is_none());
         let listed = match (seen, &cache_key) {
             (Some(Some(listed)), _) => Some(listed),
-            (None, _) | (_, None) => None,
-            (Some(None), Some(key)) => {
+            (_, Some(key)) if build => {
                 let admitted: i64 = sql(tx.query_row(
                     &format!("SELECT COUNT(*){LIVE} WHERE e.account_id=?1"),
                     [&request.account_id],
@@ -123,13 +191,19 @@ pub(crate) fn read_page(
                     )
                     .and_then(|rows| rows.collect::<rusqlite::Result<Vec<_>>>()))?;
                 drop(statement);
-                let listed = (admitted, ids.len() as i64, Arc::new(ids));
+                let listed = (
+                    admitted,
+                    ids.len() as i64,
+                    Arc::new(ids),
+                    event_only_ppv.clone(),
+                );
                 *LISTED.lock().map_err(|_| "account-media-cache-lock")? =
                     Some((key.clone(), Some(listed.clone())));
                 Some(listed)
             }
+            _ => None,
         };
-        let admitted_count: i64 = if let Some((admitted, _, _)) = &listed {
+        let admitted_count: i64 = if let Some((admitted, _, _, _)) = &listed {
             *admitted
         } else {
             sql(tx.query_row(
@@ -141,7 +215,7 @@ pub(crate) fn read_page(
         if !(0..=MAX).contains(&admitted_count) {
             return Err("account-media-too-large".into());
         }
-        let total: i64 = if let Some((_, total, _)) = &listed {
+        let total: i64 = if let Some((_, total, _, _)) = &listed {
             *total
         } else {
             sql(tx.query_row(
@@ -163,7 +237,7 @@ pub(crate) fn read_page(
         }
         let mut start_index = request.start_index;
         let mut anchor_index = None;
-        if let (Some(anchor), Some((_, _, ids))) = (&request.anchor_id, &listed) {
+        if let (Some(anchor), Some((_, _, ids, _))) = (&request.anchor_id, &listed) {
             // The cached order is exactly the requested order, so a listed
             // anchor's position is its rank.
             if let Some(rank) = ids.iter().position(|id| id == anchor) {
@@ -254,12 +328,16 @@ pub(crate) fn read_page(
                 stream_reference: r.get(5)?,
                 favorite: r.get(6)?,
                 original_category: r.get(7)?,
+                ppv: event_only_ppv.contains(&r.get::<_, String>(0)?)
+                    || crate::catalog::ppv::marked(&r.get::<_, String>(1)?)
+                    || crate::catalog::ppv::marked(&r.get::<_, String>(2)?)
+                    || crate::catalog::ppv::marked(&r.get::<_, String>(7)?),
             })
         };
         let columns = format!(
             "SELECT e.channel_id,e.name,{effective_category},e.provider_id,e.epg_id,e.stream_ref,{favorite},e.category{live}{predicate}"
         );
-        let rows: Vec<rusqlite::Result<Channel>> = if let Some((_, _, ids)) = &listed {
+        let rows: Vec<rusqlite::Result<Channel>> = if let Some((_, _, ids, _)) = &listed {
             // Read only the requested slice of the cached order, each row
             // still through the same live scope and predicate.
             let mut statement = sql(tx.prepare(&format!("{columns} AND e.channel_id=?5")))?;
@@ -339,6 +417,7 @@ pub(crate) fn read_page(
             account_revision: captured.account_revision.to_string(),
             media_revision: captured.media_revision.to_string(),
             preferences_revision: captured.preferences_revision.to_string(),
+            guide_revision: captured.guide_revision.map(|r| r.to_string()),
             query_version: QUERY_VERSION,
             start_index,
             anchor_index,
@@ -403,9 +482,12 @@ pub(crate) fn read_countries(
         expected_account_revision: request.expected_account_revision.clone(),
         expected_media_revision: None,
         expected_preferences_revision: None,
+        expected_guide_revision: None,
+        sports: None,
         query: String::new(),
         category: None,
         filter: Filter::All,
+        history_ids: None,
         sort: Sort::Source,
         favorites_first: false,
         country: None,
@@ -418,7 +500,7 @@ pub(crate) fn read_countries(
     register_functions(c)?;
     let tx = sql(c.unchecked_transaction())?;
     let captured = snapshot(&tx, &query)?;
-    let scoped = scope(&tx)?;
+    let scoped = scope(&tx, None)?;
     let category = scoped.category;
     let adult = if request.hide_adult {
         format!(" AND NOT {}", adult_predicate(category))

@@ -19,6 +19,14 @@ import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 class TelevisionCapabilityTest {
+ @Test fun onlyFireOs7TelevisionsPreferNativeArchivePlayback() {
+  assertTrue(TelevisionCapability.nativeEmbeddedPlayback(true,"Amazon","AFTKA",28))
+  assertFalse(TelevisionCapability.nativeEmbeddedPlayback(false,"Amazon","AFTKA",28))
+  assertFalse(TelevisionCapability.nativeEmbeddedPlayback(true,"Amazon","AFTKA",30))
+  assertFalse(TelevisionCapability.nativeEmbeddedPlayback(true,"Amazon","Tablet",28))
+  assertFalse(TelevisionCapability.nativeEmbeddedPlayback(true,"Google","Streamer",34))
+  assertFalse(TelevisionCapability.nativeEmbeddedPlayback(false,"Retroid","Flip 2",33))
+ }
  @Test fun televisionModeAndLeanbackEachIndependentlyIdentifyTv() {
   assertTrue(TelevisionCapability.isTelevision(4,false))
   assertTrue(TelevisionCapability.isTelevision(1,true))

@@ -169,7 +169,10 @@ class ViewingPlugin(private val activity: Activity) : Plugin(activity) {
         val mode=(activity.getSystemService(Context.UI_MODE_SERVICE) as? android.app.UiModeManager)?.currentModeType
         val leanback=activity.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_LEANBACK)
         val television=activity.packageManager.hasSystemFeature(android.content.pm.PackageManager.FEATURE_TELEVISION)
-        invoke.resolveObject(mapOf("isTelevision" to TelevisionCapability.isTelevision(mode,leanback,television)))
+        val isTv = TelevisionCapability.isTelevision(mode,leanback,television)
+        invoke.resolveObject(mapOf("isTelevision" to isTv,
+          "nativeEmbeddedPlayback" to TelevisionCapability.nativeEmbeddedPlayback(
+            isTv, android.os.Build.MANUFACTURER, android.os.Build.MODEL, android.os.Build.VERSION.SDK_INT)))
       } catch (_:RuntimeException) {invoke.reject("device-capabilities-unavailable")}
     }
   }

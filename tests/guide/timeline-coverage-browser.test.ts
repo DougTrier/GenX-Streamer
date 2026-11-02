@@ -437,8 +437,18 @@ describe('actual timeline component', () => {
         await page.waitForFunction(() => !!Reflect.get(window, 'releaseCoverage'));
         if (action === 'back')
           await page.getByRole('button', { name: 'Back to timeline', exact: true }).click();
-        if (action === 'window')
-          await page.getByRole('button', { name: 'Next 3 hours', exact: true }).click();
+        if (action === 'window') {
+          const next = page.getByRole('button', { name: 'Next 3 hours', exact: true });
+          // Details own interaction until Back: the underlying toolbar is inert.
+          // Change the window through the real UI while its old read is held.
+          expect(await next.evaluate((node) => node.closest('[inert]') !== null)).toBe(true);
+          await page.getByRole('button', { name: 'Back to timeline', exact: true }).click();
+          await next.click();
+          // The next window joins the original held read before repainting.
+          expect(await page.locator('.gx-timeline-axis > span').first().textContent()).toBe(
+            '12:00',
+          );
+        }
         if (action === 'remap')
           await page.evaluate(() => {
             Reflect.get(window, 'channels')[0].xmltvChannelId = 'changed';
@@ -457,6 +467,10 @@ describe('actual timeline component', () => {
         if (action === 'suspend')
           expect(await page.evaluate(() => Reflect.get(window, 'coverageDrained'))).toBe(false);
         await page.evaluate(() => Reflect.get(window, 'releaseCoverage')());
+        if (action === 'window')
+          await expect
+            .poll(() => page.locator('.gx-timeline-axis > span').first().textContent())
+            .toBe('15:00');
         if (action === 'suspend')
           await page.waitForFunction(() => Reflect.get(window, 'coverageDrained'));
         await expect
@@ -470,7 +484,10 @@ describe('actual timeline component', () => {
         expect(await page.evaluate(() => Reflect.get(window, 'summaryCalls'))).toBe(0);
         expect(await page.evaluate(() => Reflect.get(window, 'watches'))).toBe(0);
       } finally {
-        await page.evaluate(() => Reflect.get(window, 'owner').dispose());
+        await page.evaluate(() => {
+          Reflect.get(window, 'releaseCoverage')?.();
+          return Reflect.get(window, 'owner').dispose();
+        });
         await page.close();
       }
     },

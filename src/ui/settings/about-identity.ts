@@ -70,6 +70,12 @@ export function mountAboutIdentity(container: HTMLElement): {
     );
   };
   const show = () => {
+    if (document.activeElement === button) {
+      const close = container
+        .closest<HTMLDialogElement>('dialog[open]')
+        ?.querySelector<HTMLButtonElement>('.about-close');
+      if (close && !close.disabled) close.focus({ preventScroll: true });
+    }
     button.disabled = true;
     sha.hidden = false;
     sha.textContent = 'Calculating…';

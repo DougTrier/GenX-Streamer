@@ -16,15 +16,22 @@
 
 import { createOwnedAbortSignals } from '../../platform/abort';
 import { boundedUtf8Text } from '../../platform/bounded-text';
-import type { CatalogPage, CatalogQueryInput, CatalogRow } from '../../platform/catalog-query';
+import {
+  type CatalogPage,
+  type CatalogQueryInput,
+  type CatalogRow,
+} from '../../platform/catalog-query';
 import {
   createAccountQuery,
+  AccountGuideRevisionConflict,
   validateAccountChannelQueryPage,
   type AccountChannelQuery,
   type AccountQueryChannel,
 } from '../../platform/account-query';
 import { validateAccountMetadata, type AccountMetadata } from '../../platform/account-vault';
 import type { AccountChannel, AccountCatalogFence } from '../../platform/account-catalog';
+import { validateSportsScope } from '../../search/sports';
+import { validateHistoryIds } from '../../playback/watch-history';
 
 export interface AccountBrowserOptions {
   query?: Pick<ReturnType<typeof createAccountQuery>, 'query'> &
@@ -33,6 +40,7 @@ export interface AccountBrowserOptions {
   pageChanged?(): void;
 }
 export interface AccountBrowserSelection {
+  ppv?: boolean;
   channel: Readonly<AccountChannel>;
   fence: Readonly<AccountCatalogFence>;
   favorite: boolean;
@@ -45,12 +53,27 @@ export interface AccountBrowserPreferencesScope extends AccountCatalogFence {
 const canceled = () => new DOMException('Account browsing was canceled.', 'AbortError');
 const invalid = () => new Error('The account browsing request is invalid.');
 const stale = () => new Error('Account channels changed. Reload the channel list.');
-function viewRevision(value: string): { mediaRevision: string; preferencesRevision: string } {
+function viewRevision(value: string): {
+  mediaRevision: string;
+  preferencesRevision: string;
+  guideRevision?: string;
+} {
   if (typeof value !== 'string') throw invalid();
-  const match = /^m:([1-9][0-9]{0,18});p:(0|[1-9][0-9]{0,18})$/u.exec(value);
-  if (!match || BigInt(match[1]) > 9223372036854775807n || BigInt(match[2]) > 9223372036854775807n)
+  const match = /^m:([1-9][0-9]{0,18});p:(0|[1-9][0-9]{0,18})(?:;g:(0|[1-9][0-9]{0,18}))?$/u.exec(
+    value,
+  );
+  if (
+    !match ||
+    BigInt(match[1]) > 9223372036854775807n ||
+    BigInt(match[2]) > 9223372036854775807n ||
+    (match[3] !== undefined && BigInt(match[3]) > 9223372036854775807n)
+  )
     throw invalid();
-  return { mediaRevision: match[1], preferencesRevision: match[2] };
+  return {
+    mediaRevision: match[1],
+    preferencesRevision: match[2],
+    ...(match[3] === undefined ? {} : { guideRevision: match[3] }),
+  };
 }
 function input(value: CatalogQueryInput): CatalogQueryInput {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw invalid();
@@ -60,9 +83,12 @@ function input(value: CatalogQueryInput): CatalogQueryInput {
   const optional = [
     'expectedCatalogRevision',
     'expectedViewRevision',
+    'expectedGuideRevision',
     'geography',
     'favoritesFirst',
     'hideAdult',
+    'sports',
+    'historyIds',
     'after',
     'startIndex',
     'anchorId',
@@ -72,7 +98,7 @@ function input(value: CatalogQueryInput): CatalogQueryInput {
     Object.keys(value).some((key) => !keys.includes(key) && !optional.includes(key)) ||
     value.schemaVersion !== 1 ||
     !boundedUtf8Text(value.query, 256, true) ||
-    !['all', 'favorites', 'news', 'sports', 'movies'].includes(value.filter) ||
+    !['all', 'favorites', 'news', 'sports', 'movies', 'ppv', 'watched'].includes(value.filter) ||
     !['source', 'name', 'geography'].includes(value.sort) ||
     !Number.isSafeInteger(value.pageSize) ||
     value.pageSize < 1 ||
@@ -86,6 +112,13 @@ function input(value: CatalogQueryInput): CatalogQueryInput {
     (value.hideAdult !== undefined && typeof value.hideAdult !== 'boolean')
   )
     throw invalid();
+  let historyIds: string[] | undefined;
+  try {
+    if (value.filter === 'watched') historyIds = validateHistoryIds(value.historyIds);
+    else if (value.historyIds !== undefined) throw invalid();
+  } catch {
+    throw invalid();
+  }
   if (value.after != null)
     throw new Error(
       'Account browsing requires an offset or channel anchor. Reload the channel list.',
@@ -123,8 +156,20 @@ function input(value: CatalogQueryInput): CatalogQueryInput {
   if (value.expectedCatalogRevision != null && !revision(value.expectedCatalogRevision))
     throw invalid();
   if (value.expectedViewRevision != null) viewRevision(value.expectedViewRevision);
+  if (
+    value.expectedGuideRevision !== undefined &&
+    (!value.sports ||
+      typeof value.expectedGuideRevision !== 'string' ||
+      !/^(0|[1-9][0-9]{0,18})$/.test(value.expectedGuideRevision) ||
+      BigInt(value.expectedGuideRevision) > 9223372036854775807n)
+  )
+    throw invalid();
   return {
     ...value,
+    ...(historyIds === undefined ? {} : { historyIds }),
+    ...(value.sports === undefined
+      ? {}
+      : { sports: validateSportsScope(value.sports, value.query) }),
     ...(value.geography
       ? {
           geography: {
@@ -140,8 +185,11 @@ function input(value: CatalogQueryInput): CatalogQueryInput {
 export function createAccountBrowser(options: AccountBrowserOptions = {}) {
   const native = options.query ?? createAccountQuery();
   let selected: AccountMetadata | null = null;
+  let selectionController = new AbortController();
+  const selectionListeners = new Set<() => void>();
   let capturedFence: Readonly<AccountCatalogFence> | null = null;
   let preferencesRevision: string | null = null;
+  let guideRevision: string | null = null;
   let selectionEpoch = 0;
   let scopeEpoch = 0;
   let scopeKey = '';
@@ -171,18 +219,30 @@ export function createAccountBrowser(options: AccountBrowserOptions = {}) {
   async function select(account: AccountMetadata | null): Promise<void> {
     if (closed) throw new Error('Account browsing is closed.');
     const admitted = account === null ? null : validateAccountMetadata(account);
+    selectionController.abort();
+    selectionController = new AbortController();
     ++selectionEpoch;
     ++scopeEpoch;
     selected = admitted;
     capturedFence = null;
     preferencesRevision = null;
+    guideRevision = null;
     scopeKey = '';
     clearPages();
     abortReads();
     const previous = work;
     await previous.catch(() => undefined);
+    for (const listener of selectionListeners) listener();
   }
   return {
+    /** Account-owned background reads cancel immediately when selection changes. */
+    get selectionSignal(): AbortSignal {
+      return selectionController.signal;
+    },
+    subscribeSelection(listener: () => void): () => void {
+      selectionListeners.add(listener);
+      return () => selectionListeners.delete(listener);
+    },
     get selectedAccount(): Readonly<AccountMetadata> | null {
       return selected ? Object.freeze({ ...selected }) : null;
     },
@@ -226,6 +286,7 @@ export function createAccountBrowser(options: AccountBrowserOptions = {}) {
         channel: Object.freeze(raw),
         fence: Object.freeze({ ...capturedFence }),
         favorite: channel.favorite,
+        ...(channel.ppv === undefined ? {} : { ppv: channel.ppv }),
         originalCategory: channel.originalCategory,
         preferencesRevision,
       };
@@ -268,6 +329,8 @@ export function createAccountBrowser(options: AccountBrowserOptions = {}) {
       const key = JSON.stringify([
         admitted.query,
         admitted.filter,
+        admitted.historyIds ?? null,
+        admitted.sports ?? null,
         admitted.sort,
         admitted.favoritesFirst ?? true,
         nativeCountry ?? null,
@@ -278,6 +341,7 @@ export function createAccountBrowser(options: AccountBrowserOptions = {}) {
         ++scopeEpoch;
         abortReads();
         clearPages();
+        guideRevision = null;
       }
       const epoch = selectionEpoch;
       const scope = scopeEpoch;
@@ -304,6 +368,21 @@ export function createAccountBrowser(options: AccountBrowserOptions = {}) {
             requestedView?.mediaRevision ?? capturedFence?.mediaRevision ?? null;
           const expectedPreferencesRevision =
             requestedView?.preferencesRevision ?? preferencesRevision;
+          const expectedGuideRevision = admitted.sports
+            ? (admitted.expectedGuideRevision ??
+              requestedView?.guideRevision ??
+              (admitted.expectedViewRevision == null && (admitted.startIndex ?? 0) === 0
+                ? undefined
+                : (guideRevision ?? undefined)))
+            : undefined;
+          if (admitted.sports && requestedView && requestedView.guideRevision === undefined)
+            throw new AccountGuideRevisionConflict();
+          if (
+            admitted.expectedGuideRevision !== undefined &&
+            requestedView?.guideRevision !== undefined &&
+            admitted.expectedGuideRevision !== requestedView.guideRevision
+          )
+            throw new AccountGuideRevisionConflict();
           if (capturedFence && mediaRevision !== capturedFence.mediaRevision) throw stale();
           if (preferencesRevision !== null && expectedPreferencesRevision !== preferencesRevision)
             throw stale();
@@ -313,10 +392,13 @@ export function createAccountBrowser(options: AccountBrowserOptions = {}) {
             expectedAccountRevision: account.revision,
             expectedMediaRevision: mediaRevision,
             expectedPreferencesRevision,
+            ...(expectedGuideRevision === undefined ? {} : { expectedGuideRevision }),
             query: admitted.query,
             category: null,
             // Not responding is Free TV only; the admission above refuses it here.
             filter: admitted.filter as AccountChannelQuery['filter'],
+            ...(admitted.historyIds === undefined ? {} : { historyIds: admitted.historyIds }),
+            ...(admitted.sports ? { sports: admitted.sports } : {}),
             sort:
               admitted.sort === 'name'
                 ? 'name'
@@ -339,11 +421,20 @@ export function createAccountBrowser(options: AccountBrowserOptions = {}) {
             mediaRevision: page.mediaRevision,
           });
           preferencesRevision = page.preferencesRevision;
+          if (
+            guideRevision !== null &&
+            page.guideRevision !== undefined &&
+            guideRevision !== page.guideRevision
+          )
+            clearPages();
+          guideRevision = page.guideRevision ?? null;
           const rows: CatalogRow[] = page.items.map((channel) => ({
             id: channel.id,
             sourceId: `account-${account.id}`,
             name: channel.name,
             category: channel.category,
+            originalCategory: channel.originalCategory,
+            ...(channel.ppv === undefined ? {} : { ppv: channel.ppv }),
             favorite: channel.favorite,
             ...(channel.providerId === null ? {} : { providerId: channel.providerId }),
           }));
@@ -351,7 +442,8 @@ export function createAccountBrowser(options: AccountBrowserOptions = {}) {
             schemaVersion: 1,
             requestId: (options.idFactory ?? (() => crypto.randomUUID()))(),
             catalogRevision: page.accountRevision,
-            viewRevision: `m:${page.mediaRevision};p:${page.preferencesRevision}`,
+            viewRevision: `m:${page.mediaRevision};p:${page.preferencesRevision}${page.guideRevision === undefined ? '' : `;g:${page.guideRevision}`}`,
+            ...(page.guideRevision === undefined ? {} : { guideRevision: page.guideRevision }),
             queryVersion: page.queryVersion,
             totalCount: page.total,
             startIndex: page.startIndex,
@@ -363,11 +455,16 @@ export function createAccountBrowser(options: AccountBrowserOptions = {}) {
           cache(page.startIndex, page.items);
           options.pageChanged?.();
           return resultPage;
-        } catch {
+        } catch (error) {
           if (!current()) throw canceled();
           clearPages();
+          if (error instanceof AccountGuideRevisionConflict) {
+            guideRevision = null;
+            throw error;
+          }
           throw new Error(
             'Account channels could not be read. Reload the account channel list and try again.',
+            { cause: error },
           );
         } finally {
           owners.delete(owned);
@@ -380,11 +477,14 @@ export function createAccountBrowser(options: AccountBrowserOptions = {}) {
     async dispose(): Promise<void> {
       if (!closed) {
         closed = true;
+        selectionController.abort();
+        selectionListeners.clear();
         ++selectionEpoch;
         ++scopeEpoch;
         selected = null;
         capturedFence = null;
         preferencesRevision = null;
+        guideRevision = null;
         clearPages();
         abortReads();
       }

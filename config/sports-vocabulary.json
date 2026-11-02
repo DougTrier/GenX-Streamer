@@ -1,0 +1,717 @@
+{
+  "schemaVersion": 1,
+  "vocabularyVersion": "2026-11-01.2",
+  "policyVersion": "explicit-sports-v1",
+  "normalization": "nfkc-lowercase-ln-tokens",
+  "sports": [
+    {
+      "id": "american-football",
+      "label": "American Football",
+      "evidenceAliases": [
+        "american football",
+        "gridiron"
+      ],
+      "queryAliases": [
+        "american football",
+        "gridiron"
+      ],
+      "literalExpansionAliases": [
+        "football"
+      ]
+    },
+    {
+      "id": "baseball",
+      "label": "Baseball",
+      "evidenceAliases": [
+        "baseball"
+      ],
+      "queryAliases": [
+        "baseball"
+      ],
+      "literalExpansionAliases": []
+    },
+    {
+      "id": "basketball",
+      "label": "Basketball",
+      "evidenceAliases": [
+        "basketball"
+      ],
+      "queryAliases": [
+        "basketball"
+      ],
+      "literalExpansionAliases": []
+    },
+    {
+      "id": "soccer",
+      "label": "Soccer",
+      "evidenceAliases": [
+        "soccer",
+        "association football"
+      ],
+      "queryAliases": [
+        "soccer",
+        "association football"
+      ],
+      "literalExpansionAliases": []
+    },
+    {
+      "id": "hockey",
+      "label": "Hockey",
+      "evidenceAliases": [
+        "hockey",
+        "ice hockey"
+      ],
+      "queryAliases": [
+        "hockey",
+        "ice hockey"
+      ],
+      "literalExpansionAliases": []
+    }
+  ],
+  "leagues": [
+    {
+      "id": "nfl",
+      "sportId": "american-football",
+      "label": "NFL",
+      "evidenceAliases": [
+        "nfl",
+        "national football league"
+      ],
+      "queryAliases": [
+        "nfl",
+        "national football league"
+      ]
+    },
+    {
+      "id": "college-football",
+      "sportId": "american-football",
+      "label": "College Football",
+      "evidenceAliases": [
+        "college football",
+        "ncaa football",
+        "naia football",
+        "ncaaf",
+        "ncaa fb"
+      ],
+      "queryAliases": [
+        "college football",
+        "ncaa football",
+        "naia football",
+        "ncaaf",
+        "ncaa fb"
+      ]
+    },
+    {
+      "id": "mlb",
+      "sportId": "baseball",
+      "label": "MLB",
+      "evidenceAliases": [
+        "mlb",
+        "major league baseball"
+      ],
+      "queryAliases": [
+        "mlb",
+        "major league baseball"
+      ]
+    },
+    {
+      "id": "nba",
+      "sportId": "basketball",
+      "label": "NBA",
+      "evidenceAliases": [
+        "nba",
+        "national basketball association"
+      ],
+      "queryAliases": [
+        "nba",
+        "national basketball association"
+      ]
+    },
+    {
+      "id": "wnba",
+      "sportId": "basketball",
+      "label": "WNBA",
+      "evidenceAliases": [
+        "wnba",
+        "women s national basketball association",
+        "womens national basketball association"
+      ],
+      "queryAliases": [
+        "wnba",
+        "women s national basketball association",
+        "womens national basketball association"
+      ]
+    },
+    {
+      "id": "college-basketball",
+      "sportId": "basketball",
+      "label": "College Basketball",
+      "evidenceAliases": [
+        "college basketball",
+        "ncaa basketball",
+        "naia basketball",
+        "ncaab",
+        "ncaa bb"
+      ],
+      "queryAliases": [
+        "college basketball",
+        "ncaa basketball",
+        "naia basketball",
+        "ncaab",
+        "ncaa bb"
+      ]
+    },
+    {
+      "id": "nhl",
+      "sportId": "hockey",
+      "label": "NHL",
+      "evidenceAliases": [
+        "nhl",
+        "national hockey league"
+      ],
+      "queryAliases": [
+        "nhl",
+        "national hockey league"
+      ]
+    },
+    {
+      "id": "mls",
+      "sportId": "soccer",
+      "label": "MLS",
+      "evidenceAliases": [
+        "mls",
+        "major league soccer"
+      ],
+      "queryAliases": [
+        "mls",
+        "major league soccer"
+      ]
+    },
+    {
+      "id": "premier-league",
+      "sportId": "soccer",
+      "label": "English Premier League",
+      "evidenceAliases": [
+        "epl",
+        "english premier league"
+      ],
+      "queryAliases": [
+        "epl",
+        "english premier league"
+      ]
+    },
+    {
+      "id": "uefa-champions-league",
+      "sportId": "soccer",
+      "label": "UEFA Champions League",
+      "evidenceAliases": [
+        "uefa champions league"
+      ],
+      "queryAliases": [
+        "uefa champions league"
+      ]
+    }
+  ],
+  "teams": [
+    {
+      "id": "nfl-arizona-cardinals",
+      "leagueId": "nfl",
+      "label": "Arizona Cardinals",
+      "evidenceAliases": [
+        "Arizona Cardinals"
+      ],
+      "queryAliases": [
+        "Arizona Cardinals"
+      ],
+      "contextualAliases": [
+        "Cardinals"
+      ]
+    },
+    {
+      "id": "nfl-atlanta-falcons",
+      "leagueId": "nfl",
+      "label": "Atlanta Falcons",
+      "evidenceAliases": [
+        "Atlanta Falcons"
+      ],
+      "queryAliases": [
+        "Atlanta Falcons"
+      ],
+      "contextualAliases": [
+        "Falcons"
+      ]
+    },
+    {
+      "id": "nfl-baltimore-ravens",
+      "leagueId": "nfl",
+      "label": "Baltimore Ravens",
+      "evidenceAliases": [
+        "Baltimore Ravens"
+      ],
+      "queryAliases": [
+        "Baltimore Ravens"
+      ],
+      "contextualAliases": [
+        "Ravens"
+      ]
+    },
+    {
+      "id": "nfl-buffalo-bills",
+      "leagueId": "nfl",
+      "label": "Buffalo Bills",
+      "evidenceAliases": [
+        "Buffalo Bills"
+      ],
+      "queryAliases": [
+        "Buffalo Bills"
+      ],
+      "contextualAliases": [
+        "Bills"
+      ]
+    },
+    {
+      "id": "nfl-carolina-panthers",
+      "leagueId": "nfl",
+      "label": "Carolina Panthers",
+      "evidenceAliases": [
+        "Carolina Panthers"
+      ],
+      "queryAliases": [
+        "Carolina Panthers"
+      ],
+      "contextualAliases": [
+        "Panthers"
+      ]
+    },
+    {
+      "id": "nfl-chicago-bears",
+      "leagueId": "nfl",
+      "label": "Chicago Bears",
+      "evidenceAliases": [
+        "Chicago Bears"
+      ],
+      "queryAliases": [
+        "Chicago Bears"
+      ],
+      "contextualAliases": [
+        "Bears"
+      ]
+    },
+    {
+      "id": "nfl-cincinnati-bengals",
+      "leagueId": "nfl",
+      "label": "Cincinnati Bengals",
+      "evidenceAliases": [
+        "Cincinnati Bengals"
+      ],
+      "queryAliases": [
+        "Cincinnati Bengals"
+      ],
+      "contextualAliases": [
+        "Bengals"
+      ]
+    },
+    {
+      "id": "nfl-cleveland-browns",
+      "leagueId": "nfl",
+      "label": "Cleveland Browns",
+      "evidenceAliases": [
+        "Cleveland Browns"
+      ],
+      "queryAliases": [
+        "Cleveland Browns"
+      ],
+      "contextualAliases": [
+        "Browns"
+      ]
+    },
+    {
+      "id": "nfl-dallas-cowboys",
+      "leagueId": "nfl",
+      "label": "Dallas Cowboys",
+      "evidenceAliases": [
+        "Dallas Cowboys"
+      ],
+      "queryAliases": [
+        "Dallas Cowboys"
+      ],
+      "contextualAliases": [
+        "Cowboys"
+      ]
+    },
+    {
+      "id": "nfl-denver-broncos",
+      "leagueId": "nfl",
+      "label": "Denver Broncos",
+      "evidenceAliases": [
+        "Denver Broncos"
+      ],
+      "queryAliases": [
+        "Denver Broncos"
+      ],
+      "contextualAliases": [
+        "Broncos"
+      ]
+    },
+    {
+      "id": "nfl-detroit-lions",
+      "leagueId": "nfl",
+      "label": "Detroit Lions",
+      "evidenceAliases": [
+        "Detroit Lions"
+      ],
+      "queryAliases": [
+        "Detroit Lions"
+      ],
+      "contextualAliases": [
+        "Lions"
+      ]
+    },
+    {
+      "id": "nfl-green-bay-packers",
+      "leagueId": "nfl",
+      "label": "Green Bay Packers",
+      "evidenceAliases": [
+        "Green Bay Packers"
+      ],
+      "queryAliases": [
+        "Green Bay Packers"
+      ],
+      "contextualAliases": [
+        "Packers"
+      ]
+    },
+    {
+      "id": "nfl-houston-texans",
+      "leagueId": "nfl",
+      "label": "Houston Texans",
+      "evidenceAliases": [
+        "Houston Texans"
+      ],
+      "queryAliases": [
+        "Houston Texans"
+      ],
+      "contextualAliases": [
+        "Texans"
+      ]
+    },
+    {
+      "id": "nfl-indianapolis-colts",
+      "leagueId": "nfl",
+      "label": "Indianapolis Colts",
+      "evidenceAliases": [
+        "Indianapolis Colts"
+      ],
+      "queryAliases": [
+        "Indianapolis Colts"
+      ],
+      "contextualAliases": [
+        "Colts"
+      ]
+    },
+    {
+      "id": "nfl-jacksonville-jaguars",
+      "leagueId": "nfl",
+      "label": "Jacksonville Jaguars",
+      "evidenceAliases": [
+        "Jacksonville Jaguars"
+      ],
+      "queryAliases": [
+        "Jacksonville Jaguars"
+      ],
+      "contextualAliases": [
+        "Jaguars"
+      ]
+    },
+    {
+      "id": "nfl-kansas-city-chiefs",
+      "leagueId": "nfl",
+      "label": "Kansas City Chiefs",
+      "evidenceAliases": [
+        "Kansas City Chiefs"
+      ],
+      "queryAliases": [
+        "Kansas City Chiefs"
+      ],
+      "contextualAliases": [
+        "Chiefs"
+      ]
+    },
+    {
+      "id": "nfl-las-vegas-raiders",
+      "leagueId": "nfl",
+      "label": "Las Vegas Raiders",
+      "evidenceAliases": [
+        "Las Vegas Raiders"
+      ],
+      "queryAliases": [
+        "Las Vegas Raiders"
+      ],
+      "contextualAliases": [
+        "Raiders"
+      ]
+    },
+    {
+      "id": "nfl-los-angeles-chargers",
+      "leagueId": "nfl",
+      "label": "Los Angeles Chargers",
+      "evidenceAliases": [
+        "Los Angeles Chargers"
+      ],
+      "queryAliases": [
+        "Los Angeles Chargers"
+      ],
+      "contextualAliases": [
+        "Chargers"
+      ]
+    },
+    {
+      "id": "nfl-los-angeles-rams",
+      "leagueId": "nfl",
+      "label": "Los Angeles Rams",
+      "evidenceAliases": [
+        "Los Angeles Rams"
+      ],
+      "queryAliases": [
+        "Los Angeles Rams"
+      ],
+      "contextualAliases": [
+        "Rams"
+      ]
+    },
+    {
+      "id": "nfl-miami-dolphins",
+      "leagueId": "nfl",
+      "label": "Miami Dolphins",
+      "evidenceAliases": [
+        "Miami Dolphins"
+      ],
+      "queryAliases": [
+        "Miami Dolphins"
+      ],
+      "contextualAliases": [
+        "Dolphins"
+      ]
+    },
+    {
+      "id": "nfl-minnesota-vikings",
+      "leagueId": "nfl",
+      "label": "Minnesota Vikings",
+      "evidenceAliases": [
+        "Minnesota Vikings"
+      ],
+      "queryAliases": [
+        "Minnesota Vikings"
+      ],
+      "contextualAliases": [
+        "Vikings"
+      ]
+    },
+    {
+      "id": "nfl-new-england-patriots",
+      "leagueId": "nfl",
+      "label": "New England Patriots",
+      "evidenceAliases": [
+        "New England Patriots"
+      ],
+      "queryAliases": [
+        "New England Patriots"
+      ],
+      "contextualAliases": [
+        "Patriots"
+      ]
+    },
+    {
+      "id": "nfl-new-orleans-saints",
+      "leagueId": "nfl",
+      "label": "New Orleans Saints",
+      "evidenceAliases": [
+        "New Orleans Saints"
+      ],
+      "queryAliases": [
+        "New Orleans Saints"
+      ],
+      "contextualAliases": [
+        "Saints"
+      ]
+    },
+    {
+      "id": "nfl-new-york-giants",
+      "leagueId": "nfl",
+      "label": "New York Giants",
+      "evidenceAliases": [
+        "New York Giants"
+      ],
+      "queryAliases": [
+        "New York Giants"
+      ],
+      "contextualAliases": [
+        "Giants"
+      ]
+    },
+    {
+      "id": "nfl-new-york-jets",
+      "leagueId": "nfl",
+      "label": "New York Jets",
+      "evidenceAliases": [
+        "New York Jets"
+      ],
+      "queryAliases": [
+        "New York Jets"
+      ],
+      "contextualAliases": [
+        "Jets"
+      ]
+    },
+    {
+      "id": "nfl-philadelphia-eagles",
+      "leagueId": "nfl",
+      "label": "Philadelphia Eagles",
+      "evidenceAliases": [
+        "Philadelphia Eagles"
+      ],
+      "queryAliases": [
+        "Philadelphia Eagles"
+      ],
+      "contextualAliases": [
+        "Eagles"
+      ]
+    },
+    {
+      "id": "nfl-pittsburgh-steelers",
+      "leagueId": "nfl",
+      "label": "Pittsburgh Steelers",
+      "evidenceAliases": [
+        "Pittsburgh Steelers"
+      ],
+      "queryAliases": [
+        "Pittsburgh Steelers"
+      ],
+      "contextualAliases": [
+        "Steelers"
+      ]
+    },
+    {
+      "id": "nfl-san-francisco-49ers",
+      "leagueId": "nfl",
+      "label": "San Francisco 49ers",
+      "evidenceAliases": [
+        "San Francisco 49ers"
+      ],
+      "queryAliases": [
+        "San Francisco 49ers"
+      ],
+      "contextualAliases": [
+        "49ers"
+      ]
+    },
+    {
+      "id": "nfl-seattle-seahawks",
+      "leagueId": "nfl",
+      "label": "Seattle Seahawks",
+      "evidenceAliases": [
+        "Seattle Seahawks"
+      ],
+      "queryAliases": [
+        "Seattle Seahawks"
+      ],
+      "contextualAliases": [
+        "Seahawks"
+      ]
+    },
+    {
+      "id": "nfl-tampa-bay-buccaneers",
+      "leagueId": "nfl",
+      "label": "Tampa Bay Buccaneers",
+      "evidenceAliases": [
+        "Tampa Bay Buccaneers"
+      ],
+      "queryAliases": [
+        "Tampa Bay Buccaneers"
+      ],
+      "contextualAliases": [
+        "Buccaneers"
+      ]
+    },
+    {
+      "id": "nfl-tennessee-titans",
+      "leagueId": "nfl",
+      "label": "Tennessee Titans",
+      "evidenceAliases": [
+        "Tennessee Titans"
+      ],
+      "queryAliases": [
+        "Tennessee Titans"
+      ],
+      "contextualAliases": [
+        "Titans"
+      ]
+    },
+    {
+      "id": "nfl-washington-commanders",
+      "leagueId": "nfl",
+      "label": "Washington Commanders",
+      "evidenceAliases": [
+        "Washington Commanders"
+      ],
+      "queryAliases": [
+        "Washington Commanders"
+      ],
+      "contextualAliases": [
+        "Commanders"
+      ]
+    }
+  ],
+  "sources": [
+    {
+      "id": "nfl",
+      "url": "https://www.nfl.com/teams/",
+      "checkedDate": "2026-11-01"
+    },
+    {
+      "id": "college-football",
+      "url": "https://www.ncaa.com/sports/football/fbs",
+      "checkedDate": "2026-11-01"
+    },
+    {
+      "id": "college-basketball",
+      "url": "https://www.ncaa.com/sports/basketball-men/d1",
+      "checkedDate": "2026-11-01"
+    },
+    {
+      "id": "nba",
+      "url": "https://www.nba.com/teams",
+      "checkedDate": "2026-11-01"
+    },
+    {
+      "id": "wnba",
+      "url": "https://www.wnba.com/",
+      "checkedDate": "2026-11-01"
+    },
+    {
+      "id": "mlb",
+      "url": "https://www.mlb.com/team",
+      "checkedDate": "2026-11-01"
+    },
+    {
+      "id": "nhl",
+      "url": "https://www.nhl.com/info/teams/",
+      "checkedDate": "2026-11-01"
+    },
+    {
+      "id": "mls",
+      "url": "https://www.mlssoccer.com/",
+      "checkedDate": "2026-11-01"
+    },
+    {
+      "id": "premier-league",
+      "url": "https://www.premierleague.com/",
+      "checkedDate": "2026-11-01"
+    },
+    {
+      "id": "uefa-champions-league",
+      "url": "https://www.uefa.com/uefachampionsleague/",
+      "checkedDate": "2026-11-01"
+    }
+  ]
+}

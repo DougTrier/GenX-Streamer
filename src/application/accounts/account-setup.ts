@@ -32,11 +32,13 @@ import { type mountSpeechSearch } from '../../ui/channels/speech-search';
 import { type createCatalogView } from '../catalog/catalog-view';
 import { type createAccountPlayer } from './account-player';
 import { type installInAppSelects } from '../../ui/shell/in-app-select';
+import type { GuidePlaybackIntent } from '../playback/guide-playback-intent';
 
 /** What this area reads from, and writes back to, the rest of the application. */
 export interface AccountSetupEnvironment {
   libraries: ReturnType<typeof mountLibrarySwitcher> | undefined;
   readonly applicationClosing: boolean;
+  readonly beginPlaybackIntent?: () => GuidePlaybackIntent;
   readonly accountBrowser: ReturnType<typeof createAccountBrowser>;
   readonly selectAccountScope: ReturnType<typeof createAccountScope>['selectAccountScope'];
   readonly accountPlayer: ReturnType<typeof createAccountPlayer> | undefined;
@@ -84,6 +86,7 @@ export function createAccountSetup(env: AccountSetupEnvironment) {
       showLive: () => env.switchLibrary('live'),
       playRadio: (radio) => env.sharingBridge.select(radio),
       stopPlayback: () => env.sharingBridge.stop(),
+      beginPlaybackIntent: env.beginPlaybackIntent,
       run: env.playbackAction,
       voice: (t) =>
         void env.speechSearch

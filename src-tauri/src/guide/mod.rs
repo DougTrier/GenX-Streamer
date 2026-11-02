@@ -34,6 +34,7 @@ pub(crate) mod reviewed_crosswalk;
 pub mod cached_matching;
 pub mod channel_coverage;
 pub(crate) mod listed_channels;
+pub(crate) mod location_filter;
 pub(crate) mod provisional;
 pub(crate) mod retention;
 

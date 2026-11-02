@@ -133,6 +133,7 @@ describe('negotiated atomic publication windows', () => {
     expect(f.host.close).toHaveBeenCalledTimes(1);
     expect(owner.snapshot()).toMatchObject({
       phase: 'paused',
+      failure: 'none',
       active: 0,
       ownedReservations: 0,
       counts: { checked: 1, published: 1 },

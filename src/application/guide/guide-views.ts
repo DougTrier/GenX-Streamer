@@ -29,9 +29,12 @@ import { type createLibraryState } from '../genxtra/library-state';
 import { type createPageController } from '../shell/page-controller';
 import { type createAccountPlaybackSelection } from '../accounts/account-playback-selection';
 import { type createGuideController } from './guide-controller';
+import { type ChannelBrowser } from '../../ui/channels/channel-browser';
 
 /** What this area reads from, and writes back to, the rest of the application. */
 export interface GuideViewsEnvironment {
+  readonly wakeDailyRefresh: () => void;
+  readonly browser: ChannelBrowser;
   readonly element: <T extends HTMLElement = HTMLElement>(id: string) => T;
   readonly applicationClosing: boolean;
   readonly pageState: ReturnType<typeof createPageState>;
@@ -52,6 +55,58 @@ export interface GuideViewsEnvironment {
 }
 
 export function createGuideViews(env: GuideViewsEnvironment) {
+  // Compact Guide layouts intentionally use the entire workspace. A successful
+  // tune must reveal its picture rather than continue behind a hidden preview.
+  // Keep this transition separate from the Guide-owned Watch promise: closing
+  // the Guide joins that promise and must never await itself.
+  function revealCompactPlayback(intent: number, signal: AbortSignal): void {
+    const current = () =>
+      !signal.aborted &&
+      intent === env.pageState.primaryIntent &&
+      env.pageState.primaryPage === 'guide' &&
+      !env.applicationClosing &&
+      !document.hidden &&
+      env.nativeViewingForeground &&
+      !document.querySelector('dialog[open]:not([data-primary-page])');
+    const screen = env.element('screen');
+    const previewVisible = () => {
+      const rect = screen.getBoundingClientRect();
+      return rect.width > 0 && rect.height > 0;
+    };
+    if (!current() || previewVisible()) return;
+    env.playbackAction(
+      Promise.resolve().then(async () => {
+        if (!current() || previewVisible()) return;
+        const transition = env.switchPrimaryPage('watch');
+        const requested = env.pageState.primaryIntent;
+        await transition;
+        if (
+          requested !== env.pageState.primaryIntent ||
+          env.pageState.primaryPage !== 'watch' ||
+          env.applicationClosing ||
+          document.hidden ||
+          !env.nativeViewingForeground
+        )
+          return;
+        // Closing normally restores the panel that opened Guide (often Channels).
+        // A deliberate Watch action instead requests the actual picture panel.
+        env.element('app').dataset.compactView = 'watch';
+        env.element<HTMLSelectElement>('compact-view').value = 'watch';
+        const active = document.activeElement;
+        if (
+          active instanceof HTMLElement &&
+          active !== document.body &&
+          active.getClientRects().length &&
+          !active.closest('[hidden],[inert]')
+        )
+          return;
+        const control = ['pause-button', 'mute-button']
+          .map((id) => env.element<HTMLButtonElement>(id))
+          .find((button) => !button.disabled && button.getClientRects().length);
+        control?.focus({ preventScroll: true });
+      }),
+    );
+  }
   const guideChannelLogos = createChannelLogos({
     readyScope: () =>
       isTauri() &&
@@ -69,8 +124,19 @@ export function createGuideViews(env: GuideViewsEnvironment) {
     changed: () => guide.refreshArtwork(),
   });
   const paidGuide = mountPaidGuide(env.primaryHost, {
+    cachedChanged: (accountId) => {
+      if (
+        env.library.contentLibrary === 'live' &&
+        env.accountBrowser.selectedAccount?.id === accountId
+      )
+        env.browser.refreshProgrammeMembership();
+    },
+    browseScope: env.guideHost.browseScope,
+    opened: () => env.wakeDailyRefresh(),
+    geography: () => env.browser.getGeographyFilter(),
     guide: createAccountGuide(),
     async watch(row, signal) {
+      const intent = env.pageState.primaryIntent;
       signal.throwIfAborted();
       const scope = env.accountBrowser.preferenceScope();
       if (!scope || scope.accountId !== env.accountBrowser.selectedAccount?.id)
@@ -90,6 +156,7 @@ export function createGuideViews(env: GuideViewsEnvironment) {
           mediaRevision: scope.mediaRevision,
         },
       );
+      revealCompactPlayback(intent, signal);
     },
     close: () => env.playbackAction(env.switchPrimaryPage('watch')),
     now: () => env.guideHost.now(),
@@ -97,10 +164,16 @@ export function createGuideViews(env: GuideViewsEnvironment) {
   });
   const guide = mountGuide(env.primaryHost, {
     ...env.guideHost,
+    async watch(channel, signal) {
+      const intent = env.pageState.primaryIntent;
+      await env.guideHost.watch(channel, signal);
+      revealCompactPlayback(intent, signal);
+    },
     logos: guideChannelLogos,
     presentation: 'page',
     opened: async () => {
       env.presentPrimaryPage('guide');
+      env.wakeDailyRefresh();
       // The remote starts inside the guide: opened with OK, it had no focus at
       // all on the Streamer (October 19, 2026), so nothing showed where to go.
       requestAnimationFrame(() => {
@@ -119,6 +192,7 @@ export function createGuideViews(env: GuideViewsEnvironment) {
     },
     closed: async () => {
       if (env.pageState.primaryPage === 'guide') env.presentPrimaryPage('watch');
+      env.wakeDailyRefresh();
     },
     buildForChannels: (signal) => {
       // Explicit Find retries discovery; automatic requests keep the retry cooldown.

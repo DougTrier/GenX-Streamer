@@ -417,3 +417,40 @@ fn batch_removal_takes_every_group_in_one_write() {
         "catalog-group-invalid"
     );
 }
+
+#[test]
+fn watched_history_returns_only_exact_watched_alias_and_recaptures_order() {
+    let (_root, store) = fixture();
+    let mut q = query("");
+    q.filter = crate::catalog_query::Filter::Watched;
+    q.history_ids = Some(vec!["b".into()]);
+    let cancel = Arc::new(AtomicBool::new(false));
+    let first = store.query_catalog_page(&q, &cancel).unwrap();
+    assert_eq!(first.total_count, 1);
+    assert_eq!(
+        first.rows[0].id, "b",
+        "unwatched representative a is not a history item"
+    );
+    q.history_ids = Some(vec!["b".into(), "a".into()]);
+    assert_eq!(
+        store
+            .query_catalog_page(&q, &cancel)
+            .unwrap()
+            .rows
+            .iter()
+            .map(|r| r.id.as_str())
+            .collect::<Vec<_>>(),
+        ["b", "a"]
+    );
+    q.history_ids.as_mut().unwrap().reverse();
+    assert_eq!(
+        store
+            .query_catalog_page(&q, &cancel)
+            .unwrap()
+            .rows
+            .iter()
+            .map(|r| r.id.as_str())
+            .collect::<Vec<_>>(),
+        ["a", "b"]
+    );
+}

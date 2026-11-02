@@ -113,6 +113,7 @@ export interface BoundedScanResumePlan {
   commitWindow?: typeof scanResumeCommitWindow;
   takeTiming?: typeof scanResumeTakeTiming;
   counts: BoundedScanCounts;
+  normalization?: { entries: number; uniqueTargets: number; duplicates: number };
   revisions: BoundedScanRevisions;
 }
 export interface BoundedScanCandidateRow {
@@ -233,6 +234,32 @@ export function createBoundedScanResumeOwner(
     uncertain = false,
     fatal: unknown = null;
   let observerFailed = false;
+  let playbackBusy = false;
+  let lastBackgroundWork = -Infinity;
+  let cooperationTimer: ReturnType<typeof setTimeout> | null = null;
+  let wakeCooperation: (() => void) | null = null;
+  let wakeWorkload: (() => void) | null = null;
+  let workloadWake = new Promise<void>((resolve) => {
+    wakeWorkload = resolve;
+  });
+  function clearCooperation() {
+    if (cooperationTimer !== null) clearTimeout(cooperationTimer);
+    cooperationTimer = null;
+    wakeCooperation?.();
+    wakeCooperation = null;
+  }
+  async function cooperate() {
+    while (playbackBusy && !controller.signal.aborted) {
+      const delay = lastBackgroundWork + 750 - Date.now();
+      if (delay <= 0) break;
+      await new Promise<void>((resolve) => {
+        wakeCooperation = resolve;
+        cooperationTimer = setTimeout(clearCooperation, delay);
+      });
+    }
+    lastBackgroundWork = Date.now();
+  }
+  controller.signal.addEventListener('abort', clearCooperation);
   let callbackCleanupFailure: { error: unknown } | null = null;
   let preparation: Promise<BoundedScanResumePlan> | null = null;
   let closeWork: Promise<void> | null = null;
@@ -308,6 +335,19 @@ export function createBoundedScanResumeOwner(
     }
     await stopPrepared();
   }
+  function joinedStop(error: unknown): boolean {
+    // Only this owner's joined cancellation is a normal pause. An opener may
+    // preserve that exact cause after closing its native admission owner.
+    if (!controller.signal.aborted || fatal) return false;
+    if (error instanceof DOMException && error.name === 'AbortError') return true;
+    return (
+      !plan &&
+      error instanceof Error &&
+      error.name === 'ScanAdmissionClosedError' &&
+      error.cause instanceof DOMException &&
+      error.cause.name === 'AbortError'
+    );
+  }
   function prepare(): Promise<BoundedScanResumePlan> {
     if (closed) return Promise.reject(refusal());
     if (preparation) return preparation;
@@ -324,7 +364,7 @@ export function createBoundedScanResumeOwner(
         return plan;
       } catch (error) {
         phase = controller.signal.aborted ? 'paused' : 'failed';
-        failure = 'admission-failed';
+        if (!joinedStop(error)) failure = 'admission-failed';
         notify();
         throw error;
       }
@@ -396,7 +436,12 @@ export function createBoundedScanResumeOwner(
         : undefined;
     const candidates = firstPositive
       ? [firstPositive, ...pending.filter((x) => x !== firstPositive)].slice(0, 16)
-      : pending.slice(0, plan.commitWindow?.maxObservations ?? 64);
+      : pending.slice(
+          0,
+          playbackBusy && !controller.signal.aborted
+            ? 16
+            : (plan.commitWindow?.maxObservations ?? 64),
+        );
     const expectedRevisions = { ...plan.revisions };
     const requestFor = (batch: typeof pending): BoundedScanCommit => ({
       expectedRevisions,
@@ -464,7 +509,6 @@ export function createBoundedScanResumeOwner(
         BigInt(ack.catalogRevision) < BigInt(plan.revisions.catalogRevision) ||
         BigInt(ack.catalogRevision) > BigInt(plan.revisions.catalogRevision) + 1n ||
         BigInt(ack.healthRevision) < BigInt(plan.revisions.healthRevision) ||
-        BigInt(ack.healthRevision) > BigInt(plan.revisions.healthRevision) + 1n ||
         BigInt(ack.checkpointRevision) !== BigInt(plan.revisions.checkpointRevision) + 1n
       )
         throw refusal();
@@ -595,18 +639,21 @@ export function createBoundedScanResumeOwner(
           firstPositive ||
           (pending.length && (publicationDue || capacityBlocked))
         ) {
+          if (playbackBusy) await cooperate();
           await flush();
           capacityBlocked = false;
           continue;
         }
         if (exhausted && active.size === 0) break;
-        // Sixteen checks at once, under the native request ceiling; at most
-        // two on any one site (the native scheduler enforces both).
+        // Existing probes settle when viewing begins; no replacement starts
+        // until only one remains. Idle restores the negotiated full capacity.
         const slots = Math.min(
-          scanResumeCommitWindow.maxActiveProbes - active.size,
+          (playbackBusy ? 1 : scanResumeCommitWindow.maxActiveProbes) - active.size,
           256 - owned.size,
         );
         if (!exhausted && !capacityBlocked && !coolingWake && slots > 0) {
+          if (playbackBusy) await cooperate();
+          if (controller.signal.aborted) break;
           const perOrigin = new Map<string, number>();
           for (const id of probing)
             if (owned.has(id)) {
@@ -656,19 +703,24 @@ export function createBoundedScanResumeOwner(
         }
         if (active.size || coolingWake) {
           const waits = [...active.values()];
+          waits.push(workloadWake);
           if (coolingWake) waits.push(coolingWake);
           if (publicationWake) waits.push(publicationWake);
           await Promise.race(waits);
           // A settled probe can make another origin eligible; replace the old hint on the next Take.
           clearCoolingTimer();
         } else if (pending.length) {
+          if (playbackBusy) await cooperate();
           await flush();
           capacityBlocked = false;
         }
       }
       await Promise.all(active.values());
       if (fatal) throw fatal;
-      while (pending.length) await flush();
+      while (pending.length) {
+        if (playbackBusy) await cooperate();
+        await flush();
+      }
       phase =
         controller.signal.aborted ||
         current.checked < current.total ||
@@ -679,10 +731,11 @@ export function createBoundedScanResumeOwner(
       operationError = error;
       if (!uncertain) {
         phase = controller.signal.aborted ? 'paused' : 'failed';
-        if (failure === 'none') failure = 'admission-failed';
+        if (failure === 'none' && !joinedStop(error)) failure = 'admission-failed';
       }
     } finally {
       clearCoolingTimer();
+      clearCooperation();
       clearPublicationTimer();
       controller.abort();
       await Promise.all(active.values());
@@ -712,6 +765,7 @@ export function createBoundedScanResumeOwner(
       clearPublicationTimer();
       options.signal?.removeEventListener('abort', abort);
       controller.signal.removeEventListener('abort', clearCoolingTimer);
+      controller.signal.removeEventListener('abort', clearCooperation);
       notify();
     }
     if (operationError && !controller.signal.aborted) throw operationError;
@@ -721,6 +775,17 @@ export function createBoundedScanResumeOwner(
   }
   return {
     snapshot,
+    setPlaybackBusy(value: boolean) {
+      if (typeof value !== 'boolean') throw refusal();
+      if (closed || value === playbackBusy) return;
+      playbackBusy = value;
+      clearCooperation();
+      wakeWorkload?.();
+      workloadWake = new Promise<void>((resolve) => {
+        wakeWorkload = resolve;
+      });
+      notify();
+    },
     prepare,
     start(): Promise<void> {
       if (started || closed) throw refusal();

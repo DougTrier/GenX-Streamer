@@ -1,5 +1,7 @@
 # Checking that a copy of GenX Streamer is genuine
 
+Current release source and assets use **0.1.25 / build 1025**. Historical measurements below retain their recorded versions.
+
 GenX Streamer spreads from person to person (Pass It Along), so anyone who
 receives a copy can check it against the official release.
 
@@ -13,11 +15,10 @@ each (written by `scripts/package-candidate.mjs`):
 | --- | --- |
 | `GenX-Streamer-<version>-Windows-x64-portable.zip` | The portable Windows app: GenX Streamer.exe, `tmg-portable.flag` (keeps data beside the exe), a README and the dependency notices. Extract all of it into one folder. |
 | `GenX-Streamer-<version>-Windows-x64.exe` | The same exe on its own (what **Check for updates** installs). |
-| `GenX-Streamer-<version>-Android-arm64.apk` | The Android app (ARM64). |
+| `GenX-Streamer-<version>-Android.apk` | The universal Android app (ARM32 and ARM64). |
 | `SHA256SUMS` | One line per file: `<sha256>  <file name>`. |
 
-The release page is https://github.com/DougTrier/GenX-Streamer/releases/latest
-(private until the owner publishes the repository).
+The official release page is https://github.com/DougTrier/GenX-Streamer/releases/latest.
 
 ## Comparing a file
 
@@ -25,8 +26,8 @@ Compute the file's SHA-256 and compare it with its line in `SHA256SUMS` from
 the release page. Every character must match.
 
 - **Windows** (PowerShell): `Get-FileHash .\GenX-Streamer-1.0.0-Windows-x64-portable.zip -Algorithm SHA256`
-- **macOS**: `shasum -a 256 GenX-Streamer-1.0.0-Android-arm64.apk`
-- **Linux**: `sha256sum GenX-Streamer-1.0.0-Android-arm64.apk`
+- **macOS**: `shasum -a 256 GenX-Streamer-1.0.0-Android.apk`
+- **Linux**: `sha256sum GenX-Streamer-1.0.0-Android.apk`
 - **A running copy**: Settings → About GenX Streamer → **This copy** →
   **Show checksum** shows the SHA-256 of the app's own file (the installed APK,
   or the running exe), to compare with `SHA256SUMS`.

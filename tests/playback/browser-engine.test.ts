@@ -28,6 +28,7 @@ import {
 import { startTiming } from '../../src/playback/start-timing';
 import { PlaybackController } from '../../src/playback/controller';
 import { createResourceOwners } from '../../src/playback/resource-owners';
+import { learnedLiveBuffer, liveBufferIdentity } from '../../src/playback/adaptive-buffer';
 import { Video, selection } from './browser-engine.fixture';
 
 const mocked = vi.hoisted(() => ({
@@ -78,15 +79,163 @@ vi.mock('hls.js', () => ({
 }));
 
 describe('browser adapter resource contract (mocked transport, no decoder proof)', () => {
-  it('selects highest supported advertised height, bitrate then width before loading, and preserves explicit Auto', async () => {
+  it.each(['ready', 'abort', 'deadline'] as const)(
+    'retains a learned live MPEG-TS startup cushion and settles on %s',
+    async (completion) => {
+      vi.useFakeTimers();
+      const chosen = {
+        id: 'ts-learned',
+        name: 'TS',
+        url: 'https://example.test/live.ts',
+        mediaKind: 'media' as const,
+        mediaMime: 'video/mp2t',
+        performanceKey: 'paid-stream-format-fixture',
+      };
+      const key = liveBufferIdentity(chosen);
+      learnedLiveBuffer.set(key, 5);
+      const video = new Video();
+      let ahead = 1;
+      Object.assign(video, { buffered: { length: 1, start: () => 0, end: () => ahead } });
+      const owners = createResourceOwners();
+      const emit = vi.fn();
+      const signal = new AbortController();
+      const transport = {
+        on: vi.fn(),
+        off: vi.fn(),
+        attachMediaElement: vi.fn(),
+        load: vi.fn(),
+        unload: vi.fn(),
+        detachMediaElement: vi.fn(),
+        destroy: vi.fn(),
+      };
+      const library = {
+        isSupported: () => true,
+        getFeatureList: () => ({ mseLivePlayback: true }),
+        createPlayer: vi.fn(() => transport),
+        Events: { ERROR: 'error', MEDIA_INFO: 'info' },
+      };
+      const engine = createBrowserEngine(video.element, emit, undefined, {
+        owners,
+        loadMpegts: async () => library as unknown as typeof import('mpegts.js').default,
+      });
+      const pending = engine.start(chosen, signal.signal);
+      try {
+        await vi.waitFor(() => expect(transport.load).toHaveBeenCalledOnce());
+        expect(video.play).not.toHaveBeenCalled();
+        expect(emit).toHaveBeenCalledWith({ type: 'buffering' });
+        if (completion === 'abort') signal.abort();
+        else {
+          if (completion === 'ready') ahead = 6;
+          await vi.advanceTimersByTimeAsync(completion === 'deadline' ? 12_000 : 250);
+        }
+        await pending;
+        expect(video.play).toHaveBeenCalledTimes(completion === 'abort' ? 0 : 1);
+        expect(owners.snapshot().counts.loaderTimers).toBe(0);
+      } finally {
+        signal.abort();
+        await pending;
+        await engine.dispose();
+        learnedLiveBuffer.set(key, 0);
+        vi.useRealTimers();
+      }
+    },
+  );
+  it.each([
+    { ...selection, url: 'https://example.test/another-source' },
+    { ...selection, playMode: 'on-demand' as const },
+  ])(
+    'does not apply a learned live delay to another source or on-demand playback ($url, $playMode)',
+    async (chosen) => {
+      const key = liveBufferIdentity(selection);
+      learnedLiveBuffer.set(key, 20);
+      const video = new Video();
+      const emit = vi.fn();
+      const engine = createBrowserEngine(video.element, emit);
+      try {
+        await engine.start(chosen, new AbortController().signal);
+        expect(video.play).toHaveBeenCalledOnce();
+        expect(emit).not.toHaveBeenCalledWith({ type: 'buffering' });
+      } finally {
+        await engine.dispose();
+        learnedLiveBuffer.set(key, 0);
+      }
+    },
+  );
+  it.each(['ready', 'abort', 'deadline'] as const)(
+    'applies the exact source learned startup buffer and settles on %s',
+    async (completion) => {
+      vi.useFakeTimers();
+      const key = liveBufferIdentity(selection);
+      learnedLiveBuffer.set(key, 20);
+      const video = new Video();
+      let ahead = 1;
+      Object.assign(video, { buffered: { length: 1, start: () => 0, end: () => ahead } });
+      const owners = createResourceOwners();
+      const emit = vi.fn();
+      const signal = new AbortController();
+      const engine = createBrowserEngine(video.element, emit, undefined, { owners });
+      const previousOwners = mocked.owners.length;
+      const pending = engine.start({ ...selection, buffer: 'fast' }, signal.signal);
+      try {
+        await vi.waitFor(() => expect(mocked.owners).toHaveLength(previousOwners + 1));
+        expect(mocked.owners.at(-1)?.config).toMatchObject({
+          maxBufferLength: 20,
+          maxMaxBufferLength: 20,
+        });
+        expect(video.play).not.toHaveBeenCalled();
+        expect(emit).toHaveBeenCalledWith({ type: 'buffering' });
+        if (completion === 'abort') signal.abort();
+        else {
+          if (completion === 'ready') ahead = 21;
+          await vi.advanceTimersByTimeAsync(completion === 'deadline' ? 12_000 : 250);
+        }
+        await pending;
+        expect(video.play).toHaveBeenCalledTimes(completion === 'abort' ? 0 : 1);
+        expect(owners.snapshot().counts.loaderTimers).toBe(0);
+      } finally {
+        signal.abort();
+        await pending;
+        await engine.dispose();
+        learnedLiveBuffer.set(key, 0);
+        vi.useRealTimers();
+      }
+    },
+  );
+  it('does not acknowledge engine release when a completed native session close failed after abort', async () => {
+    const owners = createResourceOwners();
+    const signal = new AbortController();
+    const closeSession = vi.fn(async () => {
+      throw new Error('close-unconfirmed');
+    });
+    const engine = createBrowserEngine(new Video().element, () => {}, undefined, {
+      owners,
+      nativeTransport: {
+        openSession: async () => {},
+        closeSession,
+        load: async () => ({ status: 200, headers: {}, data: [1] }),
+        cancel: async () => {},
+      },
+    });
+    await engine.start(selection, signal.signal);
+    signal.abort();
+    await vi.waitFor(() => {
+      expect(closeSession).toHaveBeenCalledOnce();
+      expect(owners.snapshot().counts.nativeCancels).toBe(0);
+    });
+    await expect(engine.dispose()).rejects.toThrow('session cleanup failed');
+    expect(owners.snapshot().counts.browserEngines).toBe(1);
+  });
+  it('starts at the highest advertised rendition while Auto stays enabled, and preserves manual overrides', async () => {
     mocked.autoManifest = false;
     const video = new Video(),
       engine = createBrowserEngine(video.element, () => {});
     try {
+      const previousOwners = mocked.owners.length;
       const pending = engine.start(selection, new AbortController().signal);
-      await vi.waitFor(() =>
-        expect(mocked.owners.at(-1)?.config).toMatchObject({ autoStartLoad: false }),
-      );
+      await vi.waitFor(() => {
+        expect(mocked.owners).toHaveLength(previousOwners + 1);
+        expect(mocked.owners.at(-1)?.config).toMatchObject({ autoStartLoad: false });
+      });
       const hls = mocked.owners.at(-1)!;
       let next = -1;
       Object.assign(hls, {
@@ -98,6 +247,7 @@ describe('browser adapter resource contract (mocked transport, no decoder proof)
           { height: 1080, width: 2048, bitrate: 9e6 },
         ],
         currentLevel: -1,
+        startLevel: -1,
         autoLevelEnabled: true,
       });
       Object.defineProperty(hls, 'nextLevel', {
@@ -109,12 +259,17 @@ describe('browser adapter resource contract (mocked transport, no decoder proof)
         },
       });
       hls.startLoad.mockImplementation(() => {
-        expect(next).toBe(3);
+        expect(Reflect.get(hls, 'startLevel')).toBe(3);
+        expect(next).toBe(-1);
       });
       expect(hls.startLoad).not.toHaveBeenCalled();
       hls.handlers.get('manifest')?.('manifest', {});
       await pending;
-      expect(next).toBe(3);
+      expect(Reflect.get(hls, 'startLevel')).toBe(3);
+      expect(next).toBe(-1);
+      expect(readVideoQuality(video.element)?.auto).toBe(true);
+      expect(setVideoQuality(video.element, 1)).toBe(true);
+      expect(next).toBe(1);
       expect(readVideoQuality(video.element)?.auto).toBe(false);
       expect(hls.startLoad).toHaveBeenCalledExactlyOnceWith(-1);
       expect(setVideoQuality(video.element, null)).toBe(true);
@@ -184,10 +339,11 @@ describe('browser adapter resource contract (mocked transport, no decoder proof)
         const pending = engine.start(selection, new AbortController().signal);
         await vi.waitFor(() => expect(mocked.owners.length).toBe(count + 1));
         const hls = mocked.owners.at(-1)!;
-        Object.assign(hls, { levels, nextLevel: -1 });
+        Object.assign(hls, { levels, nextLevel: -1, startLevel: -1 });
         hls.handlers.get('manifest')?.('manifest', {});
         await pending;
-        expect(Reflect.get(hls, 'nextLevel')).toBe(levels.length ? 1 : -1);
+        expect(Reflect.get(hls, 'startLevel')).toBe(levels.length ? 1 : -1);
+        expect(Reflect.get(hls, 'nextLevel')).toBe(-1);
         await engine.dispose();
         const calls = hls.startLoad.mock.calls.length;
         hls.handlers.get('manifest')?.('manifest', {});

@@ -20,7 +20,7 @@ use crate::{
     scan_manifest_work::Context,
     scan_resume_registry::{Lease, Registry},
     scan_resume_runtime::{
-        probe_memo::{Key, Recognized},
+        probe_memo::{Key, ObservedTarget, Outcome},
         Episode,
     },
 };
@@ -55,6 +55,54 @@ struct Probing<'a> {
     lease: &'a Lease<Episode>,
     reservation_id: String,
     settled: bool,
+}
+struct TargetOwner<'a> {
+    lease: &'a Lease<Episode>,
+    key: Option<Key>,
+}
+impl Drop for TargetOwner<'_> {
+    fn drop(&mut self) {
+        if let Some(key) = self.key.take() {
+            let _ = self.lease.settle(|episode| {
+                episode.transport_memo.release(&key);
+                Ok(())
+            });
+        }
+    }
+}
+fn outcome_facts(outcome: Outcome) -> (Value, &'static str) {
+    match outcome {
+        Outcome::Reachable => (
+            json!({"kind":"http","status":200,"contentRecognized":true}),
+            "Reachable",
+        ),
+        Outcome::Http(status) => (
+            json!({"kind":"http","status":status}),
+            if [401, 403, 451].contains(&status) {
+                "AccessDenied"
+            } else {
+                "TemporaryUnavailable"
+            },
+        ),
+        Outcome::Slow => (json!({"kind":"slow"}), "TimedOut"),
+        Outcome::TimedOut => (json!({"kind":"timeout"}), "TimedOut"),
+        Outcome::NetworkFailure => (json!({"kind":"network-failure"}), "TemporaryUnavailable"),
+        Outcome::Unsupported => (json!({"kind":"unsupported"}), "UnsupportedHere"),
+    }
+}
+pub(crate) fn cache_outcome(evidence: &Value, verdict: &str) -> Option<Outcome> {
+    match (verdict, evidence["kind"].as_str()) {
+        ("Reachable", _) => Some(Outcome::Reachable),
+        ("AccessDenied" | "TemporaryUnavailable", Some("http")) => evidence["status"]
+            .as_u64()
+            .and_then(|s| u16::try_from(s).ok())
+            .map(Outcome::Http),
+        ("TimedOut", Some("slow")) => Some(Outcome::Slow),
+        ("TimedOut", Some("timeout")) => Some(Outcome::TimedOut),
+        ("TemporaryUnavailable", Some("network-failure")) => Some(Outcome::NetworkFailure),
+        ("UnsupportedHere", _) => Some(Outcome::Unsupported),
+        _ => None,
+    }
 }
 impl Drop for Probing<'_> {
     fn drop(&mut self) {
@@ -141,7 +189,7 @@ struct Receipt {
     observed_at: u64,
     settled_at: u64,
     cooldown: u64,
-    recognized: Option<Recognized>,
+    recognized: Option<ObservedTarget>,
     inspected: bool,
     /// The site could not be reached at all (name, connection or TLS).
     connection_failed: bool,
@@ -157,8 +205,8 @@ fn connection_failed(result: &Result<network_media_probe::Inspection, String>) -
 /// Both actual inspections and memo hits pass through the same receipt boundary.
 /// The inspector is lazy: a hit never constructs a transport or producer receipt.
 async fn inspect_or_reuse<F, Fut>(
-    cached: Option<Recognized>,
-    budget: u64,
+    cached: Option<ObservedTarget>,
+    _budget: u64,
     inspect: F,
     clock: impl Fn() -> Result<u64, String>,
 ) -> Result<Receipt, String>
@@ -167,10 +215,10 @@ where
     Fut: std::future::Future<Output = Result<network_media_probe::Inspection, String>>,
 {
     let current = clock()?;
-    if let Some(value) = cached.filter(|value| value.fresh(current, budget)) {
+    if let Some(value) = cached.filter(|value| value.valid(current)) {
         return Ok(Receipt {
-            evidence: json!({"kind":"http","status":200,"contentRecognized":true}),
-            verdict: "Reachable",
+            evidence: outcome_facts(value.outcome).0,
+            verdict: outcome_facts(value.outcome).1,
             observed_at: value.observed_at,
             settled_at: current,
             cooldown: 0,
@@ -186,9 +234,13 @@ where
         .map(|value| retry_after(value, settled_at))
         .unwrap_or(0);
     let (evidence, verdict) = evidence(&result);
-    let recognized = (verdict == "Reachable").then_some(Recognized {
-        observed_at: settled_at,
-    });
+    let recognized = (result.is_ok() || result.as_ref().err().is_some_and(|e| e == "timeout"))
+        .then(|| cache_outcome(&evidence, verdict))
+        .flatten()
+        .map(|outcome| ObservedTarget {
+            observed_at: settled_at,
+            outcome,
+        });
     Ok(Receipt {
         evidence,
         verdict,
@@ -280,11 +332,42 @@ where
     };
     // Recipient hydration, all alternative grants and current SQL authority were
     // checked above; the memo does not confer admission or publication authority.
+    let mut target_owner = TargetOwner {
+        lease: &lease,
+        key: None,
+    };
+    let mut waited_for_target = false;
     let cached = if http_denied {
         None
-    } else {
+    } else if host_down {
         lease.with(|episode| Ok(episode.transport_memo.get(&memo_key, now()?, budget)))?
+    } else {
+        loop {
+            context.check()?;
+            lease.check()?;
+            let (cached, claimed) = lease.with(|episode| {
+                if episode.quarantined {
+                    return Err("scan-resume-owner-quarantined".into());
+                }
+                let cached = episode.transport_memo.get(&memo_key, now()?, budget);
+                let claimed = cached.is_none() && episode.transport_memo.claim(memo_key.clone());
+                Ok((cached, claimed))
+            })?;
+            if cached.is_some() {
+                break cached;
+            }
+            if claimed {
+                target_owner.key = Some(memo_key.clone());
+                break None;
+            }
+            waited_for_target = true;
+            tokio::time::sleep(Duration::from_millis(20)).await;
+        }
     };
+    if waited_for_target {
+        validate_current_authority(&registry, &context, &request.plan_id, fence.root_generation)
+            .await?;
+    }
     let cancel = async {
         loop {
             if context.check().is_err() || lease.check().is_err() {
@@ -307,7 +390,7 @@ where
             inspected: false,
             connection_failed: false,
         }
-    } else if host_down {
+    } else if host_down && cached.is_none() {
         // The site failed to connect twice in a row in this scan: no request.
         let at = now()?;
         Receipt {
@@ -336,9 +419,13 @@ where
     };
     // The inspected future has settled or been dropped before any origin release.
     lease.settle(|episode| {
-        episode
-            .scheduler
-            .finish_probe(&reservation_id, receipt.settled_at, receipt.cooldown)
+        if receipt.inspected {
+            episode
+                .scheduler
+                .finish_probe(&reservation_id, receipt.settled_at, receipt.cooldown)
+        } else {
+            episode.scheduler.finish_reused(&reservation_id)
+        }
     })?;
     guard.settled = true;
     context.check()?;
@@ -374,7 +461,7 @@ where
         }
         if let Some(recognized) = receipt
             .recognized
-            .filter(|value| receipt.inspected && value.fresh(memo_now, budget))
+            .filter(|value| receipt.inspected && value.valid(memo_now))
         {
             episode.transport_memo.insert(memo_key, recognized);
         }
@@ -474,7 +561,7 @@ mod tests {
         assert_eq!(retry_after(&value, 0), 0);
     }
     #[tokio::test]
-    async fn only_recognized_transport_success_is_memoizable_never_decoder_or_failure() {
+    async fn terminal_transport_facts_are_shared_but_never_decoder_or_cancellation_claims() {
         for result in [
             Ok(inspection("unavailable", "http-failure", Some(403))),
             Ok(inspection("unavailable", "http-failure", Some(503))),
@@ -488,7 +575,10 @@ mod tests {
             let receipt = inspect_or_reuse(None, 20_000, || async { result }, || Ok(100))
                 .await
                 .unwrap();
-            assert!(receipt.recognized.is_none());
+            assert_ne!(receipt.verdict, "PlayedHere");
+            if receipt.verdict == "Canceled" {
+                assert!(receipt.recognized.is_none());
+            }
             assert!(receipt.inspected);
         }
         let receipt = inspect_or_reuse(
@@ -509,12 +599,15 @@ mod tests {
         assert_eq!(receipt.verdict, "Reachable");
     }
     #[tokio::test]
-    async fn expiry_between_lookup_and_settlement_falls_back_to_real_inspection() {
+    async fn clock_reversal_between_lookup_and_settlement_requires_real_inspection() {
         use std::cell::Cell;
-        for current in [99, 20_100] {
+        for current in [99] {
             let calls = Cell::new(0);
             let receipt = inspect_or_reuse(
-                Some(Recognized { observed_at: 100 }),
+                Some(ObservedTarget {
+                    observed_at: 100,
+                    outcome: Outcome::Reachable,
+                }),
                 20_000,
                 || async {
                     calls.set(calls.get() + 1);

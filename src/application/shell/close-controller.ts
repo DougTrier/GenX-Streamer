@@ -1,3 +1,4 @@
+import { type installPlaybackDiagnostics } from '../../ui/settings/playback-diagnostics';
 /*
  * Copyright 2026 Doug Trier
  *
@@ -117,6 +118,7 @@ export interface CloseEnvironment {
   readonly browser: ChannelBrowser;
   readonly removeVideoQuality: ReturnType<typeof installVideoQuality>;
   readonly removeAudioTracks: ReturnType<typeof installAudioTracks>;
+  readonly playbackDiagnostics: ReturnType<typeof installPlaybackDiagnostics>;
   readonly audioDiagnostics: ReturnType<typeof installAudioDiagnostics>;
   readonly dailyRefresh: ReturnType<typeof createImportController>['dailyRefresh'];
   readonly dailyGuideRefresh: ReturnType<typeof createImportController>['dailyGuideRefresh'];

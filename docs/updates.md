@@ -1,5 +1,7 @@
 # Voluntary updates
 
+Current release source and assets use **0.1.25 / build 1025**. Historical measurements below retain their recorded versions.
+
 The viewer owns GenX Streamer and decides when it changes (owner, October 24,
 2026). **About GenX Streamer → About the Author → Updates** has one button,
 **Check for updates**, and one promise beneath it: *Updates are always
@@ -51,8 +53,8 @@ patch|minor|major` sets it everywhere: `package.json`, `package-lock.json`,
 `src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `src-tauri/tauri.conf.json`
 and the README badge). Check for updates offers a release only when its
 version is higher than the running copy's. Android's `versionCode` is
-`major*1000000 + minor*1000 + patch`, so each part stays below 1000, and
-Android refuses an update whose code is not higher. `npm run verify` fails
+`major*1000000 + minor*1000 + patch`, so each part stays below 1000.
+The version code increases for each public release; GenX offers only a newer version. `npm run verify` fails
 if the files disagree.
 
 ## Release files
@@ -67,8 +69,7 @@ without its `v`):
 
 The build's own architecture (`std::env::consts`) picks the file. GitHub
 computes each file's SHA-256 digest when it is uploaded; GenX refuses a file
-without one. `scripts/package-candidate.mjs` writes these names (ARM64 for
-Android so far) and `SHA256SUMS`; see
+without one. `scripts/package-candidate.mjs` writes these versioned names and `SHA256SUMS`; see
 [verify-a-download.md](verify-a-download.md).
 
 ## Verification
@@ -102,11 +103,14 @@ A running exe cannot be overwritten, but it can be renamed
 Development builds (any other exe name) are never replaced. A folder GenX
 cannot write to is reported before anything moves.
 
-## While the repository is private
+## Public releases and unavailable repositories
 
-GitHub answers 404 for a private repository's releases (checked October 24,
-2026), so until the owner publishes it, **Check for updates** says no public
-release was found.
+Official releases are available from the public GenX Streamer repository.
+During early private development, GitHub answered 404 for inaccessible release
+metadata (observed October 24, 2026). That was a historical access limit, not
+the current publication status. If the repository or a release is unavailable,
+**Check for updates** reports that it could not find or reach a public release;
+the installed app keeps working.
 
 ## Code and tests
 

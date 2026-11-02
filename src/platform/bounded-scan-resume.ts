@@ -282,6 +282,8 @@ const nativeDiagnosticCodes = [
 ] as const;
 export type KnownBoundedNativeFailureCode = (typeof nativeDiagnosticCodes)[number];
 export type BoundedScanCommand =
+  | 'scan_resume_capabilities'
+  | 'open_scan_resume_plan'
   | 'take_scan_resume_candidates'
   | 'probe_scan_resume_candidate'
   | 'commit_scan_resume_candidates'
@@ -325,6 +327,39 @@ export function createBoundedNativeScanResumeTransport(options: {
     if (closed || !plan || (id !== undefined && id !== plan.planId)) throw bad();
     return plan;
   }
+  const observedRuntime = (command: BoundedScanCommand): OwnedNativeRuntime => ({
+    ...options.runtime,
+    async invoke(actualCommand, args) {
+      if (actualCommand === command) diagnose({ command, stage: 'native-dispatch', code: null });
+      try {
+        return await options.runtime.invoke(actualCommand, args);
+      } catch (error) {
+        if (actualCommand === command)
+          diagnose({
+            command,
+            stage: 'native-refusal',
+            code:
+              typeof error === 'string' &&
+              (nativeDiagnosticCodes as readonly string[]).includes(error)
+                ? (error as KnownBoundedNativeFailureCode)
+                : 'native-refusal-unclassified',
+          });
+        throw error;
+      }
+    },
+  });
+  const observedValidation =
+    <T>(command: BoundedScanCommand, validate: (raw: unknown) => T) =>
+    (raw: unknown): T => {
+      try {
+        const result = validate(raw);
+        diagnose({ command, stage: 'response-accepted', code: null });
+        return result;
+      } catch (error) {
+        diagnose({ command, stage: 'response-validation', code: 'bounded-response-invalid' });
+        throw error;
+      }
+    };
   const rpc = <T>(
     command: BoundedScanCommand,
     request: Record<string, unknown>,
@@ -333,65 +368,48 @@ export function createBoundedNativeScanResumeTransport(options: {
     durable = false,
   ) =>
     invokeOwnedNative(
-      {
-        ...options.runtime,
-        async invoke(actualCommand, args) {
-          if (actualCommand === command)
-            diagnose({ command, stage: 'native-dispatch', code: null });
-          try {
-            return await options.runtime.invoke(actualCommand, args);
-          } catch (error) {
-            if (actualCommand === command)
-              diagnose({
-                command,
-                stage: 'native-refusal',
-                code:
-                  typeof error === 'string' &&
-                  (nativeDiagnosticCodes as readonly string[]).includes(error)
-                    ? (error as KnownBoundedNativeFailureCode)
-                    : 'native-refusal-unclassified',
-              });
-            throw error;
-          }
-        },
-      },
+      observedRuntime(command),
       command,
       { request: { schemaVersion: 1, ...request } },
       {
         signal,
         durable,
-        validate(raw) {
-          try {
-            const result = validate(raw);
-            diagnose({ command, stage: 'response-accepted', code: null });
-            return result;
-          } catch (error) {
-            diagnose({ command, stage: 'response-validation', code: 'bounded-response-invalid' });
-            throw error;
-          }
-        },
+        validate: observedValidation(command, validate),
       },
     );
   const host: BoundedScanResumeHost = {
     admit: async (signal) => {
-      if (closed || plan) throw bad();
+      if (closed || plan) {
+        diagnose({
+          command: 'open_scan_resume_plan',
+          stage: 'local-validation',
+          code: 'bounded-request-invalid',
+        });
+        throw bad();
+      }
       const fence = options.currentFence();
       if (
         !decimal(fence.expectedCatalogRevision) ||
         !decimal(fence.expectedCheckpointRevision) ||
         Object.keys(fence).length !== 2
-      )
+      ) {
+        diagnose({
+          command: 'open_scan_resume_plan',
+          stage: 'local-validation',
+          code: 'bounded-request-invalid',
+        });
         throw bad();
+      }
       let admitted: BoundedScanResumePlan;
       const openingRequestId = (options.runtime.idFactory ?? (() => crypto.randomUUID()))();
       try {
         admitted = await invokeOwnedNative(
-          { ...options.runtime, idFactory: () => openingRequestId },
+          { ...observedRuntime('open_scan_resume_plan'), idFactory: () => openingRequestId },
           'open_scan_resume_plan',
           { request: { schemaVersion: 1, ...fence } },
           {
             signal,
-            validate: (raw) => {
+            validate: observedValidation('open_scan_resume_plan', (raw) => {
               if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw bad();
               const header = raw as Record<string, unknown>;
               // These are local negotiated permissions, never authority carried by a raw header.
@@ -444,7 +462,7 @@ export function createBoundedNativeScanResumeTransport(options: {
               sources = Object.freeze(canonical);
               plan = mapped;
               return mapped;
-            },
+            }),
           },
         );
       } catch (error) {
@@ -621,12 +639,12 @@ export function createBoundedNativeScanResumeTransport(options: {
     lastPlanSnapshot: () => plan,
     capabilities: async (signal?: AbortSignal) =>
       invokeOwnedNative(
-        options.runtime,
+        observedRuntime('scan_resume_capabilities'),
         'scan_resume_capabilities',
         { windowVersion: 2, takeTimingVersion: 1 },
         {
           signal,
-          validate: (raw) => {
+          validate: observedValidation('scan_resume_capabilities', (raw) => {
             if (
               !raw ||
               typeof raw !== 'object' ||
@@ -659,7 +677,7 @@ export function createBoundedNativeScanResumeTransport(options: {
               takeTiming = nextTiming;
             }
             return (raw as { boundedResume: number }).boundedResume === 1;
-          },
+          }),
         },
       ),
   };

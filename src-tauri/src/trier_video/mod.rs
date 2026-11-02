@@ -38,6 +38,8 @@ mod picture;
 pub mod platform;
 mod pool;
 pub mod profile;
+#[cfg(any(target_os = "android", test))]
+mod surface_binding;
 mod tables;
 #[cfg(test)]
 mod tests;

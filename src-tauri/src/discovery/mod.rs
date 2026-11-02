@@ -38,5 +38,6 @@ pub(crate) mod scan_resume_release;
 pub(crate) mod scan_resume_runtime;
 pub(crate) mod scan_resume_take;
 pub(crate) mod scan_window;
+pub(crate) mod source_cleanup_owner;
 pub(crate) mod source_directory;
 pub(crate) mod source_snapshot_activation_owner;

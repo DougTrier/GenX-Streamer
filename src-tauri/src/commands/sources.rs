@@ -222,23 +222,56 @@ pub(crate) async fn inspect_media_resources(
 }
 
 #[tauri::command]
+pub(crate) fn open_media_session(
+    session_id: String,
+    state: tauri::State<'_, NativeState>,
+) -> Result<(), String> {
+    let _work = state.admit_work()?;
+    state
+        .media_sessions
+        .lock()
+        .map_err(|_| "media-session-lock")?
+        .open(session_id)
+}
+
+#[tauri::command]
+pub(crate) fn close_media_session(
+    session_id: String,
+    state: tauri::State<'_, NativeState>,
+) -> Result<(), String> {
+    state
+        .media_sessions
+        .lock()
+        .map_err(|_| "media-session-lock")?
+        .close(&session_id);
+    Ok(())
+}
+
+#[tauri::command]
 pub(crate) async fn fetch_media(
     url: String,
     allow_http: bool,
     request_id: String,
     range: Option<String>,
+    session_id: Option<String>,
     state: tauri::State<'_, NativeState>,
 ) -> Result<network::MediaPayload, String> {
-    if state.closing.load(Ordering::SeqCst) {
-        return Err("application-closing".into());
-    }
+    let _work = state.admit_work()?;
+    let client = match session_id {
+        Some(id) => state
+            .media_sessions
+            .lock()
+            .map_err(|_| "media-session-lock")?
+            .client(&id, allow_http)?,
+        None => network::playback_client(allow_http)?,
+    };
     let receiver = state
         .requests
         .lock()
         .map_err(|_| "request-lock".to_string())?
         .register(request_id.clone())?;
     let result = tokio::select! {
-        response = network::media(&url, allow_http, range) => response,
+        response = network::media_with_client(&url, allow_http, range, &client) => response,
         _ = receiver => Err("canceled".into()),
     };
     state
@@ -257,8 +290,9 @@ pub(crate) async fn fetch_media_bytes(
     allow_http: bool,
     request_id: String,
     range: Option<String>,
+    session_id: Option<String>,
     state: tauri::State<'_, NativeState>,
 ) -> Result<tauri::ipc::Response, String> {
-    let payload = fetch_media(url, allow_http, request_id, range, state).await?;
+    let payload = fetch_media(url, allow_http, request_id, range, session_id, state).await?;
     Ok(tauri::ipc::Response::new(network::frame_media(&payload)?))
 }

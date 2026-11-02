@@ -484,6 +484,38 @@ pub(crate) struct Status {
     pub channels: i64,
     pub skipped: i64,
 }
+/// Read-only admission repeated inside the publication transaction. Automatic
+/// renewal never discovers an uncached guide or bypasses the saved permission.
+pub(crate) fn admit_automatic(
+    c: &Connection,
+    account: &str,
+    revision: i64,
+    now: i64,
+) -> Result<(), String> {
+    crate::guide::refresh::require_automatic_updates(c)?;
+    if current_revision(c, account)? != Some(revision) {
+        return Err("account-revision-conflict".into());
+    }
+    let saved = status(c, account)?.ok_or("account-guide-not-cached")?;
+    let due = saved
+        .fetched_ms
+        .checked_add(crate::guide::refresh::INTERVAL_MS)
+        .ok_or("account-clock-unavailable")?;
+    if now < due {
+        return Err("account-guide-not-due".into());
+    }
+    Ok(())
+}
+pub(crate) fn commit_automatic(
+    c: &mut Connection,
+    account: &str,
+    revision: i64,
+    parsed: &Parsed,
+    fetched_ms: i64,
+    check: &mut dyn FnMut() -> Result<(), String>,
+) -> Result<Status, String> {
+    commit_with_policy(c, account, revision, parsed, fetched_ms, true, check)
+}
 /// Replaces the account's guide in one transaction, only for the account
 /// revision it was downloaded for. Nothing is written if that changed.
 pub(crate) fn commit(
@@ -494,8 +526,37 @@ pub(crate) fn commit(
     fetched_ms: i64,
     check: &mut dyn FnMut() -> Result<(), String>,
 ) -> Result<Status, String> {
+    commit_with_policy(
+        c,
+        account,
+        account_revision,
+        parsed,
+        fetched_ms,
+        false,
+        check,
+    )
+}
+fn commit_with_policy(
+    c: &mut Connection,
+    account: &str,
+    account_revision: i64,
+    parsed: &Parsed,
+    fetched_ms: i64,
+    automatic: bool,
+    check: &mut dyn FnMut() -> Result<(), String>,
+) -> Result<Status, String> {
     install(c)?;
     let tx = sql(c.transaction())?;
+    if automatic {
+        admit_automatic(&tx, account, account_revision, fetched_ms)?;
+        if !parsed
+            .programs
+            .iter()
+            .any(|p| p.stop_ms.is_some_and(|stop| stop > fetched_ms))
+        {
+            return Err("account-guide-no-future-schedule".into());
+        }
+    }
     if current_revision(&tx, account)? != Some(account_revision) {
         return Err("account-revision-conflict".into());
     }
@@ -562,6 +623,9 @@ pub(crate) fn commit(
         }
     }
     check()?;
+    if automatic {
+        crate::guide::refresh::require_automatic_updates(&tx)?;
+    }
     sql(tx.commit())?;
     Ok(status)
 }
@@ -604,11 +668,15 @@ pub(crate) struct GuideChannel {
     pub id: String,
     pub name: String,
     pub category: String,
+    pub original_category: String,
     pub epg_id: String,
     pub provider_id: Option<String>,
     /// The channel list's opaque playback capability (never a provider URL).
     pub stream_reference: String,
     pub favorite: bool,
+    /// Canonical provider-group country, shared with the Paid TV channel list.
+    pub country: Option<String>,
+    pub ppv: bool,
 }
 /// Channels (current revision, not removed) whose EPG ID has listings.
 pub(crate) fn channels(c: &Connection, account: &str) -> Result<Vec<GuideChannel>, String> {
@@ -617,7 +685,7 @@ pub(crate) fn channels(c: &Connection, account: &str) -> Result<Vec<GuideChannel
     }
     let live = crate::account_catalog_query::live_scope(c)?;
     let mut statement = sql(c.prepare(&format!(
-        "SELECT e.channel_id,e.name,{},e.epg_id,{},e.provider_id,e.stream_ref{} AND e.epg_id IS NOT NULL AND EXISTS(
+        "SELECT e.channel_id,e.name,{},e.epg_id,{},e.provider_id,e.stream_ref,e.category{} AND e.epg_id IS NOT NULL AND EXISTS(
            SELECT 1 FROM account_guide_program_v1 g WHERE g.account_id=e.account_id AND g.epg_id=e.epg_id)
          ORDER BY e.name COLLATE NOCASE,e.channel_id LIMIT 50000",
         live.category, live.favorite, live.from
@@ -627,10 +695,15 @@ pub(crate) fn channels(c: &Connection, account: &str) -> Result<Vec<GuideChannel
             id: r.get(0)?,
             name: r.get(1)?,
             category: r.get(2)?,
+            original_category: r.get(7)?,
             epg_id: r.get(3)?,
             favorite: r.get::<_, i64>(4)? != 0,
             provider_id: r.get(5)?,
             stream_reference: r.get(6)?,
+            country: crate::group_country::group_country(&r.get::<_, String>(7)?),
+            ppv: crate::catalog::ppv::marked(&r.get::<_, String>(1)?)
+                || crate::catalog::ppv::marked(&r.get::<_, String>(2)?)
+                || crate::catalog::ppv::marked(&r.get::<_, String>(7)?),
         })
     }))?;
     rows.map(sql).collect()
@@ -639,6 +712,7 @@ const OVERLAP: &str =
     "start_ms>=?2-43200000 AND start_ms<?3 AND (stop_ms>?2 OR (stop_ms IS NULL AND start_ms>=?2))";
 /// EPG IDs with a listing in the window; with search, whose title or
 /// description has every word.
+#[cfg(test)]
 pub(crate) fn listed(
     c: &Connection,
     account: &str,
@@ -646,68 +720,211 @@ pub(crate) fn listed(
     to_ms: i64,
     search: &str,
 ) -> Result<Vec<String>, String> {
+    listed_in_scope(c, account, from_ms, to_ms, search, false)
+}
+
+/// Both identities are returned: EPG IDs are legacy metadata, while exact
+/// channel IDs decide which provider rows may appear in the requested scope.
+pub(crate) struct ListedMembership {
+    pub epg_ids: Vec<String>,
+    pub channel_ids: Vec<String>,
+    pub ppv_channel_ids: Vec<String>,
+}
+
+#[cfg(test)]
+pub(crate) fn listed_in_scope(
+    c: &Connection,
+    account: &str,
+    from_ms: i64,
+    to_ms: i64,
+    search: &str,
+    ppv: bool,
+) -> Result<Vec<String>, String> {
+    Ok(listed_channels_in_scope(c, account, from_ms, to_ms, search, ppv)?.epg_ids)
+}
+
+#[cfg(test)]
+pub(crate) fn listed_channels_in_scope(
+    c: &Connection,
+    account: &str,
+    from_ms: i64,
+    to_ms: i64,
+    search: &str,
+    ppv: bool,
+) -> Result<ListedMembership, String> {
+    listed_channels_sports(c, account, from_ms, to_ms, search, ppv, None)
+}
+#[allow(clippy::too_many_arguments)]
+#[cfg(test)]
+pub(crate) fn listed_channels_sports(
+    c: &Connection,
+    account: &str,
+    from_ms: i64,
+    to_ms: i64,
+    search: &str,
+    ppv: bool,
+    sports: Option<&crate::catalog::sports::Scope>,
+) -> Result<ListedMembership, String> {
+    listed_channels_history(c, account, from_ms, to_ms, search, ppv, sports, None, None)
+}
+fn validate_history_scope(
+    c: &Connection,
+    account: &str,
+    ids: Option<&[String]>,
+    hide_adult: Option<bool>,
+    ppv: bool,
+) -> Result<(), String> {
+    crate::guide::listed_channels::validate_history(ids, hide_adult, ppv)?;
+    if ids.is_some_and(|ids| ids.iter().any(|id| !valid_channel_id(id, account))) {
+        return Err("account-guide-channel-invalid".into());
+    }
+    crate::catalog_query::register_watch_history(c, ids.unwrap_or_default())
+}
+fn history_clause(category: &str, ids: Option<&[String]>, hide_adult: Option<bool>) -> String {
+    if ids.is_none() {
+        return String::new();
+    }
+    let mut clause =
+        " AND e.channel_id IN(SELECT value FROM json_each(genx_watch_ids()))".to_owned();
+    if hide_adult.unwrap_or(true) {
+        clause.push_str(&format!(
+            " AND NOT {} AND NOT {}",
+            crate::account_catalog_query::history_adult_predicate("e.category"),
+            crate::account_catalog_query::history_adult_predicate(category)
+        ));
+    }
+    clause
+}
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn listed_channels_history(
+    c: &Connection,
+    account: &str,
+    from_ms: i64,
+    to_ms: i64,
+    search: &str,
+    ppv: bool,
+    sports: Option<&crate::catalog::sports::Scope>,
+    history_ids: Option<&[String]>,
+    hide_adult: Option<bool>,
+) -> Result<ListedMembership, String> {
+    validate_history_scope(c, account, history_ids, hide_adult, ppv)?;
+    let plan = sports
+        .map(|scope| crate::catalog::sports::Plan::new(scope, search))
+        .transpose()?;
+    if let Some(plan) = &plan {
+        crate::catalog::sports::register(c, plan)?;
+    }
     debug_assert_eq!(LONGEST_MS, 43_200_000);
     if status(c, account)?.is_none() {
-        return Ok(Vec::new());
+        return Ok(ListedMembership {
+            epg_ids: Vec::new(),
+            channel_ids: Vec::new(),
+            ppv_channel_ids: Vec::new(),
+        });
     }
+    crate::account_catalog_query::register_functions(c)?;
     let words: Vec<String> = search
         .split_whitespace()
         .take(8)
         .map(|w| w.to_lowercase())
         .collect();
-    if words.is_empty() {
-        let mut statement = sql(c.prepare(&format!(
-            "SELECT DISTINCT epg_id FROM account_guide_program_v1 WHERE account_id=?1 AND {OVERLAP}"
-        )))?;
-        let rows = sql(statement.query_map(params![account, from_ms, to_ms], |r| r.get(0)))?;
-        return rows.map(sql).collect();
-    }
-    // The database narrows by letters; each word must then start a word of the
-    // title or description ("nfl" is not "conflict"), as in the Free TV guide.
-    let mut sql_text =
-        format!("SELECT epg_id,title,COALESCE(description,'') FROM account_guide_program_v1 WHERE account_id=?1 AND {OVERLAP}");
-    for i in 0..words.len() {
-        sql_text.push_str(&format!(
-            " AND instr(lower(title)||char(10)||lower(COALESCE(description,'')),?{})>0",
-            i + 4
-        ));
-    }
-    let mut statement = sql(c.prepare(&sql_text))?;
-    let mut values: Vec<rusqlite::types::Value> =
-        vec![account.to_owned().into(), from_ms.into(), to_ms.into()];
-    values.extend(words.iter().cloned().map(Into::into));
-    let rows = sql(
-        statement.query_map(rusqlite::params_from_iter(values), |r| {
+    // Word-start matching stays identical to the original reader, but runs in
+    // the indexed EXISTS so it can stop at the first matching programme.
+    sql(c.create_scalar_function(
+        "genx_account_guide_search",
+        3,
+        rusqlite::functions::FunctionFlags::SQLITE_UTF8
+            | rusqlite::functions::FunctionFlags::SQLITE_DETERMINISTIC,
+        move |ctx| {
+            let title = ctx.get::<String>(0)?;
+            let description = ctx.get::<Option<String>>(1)?.unwrap_or_default();
+            let categories = crate::catalog::sports::category_text(&ctx.get::<String>(2)?)?;
+            let text = format!("{title} {description} {categories}").to_lowercase();
+            let starts: Vec<&str> = text
+                .split(|c: char| c.is_whitespace() || "([-/:\"#.,;!?)]'".contains(c))
+                .filter(|w| !w.is_empty())
+                .collect();
+            Ok(words
+                .iter()
+                .all(|word| starts.iter().any(|w| w.starts_with(word.as_str()))))
+        },
+    ))?;
+    let live = crate::account_catalog_query::live_scope(c)?;
+    let marker = crate::catalog::ppv::channel("e.name", "e.category", live.category);
+    let evidence = "(l.ppv OR genx_ppv_program(g.title,g.categories))";
+    let visibility = if history_ids.is_some() {
+        "1".to_owned()
+    } else if ppv {
+        evidence.to_owned()
+    } else if plan.as_ref().is_some_and(|p| p.include_ppv()) {
+        format!("(NOT {evidence} OR genx_sports_ppv_program(l.name,l.original,l.effective,g.title,g.description,g.categories,l.extra))")
+    } else {
+        format!("NOT {evidence}")
+    };
+    let search_clause = if plan.is_some() {
+        "genx_sports_program(l.name,l.original,l.effective,g.title,g.description,g.categories,l.extra)"
+    } else {
+        "genx_account_guide_search(g.title,g.description,g.categories)"
+    };
+    let badge = if history_ids.is_some() {
+        format!("(l.ppv OR NOT EXISTS(SELECT 1 FROM account_guide_program_v1 g WHERE g.account_id=?1 AND g.epg_id=l.epg_id AND {OVERLAP} AND NOT genx_ppv_program(g.title,g.categories) AND {search_clause}))")
+    } else if ppv {
+        "1".to_owned()
+    } else if plan.as_ref().is_some_and(|p| p.include_ppv()) {
+        format!("(l.ppv OR (NOT genx_sports_list_channel(l.name,l.original,l.effective,l.extra) AND NOT EXISTS(SELECT 1 FROM account_guide_program_v1 g WHERE g.account_id=?1 AND g.epg_id=l.epg_id AND {OVERLAP} AND NOT genx_ppv_program(g.title,g.categories) AND {search_clause})))")
+    } else {
+        "0".into()
+    };
+    // Materialize authorized channel classification once. Programme lookup uses
+    // the (account_id,epg_id,start_ms,ordinal) primary key, not a live-account
+    // correlated scan for every programme. Shared EPG IDs never merge channels.
+    let statement = format!("WITH ppv_live_channels AS MATERIALIZED(SELECT e.channel_id,e.epg_id,{marker} AS ppv,e.name AS name,e.category AS original,{} AS effective,COALESCE(e.provider_id,'')||char(10)||COALESCE(e.epg_id,'')||char(10)||COALESCE(genx_group_country_name(e.category),'') AS extra{} AND e.epg_id IS NOT NULL AND e.epg_id<>''{} ) SELECT l.channel_id,l.epg_id,{badge} FROM ppv_live_channels l WHERE EXISTS(SELECT 1 FROM account_guide_program_v1 g WHERE g.account_id=?1 AND g.epg_id=l.epg_id AND {OVERLAP} AND {visibility} AND {search_clause}) ORDER BY l.channel_id", live.category, live.from, history_clause(live.category, history_ids, hide_adult));
+    let mut statement = sql(c.prepare(&statement))?;
+    let rows = sql(statement.query_map(
+        params![
+            account,
+            plan.as_ref().map_or(from_ms, |p| p.scope.window_start_ms),
+            plan.as_ref().map_or(to_ms, |p| p.scope.window_end_ms)
+        ],
+        |r| {
             Ok((
                 r.get::<_, String>(0)?,
                 r.get::<_, String>(1)?,
-                r.get::<_, String>(2)?,
+                r.get::<_, bool>(2)?,
             ))
-        }),
-    )?;
-    let mut out: Vec<String> = Vec::new();
-    let mut seen = HashSet::new();
+        },
+    ))?;
+    let mut channel_ids = Vec::new();
+    let mut ppv_channel_ids = Vec::new();
+    let mut epg_ids = std::collections::BTreeSet::new();
     for row in rows {
-        let (epg, title, description) = sql(row)?;
-        if seen.contains(&epg) {
-            continue;
+        let (channel, epg, ppv) = sql(row)?;
+        if ppv {
+            ppv_channel_ids.push(channel.clone());
         }
-        let text = format!("{title} {description}").to_lowercase();
-        let starts: Vec<&str> = text
-            .split(|c: char| c.is_whitespace() || "([-/:\"#.,;!?)]'".contains(c))
-            .filter(|w| !w.is_empty())
-            .collect();
-        if words
-            .iter()
-            .all(|word| starts.iter().any(|w| w.starts_with(word.as_str())))
-        {
-            seen.insert(epg.clone());
-            out.push(epg);
-        }
+        channel_ids.push(channel);
+        epg_ids.insert(epg);
     }
-    Ok(out)
+    Ok(ListedMembership {
+        channel_ids,
+        ppv_channel_ids,
+        epg_ids: epg_ids.into_iter().collect(),
+    })
 }
+
+pub(crate) fn valid_channel_id(channel: &str, account: &str) -> bool {
+    channel
+        .strip_prefix(&format!("account-{account}-"))
+        .is_some_and(|id| {
+            id.len() == 64
+                && id
+                    .bytes()
+                    .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+        })
+}
+
 /// One channel's listings in the window, after (start, ordinal), at most `limit`.
+#[cfg(test)]
 pub(crate) fn programs(
     c: &Connection,
     account: &str,
@@ -717,13 +934,106 @@ pub(crate) fn programs(
     after: Option<(i64, i64)>,
     limit: usize,
 ) -> Result<Vec<Program>, String> {
+    programs_in_scope(
+        c, account, epg_id, from_ms, to_ms, after, limit, false, None,
+    )
+}
+
+#[cfg(test)]
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn programs_in_scope(
+    c: &Connection,
+    account: &str,
+    epg_id: &str,
+    from_ms: i64,
+    to_ms: i64,
+    after: Option<(i64, i64)>,
+    limit: usize,
+    ppv: bool,
+    channel_id: Option<&str>,
+) -> Result<Vec<Program>, String> {
+    programs_sports(
+        c, account, epg_id, from_ms, to_ms, after, limit, ppv, channel_id, None, "",
+    )
+}
+#[allow(clippy::too_many_arguments)]
+#[cfg(test)]
+pub(crate) fn programs_sports(
+    c: &Connection,
+    account: &str,
+    epg_id: &str,
+    from_ms: i64,
+    to_ms: i64,
+    after: Option<(i64, i64)>,
+    limit: usize,
+    ppv: bool,
+    channel_id: Option<&str>,
+    sports: Option<&crate::catalog::sports::Scope>,
+    search: &str,
+) -> Result<Vec<Program>, String> {
+    programs_history(
+        c, account, epg_id, from_ms, to_ms, after, limit, ppv, channel_id, sports, search, None,
+        None,
+    )
+}
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn programs_history(
+    c: &Connection,
+    account: &str,
+    epg_id: &str,
+    from_ms: i64,
+    to_ms: i64,
+    after: Option<(i64, i64)>,
+    limit: usize,
+    ppv: bool,
+    channel_id: Option<&str>,
+    sports: Option<&crate::catalog::sports::Scope>,
+    search: &str,
+    history_ids: Option<&[String]>,
+    hide_adult: Option<bool>,
+) -> Result<Vec<Program>, String> {
+    validate_history_scope(c, account, history_ids, hide_adult, ppv)?;
+    let plan = sports
+        .map(|scope| crate::catalog::sports::Plan::new(scope, search))
+        .transpose()?;
+    if let Some(plan) = &plan {
+        crate::catalog::sports::register(c, plan)?;
+    }
     if status(c, account)?.is_none() {
         return Ok(Vec::new());
     }
+    if ((ppv || sports.is_some() || history_ids.is_some()) && channel_id.is_none())
+        || channel_id.is_some_and(|id| !valid_channel_id(id, account))
+    {
+        return Err("account-guide-channel-invalid".into());
+    }
+    crate::account_catalog_query::register_functions(c)?;
+    let live = crate::account_catalog_query::live_scope(c)?;
+    let marker = crate::catalog::ppv::channel("e.name", "e.category", live.category);
+    let channel = if channel_id.is_some() {
+        "AND e.channel_id=?8"
+    } else {
+        "AND ?8 IS NULL"
+    };
+    let context = format!("WITH live_context AS MATERIALIZED(SELECT MAX({marker}) AS marked,MAX(NOT {marker}) AS normal,MAX(e.name) AS name,MAX(e.category) AS original,MAX({}) AS effective,MAX(COALESCE(e.provider_id,'')||char(10)||COALESCE(e.epg_id,'')||char(10)||COALESCE(genx_group_country_name(e.category),'')) AS extra{} AND e.epg_id=?4 {channel}{})", live.category, live.from, history_clause(live.category, history_ids, hide_adult));
+    let visibility = if history_ids.is_some() {
+        " AND (lc.marked OR lc.normal)"
+    } else if ppv {
+        " AND (lc.marked OR ((lc.marked OR lc.normal) AND genx_ppv_program(g.title,g.categories)))"
+    } else if plan.as_ref().is_some_and(|p| p.include_ppv()) {
+        " AND (lc.marked OR lc.normal) AND ((lc.normal AND NOT genx_ppv_program(g.title,g.categories)) OR genx_sports_ppv_program(lc.name,lc.original,lc.effective,g.title,g.description,g.categories,lc.extra))"
+    } else {
+        " AND lc.normal AND NOT genx_ppv_program(g.title,g.categories)"
+    };
+    let semantic = if plan.is_some() {
+        " AND genx_sports_program(lc.name,lc.original,lc.effective,g.title,g.description,g.categories,lc.extra)"
+    } else {
+        ""
+    };
     let (after_start, after_ordinal) = after.unwrap_or((i64::MIN, i64::MIN));
     let mut statement = sql(c.prepare(&format!(
-        "SELECT epg_id,start_ms,stop_ms,ordinal,title,description,categories FROM account_guide_program_v1
-         WHERE account_id=?1 AND {OVERLAP} AND epg_id=?4 AND (start_ms>?5 OR (start_ms=?5 AND ordinal>?6))
+        "{context} SELECT epg_id,start_ms,stop_ms,ordinal,title,description,categories FROM account_guide_program_v1 g CROSS JOIN live_context lc
+         WHERE account_id=?1 AND {OVERLAP}{visibility}{semantic} AND epg_id=?4 AND (start_ms>?5 OR (start_ms=?5 AND ordinal>?6))
          ORDER BY start_ms,ordinal LIMIT ?7"
     )))?;
     let rows = sql(statement.query_map(
@@ -734,7 +1044,8 @@ pub(crate) fn programs(
             epg_id,
             after_start,
             after_ordinal,
-            limit.min(100) as i64
+            limit.min(100) as i64,
+            channel_id
         ],
         |r| {
             let categories: String = r.get(6)?;

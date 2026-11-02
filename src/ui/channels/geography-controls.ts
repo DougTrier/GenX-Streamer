@@ -107,7 +107,12 @@ export function mountGeographyControls(
   container: HTMLElement,
   host: GeographyControlsHost,
   options: GeographyControlsOptions = {},
-): { update(): void; reset(): void; dispose(): void } {
+): {
+  update(): void;
+  reset(): void;
+  restore(value: { filter: GeographyFilter; sort: 'source' | 'geography' | 'name' }): void;
+  dispose(): void;
+} {
   const wrapper = document.createElement('div');
   wrapper.className = 'geography-controls';
   const fields = ['region', 'state'] as const;
@@ -216,7 +221,9 @@ export function mountGeographyControls(
           }
           return counts;
         })();
-    chosen = chosen.filter((code) => countryCounts.has(code));
+    // A restored tab may await its account summary. Keep its explicit choice
+    // visible at zero rather than silently broadening the query meanwhile.
+    for (const code of chosen) if (!countryCounts.has(code)) countryCounts.set(code, 0);
     renderCountries(
       countryCounts,
       summary ? summary.total : channels.length,
@@ -342,6 +349,17 @@ export function mountGeographyControls(
   update();
   return {
     update,
+    restore(value): void {
+      if (disposed) return;
+      filter = { ...value.filter };
+      chosen = value.filter.countries
+        ? [...value.filter.countries]
+        : value.filter.country === undefined
+          ? []
+          : [value.filter.country ?? '?'];
+      sort.value = value.sort;
+      update();
+    },
     /** A library switch starts from all countries in source order. */
     reset(): void {
       if (disposed) return;

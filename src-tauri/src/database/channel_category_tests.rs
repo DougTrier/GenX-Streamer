@@ -57,10 +57,34 @@ fn category_override_roundtrip_query_reset_and_refresh_keep_provider_identity() 
         page(&store, "", crate::catalog_query::Filter::News).rows[0].id,
         "one"
     );
+    let sports = page(&store, "Sports", crate::catalog_query::Filter::All);
     assert_eq!(
-        page(&store, "Sports", crate::catalog_query::Filter::All).rows[0].id,
-        "two"
+        sports
+            .rows
+            .iter()
+            .map(|row| row.id.as_str())
+            .collect::<Vec<_>>(),
+        ["one", "two"]
     );
+    assert_eq!(
+        sports
+            .rows
+            .iter()
+            .map(|row| row.category.as_str())
+            .collect::<Vec<_>>(),
+        ["News", "Sports"]
+    );
+    assert_eq!(
+        sports
+            .rows
+            .iter()
+            .map(|row| row.provider_id.as_deref())
+            .collect::<Vec<_>>(),
+        [Some("one"), Some("two")]
+    );
+    let original: Value = serde_json::from_str(after.pair.catalog.as_ref().unwrap()).unwrap();
+    assert_eq!(original["channels"][0]["category"], "Sports");
+    assert_eq!(original["channels"][1]["category"], "Sports");
     assert_eq!(
         page(&store, "Music", crate::catalog_query::Filter::All).total_count,
         0
@@ -86,6 +110,10 @@ fn category_override_roundtrip_query_reset_and_refresh_keep_provider_identity() 
     let canonical: Value =
         serde_json::from_str(reopened.read_pair().unwrap().catalog.as_ref().unwrap()).unwrap();
     assert_eq!(canonical["channels"][0]["category"], "Documentary");
+    let provider_refresh = page(&reopened, "Documentary", crate::catalog_query::Filter::All);
+    assert_eq!(provider_refresh.rows[0].id, "one");
+    assert_eq!(provider_refresh.rows[0].category, "News");
+    assert_eq!(provider_refresh.rows[0].provider_id.as_deref(), Some("one"));
     prefs["channelCategoryOverrides"] = json!([]);
     reopened.write("preferences", &prefs.to_string()).unwrap();
     assert_eq!(

@@ -15,7 +15,8 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { classifyScanFailure } from '../../src/ui/scan/source-scan-model';
+import { classifyScanFailure, scanFailureCode } from '../../src/ui/scan/source-scan-model';
+import { IncrementalRefreshCapacityError } from '../../src/discovery/incremental-refresh';
 describe('redacted scan failure classification', () => {
   it.each([
     'catalog-revision-stale',
@@ -53,4 +54,16 @@ describe('redacted scan failure classification', () => {
     expect(classifyScanFailure('scan-checkpoint-target-validation-limit')).toBe('capacity');
     expect(classifyScanFailure(new Error('Missing durable receipt'))).toBe('publish-failed');
   });
+});
+
+it('retains typed incremental raw-input capacity as a fixed safe diagnostic through causes', () => {
+  const failure = new IncrementalRefreshCapacityError();
+  failure.message = 'https://private.invalid/token';
+  expect(classifyScanFailure(failure)).toBe('capacity');
+  expect(scanFailureCode(failure)).toBe('source-refresh-capacity');
+  expect(scanFailureCode(new Error('Outer private diagnostic', { cause: failure }))).toBe(
+    'source-refresh-capacity',
+  );
+  expect(classifyScanFailure({ name: 'IncrementalRefreshCapacityError' })).toBe('other');
+  expect(scanFailureCode(new Error('IncrementalRefreshCapacityError secret'))).toBe('unclassified');
 });

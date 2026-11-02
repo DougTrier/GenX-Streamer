@@ -202,6 +202,16 @@ pub struct ProgramQuery {
     pub context_at_ms: Option<i64>,
     #[serde(default)]
     pub search: String,
+    #[serde(default)]
+    pub geography: serde_json::Map<String, serde_json::Value>,
+    #[serde(default)]
+    pub ppv: bool,
+    #[serde(default)]
+    pub sports: Option<crate::catalog::sports::Scope>,
+    #[serde(default)]
+    pub history_ids: Option<Vec<String>>,
+    #[serde(default)]
+    pub hide_adult: Option<bool>,
     pub page_size: usize,
     pub cursor: Option<GuideCursor>,
 }

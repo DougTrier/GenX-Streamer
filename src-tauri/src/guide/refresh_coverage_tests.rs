@@ -135,9 +135,9 @@ fn fresh_response_replans_from_earliest_mapped_horizon_before_publication() {
     for p in &mut feed.programs {
         p.stop_ms = Some(now + 19 * HOUR);
     }
-    feed.programs[0].stop_ms = Some(now + 16 * HOUR);
+    feed.programs[0].stop_ms = Some(now + 2 * HOUR);
     let canceled = AtomicBool::new(false);
-    let expected = now + 16 * HOUR - 15 * 60_000;
+    let expected = now + 2 * HOUR - 15 * 60_000;
     let due = next_after_feed(&c, &source, &feed, now, &canceled).unwrap();
     assert_eq!(due, expected);
     db::replace_guide_conditional(
@@ -231,15 +231,15 @@ fn exact_catalog_scope_ignores_removed_or_missing_channels_and_deduplicates_alia
 }
 
 #[test]
-fn no_mapped_targets_retains_daily_and_read_plan_never_creates_attempt_state() {
+fn no_mapped_targets_renews_three_hourly_and_read_plan_never_creates_attempt_state() {
     let (c, source, _) = coverage_fixture();
     c.execute("DELETE FROM guide_mapping", []).unwrap();
     assert_eq!(
-        plan(&c, BASE + 18 * HOUR).unwrap().sources[0].next_due_ms,
-        BASE + 24 * HOUR
+        plan(&c, BASE + 2 * HOUR).unwrap().sources[0].next_due_ms,
+        BASE + INTERVAL_MS
     );
     assert!(
-        preflight_claim(&c, &source.id, source.revision, BASE + 18 * HOUR)
+        preflight_claim(&c, &source.id, source.revision, BASE + 2 * HOUR)
             .unwrap()
             .is_some()
     );
@@ -324,7 +324,7 @@ fn attempt_fingerprint_and_earliest_lead_are_source_scoped_and_read_only() {
     .unwrap();
     assert_eq!(
         plan(&c, now).unwrap().sources[0].next_due_ms,
-        BASE + 12 * HOUR - 15 * 60_000
+        BASE + INTERVAL_MS
     );
     let json = serde_json::to_value(mapped_targets(&c, &source.id, now).unwrap()).unwrap();
     assert_eq!(json["version"], 1);

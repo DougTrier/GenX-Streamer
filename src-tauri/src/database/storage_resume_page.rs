@@ -58,8 +58,12 @@ fn check_fence(c: &Connection, expected: Fence) -> Result<(), String> {
         [],
         |r| r.get(0),
     ))?;
-    if catalog != expected.catalog || health != expected.health || checkpoint != expected.checkpoint
-    {
+    if !expected.admits_health_progress(Fence {
+        root_generation: expected.root_generation,
+        catalog,
+        health,
+        checkpoint,
+    }) {
         return Err("scan-resume-plan-stale".into());
     }
     Ok(())

@@ -69,6 +69,7 @@ export interface GuideReloadEnvironment {
   sources: GuideSource[];
   readonly mapEmpty: HTMLButtonElement;
   readonly advancedMode: boolean;
+  readonly pagePresented: boolean;
   readonly mappingPanel: HTMLElement;
   readonly renderSources: () => void;
   readonly renderChannels: () => void;
@@ -132,8 +133,47 @@ export interface GuideReloadEnvironment {
  * and channel lookup. Part of mountGuide.
  */
 export function createGuideReload(env: GuideReloadEnvironment) {
+  // A tune changes the selected channel, not the all-channel page model.
+  // Real reloads/configuration notifications revoke this proof synchronously.
+  // Catalog publication alone belongs to the timeline's retained catch-up;
+  // it must not turn a selection notification into a configuration reload.
+  let pageModel: {
+    epoch: number;
+    scope: string;
+    catalogRevision: string;
+    linked: Set<string>;
+  } | null = null;
+  const modelScope = () => {
+    const revision = env.host.catalogRevision?.();
+    return typeof revision === 'string' && revision.length
+      ? JSON.stringify([env.host.locationScopeKey?.() ?? null])
+      : null;
+  };
+  function reusePageTimelineSelection(): boolean {
+    if (
+      env.disposed ||
+      env.suspending ||
+      !env.foreground ||
+      !env.dialog.open ||
+      !env.pagePresented ||
+      env.advancedMode ||
+      !env.timeline ||
+      env.timelinePanel.hidden ||
+      !pageModel ||
+      pageModel.epoch !== env.viewEpoch ||
+      pageModel.scope !== modelScope()
+    )
+      return false;
+    const selected = env.chosen();
+    env.mapEmpty.hidden =
+      !selected || pageModel.linked.has(JSON.stringify([selected.sourceId, selected.id]));
+    env.renderChannels();
+    return true;
+  }
   function reload(continuation = false): void {
     if (env.disposed || env.suspending || !env.foreground || !env.dialog.open) return;
+    pageModel = null;
+    const configurationScope = modelScope();
     if (!continuation) {
       env.cursor = null;
       env.pageAnchor = null;
@@ -208,8 +248,12 @@ export function createGuideReload(env: GuideReloadEnvironment) {
               if (list) list.push(entry);
               else links.set(key, [entry]);
             }
+            // Preserve the selected-channel Map control's existing semantics,
+            // including a playing channel hidden by the current catalog view.
+            const linked = new Set(links.keys());
             env.timelineChannels = (env.host.channels?.() ?? []).map((channel) => {
-              const matches = links.get(JSON.stringify([channel.sourceId, channel.id])) ?? [];
+              const key = JSON.stringify([channel.sourceId, channel.id]);
+              const matches = links.get(key) ?? [];
               const mapping = matches.length === 1 ? matches[0] : null;
               return {
                 ...channel,
@@ -233,6 +277,16 @@ export function createGuideReload(env: GuideReloadEnvironment) {
             env.status.title = env.host.listedChannels ? env.status.textContent : connectionStatus;
             env.status.setAttribute('aria-label', env.status.title);
             env.findEmpty.hidden = !env.host.discover && !env.host.buildForChannels;
+            // The complete configuration is reusable even while a slower row's
+            // programme read is still pending; tuning must not restart it.
+            const catalogRevision = env.host.catalogRevision?.();
+            if (
+              configurationScope !== null &&
+              configurationScope === modelScope() &&
+              typeof catalogRevision === 'string' &&
+              catalogRevision.length
+            )
+              pageModel = { epoch, scope: configurationScope, catalogRevision, linked };
             await env.timeline.setForeground(true);
             return;
           }
@@ -462,6 +516,7 @@ export function createGuideReload(env: GuideReloadEnvironment) {
           }
           env.error.textContent = '';
         } catch (failure) {
+          if (epoch === env.viewEpoch) pageModel = null;
           if (failure instanceof ChannelCoverageCleanupError) throw failure;
           if (!env.disposed && epoch === env.viewEpoch && !controller.signal.aborted) {
             env.error.textContent =
@@ -556,6 +611,13 @@ export function createGuideReload(env: GuideReloadEnvironment) {
   }
   return {
     reload,
+    reusePageTimelineSelection,
+    // Summary selection may already acknowledge the live canonical key while
+    // the retained presentation still awaits the scan's catalog notification.
+    pageModelCatalogChanged: () =>
+      pageModel !== null &&
+      pageModel.epoch === env.viewEpoch &&
+      pageModel.catalogRevision !== env.host.catalogRevision?.(),
     lookupChannels,
   };
 }

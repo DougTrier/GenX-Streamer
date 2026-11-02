@@ -489,7 +489,9 @@ fn new_database_and_corrupt_main_restoration_still_run_final_integrity() {
     let store = PairStore {
         root: root.path().into(),
         require_database: false,
+        cleanup_runtime: Default::default(),
         page_cache: Default::default(),
+        guide_listed_cache: Default::default(),
     };
     let mut creation = Vec::new();
     store

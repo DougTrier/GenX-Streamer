@@ -36,9 +36,18 @@ import {
   type AccountPreferencesReceipt,
 } from '../../platform/account-preferences';
 import { type ChannelBrowser } from '../../ui/channels/channel-browser';
+import type { createSharingHost } from '../sharing/sharing-host';
+import type { createAccountPlaybackSelection } from '../accounts/account-playback-selection';
+import type { PlaybackController } from '../../playback/controller';
+import type { mountGuide } from '../../ui/guide/guide';
+import type { mountPaidGuide } from '../../ui/guide/paid-guide';
+import { guideLocationKey } from '../../guide/location-filter';
+import { sourcePerformanceKey } from '../../playback/source-quality';
 
 /** What this area reads from, and writes back to, the rest of the application. */
 export interface ChannelListControlsEnvironment {
+  readonly guide: ReturnType<typeof mountGuide>;
+  readonly paidGuide: ReturnType<typeof mountPaidGuide>;
   readonly accountBrowser: ReturnType<typeof createAccountBrowser>;
   readonly catalog: CatalogRecord;
   readonly settings: Preferences;
@@ -57,10 +66,31 @@ export interface ChannelListControlsEnvironment {
   readonly transferBusy: boolean;
   readonly addChannelsEntry: ReturnType<typeof createAddChannelsEntry>;
   readonly browser: ChannelBrowser;
+  readonly player: PlaybackController;
+  readonly sharingBridge: ReturnType<typeof createSharingHost>;
+  readonly selectAccountPlayback: ReturnType<
+    typeof createAccountPlaybackSelection
+  >['selectAccountPlayback'];
 }
 
 export function createChannelListControls(env: ChannelListControlsEnvironment) {
   const channelActions = mountChannelActions({
+    tryStream: async (id) => {
+      if (env.applicationClosing) throw new Error('The app is closing.');
+      const account = env.accountBrowser.selectionFor(id);
+      if (account) return env.selectAccountPlayback(account.channel, account.fence, true);
+      const channel = env.catalog.channels.find(
+        (c) => c.id === id && !env.settings.removedChannels.includes(c.id),
+      );
+      if (!channel?.urls.length) throw new Error('Channel unavailable.');
+      for (const url of channel.urls)
+        env.player.forgetSourceKey(sourcePerformanceKey({ id: channel.id, url }));
+      await env.sharingBridge.selectExact({
+        id: channel.id,
+        name: channel.name,
+        url: channel.urls[0],
+      });
+    },
     category: (id) => {
       const account = env.accountBrowser.selectionFor(id);
       if (account)
@@ -132,13 +162,24 @@ export function createChannelListControls(env: ChannelListControlsEnvironment) {
   });
   // eslint-disable-next-line prefer-const -- assigned after the panel it serves
   let viewingChoices: ReturnType<typeof mountViewingChoices> | undefined;
+  let geographyMounted = false;
   const geographyControls = mountGeographyControls(env.element('geography-controls'), {
     preferredCountry: () => env.settings.preferredRegion?.country,
     channels: () =>
       env.catalog.channels.filter((channel) => !env.settings.removedChannels.includes(channel.id)),
     summary: () => (env.accountBrowser.selectedAccount ? (viewingChoices?.summary ?? null) : null),
-    apply: ({ filter, sort, registry }) => env.browser.setGeography(filter, sort, registry),
+    apply: ({ filter, sort, registry }) => {
+      const before = guideLocationKey(env.browser.getGeographyFilter());
+      env.browser.setGeography(filter, sort, registry);
+      if (!geographyMounted || before === guideLocationKey(env.browser.getGeographyFilter()))
+        return;
+      env.guide.catalogChanged(true);
+      void env.paidGuide.locationChanged().catch(() => {
+        if (!env.applicationClosing) env.notice('Guide filters could not refresh. Reopen Guide.');
+      });
+    },
   });
+  geographyMounted = true;
   viewingChoices = mountViewingChoices({
     channels: env.browser,
     accounts: env.accountBrowser,

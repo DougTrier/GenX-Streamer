@@ -19,6 +19,9 @@
  */
 import { createSharingHost } from './sharing-host';
 import { isTauri } from '@tauri-apps/api/core';
+import { recordSourceChoice } from '../../diagnostics/playback-trace';
+import { recordArchiveStartupFailure } from '../../diagnostics/archive-startup';
+import { createBestLiveSource } from '../../platform/best-live-source';
 import { type mountSharingSettings } from '../../sharing/settings';
 import { createArchivePlayer } from '../genxtra/archive-player';
 import { createArchiveBookmarks } from '../../platform/archive-bookmarks';
@@ -40,6 +43,7 @@ import { type Preferences } from '../../preferences';
 import { type mountArchiveSearch } from '../../ui/genxtra/archive-search';
 import { type ContentLibrary } from '../genxtra/content-library';
 import { type SharedPlayable } from './shared-incoming';
+import type { GuidePlaybackIntent } from '../playback/guide-playback-intent';
 
 /** What this area reads from, and writes back to, the rest of the application. */
 export interface SharingAndCastingEnvironment {
@@ -47,6 +51,7 @@ export interface SharingAndCastingEnvironment {
   readonly player: PlaybackController;
   readonly foregroundPlaybackAllowed: () => boolean;
   readonly admitForegroundPlayback: () => void;
+  readonly beginPlaybackIntent?: () => GuidePlaybackIntent;
   pendingAccountPlayback: {
     choice: AccountPlaybackChoice;
     sharingGeneration: number;
@@ -64,6 +69,7 @@ export interface SharingAndCastingEnvironment {
   archivePlayer: ReturnType<typeof createArchivePlayer> | undefined;
   readonly privatePlayback: (selection: PlaybackSnapshot['selection']) => boolean;
   readonly catalog: CatalogRecord;
+  readonly persistedCatalogRevision: string;
   readonly localStreams: ReturnType<typeof mountLocalStreams> | undefined;
   /** Streams someone shared with this viewer (share-links.ts), playable while GenX runs. */
   readonly shareLinks: { channel(id: string): SharedPlayable | undefined } | undefined;
@@ -88,6 +94,15 @@ export function createSharingAndCasting(env: SharingAndCastingEnvironment) {
   const sharingBridge = env.bootstrapBoundary.run('sharing', () =>
     createSharingHost({
       player: env.player,
+      resolveSelection: isTauri()
+        ? createBestLiveSource({
+            channels: () =>
+              env.catalog.channels.filter((c) => !env.settings.removedChannels.includes(c.id)),
+            revision: () => env.persistedCatalogRevision,
+            rank: (candidates) => env.player.rankSources(candidates),
+            observed: (facts) => recordSourceChoice('free', facts),
+          })
+        : undefined,
       playbackAllowed: env.foregroundPlaybackAllowed,
       localSelection: {
         select: async (selection, recovery) => {
@@ -101,8 +116,22 @@ export function createSharingAndCasting(env: SharingAndCastingEnvironment) {
           };
           env.pendingPublicPlayback = pending;
           try {
-            if (!isTauri()) await env.accountPlayer!.selectPublic(selection, recovery);
-            else
+            if (!isTauri()) {
+              const intent = env.beginPlaybackIntent?.();
+              try {
+                await intent?.prepare();
+                if (
+                  env.pendingPublicPlayback !== pending ||
+                  sharingBridge.host.snapshot().generation !== pending.sharingGeneration ||
+                  !env.foregroundPlaybackAllowed() ||
+                  env.applicationClosing
+                )
+                  throw new DOMException('Playback was canceled or superseded.', 'AbortError');
+                await env.accountPlayer!.selectPublic(selection, recovery);
+              } finally {
+                intent?.release();
+              }
+            } else
               await env.archivePlayer!.handoff((signal) =>
                 env.accountPlayer!.selectPublic(selection, recovery, signal),
               );
@@ -138,6 +167,8 @@ export function createSharingAndCasting(env: SharingAndCastingEnvironment) {
   let sharingPanel: ReturnType<typeof mountSharingSettings> | null = null;
   env.archivePlayer = createArchivePlayer({
     player: env.player,
+    beginPlaybackIntent: env.beginPlaybackIntent,
+    startFailed: recordArchiveStartupFailure,
     bookmarks: createArchiveBookmarks(),
     chooseResume: (selection, position, signal) =>
       chooseArchiveResume(selection.title, position.positionMs, signal, position.completed),

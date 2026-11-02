@@ -146,9 +146,7 @@ pub(super) struct Decoding {
 
 /// The playback thread's part: the surface being drawn on.
 pub(super) struct Window {
-    pub(super) window: *mut c_void,
-    pub(super) surface: Option<jni::objects::GlobalRef>,
-    pub(super) geometry: (i32, i32),
+    pub(super) binding: super::super::surface_binding::SurfaceBinding<super::AndroidWindow>,
     pub(super) drawn: i64,
     pub(super) last_result: i64,
 }
@@ -156,14 +154,6 @@ pub(super) struct Window {
 // SAFETY: an ANativeWindow is a reference-counted object that may be used from
 // any thread; this one is only touched while its Mutex is held.
 unsafe impl Send for Window {}
-
-impl Drop for Window {
-    fn drop(&mut self) {
-        if !self.window.is_null() {
-            unsafe { ANativeWindow_release(self.window) };
-        }
-    }
-}
 
 /// A lock, still usable after a panic elsewhere left it poisoned (the data is
 /// plain bookkeeping that stays consistent between statements).

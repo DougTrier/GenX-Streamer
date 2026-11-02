@@ -152,6 +152,11 @@ pub(crate) async fn complete_close_attempt(
             .lock()
             .map(|mut requests| requests.stop())
             .map_err(|_| ("request-lock", CloseReason::RequestLock));
+        let media_stop = state
+            .media_sessions
+            .lock()
+            .map(|mut sessions| sessions.stop())
+            .map_err(|_| ("media-session-lock", CloseReason::RequestLock));
         let (native, start_native, native_admission) = match state.close_owner.native_drain() {
             Ok((native, start)) => (native, start, Ok(())),
             Err(error) => (
@@ -196,6 +201,7 @@ pub(crate) async fn complete_close_attempt(
         // Admission errors cannot abandon either original cleanup join or the
         // final owned-work drain, and never become successful close receipts.
         request_stop?;
+        media_stop?;
         native_admission?;
         joined?;
         final_requests?;

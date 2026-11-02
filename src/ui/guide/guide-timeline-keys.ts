@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { prepareRemoteFocus } from '../shell/remote-navigation';
+import { directionalIndex, prepareRemoteFocus, type Direction } from '../shell/remote-navigation';
 import { channelKey, type TimelineChannel } from './guide-timeline-model';
 
 /** What this part reads from, and writes back to, mountGuideTimeline. */
@@ -42,7 +42,7 @@ export interface TimelineKeysEnvironment {
   readonly agendaLimit: () => number;
   readonly details: HTMLElement;
   readonly status: HTMLParagraphElement;
-  readonly renderedViewportHeight: number;
+  renderedViewportHeight: number;
   readonly doc: Document;
 }
 
@@ -51,7 +51,84 @@ export interface TimelineKeysEnvironment {
  * mountGuideTimeline.
  */
 export function createTimelineKeys(env: TimelineKeysEnvironment) {
+  const revealToolbarControl = (control: HTMLElement) => {
+    const box = control.getBoundingClientRect();
+    const rect = env.toolbar.getBoundingClientRect();
+    const left = rect.left + env.toolbar.clientLeft;
+    const top = rect.top + env.toolbar.clientTop;
+    const clip = {
+      left,
+      top,
+      right: left + env.toolbar.clientWidth,
+      bottom: top + env.toolbar.clientHeight,
+    };
+    // The toolbar owns this scrolling. Do not move the Guide workspace, its
+    // programme viewport or the page when a remote reaches the clipped rail.
+    if (box.left < clip.left) env.toolbar.scrollLeft += box.left - clip.left;
+    else if (box.right > clip.right) env.toolbar.scrollLeft += box.right - clip.right;
+    if (box.top < clip.top) env.toolbar.scrollTop += box.top - clip.top;
+    else if (box.bottom > clip.bottom) env.toolbar.scrollTop += box.bottom - clip.bottom;
+  };
+  const enterGrid = () => {
+    const clip = env.viewport.getBoundingClientRect();
+    const first = [...env.content.querySelectorAll<HTMLButtonElement>('.gx-timeline-channel')].find(
+      (control) => {
+        const box = control.getBoundingClientRect();
+        return box.width > 0 && box.height > 0 && box.bottom > clip.top && box.top < clip.bottom;
+      },
+    );
+    if (!first) {
+      env.viewport.focus({ preventScroll: true });
+      return;
+    }
+    first.focus({ preventScroll: true });
+    const box = first.getBoundingClientRect();
+    if (box.top < clip.top || box.bottom > clip.bottom)
+      first.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' });
+  };
   const key = (event: KeyboardEvent) => {
+    if (
+      !event.defaultPrevented &&
+      !env.details.hidden &&
+      ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)
+    ) {
+      // This is a local pane, not an HTML modal. Own its arrows before the
+      // application navigator can choose a geometrically nearer grid control.
+      event.preventDefault();
+      event.stopPropagation();
+      const controls = [
+        ...env.details.querySelectorAll<HTMLElement>('button,input,select,summary,[tabindex="0"]'),
+      ].filter(
+        (control) =>
+          !control.matches(':disabled,[aria-disabled="true"]') &&
+          !control.closest('[hidden],[inert],details:not([open]) > :not(summary)') &&
+          control.getBoundingClientRect().width > 0 &&
+          control.getBoundingClientRect().height > 0 &&
+          getComputedStyle(control).visibility !== 'hidden',
+      );
+      const focused = env.doc.activeElement instanceof HTMLElement ? env.doc.activeElement : null;
+      const candidates = controls.filter((control) => control !== focused);
+      const index =
+        focused && controls.includes(focused)
+          ? directionalIndex(
+              focused.getBoundingClientRect(),
+              candidates.map((control) => control.getBoundingClientRect()),
+              event.key as Direction,
+            )
+          : -1;
+      const target =
+        index >= 0
+          ? candidates[index]
+          : focused && controls.includes(focused)
+            ? focused
+            : controls[0];
+      if (target) {
+        prepareRemoteFocus(target);
+        target.focus({ preventScroll: true });
+        target.scrollIntoView({ block: 'nearest', inline: 'nearest', behavior: 'instant' });
+      }
+      return;
+    }
     // The toolbar is one ordered row for a remote: disabled buttons and the
     // date label must not send Left/Right down into the grid.
     // From the search field, Left/Right leave only at the edge of the text.
@@ -62,12 +139,16 @@ export function createTimelineKeys(env: TimelineKeysEnvironment) {
         : env.searchBox.selectionStart === env.searchBox.value.length);
     if (
       !event.defaultPrevented &&
-      (event.target instanceof HTMLButtonElement || searchEdge) &&
+      (event.target instanceof HTMLButtonElement ||
+        event.target instanceof HTMLSelectElement ||
+        searchEdge) &&
       env.toolbar.contains(event.target as Node) &&
       ['ArrowLeft', 'ArrowRight'].includes(event.key)
     ) {
       const controls = [
-        ...env.toolbar.querySelectorAll<HTMLButtonElement | HTMLInputElement>('button, input'),
+        ...env.toolbar.querySelectorAll<HTMLButtonElement | HTMLInputElement | HTMLSelectElement>(
+          'button, input, select',
+        ),
       ].filter((control) => !control.disabled && control.getClientRects().length > 0);
       const index = controls.indexOf(event.target as HTMLButtonElement);
       const next = controls[index + (event.key === 'ArrowRight' ? 1 : -1)];
@@ -77,6 +158,7 @@ export function createTimelineKeys(env: TimelineKeysEnvironment) {
         // The search field arrives in navigation mode (keyboard waits for OK).
         prepareRemoteFocus(next);
         next.focus({ preventScroll: true });
+        revealToolbarControl(next);
         return;
       }
     }
@@ -84,19 +166,44 @@ export function createTimelineKeys(env: TimelineKeysEnvironment) {
       const target = event.target;
       const row =
         target instanceof HTMLElement ? target.closest<HTMLElement>('.gx-timeline-row') : null;
-      if (target === env.viewport && ['ArrowDown', 'ArrowRight', 'Enter'].includes(event.key)) {
-        const first = env.content.querySelector<HTMLButtonElement>('.gx-timeline-channel');
-        if (first) {
-          event.preventDefault();
-          event.stopPropagation();
-          first.focus({ preventScroll: true });
-          return;
-        }
+      if (
+        event.key === 'ArrowDown' &&
+        target instanceof Node &&
+        !(target instanceof HTMLSelectElement) &&
+        env.toolbar.contains(target)
+      ) {
+        // The toolbar enters its own pane even before native reads settle;
+        // geometric navigation can otherwise choose the left channel list.
+        event.preventDefault();
+        event.stopPropagation();
+        enterGrid();
+        return;
+      }
+      if (
+        target === env.viewport &&
+        ['ArrowDown', 'ArrowRight', 'Enter'].includes(event.key) &&
+        // Virtual scrolling already owns an exact pending row; keep its
+        // repeated Down keys on the continuation path below.
+        !(event.key === 'ArrowDown' && env.active && env.rowFocus)
+      ) {
+        event.preventDefault();
+        event.stopPropagation();
+        // Pending row space never activates an underlying channel. A later
+        // deliberate key enters the first row once it is actually available.
+        enterGrid();
+        return;
       }
       if (row && env.content.contains(row) && ['ArrowLeft', 'ArrowRight'].includes(event.key)) {
         const controls = [...row.querySelectorAll<HTMLButtonElement>('button')];
         const index = controls.indexOf(target as HTMLButtonElement);
         const next = controls[index + (event.key === 'ArrowRight' ? 1 : -1)];
+        if (
+          index === 0 &&
+          event.key === 'ArrowLeft' &&
+          env.root.closest('dialog[open][data-primary-page],.paid-guide:not([hidden])')
+        )
+          // The application owns page-to-preview/list exits; modals keep theirs.
+          return;
         event.preventDefault();
         event.stopPropagation();
         next?.focus({ preventScroll: true });
@@ -121,6 +228,7 @@ export function createTimelineKeys(env: TimelineKeysEnvironment) {
           event.preventDefault();
           event.stopPropagation();
           header.focus({ preventScroll: true });
+          revealToolbarControl(header);
           return;
         }
       }
@@ -206,17 +314,16 @@ export function createTimelineKeys(env: TimelineKeysEnvironment) {
   env.root.addEventListener('keydown', key);
   const resize = new ResizeObserver(() => {
     env.clock();
-    if (
-      !env.closed &&
-      env.foreground &&
-      (env.measuredRowHeight() !== env.rowHeight ||
-        env.root.clientWidth <= env.agendaLimit() !== env.agendaMode ||
-        (!env.agendaMode &&
-          env.details.hidden &&
-          env.status.dataset.state === 'ready' &&
-          env.viewport.clientHeight > 0 &&
-          env.viewport.clientHeight !== env.renderedViewportHeight))
-    ) {
+    if (env.closed || !env.foreground) return;
+    const pitchChanged = env.measuredRowHeight() !== env.rowHeight,
+      presentationChanged = env.root.clientWidth <= env.agendaLimit() !== env.agendaMode,
+      heightChanged =
+        !env.agendaMode &&
+        env.details.hidden &&
+        env.status.dataset.state === 'ready' &&
+        env.viewport.clientHeight > 0 &&
+        env.viewport.clientHeight !== env.renderedViewportHeight;
+    if (pitchChanged || presentationChanged || heightChanged) {
       const focused = env.doc.activeElement;
       const row =
         focused instanceof HTMLElement ? focused.closest<HTMLElement>('.gx-timeline-row') : null;
@@ -234,7 +341,14 @@ export function createTimelineKeys(env: TimelineKeysEnvironment) {
             env.viewport.scrollTop = top + env.measuredRowHeight() - env.viewport.clientHeight;
         }
       }
-      void env.refresh().catch(env.report);
+      if (pitchChanged || presentationChanged || !env.renderedCovers())
+        void env.refresh().catch(env.report);
+      else {
+        // Tune/status layout may grow or shrink by one line. The overscan
+        // already owns these rows: keep their controls and focus, and only
+        // redraw when the real viewport leaves the rendered window.
+        env.renderedViewportHeight = env.viewport.clientHeight;
+      }
     }
   });
   return {

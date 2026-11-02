@@ -31,7 +31,10 @@ import {
 import { createOwnedAbortSignals } from '../../platform/abort';
 import { boundedUtf8Text } from '../../platform/bounded-text';
 import { createJoinedWorkTimings } from '../shell/joined-work-timings';
+import type { GuidePlaybackIntent } from '../playback/guide-playback-intent';
+import type { ArchiveStartupPhase } from '../../diagnostics/archive-startup';
 import { archiveRevision, type ArchiveSelection } from '../../platform/archive-catalog';
+import { archiveStreamBufferKey } from '../../playback/stream-buffer-preferences';
 import {
   createArchivePlayback,
   validateArchivePlaybackReceipt,
@@ -79,6 +82,10 @@ export interface ArchivePlayerHost {
   catalogRevision(): string | null;
   /** Join sharing/public/account release only after this queued intent is still current. */
   beforeStart(signal: AbortSignal): Promise<void>;
+  /** Holds background Guide writers until this media admission settles. */
+  beginPlaybackIntent?(): GuidePlaybackIntent;
+  /** Internal observer; the production recorder exports closed phase/reason facts only. */
+  startFailed?(phase: ArchiveStartupPhase, error: unknown): void;
   confirmedDead?(receipt: ArchivePlaybackConfirmedDeadReceipt): Promise<void> | void;
   failed?(message: string): void;
   clock?: ArchivePlayerClock;
@@ -502,8 +509,11 @@ export function createArchivePlayer(host: ArchivePlayerHost) {
       }
     };
     combined.signal.addEventListener('abort', interrupt, { once: true });
+    const intent = host.beginPlaybackIntent?.();
     await enqueue(async () => {
       let issued: Session | null = null;
+      let phase: ArchiveStartupPhase = 'release';
+      let resumeCanceled = false;
       const check = () => {
         if (!current(captured, owned, combined.signal, scope)) throw canceled();
       };
@@ -514,8 +524,18 @@ export function createArchivePlayer(host: ArchivePlayerHost) {
       try {
         await release(stopped, captured);
         checkCatalog();
+        phase = 'guide';
+        await intent?.prepare();
+        checkCatalog();
+        phase = 'before-start';
         await host.beforeStart(combined.signal);
         checkCatalog();
+        const liveBufferKey = await archiveStreamBufferKey(
+          selection.fileRef,
+          saved ? 'saved' : 'remote',
+        );
+        checkCatalog();
+        phase = 'allocate';
         const result = saved
           ? await (playback.startSaved
               ? playback.startSaved(
@@ -569,6 +589,7 @@ export function createArchivePlayer(host: ArchivePlayerHost) {
         armRenewal(issued);
         let resume: number | null = null;
         if (host.bookmarks) {
+          phase = 'bookmark';
           const bookmark = await host.bookmarks.read(receipt.sessionGeneration, combined.signal);
           check();
           if (bookmark.supported) {
@@ -577,6 +598,7 @@ export function createArchivePlayer(host: ArchivePlayerHost) {
               bookmark.position &&
               (bookmark.position.positionMs > 0 || bookmark.position.completed)
             ) {
+              phase = 'resume-choice';
               const decision = host.chooseResume
                 ? await host.chooseResume(
                     Object.freeze({ ...selection }),
@@ -585,10 +607,14 @@ export function createArchivePlayer(host: ArchivePlayerHost) {
                   )
                 : 'cancel';
               check();
-              if (decision === 'cancel') throw canceled();
+              if (decision === 'cancel') {
+                resumeCanceled = true;
+                throw canceled();
+              }
               if (decision === 'resume' && !bookmark.position.completed)
                 resume = bookmark.position.positionMs / 1000;
               else if (decision === 'restart') {
+                phase = 'bookmark-reset';
                 savePatch(issued, { positionMs: 0, durationMs: null, completed: false });
                 await issued.saveWork;
                 check();
@@ -602,10 +628,12 @@ export function createArchivePlayer(host: ArchivePlayerHost) {
         issued.captureEnabled = resume === null;
         issued.decoderSelected = true;
         grantedUrl = receipt.mediaUrl;
+        phase = 'decode';
         await host.player.select({
           id: `archive-${selection.fileRef}`,
           name: selection.fileTitle,
           url: receipt.mediaUrl,
+          liveBufferKey,
           playMode: 'on-demand',
           mediaKind: 'media',
           mediaMime: receipt.mimeType ?? 'video/mp4',
@@ -613,6 +641,7 @@ export function createArchivePlayer(host: ArchivePlayerHost) {
         });
         check();
         if (resume !== null) {
+          phase = 'resume-seek';
           const sought = await host.player.seekWhenReady?.(resume, combined.signal);
           check();
           // A slow or unconfirmed resume seek never stops a video that is playing.
@@ -640,6 +669,18 @@ export function createArchivePlayer(host: ArchivePlayerHost) {
           }
         }
       } catch (error) {
+        try {
+          // Observe before cleanup changes the session. A named AbortError is
+          // quiet only when this actual selection/caller or scope was revoked.
+          if (
+            !resumeCanceled &&
+            current(captured, owned, combined.signal, scope) &&
+            (saved || host.catalogRevision() === selection.expectedRevision)
+          )
+            host.startFailed?.(phase, error);
+        } catch {
+          // Optional measurement cannot alter decoder/proxy cleanup or its refusal.
+        }
         if (issued && session === issued) await release(interrupted);
         else if (interrupted) {
           try {
@@ -665,7 +706,7 @@ export function createArchivePlayer(host: ArchivePlayerHost) {
         disposeSignals(combined.dispose);
         if (owner === owned) owner = null;
       }
-    });
+    }).finally(() => intent?.release());
   }
   return {
     releaseTimings: () => timings.snapshot(),
@@ -719,9 +760,12 @@ export function createArchivePlayer(host: ArchivePlayerHost) {
       if (scope === null) throw new Error('Playback is waiting for local storage.');
       const { captured, owned, stopped } = begin();
       const combined = createOwnedAbortSignals(signal ? [owned.signal, signal] : [owned.signal]);
+      const intent = host.beginPlaybackIntent?.();
       await enqueue(async () => {
         try {
           await release(stopped, captured);
+          if (!current(captured, owned, combined.signal, scope)) throw canceled();
+          await intent?.prepare();
           if (!current(captured, owned, combined.signal, scope)) throw canceled();
           await task(combined.signal);
           if (!current(captured, owned, combined.signal, scope)) throw canceled();
@@ -729,7 +773,7 @@ export function createArchivePlayer(host: ArchivePlayerHost) {
           disposeSignals(combined.dispose);
           if (owner === owned) owner = null;
         }
-      });
+      }).finally(() => intent?.release());
     },
     stop,
     retryCleanup: stop,

@@ -142,6 +142,20 @@ pub(crate) struct BookmarkSaved {
 }
 static ACTIVE: tokio::sync::Mutex<Option<ActiveSession>> = tokio::sync::Mutex::const_new(None);
 static GENERATION: AtomicU64 = AtomicU64::new(0);
+
+/// Read-only admission for Android's decoder. The original owner retains
+/// proxy lifetime, lease renewal, revocation and bookmark authority.
+pub(crate) async fn native_media_url() -> Option<String> {
+    let active = ACTIVE.lock().await;
+    let session = active.as_ref()?;
+    if session.proxy.generation().ok()? != GENERATION.load(Ordering::SeqCst)
+        || session.proxy.needs_cleanup().ok()?
+        || session.bookmark.owner.check().is_err()
+    {
+        return None;
+    }
+    Some(session.proxy.media_url().to_owned())
+}
 static LOCAL_GATE: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 static LOCAL_INITIALIZER: std::sync::Mutex<Option<(String, u64)>> = std::sync::Mutex::new(None);
 struct LocalIntent(u64);

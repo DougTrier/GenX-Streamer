@@ -67,13 +67,29 @@
   }
   #app:not([data-device-kind='tv']):not(.viewing-fullscreen):not(.keyboard-open) .browser {
     padding: 6px;
-    overflow-y: auto;
+    /* Keep the gutter stable as measured cards grow the scrollable sidebar. */
+    overflow-y: scroll;
     overflow-x: hidden;
     scrollbar-width: thin;
   }
   #app:not([data-device-kind='tv']):not(.viewing-fullscreen):not(.keyboard-open) .channel-list {
+    /* Keep two measured ordinary row pitches (up to 80px each) beside the footer.
+       Shorter rows retain the compact reserve instead of pushing History down.
+       Larger wrapped cards still get their complete measured height; the
+       sidebar scrolls its surrounding controls rather than clipping text. */
+    --channel-list-reserve: max(
+      120px,
+      min(160px, calc(2 * var(--channel-row-height, 72px))),
+      var(--channel-row-height, 72px)
+    );
+    min-height: var(--channel-list-reserve);
+    flex: 1 0 var(--channel-list-reserve);
+  }
+  #app:not([data-device-kind='tv']):not(.viewing-fullscreen):not(.keyboard-open)
+    .channel-list[data-catalog-empty='true'] {
+    /* No cards need reserving; ignore an old long-card pitch after filtering. */
     min-height: 72px;
-    flex: 1 0 72px;
+    flex-basis: 72px;
   }
   #app:not([data-device-kind='tv']):not(.viewing-fullscreen):not(.keyboard-open) .search-controls {
     flex: 0 0 44px;
@@ -94,7 +110,7 @@
     display: flex;
     flex-direction: column;
     gap: 4px;
-    margin: 4px 0;
+    margin: 0;
     flex-shrink: 0;
   }
   #app:not([data-device-kind='tv']):not(.viewing-fullscreen):not(.keyboard-open)

@@ -107,7 +107,7 @@ export function createGuideSources(env: GuideSourcesEnvironment) {
         signal.throwIfAborted();
         if (env.disposed || !env.foreground) return;
         env.automaticResult(result);
-        env.reload();
+        if (!result.deferred) env.reload();
         return;
       }
       const result = await env.host.discover!(signal);

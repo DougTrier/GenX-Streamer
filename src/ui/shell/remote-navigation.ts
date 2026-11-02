@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { parseNativeImeInsets } from './viewport';
+
 export type Direction = 'ArrowLeft' | 'ArrowRight' | 'ArrowUp' | 'ArrowDown';
 export interface FocusBox {
   x: number;
@@ -63,6 +65,8 @@ export interface RemoteEditMode {
   begin(field: HTMLElement): void;
   isNavigation(field: HTMLElement): boolean;
   isEditing(field: HTMLElement): boolean;
+  /** Identity of an explicitly activated remote edit lifetime, never a pointer editor. */
+  ownedEditingSession?(field: HTMLElement): object | null;
   exit(): boolean;
   clear(): void;
 }
@@ -95,6 +99,7 @@ export function createRemoteEditMode(
   let field: HTMLElement | null = null,
     editing = false;
   let original: { readonly: string | null; inputmode: string | null } | null = null;
+  let editingSession: object | null = null;
   const restore = () => {
     if (!field || !original) return;
     for (const [name, value] of [
@@ -115,6 +120,7 @@ export function createRemoteEditMode(
     restore();
     field = null;
     original = null;
+    editingSession = null;
     editing = false;
   };
   return {
@@ -131,6 +137,7 @@ export function createRemoteEditMode(
           };
       }
       editing = false;
+      editingSession = null;
       suppress();
     },
     begin(next) {
@@ -138,6 +145,7 @@ export function createRemoteEditMode(
         const reopenEditor = original !== null && original.readonly === null && active() === next;
         restore();
         editing = true;
+        editingSession = {};
         // Removing readonly on an already-focused Android WebView field does
         // not guarantee a new input connection. Explicit OK re-enters focus.
         if (reopenEditor) {
@@ -152,6 +160,9 @@ export function createRemoteEditMode(
     isEditing(next) {
       return field !== next || editing;
     },
+    ownedEditingSession(next) {
+      return field === next && editing ? editingSession : null;
+    },
     exit() {
       if (!field || active() !== field) {
         clear();
@@ -159,6 +170,7 @@ export function createRemoteEditMode(
       }
       if (!editing) return false;
       editing = false;
+      editingSession = null;
       suppress();
       return true;
     },
@@ -327,9 +339,40 @@ export function installRemoteNavigation(options: RemoteNavigationOptions = {}): 
   let lastTopAction: HTMLElement | null = null;
   let lastDockControl: HTMLElement | null = null;
   let lastCategoryFilter: HTMLElement | null = null;
+  let lastVodRail: HTMLElement | null = null;
   const openers = new WeakMap<HTMLDialogElement, HTMLElement | null>();
   const settingsPanelFocus = new WeakMap<HTMLElement, HTMLElement>();
+  const guidePaneReturns = new WeakMap<HTMLElement, string>();
   let arrowInFlight = false;
+  type ImeEditorOwner = { field: HTMLElement; session: object };
+  const currentImeEditor = (): ImeEditorOwner | null => {
+    const field = document.activeElement;
+    if (!(field instanceof HTMLElement) || !editField(field)) return null;
+    const session = editMode?.ownedEditingSession?.(field);
+    return session ? { field, session } : null;
+  };
+  const ownsImeEditor = (owner: ImeEditorOwner): boolean =>
+    document.activeElement === owner.field &&
+    editMode?.ownedEditingSession?.(owner.field) === owner.session;
+  const cachedIme = parseNativeImeInsets(
+    (window as Window & { __genxImeInsets?: unknown }).__genxImeInsets,
+  );
+  let imeSequence = cachedIme?.sequence ?? 0;
+  let visibleImeEditor = cachedIme?.visible ? currentImeEditor() : null;
+  let dismissedImeEditor: ImeEditorOwner | null = null;
+  const nativeIme = (event: Event): void => {
+    if (!(event instanceof CustomEvent)) return;
+    const state = parseNativeImeInsets(event.detail);
+    if (!state || state.sequence <= imeSequence) return;
+    imeSequence = state.sequence;
+    if (state.visible) {
+      visibleImeEditor = currentImeEditor();
+      dismissedImeEditor = null;
+    } else if (visibleImeEditor) {
+      dismissedImeEditor = ownsImeEditor(visibleImeEditor) ? visibleImeEditor : null;
+      visibleImeEditor = null;
+    }
+  };
   const focusin = (event: FocusEvent): void => {
     const next = event.target instanceof HTMLElement ? event.target : null;
     const channel = next?.closest<HTMLElement>('#channel-list [data-channel]');
@@ -337,6 +380,7 @@ export function installRemoteNavigation(options: RemoteNavigationOptions = {}): 
     if (next?.closest('.top-actions')) lastTopAction = next;
     if (next?.closest('.controls')) lastDockControl = next;
     if (next?.matches('.filters button')) lastCategoryFilter = next;
+    if (next?.closest('#account-vod')) lastVodRail = next;
     const settingsPanel = next?.closest<HTMLElement>('#settings-dialog [data-settings-panel]');
     if (settingsPanel && next) settingsPanelFocus.set(settingsPanel, next);
     const dialog = next?.closest<HTMLDialogElement>('dialog[open]');
@@ -382,6 +426,13 @@ export function installRemoteNavigation(options: RemoteNavigationOptions = {}): 
     if (event.defaultPrevented) return;
     const entering = document.activeElement;
     if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) {
+      // Android may consume Back while dismissing its keyboard. Return that
+      // exact edit session to navigation only on its next arrow, leaving a
+      // separately delivered Back and all visible-keyboard editing untouched.
+      if (dismissedImeEditor) {
+        if (ownsImeEditor(dismissedImeEditor)) editMode?.exit();
+        dismissedImeEditor = null;
+      }
       // Focus moved by any handler of this same key press (cleared once the press is handled).
       arrowInFlight = true;
       setTimeout(() => (arrowInFlight = false), 0);
@@ -596,6 +647,60 @@ export function installRemoteNavigation(options: RemoteNavigationOptions = {}): 
     // Main-screen regions have deliberate exits; geometric proximity must not
     // send a channel viewer through the resize separator to reach playback.
     if (scope === document) {
+      const primaryGuide = document.querySelector<HTMLElement>(
+        'dialog[open][data-primary-page] .gx-timeline, .paid-guide:not([hidden]) .gx-timeline',
+      );
+      if (
+        primaryGuide?.getClientRects().length &&
+        !document.fullscreenElement &&
+        !document.getElementById('app')?.classList.contains('viewing-fullscreen')
+      ) {
+        const preview = document.querySelector<HTMLElement>('#screen[role="button"]');
+        const leftList = document.getElementById('channel-list');
+        if (
+          event.key === 'ArrowLeft' &&
+          focused.matches('.gx-timeline-channel') &&
+          primaryGuide.contains(focused)
+        ) {
+          const key = focused.closest<HTMLElement>('.gx-timeline-row')?.dataset.channelKey;
+          if (key) guidePaneReturns.set(primaryGuide, key);
+          const rows = leftList
+            ? [...leftList.querySelectorAll<HTMLElement>('.channel')].filter(
+                (row) => eligible(row, scope) && shownWhole(row),
+              )
+            : [];
+          const target = eligible(preview, scope)
+            ? preview
+            : (rows.find((row) => row.dataset.channel === lastChannelId) ?? rows[0] ?? leftList);
+          event.preventDefault();
+          if (eligible(target, scope)) focus(target);
+          return;
+        }
+        if (
+          event.key === 'ArrowRight' &&
+          (focused === preview || focused.closest('#channel-list'))
+        ) {
+          const details = primaryGuide.querySelector<HTMLElement>(
+            '.gx-timeline-details:not([hidden])',
+          );
+          const remembered = guidePaneReturns.get(primaryGuide);
+          const rememberedRow = [...primaryGuide.querySelectorAll<HTMLElement>('.gx-timeline-row')]
+            .find((row) => row.dataset.channelKey === remembered)
+            ?.querySelector<HTMLElement>('.gx-timeline-channel');
+          const target = details
+            ? candidates(details)[0]
+            : eligible(rememberedRow ?? null, scope)
+              ? rememberedRow
+              : [
+                  ...primaryGuide.querySelectorAll<HTMLElement>(
+                    '.gx-timeline-channel,.gx-timeline-toolbar button',
+                  ),
+                ].find((control) => eligible(control, scope));
+          event.preventDefault();
+          if (eligible(target ?? null, scope)) focus(target!);
+          return;
+        }
+      }
       const searchControls = focused.closest<HTMLElement>('.search-controls');
       if (searchControls && ['ArrowLeft', 'ArrowRight'].includes(event.key)) {
         // Treat the field, clear action and microphone as one ordered row.
@@ -660,6 +765,39 @@ export function installRemoteNavigation(options: RemoteNavigationOptions = {}): 
             eligible(button, scope),
           )
         : null;
+      const vodRail = document.getElementById('account-vod');
+      const vodGallery = document.getElementById('vod-gallery');
+      if (
+        vodRail?.getClientRects().length &&
+        !document.fullscreenElement &&
+        !document.querySelector('.viewing-fullscreen')
+      ) {
+        const railControls = candidates(vodRail);
+        const rememberedRail =
+          lastVodRail && vodRail.contains(lastVodRail) && eligible(lastVodRail, scope)
+            ? lastVodRail
+            : (railControls[0] ?? null);
+        let target: HTMLElement | null = null;
+        if (focused === railControls[0] && event.key === 'ArrowUp')
+          target = document.getElementById('paid-tv-button');
+        else if (focused.id === 'paid-tv-button' && event.key === 'ArrowDown')
+          target = rememberedRail;
+        else if (vodGallery?.hidden) {
+          if (vodRail.contains(focused) && event.key === 'ArrowRight') {
+            // Movies and TV Series remain horizontal peers before leaving
+            // the rail for the picture's lower control row.
+            const peers = focused.closest('.vod-sections')
+              ? candidates(focused.closest<HTMLElement>('.vod-sections')!)
+              : [];
+            target = peers[peers.indexOf(focused) + 1] ?? firstControl;
+          } else if (focused === firstControl && event.key === 'ArrowLeft') target = rememberedRail;
+        }
+        if (eligible(target, scope)) {
+          event.preventDefault();
+          focus(target);
+          return;
+        }
+      }
       if (focused.id === 'divider' && ['ArrowUp', 'ArrowDown'].includes(event.key)) {
         // A full-height separator overlaps both regions, so centre-distance
         // routing cannot supply a vertical exit. Resizing retains Left/Right.
@@ -788,6 +926,7 @@ export function installRemoteNavigation(options: RemoteNavigationOptions = {}): 
       event.preventDefault();
     }
   };
+  window.addEventListener('native-ime-insets', nativeIme);
   document.addEventListener('focusin', focusin);
   document.addEventListener('focusout', focusout);
   document.addEventListener('pointerdown', pointer, true);
@@ -796,6 +935,8 @@ export function installRemoteNavigation(options: RemoteNavigationOptions = {}): 
   document.addEventListener('keydown', keydown);
   return () => {
     observer.disconnect();
+    window.removeEventListener('native-ime-insets', nativeIme);
+    visibleImeEditor = dismissedImeEditor = null;
     document.removeEventListener('focusin', focusin);
     document.removeEventListener('focusout', focusout);
     document.removeEventListener('pointerdown', pointer, true);

@@ -69,7 +69,7 @@
         "description": "Free live TV, a program guide and public-domain films for Windows, Android TV, Google TV, Amazon Fire TV with Android-based Fire OS, and Android phones and handhelds.",
         "applicationCategory": "EntertainmentApplication",
         "operatingSystem": "Windows 10, Windows 11, Android 7.0 or newer",
-        "softwareVersion": "0.1.3",
+        "softwareVersion": "0.1.25",
         "url": "https://dougtrier.github.io/GenX-Streamer/",
         "sameAs": "https://github.com/DougTrier/GenX-Streamer",
         "downloadUrl": "https://dougtrier.github.io/GenX-Streamer/get/",
@@ -247,17 +247,32 @@
         <p class="tagline">Good TV never gets old.</p>
         <h1>GenX Streamer: free live TV app for Windows and Android TV</h1>
         <p class="intro">
-          A free app for Windows, Android TV, Google TV and Amazon Fire TV with Android-based
-          Fire OS, plus Android phones and handhelds: free live TV channels, a
-          program guide and a public-domain film library. Free and open source, with no GenX account
-          or tracking.
+          A free app for Windows, Android TV, Google TV and Amazon Fire TV with Android-based Fire
+          OS, plus Android phones and handhelds: free live TV channels, a program guide and a
+          public-domain film library. Free and open source, with no GenX account or tracking.
         </p>
         <div class="actions">
           <a class="button primary" href="get/">Download GenX Streamer</a>
           <a class="button" href="https://github.com/DougTrier/GenX-Streamer">Source on GitHub</a>
         </div>
-        <p class="release-version">Version 0.1.3</p>
-        <p>Fixes Fire OS 7 startup and embedded video positioning, with Fire TV Stick playback verified.</p>
+        <p class="release-version">Version 0.1.25 / build 1025</p>
+        <p>
+          See the current stream’s measured incoming rate and buffering in the player footer. Supported players offer Auto or saved per-stream adjustments; History for Free and Paid TV helps you return to watched live channels. Find a sport or league across cached channels and programme listings. A specific sport,
+          league or unambiguous full-team query includes positively matching PPV with a visible label;
+          ordinary browsing keeps it separate. Free and Paid TV remember their own browsing choices.
+          Channel names and programme headings wrap fully in smaller text, the original channel name stays visible, and short-screen controls scroll inside the sidebar so focused text stays reachable.
+        </p>
+        <p>
+          The signed Android 0.1.25 / build 1025 was checked on the local Google Streamer and Thor using one existing public Free source each. Embedded/fullscreen return, readable controls, Quality menus and manual buffer controls worked. Thor also showed a three-row cached US/Sports Guide with a visible preview, tuning without closing the Guide, remote pane navigation and return from fullscreen. A separate focused-row check confirmed two complete ordinary channel cards. Both apps exited normally; collectors joined and test helpers were removed. Platform image-acquisition warnings on Google remain documented with unknown impact. New Firestick and Flip 2 checks are pending after publication. Windows x64 package and four native fixture decodes passed, including a joined ordinary exit.
+          New-version Fire TV Stick and Flip 2 follow-up testing is pending. No new local Paid-provider
+          playback check is claimed. Historical Fire TV verification applies to 0.1.3 on the
+          first-generation Fire TV Stick 4K Max; other Amazon models have not been physically verified.
+          My Local, local Web TV and nearest-affiliate discovery remain design and research.
+        </p>
+        <p>
+          <a href="https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.25">Official release</a>
+          · <a href="https://github.com/DougTrier/GenX-Streamer/releases/download/v0.1.25/SHA256SUMS">Checksums</a>
+        </p>
         <nav aria-label="Site navigation">
           <a href="getting-started/">Installation and setup guide</a> ·
           <a href="#questions">Frequently asked questions</a>
@@ -296,6 +311,13 @@
           <div class="card">
             <h3>Paid TV, your way</h3>
             <p>Bring your own provider account; it stays in your device's protected storage.</p>
+          </div>
+          <div class="card">
+            <h3>A steadier stream</h3>
+            <p>
+              When feeds are confirmed to carry the same programming, GenX favors reliable playback
+              before resolution. Retest a feed from its channel menu when you want to try it again.
+            </p>
           </div>
           <div class="card">
             <h3>Cast to a screen</h3>
@@ -359,8 +381,8 @@
           <div class="card">
             <h3>Android and Fire TV</h3>
             <p>
-              Android TV, Google TV, Amazon Fire TV with Android-based Fire OS, plus Android
-              phones, tablets and handhelds. Android 7.0 or newer; ARM, 32- and 64-bit.
+              Android TV, Google TV, Amazon Fire TV with Android-based Fire OS, plus Android phones,
+              tablets and handhelds. Android 7.0 or newer; ARM, 32- and 64-bit.
             </p>
           </div>
           <div class="card">
@@ -394,16 +416,15 @@
         <h3>Which devices does it support?</h3>
         <p>
           Windows 10 and 11 (64-bit), and Android 7.0 or newer on ARM devices, including Android TV,
-          Google TV, Amazon Fire TV and Fire TV Stick running Android-based Fire OS, phones,
-          tablets and handhelds. There is currently no iPhone, iPad or Mac
-          version.
+          Google TV, Amazon Fire TV and Fire TV Stick running Android-based Fire OS, phones, tablets
+          and handhelds. There is currently no iPhone, iPad or Mac version.
         </p>
         <h3>Is Amazon Fire TV Stick verified?</h3>
         <p>
-          Yes. Version 0.1.3 is verified on the first-generation Fire TV Stick 4K Max
-          (AFTKA/kara), Fire OS 7 / Android 9: launch, embedded video, fullscreen, returning
-          to embedded, sound and channel switching all passed owner testing. Other Amazon
-          models have not been individually verified. Use the same Android APK; see the
+          Yes. Version 0.1.3 is verified on the first-generation Fire TV Stick 4K Max (AFTKA/kara),
+          Fire OS 7 / Android 9: launch, embedded video, fullscreen, returning to embedded, sound
+          and channel switching all passed owner testing. Other Amazon models have not been
+          individually verified. Use the same Android APK; see the
           <a href="getting-started/#fire-tv">Fire TV installation guide</a>.
         </p>
         <h3>Does it include a paid TV subscription?</h3>

@@ -484,6 +484,68 @@ impl Store {
         let _writer = self.write_lease()?;
         self.pair.begin_source_snapshot(request, check)
     }
+    pub(crate) fn begin_source_cleanup(
+        &self,
+        request: &crate::storage_transaction::source_cleanup::Begin,
+        platform: &str,
+        now: u64,
+        mut check: impl FnMut() -> Result<(), String>,
+    ) -> Result<crate::storage_transaction::source_cleanup::BeginReply, String> {
+        let _writer = self.write_lease_checked(&mut check)?;
+        self.pair
+            .begin_source_cleanup(request, platform, now, check)
+    }
+    pub(crate) fn cancel_source_cleanup(
+        &self,
+        request: &crate::storage_transaction::source_cleanup::Finish,
+        mut check: impl FnMut() -> Result<(), String>,
+    ) -> Result<crate::storage_transaction::source_cleanup::CancelReply, String> {
+        let _writer = self.write_lease_checked(&mut check)?;
+        self.pair.cancel_source_cleanup(request, check)
+    }
+    pub(crate) fn prepare_source_cleanup(
+        &self,
+        request: &crate::storage_transaction::source_cleanup::Finish,
+        platform: &str,
+        now: u64,
+        mut check: impl FnMut() -> Result<(), String>,
+    ) -> Result<crate::storage_transaction::source_cleanup::Prepared, String> {
+        let _writer = self.write_lease_checked(&mut check)?;
+        self.pair
+            .prepare_source_cleanup(request, platform, now, check)
+    }
+    pub(crate) fn check_source_cleanup(
+        &self,
+        prepared: &crate::storage_transaction::source_cleanup::Prepared,
+        platform: &str,
+        now: u64,
+        check: impl FnMut() -> Result<(), String>,
+    ) -> Result<(), String> {
+        self.pair
+            .check_source_cleanup(prepared, platform, now, check)
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn commit_source_cleanup(
+        &self,
+        prepared: &crate::storage_transaction::source_cleanup::Prepared,
+        facts: &[crate::storage_transaction::source_cleanup::Fact],
+        platform: &str,
+        now: u64,
+        checked_targets: usize,
+        budget_exhausted: bool,
+        mut check: impl FnMut() -> Result<(), String>,
+    ) -> Result<crate::storage_transaction::source_cleanup::Reply, String> {
+        let _writer = self.write_lease_checked(&mut check)?;
+        self.pair.commit_source_cleanup(
+            prepared,
+            facts,
+            platform,
+            now,
+            checked_targets,
+            budget_exhausted,
+            check,
+        )
+    }
     pub(crate) fn append_source_snapshot(
         &self,
         request: &crate::storage_transaction::source_snapshot::Append,
@@ -686,11 +748,44 @@ impl Store {
         self.pair.read_pair()
     }
 
+    pub(crate) fn query_listed_guide(
+        &self,
+        query: &crate::guide::listed_channels::Query,
+        generation: u64,
+        cancel: crate::guide::listed_channels::Cancel,
+    ) -> Result<crate::guide::listed_channels::Page, String> {
+        self.pair.query_listed_guide(query, generation, cancel)
+    }
+
     pub fn with_guide_read<T>(
         &self,
         read: impl FnOnce(&rusqlite::Connection) -> Result<T, String>,
     ) -> Result<T, String> {
         self.pair.with_guide_read(read)
+    }
+    /// A held main-writer gate is not itself a reason to delay authority: its
+    /// backup/preparation may still allow a fresh committed read. Only a real
+    /// BUSY from that nonwaiting read is pending admission, never permission.
+    /// The caller drops its root lease before waiting and retries all fences.
+    pub(crate) fn with_authority_read_admitted<T>(
+        &self,
+        timeout: std::time::Duration,
+        read: impl FnOnce(&rusqlite::Connection) -> Result<T, String>,
+    ) -> Result<Option<T>, String> {
+        let gate = match self.writer.try_lock() {
+            Ok(gate) => Some(gate),
+            Err(std::sync::TryLockError::WouldBlock) => None,
+            Err(std::sync::TryLockError::Poisoned(_)) => return Err("storage-writer-lock".into()),
+        };
+        let wait = if gate.is_some() {
+            timeout
+        } else {
+            std::time::Duration::ZERO
+        };
+        match self.pair.with_authority_read(wait, read) {
+            Err(error) if gate.is_none() && error == "sqlite-busy" => Ok(None),
+            result => result.map(Some),
+        }
     }
     pub fn with_guide_write<T>(
         &self,

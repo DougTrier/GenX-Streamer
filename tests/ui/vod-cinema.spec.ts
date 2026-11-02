@@ -17,8 +17,18 @@
 import { expect, test, type Page } from '@playwright/test';
 
 /** The real shell, VOD screen and TV remote navigation, with a controlled provider. */
-async function mount(page: Page): Promise<void> {
-  await page.setViewportSize({ width: 960, height: 540 });
+async function mount(
+  page: Page,
+  options: {
+    holdPlay?: boolean;
+    personal?: boolean;
+    foreground?: boolean;
+    holdFullscreenExit?: boolean;
+  } = {},
+): Promise<void> {
+  await page.setViewportSize(
+    options.personal ? { width: 854, height: 432 } : { width: 960, height: 540 },
+  );
   await page.route('**/vod-cinema-fixture', (route) =>
     route.fulfill({
       contentType: 'text/html',
@@ -26,7 +36,7 @@ async function mount(page: Page): Promise<void> {
     }),
   );
   await page.goto('/vod-cinema-fixture');
-  await page.evaluate(async () => {
+  await page.evaluate(async (options) => {
     for (const sheet of [
       'style',
       'management',
@@ -48,18 +58,20 @@ async function mount(page: Page): Promise<void> {
       });
     }
     const { createShell } = await import('/src/ui/shell/shell.ts' as string);
-    const { installRemoteNavigation } = await import(
+    const { installRemoteNavigation, createRemoteEditMode } = await import(
       '/src/ui/shell/remote-navigation.ts' as string
     );
     const { mountAccountVod } = await import('/src/ui/accounts/account-vod.ts' as string);
     const app = document.querySelector<HTMLElement>('#app')!;
     createShell(app);
-    app.dataset.deviceKind = 'tv';
+    app.dataset.deviceKind = options.personal ? 'personal' : 'tv';
     app.dataset.compactView = 'watch';
     app.dataset.contentLibrary = 'live';
     document.getElementById('channel-rows')!.innerHTML =
       '<button class="channel">Paid channel</button>';
     document.getElementById('list-empty')!.hidden = true;
+    document.getElementById('live-tv-button')!.setAttribute('aria-pressed', 'false');
+    document.getElementById('paid-tv-button')!.setAttribute('aria-pressed', 'true');
     const titles = (prefix: string, count: number) =>
       Array.from({ length: count }, (_, i) => ({
         id: `${prefix.length}${i + 1}`,
@@ -77,6 +89,9 @@ async function mount(page: Page): Promise<void> {
       {
         play: async (title: { name: string }) => {
           log.push(`play:${title.name}`);
+          if (options.holdPlay)
+            await new Promise<void>((resolve) => Reflect.set(window, 'finishVodPlay', resolve));
+          (document.getElementById('pause-button') as HTMLButtonElement).disabled = false;
         },
         run: (work: Promise<void>) => void work.catch(() => undefined),
       },
@@ -102,10 +117,56 @@ async function mount(page: Page): Promise<void> {
       },
     );
     vod.present({ id: 'a'.repeat(32), revision: '1' });
-    installRemoteNavigation();
+    const editMode = createRemoteEditMode();
+    Reflect.set(window, 'vodEditMode', editMode);
+    installRemoteNavigation({ editMode });
+    if (options.foreground) {
+      const { createForegroundController } = await import(
+        '/src/application/shell/foreground-controller.ts' as string
+      );
+      const { installFullscreenPresentation } = await import(
+        '/src/ui/player/fullscreen-presentation.ts' as string
+      );
+      let fullscreen: Element | null = null;
+      Object.defineProperty(document, 'fullscreenElement', {
+        configurable: true,
+        get: () => fullscreen,
+      });
+      Reflect.set(document.querySelector('.workspace')!, 'requestFullscreen', async () => {
+        fullscreen = document.querySelector('.workspace');
+        document.dispatchEvent(new Event('fullscreenchange'));
+      });
+      Reflect.set(document, 'exitFullscreen', async () => {
+        if (options.holdFullscreenExit)
+          await new Promise<void>((resolve) =>
+            Reflect.set(window, 'releaseVodFullscreenExit', resolve),
+          );
+        fullscreen = null;
+        document.dispatchEvent(new Event('fullscreenchange'));
+      });
+      createForegroundController({
+        element: (id: string) => document.getElementById(id),
+        fullscreenPresentation: installFullscreenPresentation(app),
+        updatePreviewControl() {},
+        remoteEditMode: editMode,
+        primaryHost: document.getElementById('primary-view-host'),
+        pageState: { primaryPage: 'watch' },
+        paidGuide: { open: false, closeDetails: () => false },
+        playerView: { liveReplay: null },
+        libraries: {
+          vodBack: () => {
+            log.push('vod-back');
+            return vod.back();
+          },
+        },
+        notice: () => {},
+        nativeViewingForeground: true,
+        applicationClosing: false,
+      });
+    }
     Reflect.set(window, 'vod', vod);
     Reflect.set(window, 'log', log);
-  });
+  }, options);
 }
 const focused = (page: Page) =>
   page.evaluate(() => {
@@ -122,6 +183,162 @@ async function openVod(page: Page) {
 
 const rowCards = (page: Page, row: number) =>
   page.locator('.vod-row').nth(row).locator('.vod-title');
+
+test('native Back keeps editor and modal priority before leaving VOD fullscreen', async ({
+  page,
+}) => {
+  await mount(page, { foreground: true });
+  await openVod(page);
+  await rowCards(page, 0).first().focus();
+  await page.keyboard.press('Enter');
+  await page.locator('#fullscreen-button').click();
+  await expect(page.locator('#app')).toHaveClass(/viewing-fullscreen/);
+  await page.evaluate(() => {
+    const dialog = document.createElement('dialog');
+    dialog.id = 'vod-modal-priority';
+    dialog.innerHTML = '<input id="vod-modal-editor" type="text">';
+    document.body.append(dialog);
+    dialog.showModal();
+    const mode = Reflect.get(window, 'vodEditMode');
+    const field = document.getElementById('vod-modal-editor');
+    mode.navigate(field);
+    field!.focus();
+    mode.begin(field);
+  });
+  await page.evaluate(() => window.dispatchEvent(new Event('native-back-requested')));
+  await expect(page.locator('#vod-modal-editor')).toHaveAttribute('readonly', '');
+  await expect(page.locator('#vod-modal-priority')).toBeVisible();
+  await expect(page.locator('#app')).toHaveClass(/viewing-fullscreen/);
+  await page.evaluate(() => window.dispatchEvent(new Event('native-back-requested')));
+  await expect(page.locator('#vod-modal-priority')).not.toBeVisible();
+  await expect(page.locator('#app')).toHaveClass(/viewing-fullscreen/);
+  await page.evaluate(() => window.dispatchEvent(new Event('native-back-requested')));
+  await expect(page.locator('#app')).not.toHaveClass(/viewing-fullscreen/);
+  await expect(page.locator('#vod-gallery')).toBeHidden();
+});
+
+for (const personal of [false, true])
+  test(`native Back exits VOD fullscreen before opening titles, including a pending exit${personal ? ' on Thor' : ' on TV'}`, async ({
+    page,
+  }) => {
+    await mount(page, { personal, foreground: true, holdFullscreenExit: true });
+    await openVod(page);
+    const title = rowCards(page, 0).nth(2);
+    await title.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#vod-gallery')).toBeHidden();
+    await page.locator('#fullscreen-button').click();
+    await expect(page.locator('#app')).toHaveClass(/viewing-fullscreen/);
+    await page.evaluate(() => window.dispatchEvent(new Event('native-back-requested')));
+    await expect
+      .poll(() => page.evaluate(() => typeof Reflect.get(window, 'releaseVodFullscreenExit')))
+      .toBe('function');
+    await page.evaluate(() => window.dispatchEvent(new Event('native-back-requested')));
+    await expect(page.locator('#vod-gallery')).toBeHidden();
+    expect(
+      await page.evaluate(() => Reflect.get(window, 'log').filter((v: string) => v === 'vod-back')),
+    ).toEqual([]);
+    await page.evaluate(() => Reflect.get(window, 'releaseVodFullscreenExit')());
+    await expect(page.locator('#app')).not.toHaveClass(/viewing-fullscreen/);
+    await expect(page.locator('#vod-gallery')).toBeHidden();
+    await page.evaluate(() => window.dispatchEvent(new Event('native-back-requested')));
+    await expect(page.locator('#vod-gallery')).toBeVisible();
+    await expect(title).toBeFocused();
+    expect(
+      await page.evaluate(() => Reflect.get(window, 'log').filter((v: string) => v === 'vod-back')),
+    ).toHaveLength(1);
+  });
+
+test('remote title activation hands focus to Back to titles before pending playback, without late focus theft', async ({
+  page,
+}) => {
+  await mount(page, { holdPlay: true });
+  await openVod(page);
+  await rowCards(page, 0).first().focus();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#vod-gallery')).toBeHidden();
+  await expect(page.locator('.vod-reopen')).toBeFocused();
+  await page.locator('#settings-button').focus();
+  await page.evaluate(() => Reflect.get(window, 'finishVodPlay')());
+  await expect(page.locator('#pause-button')).toBeEnabled();
+  await expect(page.locator('#settings-button')).toBeFocused();
+});
+test('a title started without owning gallery focus does not move an unrelated control', async ({
+  page,
+}) => {
+  await mount(page, { holdPlay: true });
+  await openVod(page);
+  await page.locator('#settings-button').focus();
+  await page
+    .locator('.vod-title')
+    .first()
+    .evaluate((title) => (title as HTMLButtonElement).click());
+  await expect(page.locator('#vod-gallery')).toBeHidden();
+  await expect(page.locator('#settings-button')).toBeFocused();
+  await page.evaluate(() => Reflect.get(window, 'finishVodPlay')());
+  await expect(page.locator('#pause-button')).toBeEnabled();
+  await expect(page.locator('#settings-button')).toBeFocused();
+});
+for (const personal of [false, true])
+  test(`watching VOD keeps deliberate rail, Paid header and player routes${personal ? ' on Thor' : ' on TV'}`, async ({
+    page,
+  }) => {
+    await mount(page, { personal });
+    await openVod(page);
+    await rowCards(page, 0).first().focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('#pause-button')).toBeEnabled();
+    await page.locator('.vod-reopen').focus();
+    await press(page, 'ArrowRight');
+    await expect(page.locator('#pause-button')).toBeFocused();
+    await press(page, 'ArrowLeft');
+    await expect(page.locator('.vod-reopen')).toBeFocused();
+    await page.locator('[data-vod-section="movies"]').focus();
+    await press(page, 'ArrowRight');
+    await expect(page.locator('[data-vod-section="series"]')).toBeFocused();
+    await press(page, 'ArrowRight');
+    await expect(page.locator('#pause-button')).toBeFocused();
+    await press(page, 'ArrowLeft');
+    await expect(page.locator('[data-vod-section="series"]')).toBeFocused();
+    await page.locator('.vod-channels').focus();
+    await press(page, 'ArrowUp');
+    await expect(page.locator('#paid-tv-button')).toBeFocused();
+    await press(page, 'ArrowDown');
+    await expect(page.locator('.vod-channels')).toBeFocused();
+    await press(page, 'ArrowDown');
+    await expect(page.locator('#vod-filter')).toBeFocused();
+    await expect(page.locator('#vod-filter')).toHaveAttribute('readonly', '');
+    await press(page, 'ArrowRight');
+    await expect(page.locator('#pause-button')).toBeFocused();
+    await press(page, 'ArrowLeft');
+    await expect(page.locator('#vod-filter')).toBeFocused();
+    await press(page, 'Enter');
+    await page.locator('#vod-filter').evaluate((field) => {
+      const input = field as HTMLInputElement;
+      input.value = 'QA';
+      input.setSelectionRange(0, 0);
+    });
+    await press(page, 'ArrowRight');
+    await expect(page.locator('#vod-filter')).toBeFocused();
+    expect(
+      await page
+        .locator('#vod-filter')
+        .evaluate((field) => (field as HTMLInputElement).selectionStart),
+    ).toBe(1);
+    await press(page, 'Escape', 'ArrowRight');
+    await expect(page.locator('#pause-button')).toBeFocused();
+    await press(page, 'ArrowLeft');
+    await expect(page.locator('#vod-filter')).toBeFocused();
+    await page.locator('.vod-reopen').click();
+    await expect(page.locator('#vod-gallery')).toBeVisible();
+    await rowCards(page, 0).first().focus();
+    await press(page, 'ArrowRight');
+    await expect(rowCards(page, 0).nth(1)).toBeFocused();
+    await press(page, 'ArrowLeft', 'ArrowLeft');
+    await expect(page.locator('.vod-categories [data-category="1"]')).toBeFocused();
+    await press(page, 'ArrowRight');
+    expect(await page.evaluate(() => !!document.activeElement?.closest('#vod-gallery'))).toBe(true);
+  });
 
 test('VOD fills the screen with a slim rail, a banner and category rows of six posters', async ({
   page,

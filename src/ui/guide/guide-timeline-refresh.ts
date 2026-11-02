@@ -16,6 +16,8 @@
 
 import { GUIDE_GROUPING_POLICY } from '../../guide/listed-channels';
 import { type ProgramPage, type ProgramQuery } from '../../guide/native';
+import type { SportsScope } from '../../search/sports';
+import type { GuideHistoryScope } from '../../guide/history-scope';
 import { type createTimelineDetails } from './guide-timeline-details';
 import {
   HALF,
@@ -33,6 +35,8 @@ import {
   type ListedCache,
   type TimelineChannel,
   type TimelineHost,
+  appendPpvBadge,
+  timelineProgramPpv,
 } from './guide-timeline-model';
 
 /** Listing pages kept for reuse while scrolling (each at most 50 programmes). */
@@ -53,6 +57,11 @@ export interface TimelineRefreshEnvironment {
   readonly listingScope: (channels: readonly TimelineChannel[]) => string;
   listedCache: ListedCache | null;
   readonly search: string;
+  readonly ppv: boolean;
+  readonly historyScope: GuideHistoryScope | undefined;
+  readonly historyRevision: number | null;
+  readonly sportsScope: SportsScope | undefined;
+  readonly programSports: SportsScope | undefined;
   readonly channelCards: Map<HTMLButtonElement, TimelineChannel>;
   readonly agendaHeader: HTMLDivElement;
   readonly doc: Document;
@@ -112,6 +121,7 @@ export interface TimelineRefreshEnvironment {
   readonly showEmptyDetail: ReturnType<typeof createTimelineDetails>['showEmptyDetail'];
   agendaFocusFirst: boolean;
   readonly visibleArtwork: () => void;
+  readonly rememberRowFocus: () => void;
   readonly restoreRowFocus: () => void;
   readonly clock: () => void;
   readonly readLimit: <T>(task: () => Promise<T>) => Promise<T>;
@@ -125,12 +135,27 @@ export interface TimelineRefreshEnvironment {
  * mountGuideTimeline.
  */
 export function createTimelineRefresh(env: TimelineRefreshEnvironment) {
+  const emptyActions = new WeakMap<HTMLButtonElement, () => void>();
+  // Catalog batches may commit during a slow read. Coalesce their catch-up;
+  // retain the already drawn snapshot until a complete latest inventory arrives.
+  const pause = (signal: AbortSignal) =>
+    new Promise<void>((resolve) => {
+      const done = () => {
+        clearTimeout(timer);
+        signal.removeEventListener('abort', done);
+        resolve();
+      };
+      const timer = setTimeout(done, 500);
+      signal.addEventListener('abort', done, { once: true });
+      if (signal.aborted) done();
+    });
   function refresh(): Promise<void> {
     if (env.closed || !env.foreground) return Promise.resolve();
     env.invalidate();
     env.refreshWanted = true;
     if (env.active) return env.active;
     const task = (async () => {
+      let catalogCatchup = false;
       while (env.refreshWanted && !env.closed && env.foreground) {
         env.refreshWanted = false;
         await env.drain();
@@ -138,14 +163,38 @@ export function createTimelineRefresh(env: TimelineRefreshEnvironment) {
         const mine = env.generation,
           abort = new AbortController();
         env.controller = abort;
+        const retainRows = catalogCatchup;
+        if (catalogCatchup) {
+          let previous = env.host.catalogRevision();
+          for (let n = 0; n < 4; n++) {
+            await pause(abort.signal);
+            if (env.closed || !env.foreground || abort.signal.aborted || mine !== env.generation)
+              break;
+            const current = env.host.catalogRevision();
+            if (current === previous) break;
+            previous = current;
+          }
+          if (env.closed || !env.foreground || abort.signal.aborted || mine !== env.generation)
+            continue;
+        }
+        catalogCatchup = false;
         const revision = env.host.catalogRevision(),
           anchor = env.from;
-        const valid = () =>
-          !env.closed &&
-          env.foreground &&
-          !abort.signal.aborted &&
-          mine === env.generation &&
-          revision === env.host.catalogRevision();
+        const owned = () =>
+          !env.closed && env.foreground && !abort.signal.aborted && mine === env.generation;
+        const catchup = () => {
+          if (owned()) {
+            catalogCatchup = true;
+            env.refreshWanted = true;
+          }
+        };
+        const valid = () => {
+          if (owned() && revision !== env.host.catalogRevision()) catchup();
+          return owned() && revision === env.host.catalogRevision();
+        };
+        // Retained controls revalidate their channel against the live catalog;
+        // a response's old revision never grants authority to tune a removed row.
+        const interactive = () => !env.closed && env.foreground && mine === env.generation;
         if (env.host.listedChannels) {
           const inventory = env.host.channels();
           const signature = env.listingScope(inventory);
@@ -156,12 +205,14 @@ export function createTimelineRefresh(env: TimelineRefreshEnvironment) {
             env.listedCache.catalogRevision !== revision ||
             env.listedCache.signature !== signature
           ) {
-            env.listedCache = null;
-            env.channelCards.clear();
-            if (env.agendaHeader.contains(env.doc.activeElement))
-              env.now.focus({ preventScroll: true });
-            env.agendaHeader.hidden = true;
-            env.content.style.height = '0px';
+            if (!retainRows || !env.content.querySelector('.gx-timeline-row,.gx-agenda-listing')) {
+              env.listedCache = null;
+              env.channelCards.clear();
+              if (env.agendaHeader.contains(env.doc.activeElement))
+                env.now.focus({ preventScroll: true });
+              env.agendaHeader.hidden = true;
+              env.content.style.height = '0px';
+            }
             delete env.status.dataset.state;
             env.status.textContent = 'Checking saved listings…';
             env.host.listedCount?.(null, anchor, anchor + WINDOW);
@@ -172,21 +223,54 @@ export function createTimelineRefresh(env: TimelineRefreshEnvironment) {
             try {
               await env.launch(
                 (async () => {
-                  membership = searched
-                    ? await env.host.listedChannels!(anchor, anchor + WEEK, abort.signal, searched)
-                    : await env.host.listedChannels!(anchor, anchor + WINDOW, abort.signal);
+                  const sports = env.sportsScope;
+                  const end = anchor + (searched || sports ? WEEK : WINDOW);
+                  const history = env.historyScope;
+                  membership = history
+                    ? await env.host.listedChannels!(
+                        anchor,
+                        end,
+                        abort.signal,
+                        searched || undefined,
+                        false,
+                        sports,
+                        history,
+                      )
+                    : sports
+                      ? await env.host.listedChannels!(
+                          anchor,
+                          end,
+                          abort.signal,
+                          searched || undefined,
+                          env.ppv,
+                          sports,
+                        )
+                      : env.ppv
+                        ? await env.host.listedChannels!(
+                            anchor,
+                            end,
+                            abort.signal,
+                            searched || undefined,
+                            true,
+                          )
+                        : searched
+                          ? await env.host.listedChannels!(anchor, end, abort.signal, searched)
+                          : await env.host.listedChannels!(anchor, end, abort.signal);
                 })(),
               );
               if (searched !== env.search) continue;
               if (!valid()) continue;
+              if (signature !== env.listingScope(env.host.channels())) {
+                catchup();
+                continue;
+              }
               if (
                 !membership ||
                 membership.catalogRevision !== revision ||
                 !Number.isSafeInteger(membership.databaseRevision) ||
                 membership.databaseRevision < 0 ||
                 !Array.isArray(membership.channels) ||
-                membership.channels.length > 100000 ||
-                signature !== env.listingScope(env.host.channels())
+                membership.channels.length > 100000
               )
                 throw new Error('Guide listing scope changed.');
               const grouped = membership.groupingPolicy !== undefined;
@@ -213,7 +297,7 @@ export function createTimelineRefresh(env: TimelineRefreshEnvironment) {
                   (grouped &&
                     (!Number.isInteger(member.filterMask) ||
                       member.filterMask! < 0 ||
-                      member.filterMask! > 7))
+                      member.filterMask! > 15))
                 )
                   throw new Error('Guide listing scope invalid.');
                 const key = JSON.stringify([member.catalogSourceId, member.appChannelId]);
@@ -360,8 +444,25 @@ export function createTimelineRefresh(env: TimelineRefreshEnvironment) {
         env.renderedStart = start;
         env.renderedCount = visible.length;
         env.renderedTotal = channels.length;
-        env.channelCards.clear();
-        env.content.replaceChildren();
+        const retained =
+          retainRows && !env.agendaMode
+            ? new Map(
+                [...env.content.querySelectorAll<HTMLDivElement>('.gx-timeline-row')].map((row) => [
+                  row.dataset.channelKey!,
+                  row,
+                ]),
+              )
+            : new Map<string, HTMLDivElement>();
+        if (!retained.size) {
+          env.channelCards.clear();
+          env.content.replaceChildren();
+        } else {
+          const keep = new Set(visible.map(channelKey));
+          for (const child of [...env.content.children])
+            if (!keep.has((child as HTMLElement).dataset.channelKey ?? '')) child.remove();
+          for (const card of env.channelCards.keys())
+            if (!card.isConnected) env.channelCards.delete(card);
+        }
         env.content.style.height = env.agendaMode ? 'auto' : `${channels.length * env.rowHeight}px`;
         if (env.agendaMode) env.content.append(env.status);
         const job = (async () => {
@@ -400,10 +501,18 @@ export function createTimelineRefresh(env: TimelineRefreshEnvironment) {
                       appChannelIds: [channel.id],
                       windowStartMs: anchor,
                       windowEndMs: anchor + WINDOW,
-                      search: '',
+                      search: env.programSports ? env.search : '',
                       pageSize: 50,
                       cursor: env.agendaCursor,
-                      contextAtMs: anchor,
+                      contextAtMs: env.programSports ? undefined : anchor,
+                      ...(env.ppv ? { ppv: true } : {}),
+                      ...(env.programSports ? { sports: env.programSports } : {}),
+                      ...(env.historyScope
+                        ? {
+                            historyIds: [...env.historyScope.ids],
+                            hideAdult: env.historyScope.hideAdult,
+                          }
+                        : {}),
                     },
                     abort.signal,
                   )
@@ -435,9 +544,15 @@ export function createTimelineRefresh(env: TimelineRefreshEnvironment) {
             for (const program of programs) {
               const key = timelineProgramKey(program);
               const cell = env.button(program.title, () => {
-                if (!valid() || !env.currentChannel(channel)) return;
+                if (!interactive() || !env.currentChannel(channel)) return;
                 env.selectCell(cell);
-                const job = env.showDetail(channel, program, cell, revision, mine);
+                const job = env.showDetail(
+                  channel,
+                  program,
+                  cell,
+                  env.host.catalogRevision(),
+                  env.generation,
+                );
                 void env.launch(job).catch(env.report);
               });
               cell.className = 'gx-agenda-listing';
@@ -448,6 +563,7 @@ export function createTimelineRefresh(env: TimelineRefreshEnvironment) {
               cell.title = program.title;
               const title = env.doc.createElement('strong');
               title.textContent = program.title;
+              appendPpvBadge(title, timelineProgramPpv(channel, program));
               const timing = env.doc.createElement('span');
               timing.className = 'gx-agenda-time';
               timing.id = `gx-agenda-time-${mine}-${program.ordinal}-${env.content.childElementCount}`;
@@ -478,9 +594,17 @@ export function createTimelineRefresh(env: TimelineRefreshEnvironment) {
                   : 'Guide not linked';
               env.content.append(note);
               const inspect = env.button('Schedule details', () => {
-                if (valid() && env.currentChannel(channel))
+                if (interactive() && env.currentChannel(channel))
                   void env
-                    .launch(env.showEmptyDetail(channel, inspect, revision, mine, anchor))
+                    .launch(
+                      env.showEmptyDetail(
+                        channel,
+                        inspect,
+                        env.host.catalogRevision(),
+                        env.generation,
+                        anchor,
+                      ),
+                    )
                     .catch(env.report);
               });
               inspect.className = 'gx-agenda-listing';
@@ -522,9 +646,47 @@ export function createTimelineRefresh(env: TimelineRefreshEnvironment) {
           // Rows ask for their listings four at a time, and listings already
           // read are reused: holding Down on the Sansui TV outran one-at-a-time
           // reads that started over at every jump (owner report, October 19,
-          // 2026). Rows are still drawn in order, each checked as before.
+          // 2026). Keep rows in stable order without making a ready row wait
+          // for an earlier channel's slower query.
           const signal = abort.signal;
           let stopped = false;
+          let scopeChanged = false;
+          const rows = visible.map((channel, i) => {
+            const previous = retained.get(channelKey(channel));
+            const row = previous ?? env.doc.createElement('div');
+            row.className = 'gx-timeline-row';
+            row.dataset.channelKey = channelKey(channel);
+            row.style.top = `${(start + i) * env.rowHeight}px`;
+            row.dataset.band = (start + i) % 2 ? 'b' : 'a';
+            const label =
+              previous?.querySelector<HTMLButtonElement>('.gx-timeline-channel') ??
+              env.button(channel.name, () => {
+                if (!interactive() || !env.currentChannel(channel)) return;
+                if (env.host.channelActivate) env.host.channelActivate({ ...channel });
+                else env.status.textContent = `${channel.name}: choose a listing.`;
+              });
+            label.className = 'gx-timeline-channel';
+            label.title = channel.name;
+            env.channelCard(label, channel);
+            const track =
+              previous?.querySelector<HTMLDivElement>('.gx-timeline-track') ??
+              env.doc.createElement('div');
+            track.className = 'gx-timeline-track';
+            track.setAttribute('aria-busy', 'true');
+            const pending = env.doc.createElement('span');
+            pending.className = 'gx-timeline-note';
+            pending.textContent = 'Loading listings…';
+            if (!previous) {
+              track.append(pending);
+              row.append(label, track);
+              env.content.append(row);
+            }
+            return { row, label, track };
+          });
+          // Channel controls are usable before schedule reads finish. A remembered
+          // programme focus waits for its row, rather than falling onto its label.
+          if (env.rowFocus?.column === 0) env.restoreRowFocus();
+          env.visibleArtwork();
           const pages = visible.map((channel) =>
             env.readLimit(() => {
               if (stopped || !channel.guideSourceId || !channel.xmltvChannelId)
@@ -534,6 +696,10 @@ export function createTimelineRefresh(env: TimelineRefreshEnvironment) {
                 ? JSON.stringify([
                     channelKey(channel),
                     anchor,
+                    env.ppv,
+                    env.historyRevision,
+                    env.programSports ?? null,
+                    env.programSports ? env.search : '',
                     channel.guideRevision ?? null,
                     env.listedCache?.databaseRevision ?? null,
                   ])
@@ -552,10 +718,18 @@ export function createTimelineRefresh(env: TimelineRefreshEnvironment) {
                     appChannelIds: [channel.id],
                     windowStartMs: anchor,
                     windowEndMs: anchor + WINDOW,
-                    contextAtMs: env.host.listedChannels ? undefined : anchor,
-                    search: '',
+                    contextAtMs: env.host.listedChannels || env.programSports ? undefined : anchor,
+                    search: env.programSports ? env.search : '',
                     pageSize: 50,
                     cursor: null,
+                    ...(env.ppv ? { ppv: true } : {}),
+                    ...(env.programSports ? { sports: env.programSports } : {}),
+                    ...(env.historyScope
+                      ? {
+                          historyIds: [...env.historyScope.ids],
+                          hideAdult: env.historyScope.hideAdult,
+                        }
+                      : {}),
                   },
                   signal,
                 )
@@ -569,13 +743,14 @@ export function createTimelineRefresh(env: TimelineRefreshEnvironment) {
                 });
             }),
           );
-          // Rows abandoned by a newer refresh must not report failures.
-          for (const pending of pages) pending.catch(() => undefined);
-          try {
-            for (let i = 0; i < visible.length; i++) {
-              const channel = visible[i]!;
+          const draws = visible.map(async (channel, i) => {
+            try {
               const page: ProgramPage | null = await pages[i]!;
-              if (!valid() || !env.currentChannel(channel)) return;
+              if (stopped || !valid()) return;
+              if (!env.currentChannel(channel)) {
+                scopeChanged = true;
+                return;
+              }
               if (
                 page &&
                 (page.programs.length > 50 ||
@@ -592,24 +767,13 @@ export function createTimelineRefresh(env: TimelineRefreshEnvironment) {
                   ))
               )
                 throw new Error('Guide scope mismatch.');
-              const row = env.doc.createElement('div');
-              row.className = 'gx-timeline-row';
-              row.dataset.channelKey = channelKey(channel);
-              row.style.top = `${(start + i) * env.rowHeight}px`;
-              // Alternating bands, so the eye can follow one channel across.
-              row.dataset.band = (start + i) % 2 ? 'b' : 'a';
-              const label = env.button(channel.name, () => {
-                if (!valid() || !env.currentChannel(channel)) return;
-                if (env.host.channelActivate) env.host.channelActivate({ ...channel });
-                else env.status.textContent = `${channel.name}: choose a listing.`;
-              });
-              label.className = 'gx-timeline-channel';
-              label.title = channel.name;
-              env.channelCard(label, channel);
-              const track = env.doc.createElement('div');
-              track.className = 'gx-timeline-track';
-              row.append(label, track);
-              env.content.append(row);
+              const { label, track } = rows[i]!;
+              // A retained row may have owned empty-schedule controls earlier.
+              emptyActions.get(label)?.();
+              emptyActions.delete(label);
+              if (retainRows && track.contains(env.doc.activeElement)) env.rememberRowFocus();
+              track.replaceChildren();
+              track.setAttribute('aria-busy', 'false');
               const programs = (page?.programs ?? []).filter(
                 (p) => cellBounds(p.startMs, p.stopMs, anchor) !== null,
               );
@@ -628,13 +792,28 @@ export function createTimelineRefresh(env: TimelineRefreshEnvironment) {
                     ? `${first.title}${first.stopMs === null ? ' · end unknown' : ''}`
                     : `${first.title} +${more}`,
                   () => {
-                    if (!valid() || !env.currentChannel(channel)) return;
+                    if (!interactive() || !env.currentChannel(channel)) return;
                     env.selectCell(cell);
                     if (group.length === 1)
                       void env
-                        .launch(env.showDetail(channel, first, cell, revision, mine))
+                        .launch(
+                          env.showDetail(
+                            channel,
+                            first,
+                            cell,
+                            env.host.catalogRevision(),
+                            env.generation,
+                          ),
+                        )
                         .catch(env.report);
-                    else env.showChooser(channel, group, cell, revision, mine);
+                    else
+                      env.showChooser(
+                        channel,
+                        group,
+                        cell,
+                        env.host.catalogRevision(),
+                        env.generation,
+                      );
                   },
                 );
                 cell.className = 'gx-timeline-cell';
@@ -643,6 +822,10 @@ export function createTimelineRefresh(env: TimelineRefreshEnvironment) {
                 const listingLabel = env.doc.createElement('span');
                 listingLabel.className = 'gx-timeline-cell-label';
                 listingLabel.textContent = cell.textContent;
+                appendPpvBadge(
+                  listingLabel,
+                  group.some((program) => timelineProgramPpv(channel, program)),
+                );
                 cell.replaceChildren(listingLabel);
                 if (more)
                   cell.setAttribute(
@@ -688,21 +871,49 @@ export function createTimelineRefresh(env: TimelineRefreshEnvironment) {
                 label.setAttribute('aria-label', `${channel.name} · ${note.textContent}`);
                 const openScheduleDetails = (event: Event) => {
                   event.preventDefault();
-                  if (valid() && env.currentChannel(channel))
+                  if (interactive() && env.currentChannel(channel))
                     void env
-                      .launch(env.showEmptyDetail(channel, label, revision, mine, anchor))
+                      .launch(
+                        env.showEmptyDetail(
+                          channel,
+                          label,
+                          env.host.catalogRevision(),
+                          env.generation,
+                          anchor,
+                        ),
+                      )
                       .catch(env.report);
                 };
-                label.addEventListener('contextmenu', openScheduleDetails);
-                label.addEventListener('keydown', (event) => {
+                const scheduleKey = (event: KeyboardEvent) => {
                   if (event.key === 'ContextMenu' || (event.shiftKey && event.key === 'F10'))
                     openScheduleDetails(event);
+                };
+                label.addEventListener('contextmenu', openScheduleDetails);
+                label.addEventListener('keydown', scheduleKey);
+                emptyActions.set(label, () => {
+                  label.removeEventListener('contextmenu', openScheduleDetails);
+                  label.removeEventListener('keydown', scheduleKey);
                 });
                 track.append(note);
               }
-              env.content.append(row);
+              if (
+                env.rowFocus?.key === channelKey(channel) &&
+                (env.doc.activeElement === env.doc.body || env.doc.activeElement === env.viewport)
+              )
+                env.restoreRowFocus();
+            } catch (error) {
+              stopped = true;
+              // Surface the fixed failure while joining other retained reads;
+              // a blocked earlier row must not hide a rejected SQL operation.
+              if (valid() && !aborted(error)) env.report();
+              throw error;
             }
-            if (valid()) {
+          });
+          let failure: PromiseRejectedResult | undefined;
+          try {
+            await Promise.all(draws);
+            if (scopeChanged) catchup();
+            if (valid() && !scopeChanged) {
               env.status.textContent = readyStatus;
               env.status.dataset.state = 'ready';
               if (channels.length) {
@@ -710,16 +921,25 @@ export function createTimelineRefresh(env: TimelineRefreshEnvironment) {
                 line.className = 'gx-timeline-now';
                 env.content.append(line);
               }
-              env.restoreRowFocus();
+              if (env.doc.activeElement === env.doc.body || env.doc.activeElement === env.viewport)
+                env.restoreRowFocus();
               env.visibleArtwork();
               env.clock();
             }
+          } catch (error) {
+            failure = { status: 'rejected', reason: error };
           } finally {
             // The job owns every read it started: nothing new starts, and
             // suspension or the next refresh waits for the ones in flight.
             stopped = true;
-            await Promise.allSettled(pages);
+            const settled = await Promise.allSettled(draws);
+            const cleanupFailure = settled.find(
+              (result): result is PromiseRejectedResult =>
+                result.status === 'rejected' && !aborted(result.reason),
+            );
+            if (cleanupFailure) failure = cleanupFailure;
           }
+          if (failure) throw failure.reason;
         })();
         try {
           await env.launch(job);
@@ -731,11 +951,16 @@ export function createTimelineRefresh(env: TimelineRefreshEnvironment) {
           if (valid()) {
             if (env.host.listedChannels) {
               env.listedCache = null;
-              env.content.replaceChildren();
-              env.content.style.height = '0px';
-              env.agendaHeader.hidden = true;
               env.host.listedCount?.(null, anchor, anchor + WINDOW, true);
             }
+            // Joined failures must not leave progressive Loading placeholders or
+            // present a partial window as a ready empty schedule in either host.
+            env.channelCards.clear();
+            // Agenda places status inside content; keep the failure visible.
+            env.root.insertBefore(env.status, env.axis);
+            env.content.replaceChildren();
+            env.content.style.height = '0px';
+            env.agendaHeader.hidden = true;
             env.report();
           }
         }

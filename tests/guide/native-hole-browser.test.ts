@@ -64,6 +64,8 @@ beforeAll(async () => {
         'fullscreen',
         'tv-density',
         'account-vod',
+        'genxtra',
+        'media-results',
         'guide-panel',
         'native-video',
       ].map((name) => readStylesheet(`src/ui/${name}.css`)),
@@ -101,6 +103,19 @@ async function shell(layout: {
     app.dataset.playerIdle = 'false';
     document.getElementById('player-overlay')!.hidden = true;
     if (layout.mode === 'fullscreen') app.classList.add('viewing-fullscreen');
+    if (layout.mode === 'genxtra') {
+      app.dataset.contentLibrary = 'genxtra';
+      app.dataset.playMode = 'on-demand';
+      const details = document.getElementById('archive-details')!;
+      details.hidden = false;
+      details.dataset.playbackActive = 'true';
+    }
+    if (layout.mode === 'paid-vod') {
+      app.dataset.contentLibrary = 'live';
+      app.dataset.playMode = 'on-demand';
+      app.dataset.vod = 'open';
+      app.dataset.vodBrowsing = 'false';
+    }
     if (layout.mode === 'guide') {
       app.dataset.guidePanel = 'open';
       document.getElementById('primary-view-host')!.hidden = false;
@@ -177,6 +192,8 @@ for (const layout of [
   { width: 960, height: 540, tv: true, mode: 'fullscreen' },
   { width: 1280, height: 720, tv: false, mode: 'guide' },
   { width: 960, height: 540, tv: true, mode: 'guide' },
+  { width: 1920, height: 1080, tv: true, mode: 'genxtra', dpr: 2 },
+  { width: 960, height: 540, tv: true, mode: 'paid-vod', dpr: 2 },
 ])
   it(`nothing GenX paints covers the native picture: ${layout.width}x${layout.height} ${layout.tv ? 'TV' : 'desktop'} ${layout.mode ?? 'normal'}`, async () => {
     const page = await shell(layout);

@@ -16,6 +16,8 @@
 
 package com.tmg.tv
 internal object TelevisionCapability {
+  fun nativeEmbeddedPlayback(television: Boolean, manufacturer: String, model: String, sdk: Int): Boolean =
+    television && sdk == 28 && manufacturer.equals("Amazon", ignoreCase = true) && model.startsWith("AFT")
   fun isTelevision(uiModeType:Int?,hasLeanback:Boolean,hasTelevision:Boolean=false):Boolean =
     uiModeType==android.content.res.Configuration.UI_MODE_TYPE_TELEVISION || hasLeanback || hasTelevision
 }

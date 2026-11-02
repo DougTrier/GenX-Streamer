@@ -25,6 +25,7 @@ import { type Source } from '../../catalog/parser';
 import { type PipelineReview } from '../../discovery/pipeline';
 import {
   ScanSourcesChanged,
+  ScanCheckpointExpired,
   freezeCapture,
   normalizedScanQuery,
   type AutomaticScanEntry,
@@ -192,6 +193,7 @@ export interface AutomaticScanRunsEnvironment {
   scanKind: AutomaticScanProgress['scanKind'];
   boundedResume: BoundedSourceScanResume | null;
   lastFailure: ScanFailure;
+  readonly lastFailureCode: string | undefined;
   readonly checkCaptured: (
     captured: ScanReview,
     task: { signal: AbortSignal; generation: number },
@@ -769,7 +771,9 @@ export function createAutomaticScanRuns(env: AutomaticScanRunsEnvironment) {
                           : env.scanPhase === 'paused'
                             ? 'Scan paused'
                             : 'Checking channels';
-                    env.status.textContent = `${label} | ${env.scanChecked} of ${env.scanTotal} checked | ${env.scanPublished} saved.`;
+                    env.status.textContent = plan.normalization
+                      ? `${label} | ${Math.floor((100 * env.scanChecked) / Math.max(1, env.scanTotal))}% | ${plan.normalization.uniqueTargets} unique streams · ${plan.normalization.duplicates} overlaps combined | ${env.scanPublished} saved.`
+                      : `${label} | ${env.scanChecked} of ${env.scanTotal} checked | ${env.scanPublished} saved.`;
                     env.error.textContent =
                       value.failure === 'commit-unconfirmed'
                         ? 'Saving scan progress could not be confirmed. Select Finish scan to read saved progress before retrying. Saved channels are retained.'
@@ -881,9 +885,11 @@ export function createAutomaticScanRuns(env: AutomaticScanRunsEnvironment) {
           env.lastFailure = 'other';
           env.status.textContent = `Previous saved scan${priorQuery ? ` for “${priorQuery}”` : ''} | ${env.scanChecked} of ${env.scanTotal} checked | ${env.scanPublished} saved. This saved scan cannot continue. Select Rescan to check sources again.`;
           env.error.textContent =
-            failure instanceof ScanSourcesChanged
-              ? `${failure.message} Its ${env.scanPublished} saved channels are kept; Rescan checks the updated sources.`
-              : 'Saved scan progress is unavailable for Finish scan.';
+            failure instanceof ScanCheckpointExpired
+              ? failure.message
+              : failure instanceof ScanSourcesChanged
+                ? `${failure.message} Its ${env.scanPublished} saved channels are kept; Rescan checks the updated sources.`
+                : 'Saved scan progress is unavailable for Finish scan.';
           return;
         }
         env.recordFailure(failure);
@@ -891,9 +897,11 @@ export function createAutomaticScanRuns(env: AutomaticScanRunsEnvironment) {
         env.error.textContent =
           env.lastFailure === 'publish-failed'
             ? 'Channels could not be saved. Saved channels are safe; Finish scan retries from the last saved progress.'
-            : task.signal.aborted && env.lastFailure === 'canceled'
-              ? ''
-              : 'Scan could not resume. Rescan to check the current sources.';
+            : env.lastFailureCode === 'source-refresh-capacity'
+              ? 'Source refresh reached the 100,000-entry capture limit. Saved channels are retained. Adjust your sources before rescanning.'
+              : task.signal.aborted && env.lastFailure === 'canceled'
+                ? ''
+                : 'Scan could not resume. Rescan to check the current sources.';
       } finally {
         env.finish(task.generation);
         if (fresh && !continuing && !env.closed && !task.signal.aborted) env.runScan();

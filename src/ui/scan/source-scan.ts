@@ -340,9 +340,11 @@ export function mountSourceScan(
     const code = failure instanceof Error ? failure.message : failure;
     if (isScanPreparationFailureCode(code)) preparationFailure = code;
     const category = classifyScanFailure(failure, publication);
+    const diagnostic = scanFailureCode(failure);
+    if (diagnostic === 'source-refresh-capacity') preparationFailure = 'prepare-capacity';
     if ((category !== 'other' && category !== 'canceled') || lastFailure === 'none') {
       lastFailure = category;
-      lastFailureCode = scanFailureCode(failure);
+      lastFailureCode = diagnostic;
     }
     scanPhase = lastFailure === 'canceled' ? 'paused' : 'failed';
   };

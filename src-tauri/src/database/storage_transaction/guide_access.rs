@@ -25,6 +25,35 @@ impl PairStore {
         read(&c)
     }
 
+    pub(crate) fn with_authority_read<T>(
+        &self,
+        timeout: Duration,
+        read: impl FnOnce(&Connection) -> Result<T, String>,
+    ) -> Result<T, String> {
+        let c = connect_authority_read(&self.root.join(DB), timeout)?;
+        read(&c)
+    }
+
+    pub(crate) fn query_listed_guide(
+        &self,
+        query: &crate::guide::listed_channels::Query,
+        generation: u64,
+        cancel: crate::guide::listed_channels::Cancel,
+    ) -> Result<crate::guide::listed_channels::Page, String> {
+        let path = self.root.join(DB);
+        let stamp = crate::guide::listed_channels::database_stamp(&path)?;
+        let c = connect(&path, true)?;
+        crate::guide::listed_channels::query_cached(
+            &c,
+            query,
+            generation,
+            cancel,
+            &self.guide_listed_cache,
+            &path,
+            &stamp,
+        )
+    }
+
     pub fn query_catalog_page(
         &self,
         query: &crate::catalog_query::Query,

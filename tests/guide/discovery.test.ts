@@ -27,6 +27,32 @@ const source = (id: string, overrides: Partial<Source> = {}): Source => ({
   ...overrides,
 });
 const signal = () => new AbortController().signal;
+it('reads a duplicate playlist header once while retaining each source name and outcome', async () => {
+  const inspect = vi.fn(async () => ({
+    kind: 'catalog',
+    text: '#EXTM3U tvg-url="https://guide.invalid/shared.xml"',
+  }));
+  const result = await discoverPlaylistGuides(
+    [source('first'), source('alias', { location: 'https://fixture.invalid/first' })],
+    inspect,
+    signal(),
+  );
+  expect(inspect).toHaveBeenCalledOnce();
+  expect(result.outcomes.map((row) => row.status)).toEqual(['found', 'found']);
+  expect(result.candidates[0].playlistNames).toEqual(['first', 'alias']);
+});
+it('does not share playlist inspection across differing HTTP permissions', async () => {
+  const inspect = vi.fn(async () => ({ kind: 'catalog', text: '#EXTM3U' }));
+  await discoverPlaylistGuides(
+    [
+      source('first'),
+      source('alias', { location: 'https://fixture.invalid/first', allowHttp: true }),
+    ],
+    inspect,
+    signal(),
+  );
+  expect(inspect).toHaveBeenCalledTimes(2);
+});
 const provider = (id = 'reviewed'): ReviewedGuideProvider => ({
   id,
   name: 'Reviewed local schedules',

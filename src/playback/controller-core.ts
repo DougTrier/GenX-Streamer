@@ -21,6 +21,7 @@ import {
   type EngineFactory,
   type LiveReplayEngine,
   type PlaybackClock,
+  type PlaybackControllerOptions,
   type PlaybackEngine,
   type PlaybackFailure,
   type PlaybackSnapshot,
@@ -29,8 +30,16 @@ import {
   type VODReleaseObservation,
 } from './controller-model';
 import { playbackResourceOwners, type ResourceOwners } from './resource-owners';
+import { createSourceQuality, sourcePerformanceKey } from './source-quality';
+import { type ChannelSelection } from './controller-model';
 import { type AudioTracksSnapshot } from './audio-tracks';
 import { createOwnedAbortSignals } from '../platform/abort';
+import {
+  normalizeLiveBufferPreference,
+  normalizeLiveBufferTelemetry,
+  type LiveBufferPreference,
+  type LiveBufferTelemetry,
+} from './live-buffer';
 
 /**
  * The playback controller's state and what can be read from it: snapshots
@@ -39,6 +48,36 @@ import { createOwnedAbortSignals } from '../platform/abort';
  * adds what changes it: start, engine events, pause, resume, seek and stop.
  */
 export class PlaybackControllerCore {
+  protected readonly sourceQuality = createSourceQuality(() => this.time.now());
+  protected sourceSuppressed = false;
+  protected sourceAttempt: ReturnType<ReturnType<typeof createSourceQuality>['open']> | null = null;
+  rankSourceKeys(keys: readonly string[]): string[] {
+    return this.sourceQuality.rank(keys);
+  }
+  forgetSourceKey(key: string): void {
+    this.sourceQuality.forget(key);
+  }
+  get sourceObservationAllowed(): boolean {
+    const selection = this.current.selection;
+    return (
+      !this.sourceSuppressed &&
+      !!selection &&
+      selection.playMode !== 'on-demand' &&
+      ['playing', 'buffering', 'failed'].includes(this.current.state)
+    );
+  }
+  get canRecoverSource(): boolean {
+    const selection = this.current.selection;
+    if (!this.sourceObservationAllowed || !selection) return false;
+    const facts = this.sourceQuality.facts(sourcePerformanceKey(selection));
+    return !!facts && (facts.failures > 0 || facts.stalls >= 2);
+  }
+  /** Ranking never grants equivalence or starts a request; callers provide admitted candidates. */
+  rankSources<T extends ChannelSelection>(candidates: readonly T[]): T[] {
+    const unique = [...new Map(candidates.map((s) => [sourcePerformanceKey(s), s])).values()];
+    const byKey = new Map(unique.map((s) => [sourcePerformanceKey(s), s]));
+    return this.sourceQuality.rank([...byKey.keys()]).map((key) => ({ ...byKey.get(key)! }));
+  }
   protected current: PlaybackSnapshot = { state: 'idle', selection: null, error: null };
   protected listeners = new Set<(snapshot: PlaybackSnapshot) => void>();
   protected decodedListeners = new Set<(observation: DecodedPlaybackObservation) => void>();
@@ -91,13 +130,21 @@ export class PlaybackControllerCore {
     protected readonly factory: EngineFactory,
     protected readonly time: PlaybackClock = clock,
     protected readonly resources: ResourceOwners = playbackResourceOwners,
+    protected readonly options: PlaybackControllerOptions = {},
   ) {
     resources.cover('controller');
   }
   get snapshot(): PlaybackSnapshot {
     return {
       ...this.current,
-      selection: this.current.selection ? { ...this.current.selection } : null,
+      selection: this.current.selection
+        ? {
+            ...this.current.selection,
+            ...(this.current.selection.liveBuffer
+              ? { liveBuffer: { ...this.current.selection.liveBuffer } }
+              : {}),
+          }
+        : null,
       ...(this.current.failure ? { failure: { ...this.current.failure } } : {}),
       ...(this.current.audioTracks
         ? {
@@ -138,6 +185,77 @@ export class PlaybackControllerCore {
     } catch {
       return null;
     }
+  }
+  get liveBuffer(): Readonly<LiveBufferTelemetry> | null {
+    if (
+      !this.engine ||
+      this.engineGeneration !== this.generation ||
+      this.abort?.signal.aborted ||
+      !this.current.selection ||
+      ['idle', 'failed', 'disposed'].includes(this.current.state)
+    )
+      return null;
+    try {
+      return normalizeLiveBufferTelemetry(this.engine.readLiveBuffer?.());
+    } catch {
+      return null;
+    }
+  }
+  /** Selection/lifecycle revision for async footer work; never exposes an engine handle. */
+  get liveBufferGeneration(): number {
+    return this.generation;
+  }
+  /** Changing a live target never selects, pauses, seeks or restarts the player. */
+  async setLiveBuffer(value: LiveBufferPreference): Promise<boolean> {
+    const preference = normalizeLiveBufferPreference(value);
+    const engine = this.engine;
+    const generation = this.generation;
+    const signal = this.abort?.signal;
+    if (!preference || !engine || signal?.aborted || this.liveBuffer?.capability !== 'controlled')
+      return false;
+    try {
+      const accepted = (await engine.setLiveBuffer?.(preference)) === true;
+      if (
+        !accepted ||
+        this.engine !== engine ||
+        this.generation !== generation ||
+        signal?.aborted ||
+        !this.current.selection
+      )
+        return false;
+      this.current.selection = { ...this.current.selection, liveBuffer: { ...preference } };
+      return true;
+    } catch {
+      return false;
+    }
+  }
+  /** Preference lookup may finish late; cancellation never holds the decoder queue. */
+  protected async liveBufferPreferenceForStart(
+    selection: ChannelSelection,
+    signal: AbortSignal,
+  ): Promise<LiveBufferPreference> {
+    const fallback = normalizeLiveBufferPreference(selection.liveBuffer) ?? {
+      mode: 'auto' as const,
+    };
+    if (!this.options.liveBufferPreference) return fallback;
+    const lookup = Promise.resolve().then(() =>
+      this.options.liveBufferPreference!({ ...selection }),
+    );
+    return new Promise<LiveBufferPreference>((resolve) => {
+      let finished = false;
+      const release = this.resources.acquire('abortListeners');
+      const finish = (value?: unknown): void => {
+        if (finished) return;
+        finished = true;
+        signal.removeEventListener('abort', aborted);
+        release();
+        resolve(normalizeLiveBufferPreference(value) ?? fallback);
+      };
+      const aborted = (): void => finish();
+      signal.addEventListener('abort', aborted, { once: true });
+      void lookup.then(finish, () => finish());
+      if (signal.aborted) finish();
+    });
   }
   /** Capture synchronously before generation changes invalidate the original decoder. */
   subscribeVODRelease(listener: (observation: VODReleaseObservation) => void): () => void {
@@ -223,6 +341,9 @@ export class PlaybackControllerCore {
       window: () => guarded(null, () => engine.window()),
       seek: (seconds, signal) =>
         guarded(Promise.resolve(false), () => {
+          this.sourceSuppressed = true;
+          this.sourceAttempt?.stop();
+          this.sourceAttempt = null;
           const signals = createOwnedAbortSignals([abort!.signal, signal], this.resources);
           return engine
             .seek(seconds, signals.signal)
@@ -232,9 +353,25 @@ export class PlaybackControllerCore {
             )
             .finally(() => signals.dispose());
         }),
-      setRate: (rate) => guarded(undefined, () => engine.setRate(rate)),
-      setPaused: (paused) => guarded(undefined, () => engine.setPaused(paused)),
-      leave: () => guarded(undefined, () => engine.leave()),
+      setRate: (rate) =>
+        guarded(undefined, () => {
+          this.sourceSuppressed = true;
+          this.sourceAttempt?.stop();
+          this.sourceAttempt = null;
+          engine.setRate(rate);
+        }),
+      setPaused: (paused) =>
+        guarded(undefined, () => {
+          this.sourceSuppressed = true;
+          this.sourceAttempt?.stop();
+          this.sourceAttempt = null;
+          engine.setPaused(paused);
+        }),
+      leave: () =>
+        guarded(undefined, () => {
+          engine.leave();
+          this.sourceSuppressed = false;
+        }),
     };
   }
   subscribeDecoded(listener: (observation: DecodedPlaybackObservation) => void): () => void {

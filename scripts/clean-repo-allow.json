@@ -1093,6 +1093,78 @@
       "label": "private network address",
       "sha256": "5ae83f6280a311c59217370aab50d8d7ccbe87c92c187bc3504f91e462f56acf",
       "reason": "reviewed 2026-10-24: generic RFC1918 example address in a nearby-sharing or Install on TV test, not a real device address"
+    },
+    {
+      "file": "src-tauri/src/playback/native_live.rs",
+      "label": "private network address",
+      "sha256": "1b3bed87c03cb84d7adae93f86040ed27b0e1b966f5c93c2e86249fcb1ee24e8",
+      "reason": "Reviewed 2026-10-31: negative source-admission fixture using a generic RFC1918 example or a dummy credential on the reserved fixture.test domain; not a real address or credential."
+    },
+    {
+      "file": "src-tauri/src/playback/native_live.rs",
+      "label": "address with a password",
+      "sha256": "5df58c524ad3ee2d4f496f57d73470625a8c295eaeeda0b0f122de9696a1b3e7",
+      "reason": "Reviewed 2026-10-31: negative source-admission fixture using a generic RFC1918 example or a dummy credential on the reserved fixture.test domain; not a real address or credential."
+    },
+    {
+      "file": "tests/diagnostics/engine-failure.test.ts",
+      "label": "address with a password",
+      "sha256": "81248787f2ba9b58ef09b972aefb12c95057549f253788fec7f6338e6c36b6fa",
+      "reason": "reviewed 2026-11-01: synthetic redaction/provenance fixture for closed engine-failure diagnostic redaction; literal placeholder URL on a reserved test domain with generic dummy user/password, no real credentials"
+    },
+    {
+      "file": "tests/diagnostics/mpegts-failure.test.ts",
+      "label": "address with a password",
+      "sha256": "83151e9a9a6eeb47e9f9c64e98caef859673dab71b960616d1c0639a538fdd91",
+      "reason": "reviewed 2026-11-01: synthetic redaction/provenance fixture for closed MPEGTS exception/provenance diagnostic redaction; literal placeholder URL on a reserved test domain with generic dummy user/password, no real credentials"
+    },
+    {
+      "file": "tests/diagnostics/mpegts-failure.test.ts",
+      "label": "address with a password",
+      "sha256": "ffe732d2c097b2e1b97c2f4420fcb682cfb1492d54236530ee1da17366dd6ec6",
+      "reason": "reviewed 2026-11-01: synthetic redaction/provenance fixture for closed MPEGTS exception/provenance diagnostic redaction; literal placeholder URL on a reserved test domain with generic dummy user/password, no real credentials"
+    },
+    {
+      "file": "tests/diagnostics/mpegts-failure.test.ts",
+      "label": "address with a password",
+      "sha256": "7c306c35c1a01a0ed995863396047706a09d4d5b12e7960de6c72b2fda872df0",
+      "reason": "reviewed 2026-11-01: synthetic redaction/provenance fixture for closed MPEGTS exception/provenance diagnostic redaction; literal placeholder URL on a reserved test domain with generic dummy user/password, no real credentials"
+    },
+    {
+      "file": "tests/diagnostics/playback-trace-browser.test.ts",
+      "label": "address with a password",
+      "sha256": "958854feeb1fff3d669b6ab41a647d0c940618ef10a44516e83f1b5f7e82f5d2",
+      "reason": "reviewed 2026-11-01: synthetic redaction/provenance fixture for playback diagnostics browser presentation/export redaction; literal placeholder URL on a reserved test domain with generic dummy user/password, no real credentials"
+    },
+    {
+      "file": "tests/diagnostics/playback-trace-browser.test.ts",
+      "label": "address with a password",
+      "sha256": "4a3048600a743fcf15d5d69efd73b3bacbbed159c9d65e651f1a90cbf2ea5410",
+      "reason": "reviewed 2026-11-01: synthetic redaction/provenance fixture for playback diagnostics browser presentation/export redaction; literal placeholder URL on a reserved test domain with generic dummy user/password, no real credentials"
+    },
+    {
+      "file": "tests/diagnostics/playback-trace.test.ts",
+      "label": "address with a password",
+      "sha256": "630277462fcd023fbd650472a5403fd44f65063d1b01e5afbdb20d74a2fed2a9",
+      "reason": "reviewed 2026-11-01: synthetic redaction/provenance fixture for playback trace record/export sanitization; literal placeholder URL on a reserved test domain with generic dummy user/password, no real credentials"
+    },
+    {
+      "file": "tests/diagnostics/playback-trace.test.ts",
+      "label": "address with a password",
+      "sha256": "eb97ad47d52463174b9acdf1b37b5c44e521315fc609109acd9359f5ce544c07",
+      "reason": "reviewed 2026-11-01: synthetic redaction/provenance fixture for playback trace record/export sanitization; literal placeholder URL on a reserved test domain with generic dummy user/password, no real credentials"
+    },
+    {
+      "file": "tests/playback/browser-engine-mpegts-provenance.test.ts",
+      "label": "address with a password",
+      "sha256": "adb3d76fd23a790afa9ccec371e66b870b7d9629dd58cbf9dd6242445945d2ae",
+      "reason": "reviewed 2026-11-01: synthetic redaction/provenance fixture for actual browser-engine callback provenance sanitization; literal placeholder URL on a reserved test domain with generic dummy user/password, no real credentials"
+    },
+    {
+      "file": "tests/playback/browser-engine-mpegts-provenance.test.ts",
+      "label": "address with a password",
+      "sha256": "273f5dc91f70141aa3ffda8a9f364a171d94f7154923872d6550bc6e93015c4c",
+      "reason": "reviewed 2026-11-01: synthetic redaction/provenance fixture for actual browser-engine callback provenance sanitization; literal placeholder URL on a reserved test domain with generic dummy user/password, no real credentials"
     }
   ]
 }

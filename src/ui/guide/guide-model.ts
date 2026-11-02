@@ -46,6 +46,8 @@ export interface GuideCatalogChannel {
   providerId?: string;
   name: string;
   category?: string;
+  originalCategory?: string;
+  ppv?: boolean;
   favorite?: boolean;
 }
 
@@ -57,6 +59,9 @@ export interface GuideCoverage {
 }
 
 export interface GuideHost {
+  browseScope?: TimelineHost['browseScope'];
+  /** Location-only view identity; catalog revisions remain persisted numeric strings. */
+  locationScopeKey?(): string;
   logos?: TimelineHost['logos'];
   listedChannels?: TimelineHost['listedChannels'];
   /** Normal Guide only; mapping and advanced management remain modal. */

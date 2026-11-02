@@ -1,5 +1,7 @@
 # Share links
 
+Current release source: **0.1.25 / build 1025**. Dated installation and sharing observations retain their original scope.
+
 Two ways to pass GenX Streamer on (owner's idea, October 24, 2026):
 
 - **Share what I'm watching.** The **Share** button beside the playing channel
@@ -169,8 +171,8 @@ the Windows portable ZIP's link (on the release page).
   that Windows may call it an unknown publisher (GenX ships unsigned on
   Windows by decision): More info, then Run anyway.
 - **The download link**: https://github.com/DougTrier/GenX-Streamer/releases/latest.
-  The repository is private until the owner publishes it; until then the link
-  does not work for others.
+  The link requires a reachable public repository and published release.
+  A private repository or an unpublished release may return 404 to other people.
 
 **Signatures.** Development APKs are debug-signed, and an APK sent from a
 phone carries that copy's signature. A later release-signed build will not
@@ -281,7 +283,8 @@ offered an APK, and anything else is told plainly.
 ## The web page
 
 `site/watch/index.html` (with its icon) is ready for GitHub Pages at
-`https://dougtrier.github.io/GenX-Streamer/watch/`; it is not published. It
+`https://dougtrier.github.io/GenX-Streamer/watch/`. Availability depends on
+the deployed Pages site; this document does not certify a live deployment. It
 reads the fragment, checks it by the same rules, shows the name as text,
 fetches nothing from the shared link, and offers **Open in GenX Streamer**
 (`genx://`) and **Get GenX Streamer**. Its script runs under a

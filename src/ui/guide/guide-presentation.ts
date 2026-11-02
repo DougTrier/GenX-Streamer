@@ -78,6 +78,12 @@ export function createGuidePresentation(env: GuidePresentationEnvironment) {
     env.controls();
   }
   function automaticResult(result: Readonly<AutomaticGuideBuildResult>): void {
+    if (result.deferred) {
+      automaticMessage(
+        'Guide update queued until playback and browsing stop. Previous schedules remain available.',
+      );
+      return;
+    }
     const maintenance =
       result.maintenance === 'reopen-required'
         ? ' Storage verification failed. Close and reopen the app before continuing.'
@@ -100,6 +106,10 @@ export function createGuidePresentation(env: GuidePresentationEnvironment) {
       )
     )
       return;
+    if (progress.deferred) {
+      automaticResult(progress);
+      return;
+    }
     const phases: Record<AutomaticGuideBuildProgress['phase'], string> = {
       capturing: 'Preparing guide check',
       'reading-playlists': 'Reading playlist guide links',
@@ -118,6 +128,12 @@ export function createGuidePresentation(env: GuidePresentationEnvironment) {
     automaticMessage(
       `${phases[progress.phase]}${progress.total ? ` · ${progress.attempted} of ${progress.total} feeds settled` : ''}${progress.failed ? ` · ${progress.failed} could not be checked` : ''}${progress.discoveryFailed ? ` · ${progress.discoveryFailed} playlists could not be checked` : ''}${progress.skipped ? ` · ${progress.skipped} skipped` : ''}`,
       true,
+    );
+  }
+  function presentAutomaticFailure(): void {
+    if (env.disposed) return;
+    automaticMessage(
+      'Program guide work could not finish. Previous schedules remain available. Review guide sources or try Find again.',
     );
   }
   function run(
@@ -285,5 +301,6 @@ export function createGuidePresentation(env: GuidePresentationEnvironment) {
     suspend,
     openPresentation,
     presentAutomaticProgress,
+    presentAutomaticFailure,
   };
 }

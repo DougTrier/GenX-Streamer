@@ -48,6 +48,7 @@ export function createAccountPlaybackSelection(env: AccountPlaybackSelectionEnvi
   async function selectAccountPlayback(
     channel: Parameters<ReturnType<typeof createAccountPlayer>['selectAccount']>[0],
     fence: Parameters<ReturnType<typeof createAccountPlayer>['selectAccount']>[1],
+    exact = false,
   ): Promise<void> {
     startTiming.begin('account');
     env.admitForegroundPlayback();
@@ -66,7 +67,7 @@ export function createAccountPlaybackSelection(env: AccountPlaybackSelectionEnvi
           pending.sharingGeneration = env.sharingBridge.host.snapshot().generation;
         signal.throwIfAborted();
         env.admitForegroundPlayback();
-        await env.accountPlayer!.selectAccount(channel, fence, signal);
+        await env.accountPlayer!.selectAccount(channel, fence, signal, { exact });
       });
     } finally {
       if (env.pendingAccountPlayback === pending) env.pendingAccountPlayback = null;

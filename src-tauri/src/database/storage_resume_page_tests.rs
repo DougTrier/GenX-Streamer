@@ -26,8 +26,14 @@ fn xor(bytes: &[u8]) -> Vec<u8> {
     bytes.iter().map(|b| b ^ 0xa5).collect()
 }
 fn fixture(count: usize, category: &str) -> Fixture {
-    let (packed, prefs, catalog, metadata, entries, _, _) =
+    fixture_with_playing_channel(count, category, false)
+}
+fn fixture_with_playing_channel(count: usize, category: &str, playing: bool) -> Fixture {
+    let (packed, prefs, mut catalog, metadata, entries, _, _) =
         crate::scan_checkpoint::resume_plan::tests::fixture(count);
+    if playing {
+        catalog["channels"] = json!([{"id":"playing","sourceId":"source","name":"Playing","category":"Sports","urls":["https://example.com/playing.m3u8"]}]);
+    }
     let mut raw = packed;
     raw["schemaVersion"] = json!(1);
     raw["createdAtMs"] = json!(scan_now());
@@ -144,8 +150,9 @@ fn original_subcursor_uses_containing_indexed_page_without_omitting_suffix() {
     assert_eq!(f.store.read_pair().unwrap(), before);
 }
 #[test]
-fn all_three_sql_fences_and_current_source_grant_are_rechecked_after_crypto() {
-    for column in ["catalog_revision", "health_revision"] {
+fn catalog_checkpoint_and_current_source_grant_are_rechecked_after_crypto() {
+    {
+        let column = "catalog_revision";
         let f = fixture(65, "News");
         let proof = prepare(&f, 63).unwrap();
         let plaintext = xor(&proof.encrypted_page.ciphertext);
@@ -173,6 +180,45 @@ fn all_three_sql_fences_and_current_source_grant_are_rechecked_after_crypto() {
     assert!(f
         .store
         .finish_scan_resume_page(proof, plaintext, || Ok(()))
+        .is_err());
+}
+#[test]
+fn playback_health_updates_during_take_and_cached_page_reads_do_not_revoke_candidate_authority() {
+    let f = fixture_with_playing_channel(3, "Sports", true);
+    let proof = prepare(&f, 0).unwrap();
+    let plaintext = xor(&proof.encrypted_page.ciphertext);
+    for offset in [1, 2] {
+        let snapshot = f.store.read_snapshot().unwrap();
+        let catalog: Value = serde_json::from_str(snapshot.pair.catalog.as_ref().unwrap()).unwrap();
+        let fingerprint =
+            crate::health_storage::fingerprint(&catalog["sources"][0], &catalog["channels"][0], 0)
+                .unwrap();
+        let record = json!({"schemaVersion":1,"channelId":"playing","sourceId":"source","checkedUrlOrdinal":0,"targetFingerprint":fingerprint,"platform":"android","observerProfile":"playback-v1","observedAt":scan_now()+offset,"verdict":"Reachable","origin":"local","evidence":{"kind":"http","status":200,"contentRecognized":true}});
+        f.store
+            .write_health_guarded(
+                &json!({"schemaVersion":1,"records":[record]}).to_string(),
+                &snapshot.catalog_revision,
+                &snapshot.health_revision,
+                || Ok(()),
+            )
+            .unwrap();
+    }
+    let cached = f
+        .store
+        .finish_cached_scan_resume_page(proof, plaintext, || Ok(()))
+        .unwrap();
+    let selected = f
+        .store
+        .verify_cached_scan_resume_page(&cached, f.fence, &f.job, &f.digest, 1, || Ok(()))
+        .unwrap();
+    assert_eq!(selected.page.entries[0].candidate_index, 1);
+    assert_eq!(f.store.read_snapshot().unwrap().health_revision, "2");
+    // Moving health backwards is still not a current storage image.
+    let mut newer = f.fence;
+    newer.health = 3;
+    assert!(f
+        .store
+        .prepare_scan_resume_page(newer, &f.job, &f.digest, 1, || Ok(()))
         .is_err());
 }
 #[test]
@@ -223,7 +269,6 @@ fn cached_page_rechecks_all_bytes_and_authority_in_fresh_snapshot_without_progre
         "manifest_revision",
         "authority",
         "catalog_revision",
-        "health_revision",
         "checkpoint_revision",
         "source_grant",
         "source_removed",
@@ -301,10 +346,6 @@ fn cached_page_rechecks_all_bytes_and_authority_in_fresh_snapshot_without_progre
                     [],
                 )
                 .unwrap();
-            }
-            "health_revision" => {
-                c.execute("UPDATE metadata SET health_revision=health_revision+1", [])
-                    .unwrap();
             }
             "checkpoint_revision" => {
                 c.execute("UPDATE scan_checkpoint SET revision=revision+1", [])
@@ -438,6 +479,98 @@ fn page_read_waits_out_another_writers_long_commit() {
     release.join().unwrap();
     assert!(result.is_ok(), "{:?}", result.err());
     assert!(started.elapsed() >= std::time::Duration::from_secs(6));
+}
+/// Background writes must use their existing 30 s budget during connection
+/// initialization too, before journal and durability PRAGMAs access the DB.
+#[test]
+fn background_write_open_waits_out_a_long_commit_before_its_pragmas() {
+    let f = fixture(1, "News");
+    let writer = connect(&f.store.root.join(DB), false).unwrap();
+    writer.execute_batch("BEGIN EXCLUSIVE").unwrap();
+    let release = std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_secs(6));
+        writer.execute_batch("COMMIT").unwrap();
+    });
+    let started = std::time::Instant::now();
+    let result = connect_background(&f.store.root.join(DB), false);
+    let open_elapsed = started.elapsed();
+    // Drain the owned writer even when the old connection path refuses early.
+    release.join().unwrap();
+    assert!(result.is_ok(), "{:?}", result.err());
+    assert!(open_elapsed > std::time::Duration::from_secs(2));
+}
+
+#[test]
+fn connection_profiles_keep_the_existing_background_and_interactive_budgets() {
+    let f = fixture(1, "News");
+    for (background, readonly, expected_ms) in [
+        (false, false, 2_000),
+        (false, true, 2_000),
+        (true, false, 30_000),
+        (true, true, 30_000),
+    ] {
+        let connection = if background {
+            connect_background(&f.store.root.join(DB), readonly)
+        } else {
+            connect(&f.store.root.join(DB), readonly)
+        }
+        .unwrap();
+        let timeout: i64 = connection
+            .pragma_query_value(None, "busy_timeout", |row| row.get(0))
+            .unwrap();
+        assert_eq!(timeout, expected_ms);
+    }
+}
+
+#[test]
+fn cancellation_during_background_open_is_rechecked_before_any_source_stage_is_saved() {
+    use std::sync::atomic::{AtomicBool, Ordering};
+    let f = fixture(1, "News");
+    let pair = f.store.read_pair().unwrap();
+    let catalog: Value = serde_json::from_str(pair.catalog.as_ref().unwrap()).unwrap();
+    let before = std::fs::read(f.store.root.join(DB)).unwrap();
+    let request = source_snapshot::Begin {
+        schema_version: 1,
+        source: catalog["sources"][0].clone(),
+        expected_source_revision: "0".into(),
+        entry_count: 1,
+        platform: "windows".into(),
+        observer_profile: "fixture".into(),
+    };
+    let writer = connect(&f.store.root.join(DB), false).unwrap();
+    writer.execute_batch("BEGIN EXCLUSIVE").unwrap();
+    let canceled = std::sync::Arc::new(AtomicBool::new(false));
+    let signal = canceled.clone();
+    let (entered, admitted) = std::sync::mpsc::channel();
+    let release = std::thread::spawn(move || {
+        let was_admitted = admitted
+            .recv_timeout(std::time::Duration::from_secs(2))
+            .is_ok();
+        if was_admitted {
+            std::thread::sleep(std::time::Duration::from_secs(3));
+            signal.store(true, Ordering::Release);
+            std::thread::sleep(std::time::Duration::from_secs(3));
+        }
+        writer.execute_batch("COMMIT").unwrap();
+        was_admitted
+    });
+    let mut checks = 0;
+    let result = f.store.begin_source_snapshot(&request, || {
+        checks += 1;
+        if checks == 1 {
+            entered.send(()).unwrap();
+        }
+        if canceled.load(Ordering::Acquire) {
+            Err("fixture-canceled".into())
+        } else {
+            Ok(())
+        }
+    });
+    assert!(release.join().unwrap());
+    assert_eq!(result.err().as_deref(), Some("fixture-canceled"));
+    assert!(checks >= 2);
+    assert_eq!(std::fs::read(f.store.root.join(DB)).unwrap(), before);
+    assert_eq!(f.store.read_pair().unwrap(), pair);
 }
 #[test]
 fn a_lock_held_past_the_timeout_is_reported_as_busy() {

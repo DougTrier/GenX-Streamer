@@ -43,6 +43,10 @@ export async function prepareDecodedHealth(
   const captured = structuredClone(input);
   if (!validDecodedProgress(captured.evidence))
     throw new Error('Decoded progress is not established.');
+  // Audio observation belongs to runtime source ranking. Persist only the
+  // existing video-progress schema, retaining validation of every other field.
+  delete captured.evidence.before.audioObserved;
+  delete captured.evidence.after.audioObserved;
   if (
     [captured.platform, captured.observerProfile].some(
       (value) => !value.trim() || /https?:\/\//i.test(value),

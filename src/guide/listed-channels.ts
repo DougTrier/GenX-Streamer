@@ -16,6 +16,10 @@
 
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { boundedUtf8Text } from '../platform/bounded-text';
+import type { GeographyFilter } from '../catalog/geography';
+import { captureGuideLocation } from './location-filter';
+import { validateSportsScope, type SportsScope } from '../search/sports';
+import { captureGuideHistory, type GuideHistoryScope } from './history-scope';
 
 export interface ListedGuideChannel {
   catalogSourceId: string;
@@ -23,7 +27,7 @@ export interface ListedGuideChannel {
   guideSourceId: string;
   xmltvChannelId: string;
   sourceRevision: number;
-  /** Live exact-group filter facts: favorite=1, news=2, sports=4. */
+  /** Live exact-group filter facts: favorite=1, news=2, sports=4, explicit PPV scope=8. */
   filterMask: number;
 }
 export interface ListedGuideChannels {
@@ -59,8 +63,17 @@ export async function readListedGuideChannels(
   end: number,
   signal: AbortSignal,
   search?: string,
+  geography?: GeographyFilter,
+  ppv = false,
+  sports?: SportsScope,
+  history?: GuideHistoryScope,
 ): Promise<ListedGuideChannels> {
   signal.throwIfAborted();
+  if (typeof ppv !== 'boolean') throw invalid();
+  const sportScope = sports === undefined ? undefined : validateSportsScope(sports, search ?? '');
+  const watched = history === undefined ? undefined : captureGuideHistory(history);
+  if (watched && ppv) throw invalid();
+  const location = captureGuideLocation(geography);
   if (
     search !== undefined &&
     (typeof search !== 'string' ||
@@ -106,7 +119,16 @@ export async function readListedGuideChannels(
     try {
       signal.throwIfAborted();
       raw = await invoke('guide_listed_channels', {
-        query: { startMs: start, endMs: end, cursor, ...(search ? { search } : {}) },
+        query: {
+          startMs: start,
+          endMs: end,
+          cursor,
+          ...(search ? { search } : {}),
+          ...(Object.keys(location).length ? { geography: location } : {}),
+          ...(ppv ? { ppv: true } : {}),
+          ...(sportScope ? { sports: sportScope } : {}),
+          ...(watched ? { historyIds: [...watched.ids], hideAdult: watched.hideAdult } : {}),
+        },
         requestId,
       });
     } catch (error) {
@@ -197,10 +219,11 @@ export async function readListedGuideChannels(
         !integer(v.sourceRevision) ||
         v.sourceRevision < 1 ||
         !integer(v.filterMask) ||
-        v.filterMask > 7
+        v.filterMask > 15
       )
         throw invalid();
       const item = v as unknown as ListedGuideChannel;
+      if (watched && !watched.ids.includes(item.appChannelId)) throw invalid();
       if (
         previous &&
         (compare(previous.catalogSourceId, item.catalogSourceId) > 0 ||

@@ -21,6 +21,8 @@
 pub mod casting;
 #[path = "../../relay.rs"]
 pub mod relay;
+#[path = "../../relay_clients.rs"]
+mod relay_clients;
 #[path = "../../sharing_policy.rs"]
 pub mod sharing_policy;
 // Modules from other components that the casting code uses.
@@ -29,3 +31,18 @@ pub mod sharing_policy;
 pub mod close_owner;
 #[path = "../../../playback/ts_align.rs"]
 pub mod ts_align;
+// Playback reports belong to the app's platform build. Keep their side-channel
+// hooks inert here while exercising the real relay, pool and protocol modules.
+mod platform {
+    pub(crate) mod playback_trace {
+        pub(crate) fn native_failure(
+            _mode: &str,
+            _code: &str,
+            _timeout: bool,
+            _body_error: bool,
+            _response_started: bool,
+        ) {
+        }
+        pub(crate) fn native_hls_delivery(_bytes: usize, _elapsed_ms: f64, _status: u16) {}
+    }
+}

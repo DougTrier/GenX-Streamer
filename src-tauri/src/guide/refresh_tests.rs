@@ -69,9 +69,9 @@ fn validators() -> conditional::Validators {
     }
 }
 #[test]
-fn guide_on_source_off_plans_and_claims_daily_independently() {
+fn guide_on_source_off_plans_and_claims_three_hourly_independently() {
     let (mut c, source, _) = fixture();
-    let due = 2000 + DAY;
+    let due = 2000 + INTERVAL_MS;
     assert_eq!(plan(&c, 0).unwrap().sources[0].next_due_ms, due);
     assert!(
         !claim(&mut c, &source.id, source.revision, due - 1)
@@ -82,8 +82,11 @@ fn guide_on_source_off_plans_and_claims_daily_independently() {
     for cadence in ["hourly", "weekly", "monthly", "off"] {
         c.execute("UPDATE preference SET source_refresh_cadence=?1", [cadence])
             .unwrap();
-        assert_eq!(plan(&c, due).unwrap().sources[0].next_due_ms, due + DAY);
-        assert_eq!(next_after_success(&c, due).unwrap(), due + DAY);
+        assert_eq!(
+            plan(&c, due).unwrap().sources[0].next_due_ms,
+            due + INTERVAL_MS
+        );
+        assert_eq!(next_after_success(&c, due).unwrap(), due + INTERVAL_MS);
     }
 }
 #[test]
@@ -118,10 +121,10 @@ fn legacy_absence_and_null_remain_enabled_but_invalid_values_refuse() {
     let (c, _, _) = fixture();
     c.execute("UPDATE metadata SET automatic_guide_updates=NULL", [])
         .unwrap();
-    assert_eq!(next_after_success(&c, 2000).unwrap(), 2000 + DAY);
+    assert_eq!(next_after_success(&c, 2000).unwrap(), 2000 + INTERVAL_MS);
     c.execute_batch("ALTER TABLE metadata DROP COLUMN automatic_guide_updates;")
         .unwrap();
-    assert_eq!(next_after_success(&c, 2000).unwrap(), 2000 + DAY);
+    assert_eq!(next_after_success(&c, 2000).unwrap(), 2000 + INTERVAL_MS);
     c.execute_batch("ALTER TABLE metadata ADD COLUMN automatic_guide_updates INTEGER;UPDATE metadata SET automatic_guide_updates=2;")
         .unwrap();
     assert_eq!(
@@ -145,7 +148,7 @@ fn legacy_absence_and_null_remain_enabled_but_invalid_values_refuse() {
 #[test]
 fn held_claim_cannot_publish_200_or_revalidate_304_after_permission_off() {
     let (mut c, source, mut feed) = fixture();
-    let due = 2000 + DAY;
+    let due = 2000 + INTERVAL_MS;
     assert!(claim(&mut c, &source.id, source.revision, due).unwrap().2);
     let cached = conditional::read(&c, &source).unwrap().unwrap();
     c.execute("UPDATE metadata SET automatic_guide_updates=0", [])

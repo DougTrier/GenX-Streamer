@@ -16,6 +16,7 @@
 
 import { validateReviewedGuideAliases, type GuideCommitAliases } from './reviewed-aliases';
 import { GUIDE_SOURCE_LIMIT } from './limits';
+import { isAutomaticGuidePermissionRefusal } from './automatic-permissions';
 
 export interface AutomaticGuideProvider {
   name: string;
@@ -29,6 +30,8 @@ export interface AutomaticGuidePreview {
   proposed?: true;
 }
 export interface AutomaticGuideBuildResult {
+  /** Queued explicit intent, with no acquisition/publication performed by this result. */
+  deferred?: true;
   connected: number;
   unmatched: number;
   checked: number;
@@ -79,6 +82,10 @@ export interface AutomaticGuideBuildHost {
   /** Captured permissions/removals remain valid even while catalog batches advance. */
   isScopeCurrent?(): boolean;
   canRun(): boolean;
+  /** Discovery/publication and cached mapping writes require idle; ordinary Guide reads are independent. */
+  canRunFull?(): boolean;
+  onDeferred?(): void;
+  onDeferredError?(error: unknown): void;
   /** Automatic requests may be disabled while an explicit manual run remains available. */
   canRequest?(): boolean;
   cacheReady?(provider: AutomaticGuideProvider, signal: AbortSignal): Promise<boolean>;
@@ -103,7 +110,10 @@ export interface AutomaticGuideBuildHost {
   /** Already configured/published caches only: no discovery, source save or fetch. */
   connectCacheOnly?(signal: AbortSignal): Promise<GuideScopeConnection>;
   /** Full builds only, after all publication/connection work has settled. Never startup cache-only. */
-  maintain?(signal: AbortSignal): Promise<AutomaticGuideBuildResult['maintenance']>;
+  maintain?: ((signal: AbortSignal) => Promise<AutomaticGuideBuildResult['maintenance']>) & {
+    /** Preserve only a deferred/canceled tail when full work is preempted for playback. */
+    preparePlayback?(): Promise<void>;
+  };
   preview(provider: AutomaticGuideProvider, signal: AbortSignal): Promise<AutomaticGuidePreview>;
   /** The backend atomically checks BOTH revisions and exact channel identifiers before publication. Receipt consumes ticket. */
   commitMatched(
@@ -129,6 +139,17 @@ export function createAutomaticGuideBuilder(
   let deferredFull: Promise<AutomaticGuideBuildResult> | null = null;
   let lifecycleEpoch = 0;
   let closing: Promise<void> | null = null;
+  let fullMonitor: ReturnType<typeof setTimeout> | null = null;
+  let preemptingFull: Promise<void> | null = null;
+  let preparingCached: Promise<void> | null = null;
+  let deferredFailure: { error: unknown } | null = null;
+  let deferredNotified = false;
+  let activeAutomatic = false;
+  let activeSignal: AbortSignal | undefined;
+  let activeMaintenance = false;
+  const reportedPermissionRefusals = new WeakSet<object>();
+  const currentDeferredFailure = (): { error: unknown } | null => deferredFailure;
+  let discarding: Promise<void> | null = null;
   const tickets = new Set<string>();
   const failedAcquisitions = new Map<string, number>();
   // Consecutive failures per descriptor: 1 min doubling to a 6 h ceiling.
@@ -162,7 +183,111 @@ export function createAutomaticGuideBuilder(
     return instant;
   };
   let requestVersion = 0;
-  const abort = () => new DOMException('Program guide build canceled.', 'AbortError');
+  const joinedAborts = new WeakSet<DOMException>();
+  const isAbort = (error: unknown): error is DOMException =>
+    error instanceof DOMException && error.name === 'AbortError';
+  const abort = () => {
+    const error = new DOMException('Program guide build canceled.', 'AbortError');
+    joinedAborts.add(error);
+    return error;
+  };
+  const joinedCancellation = (error: unknown, owned: AbortController): never => {
+    if (isAbort(error) && owned.signal.aborted) joinedAborts.add(error);
+    throw error;
+  };
+  const fullIdle = () => host.canRunFull?.() !== false;
+  function clearExplicitRequest() {
+    explicitSignal?.removeEventListener('abort', cancelExplicitRequest);
+    explicitSignal = undefined;
+    explicitRequested = false;
+  }
+  function cancelExplicitRequest() {
+    clearExplicitRequest();
+  }
+  function notifyDeferred() {
+    if (!deferredNotified) {
+      deferredNotified = true;
+      try {
+        host.onDeferred?.();
+      } catch {
+        // Presentation does not own queued work or its cancellation receipt.
+      }
+    }
+    watchFull();
+  }
+  function deferFull(automatic = true, signal?: AbortSignal) {
+    if (automatic) requested = true;
+    else {
+      clearExplicitRequest();
+      explicitRequested = true;
+      explicitSignal = signal;
+      signal?.addEventListener('abort', cancelExplicitRequest, { once: true });
+    }
+    notifyDeferred();
+  }
+  function observeDeferredFailure(error: unknown, cleanupUnconfirmed = false) {
+    if (!cleanupUnconfirmed && isAutomaticGuidePermissionRefusal(error)) {
+      if (reportedPermissionRefusals.has(error)) return;
+      reportedPermissionRefusals.add(error);
+    } else {
+      if (deferredFailure && deferredFailure.error === error) return;
+      deferredFailure = { error };
+    }
+    requested = false;
+    cachedRequested = false;
+    clearExplicitRequest();
+    try {
+      host.onDeferredError?.(error);
+    } catch {
+      // Keep the original refusal available to the next explicit owner call.
+    }
+  }
+  function clearFullMonitor() {
+    if (fullMonitor !== null) clearTimeout(fullMonitor);
+    fullMonitor = null;
+  }
+  function watchFull() {
+    if (
+      fullMonitor !== null ||
+      closed ||
+      deferredFailure ||
+      (!(active && !activeCached) &&
+        !requested &&
+        !explicitRequested &&
+        !cachedRequested &&
+        !preemptingFull)
+    )
+      return;
+    fullMonitor = setTimeout(
+      () => {
+        fullMonitor = null;
+        if (closed || deferredFailure) return;
+        if (!host.canRun()) {
+          requested = false;
+          cachedRequested = false;
+          clearExplicitRequest();
+        } else if (host.canRequest?.() === false) {
+          requested = false;
+          cachedRequested = false;
+        }
+        if (
+          active &&
+          !activeCached &&
+          (!host.canRun() || !fullIdle() || (activeAutomatic && host.canRequest?.() === false))
+        )
+          void preparePlayback().catch(observeDeferredFailure);
+        else if (
+          (requested || explicitRequested || cachedRequested) &&
+          host.canRun() &&
+          fullIdle() &&
+          (explicitRequested || host.canRequest?.() !== false)
+        )
+          void drainRequested().catch(observeDeferredFailure);
+        watchFull();
+      },
+      active && !activeCached ? 100 : 250,
+    );
+  }
   const emitProgress = (progress: AutomaticGuideBuildProgress) => {
     try {
       host.onProgress?.(Object.freeze(progress));
@@ -170,19 +295,42 @@ export function createAutomaticGuideBuilder(
       // Presentation is an observer, never the owner of a durable guide receipt.
     }
   };
-  async function discardOwned(): Promise<void> {
-    if (host.settlePreviews) await host.settlePreviews();
-    for (const ticket of tickets) {
-      await host.discard(ticket);
-      tickets.delete(ticket);
-    }
+  function discardOwned(): Promise<void> {
+    if (discarding) return discarding;
+    if (!host.settlePreviews && tickets.size === 0) return Promise.resolve();
+    const work = (async () => {
+      if (host.settlePreviews) await host.settlePreviews();
+      for (const ticket of tickets) {
+        await host.discard(ticket);
+        tickets.delete(ticket);
+      }
+    })().finally(() => {
+      if (discarding === work) discarding = null;
+    });
+    discarding = work;
+    return work;
   }
   function run(signal?: AbortSignal, automatic = false): Promise<AutomaticGuideBuildResult> {
     if (active) return active;
-    if (closed || !host.canRun() || signal?.aborted) return Promise.reject(abort());
+    if (deferredFailure) return Promise.reject(deferredFailure.error);
+    if (closed || !host.canRun() || !fullIdle() || signal?.aborted || preemptingFull)
+      return Promise.reject(abort());
     const owned = new AbortController();
+    const startedRequestVersion = requestVersion;
     activeCached = false;
+    activeAutomatic = automatic;
+    activeSignal = signal;
+    deferredNotified = false;
     controller = owned;
+    const fullAdmitted = () => {
+      if (!fullIdle()) {
+        if (!closed && host.canRun() && (!automatic || host.canRequest?.() !== false))
+          deferFull(automatic, signal);
+        owned.abort();
+        return false;
+      }
+      return host.canRun();
+    };
     const cancel = () => owned.abort();
     signal?.addEventListener('abort', cancel, { once: true });
     const task = (async () => {
@@ -202,11 +350,12 @@ export function createAutomaticGuideBuilder(
       now();
       await discardOwned();
       owned.signal.throwIfAborted();
+      if (!fullAdmitted()) throw abort();
       let captured: Awaited<ReturnType<AutomaticGuideBuildHost['capture']>>;
       let captureOpen = true;
       try {
         captured = await host.capture(owned.signal, (phase) => {
-          if (captureOpen && !closed && !owned.signal.aborted && host.canRun()) starting(phase);
+          if (captureOpen && !closed && !owned.signal.aborted && fullAdmitted()) starting(phase);
         });
       } finally {
         captureOpen = false;
@@ -312,7 +461,7 @@ export function createAutomaticGuideBuilder(
         owned.signal.throwIfAborted();
         if (
           closed ||
-          !host.canRun() ||
+          !fullAdmitted() ||
           (host.connectScopeLatest ? host.isScopeCurrent?.() === false : !host.isCurrent(revision))
         )
           throw abort();
@@ -372,7 +521,7 @@ export function createAutomaticGuideBuilder(
       if (!host.publishCache) guard();
       for (const [providerIndex, provider] of providers.entries()) {
         owned.signal.throwIfAborted();
-        if (closed || !host.canRun()) throw abort();
+        if (closed || !fullAdmitted()) throw abort();
         if (host.connectScopeLatest) guard();
         let ticket: string | null = null;
         let acquisitionPending = false;
@@ -390,6 +539,8 @@ export function createAutomaticGuideBuilder(
               guard();
               continue;
             }
+            owned.signal.throwIfAborted();
+            if (closed || !fullAdmitted()) throw abort();
             const connected = await host.connectLatest!(provider, owned.signal);
             if (
               !/^(0|[1-9][0-9]{0,18})$/.test(connected.catalogRevision) ||
@@ -450,7 +601,7 @@ export function createAutomaticGuideBuilder(
           let receipt: { committed: boolean; matched: number; unmatched: number };
           if (host.publishCache && (host.connectLatest || host.connectScopeLatest)) {
             owned.signal.throwIfAborted();
-            if (closed || !host.canRun()) throw abort();
+            if (closed || !fullAdmitted()) throw abort();
             if (host.connectScopeLatest) guard();
             progress('publishing');
             await host.publishCache(preview, provider, owned.signal);
@@ -469,6 +620,8 @@ export function createAutomaticGuideBuilder(
               guard();
               continue;
             }
+            owned.signal.throwIfAborted();
+            if (closed || !fullAdmitted()) throw abort();
             const connected = await host.connectLatest!(provider, owned.signal);
             if (!/^(0|[1-9][0-9]{0,18})$/.test(connected.catalogRevision))
               throw new Error('The fresh guide catalog revision is invalid.');
@@ -511,7 +664,7 @@ export function createAutomaticGuideBuilder(
           if (
             owned.signal.aborted ||
             closed ||
-            !host.canRun() ||
+            !fullAdmitted() ||
             (host.connectScopeLatest
               ? host.isScopeCurrent?.() === false
               : !host.isCurrent(revision))
@@ -533,7 +686,7 @@ export function createAutomaticGuideBuilder(
           if (
             !closed &&
             !owned.signal.aborted &&
-            host.canRun() &&
+            fullAdmitted() &&
             (host.connectScopeLatest ? host.isScopeCurrent?.() !== false : host.isCurrent(revision))
           )
             progress();
@@ -548,6 +701,7 @@ export function createAutomaticGuideBuilder(
       guard();
       if (host.maintain) {
         progress('optimizing');
+        activeMaintenance = true;
         try {
           const receipt = await host.maintain(owned.signal);
           if (receipt !== undefined) {
@@ -563,7 +717,7 @@ export function createAutomaticGuideBuilder(
           if (
             owned.signal.aborted ||
             closed ||
-            !host.canRun() ||
+            !fullAdmitted() ||
             (host.connectScopeLatest
               ? host.isScopeCurrent?.() === false
               : !host.isCurrent(revision))
@@ -571,20 +725,38 @@ export function createAutomaticGuideBuilder(
             throw error;
           if (error instanceof DOMException && error.name === 'AbortError') throw error;
           result.maintenance = 'failed';
+        } finally {
+          activeMaintenance = false;
         }
+      }
+      // A definite completed/maintenance receipt also satisfies this exact
+      // automatic request if preemption arrived during its final settlement.
+      if (requestVersion === startedRequestVersion) {
+        requested = false;
+        clearExplicitRequest();
       }
       progress('completed');
       return Object.freeze({ ...result });
     })();
-    const settled = task.finally(() => {
-      signal?.removeEventListener('abort', cancel);
-      if (controller === owned) controller = null;
-      if (active === settled) active = null;
-    });
+    const settled = task
+      .catch((error: unknown) => joinedCancellation(error, owned))
+      .finally(() => {
+        signal?.removeEventListener('abort', cancel);
+        if (controller === owned) controller = null;
+        if (active === settled) {
+          active = null;
+          activeSignal = undefined;
+        }
+        watchFull();
+      });
     active = settled;
+    clearFullMonitor();
+    watchFull();
     return settled;
   }
   let requested = false;
+  let explicitRequested = false;
+  let explicitSignal: AbortSignal | undefined;
   let cachedRequested = false;
   let draining: Promise<void> | null = null;
   function runCached(): Promise<AutomaticGuideBuildResult> {
@@ -597,6 +769,11 @@ export function createAutomaticGuideBuilder(
       await discardOwned();
       owned.signal.throwIfAborted();
       if (closed || !host.canRun() || host.canRequest?.() === false) throw abort();
+      if (!fullIdle()) {
+        cachedRequested = true;
+        notifyDeferred();
+        throw abort();
+      }
       const connected = await host.connectCacheOnly!(owned.signal);
       if (
         !/^(0|[1-9][0-9]{0,18})$/.test(connected.catalogRevision) ||
@@ -616,10 +793,12 @@ export function createAutomaticGuideBuilder(
         preservedMappingConflicts: connected.preservedMappingConflicts ?? null,
       });
     })();
-    const settled = task.finally(() => {
-      if (controller === owned) controller = null;
-      if (active === settled) active = null;
-    });
+    const settled = task
+      .catch((error: unknown) => joinedCancellation(error, owned))
+      .finally(() => {
+        if (controller === owned) controller = null;
+        if (active === settled) active = null;
+      });
     active = settled;
     return settled;
   }
@@ -627,44 +806,71 @@ export function createAutomaticGuideBuilder(
     if (draining) return draining;
     const work = (async () => {
       while (
-        (requested || cachedRequested) &&
+        (requested || explicitRequested || cachedRequested) &&
         !closed &&
         host.canRun() &&
-        host.canRequest?.() !== false
+        (explicitRequested || host.canRequest?.() !== false)
       ) {
+        const failed = currentDeferredFailure();
+        if (failed) throw failed.error;
+        if (preemptingFull) await preemptingFull;
         // Do not consume a requested mode while another actual run is active.
         // A manual/full run and cache-only connection retain the same owner.
         if (active) {
           await active;
           continue;
         }
-        const full = requested;
+        const full = requested || explicitRequested;
+        if (!fullIdle()) {
+          // Cached mapping connection is a writer too. The Guide's ordinary
+          // channel/program queries remain independent of this owner.
+          notifyDeferred();
+          break;
+        }
+        const manual = explicitRequested;
+        const manualSignal = explicitSignal;
         if (full) {
           requested = false;
+          clearExplicitRequest();
           cachedRequested = false;
         } else cachedRequested = false;
         try {
-          if (full) await run(undefined, true);
+          if (full) await run(manualSignal, !manual);
           else await runCached();
         } catch (error) {
+          if (isAbort(error) && !joinedAborts.has(error)) {
+            // A permission/scope refusal raised by a host is not evidence that
+            // this owner's signal was canceled. Keep the failure observable.
+            try {
+              await discardOwned();
+            } catch (cleanup) {
+              observeDeferredFailure(cleanup, true);
+              throw cleanup;
+            }
+            observeDeferredFailure(error);
+            throw error;
+          }
           if (
-            !(error instanceof DOMException && error.name === 'AbortError') &&
-            !requested &&
-            !cachedRequested
+            !isAbort(error) &&
+            (preemptingFull || (!requested && !explicitRequested && !cachedRequested))
           )
             throw error;
+          if ((requested || explicitRequested || cachedRequested) && !fullIdle()) break;
         }
       }
     })().finally(() => {
       if (draining === work) draining = null;
+      watchFull();
     });
     draining = work;
     return work;
   }
   function request(): Promise<void> {
     if (closed || !host.canRun() || host.canRequest?.() === false) return Promise.resolve();
+    if (deferredFailure) return Promise.reject(deferredFailure.error);
     requested = true;
     requestVersion++;
+    watchFull();
     return drainRequested();
   }
   function requestCached(): Promise<void> {
@@ -676,11 +882,16 @@ export function createAutomaticGuideBuilder(
   function suspend(): Promise<void> {
     lifecycleEpoch++;
     requested = false;
+    clearExplicitRequest();
     cachedRequested = false;
+    deferredNotified = false;
+    clearFullMonitor();
     const owned = controller;
     const pipeline = active;
     const requests = draining;
     const deferred = deferredFull;
+    const preemption = preemptingFull;
+    const cachedPreparation = preparingCached;
     owned?.abort();
     return (async () => {
       let refused = false;
@@ -688,7 +899,7 @@ export function createAutomaticGuideBuilder(
       // Capture and join both owners even when one reports an operation failure.
       // Native refusal codes are admitted only after our cancellation and the
       // actual host promise settles. Messages cannot assert a noncommit receipt.
-      for (const pending of [pipeline, requests, deferred]) {
+      for (const pending of [pipeline, requests, deferred, preemption, cachedPreparation]) {
         try {
           await pending;
         } catch (error) {
@@ -707,7 +918,120 @@ export function createAutomaticGuideBuilder(
       // Ticket cleanup remains mandatory and failures remain owned for retry.
       await discardOwned();
       if (refused) throw refusal;
+      deferredFailure = null;
     })();
+  }
+  function preparePlayback(): Promise<void> {
+    if (preemptingFull) return preemptingFull;
+    if (preparingCached) return preparingCached;
+    if (deferredFailure) return Promise.reject(deferredFailure.error);
+    if (!active)
+      return discardOwned().catch((error: unknown) => {
+        observeDeferredFailure(error, true);
+        throw error;
+      });
+    if (activeCached) {
+      // Cache-only mapping connection can still commit SQL. Ordinary Guide row
+      // reads are independent, but this actual/coalesced writer must settle.
+      const pending = [active, draining];
+      const task = (async () => {
+        let refusal: { error: unknown } | null = null;
+        for (const work of pending) {
+          try {
+            await work;
+          } catch (error) {
+            if (
+              !refusal ||
+              (isAutomaticGuidePermissionRefusal(refusal.error) &&
+                !isAutomaticGuidePermissionRefusal(error))
+            )
+              refusal = { error };
+          }
+        }
+        await discardOwned();
+        const failed = currentDeferredFailure();
+        if (failed) throw failed.error;
+        if (refusal) {
+          if (isAutomaticGuidePermissionRefusal(refusal.error))
+            observeDeferredFailure(refusal.error);
+          else throw refusal.error;
+        }
+      })();
+      const settled = task
+        .catch((error: unknown) => {
+          observeDeferredFailure(error, true);
+          throw error;
+        })
+        .finally(() => {
+          if (preparingCached === settled) preparingCached = null;
+        });
+      preparingCached = settled;
+      return settled;
+    }
+    const pipeline = active;
+    const owned = controller;
+    const tailOwner = activeMaintenance ? host.maintain?.preparePlayback : undefined;
+    let tail: Promise<{ failed: false } | { failed: true; error: unknown }> | undefined;
+    if (tailOwner) {
+      try {
+        tail = tailOwner().then(
+          () => ({ failed: false as const }),
+          (error: unknown) => ({ failed: true as const, error }),
+        );
+      } catch (error) {
+        tail = Promise.resolve({ failed: true as const, error });
+      }
+    }
+    if (
+      !owned?.signal.aborted &&
+      !tailOwner &&
+      !closed &&
+      host.canRun() &&
+      (!activeAutomatic || host.canRequest?.() !== false)
+    )
+      deferFull(activeAutomatic, activeSignal);
+    owned?.abort();
+    const task = (async () => {
+      let refusal: { error: unknown } | null = null;
+      try {
+        await pipeline;
+      } catch (error) {
+        const stopped =
+          (error instanceof DOMException && error.name === 'AbortError') ||
+          (owned?.signal.aborted === true &&
+            (error === 'application-closing' ||
+              error === 'canceled' ||
+              error === 'guide-cancelled'));
+        if (!stopped) refusal = { error };
+      }
+      // A late commit receipt settles first. Unconsumed tickets still require an exact joined discard.
+      await discardOwned();
+      const tailOutcome = await tail;
+      if (refusal) throw refusal.error;
+      if (tailOutcome?.failed) throw tailOutcome.error;
+    })();
+    const settled = task
+      .catch((error: unknown) => {
+        observeDeferredFailure(error, true);
+        throw error;
+      })
+      .finally(() => {
+        if (preemptingFull === settled) preemptingFull = null;
+        watchFull();
+      });
+    preemptingFull = settled;
+    return settled;
+  }
+  function wake(): Promise<void> {
+    if (deferredFailure) return Promise.reject(deferredFailure.error);
+    if (
+      closed ||
+      !host.canRun() ||
+      !fullIdle() ||
+      (!explicitRequested && host.canRequest?.() === false)
+    )
+      return Promise.resolve();
+    return drainRequested();
   }
   function dispose(): Promise<void> {
     if (closing) return closing;
@@ -721,6 +1045,22 @@ export function createAutomaticGuideBuilder(
     return attempt;
   }
   function runWithIntent(signal?: AbortSignal): Promise<AutomaticGuideBuildResult> {
+    if (!active && !closed && host.canRun() && !fullIdle() && !signal?.aborted) {
+      if (deferredFailure) return Promise.reject(deferredFailure.error);
+      requestVersion++;
+      deferFull(false, signal);
+      return Promise.resolve(
+        Object.freeze({
+          deferred: true,
+          connected: 0,
+          unmatched: 0,
+          checked: 0,
+          failed: 0,
+          skipped: 0,
+          maintenance: 'deferred',
+        }),
+      );
+    }
     if (!active || !activeCached) return run(signal);
     if (deferredFull) return deferredFull;
     const prior = active;
@@ -728,7 +1068,7 @@ export function createAutomaticGuideBuilder(
     const task = (async () => {
       await prior;
       if (epoch !== lifecycleEpoch || closed || signal?.aborted) throw abort();
-      return run(signal);
+      return runWithIntent(signal);
     })();
     const settled = task.finally(() => {
       if (deferredFull === settled) deferredFull = null;
@@ -736,5 +1076,5 @@ export function createAutomaticGuideBuilder(
     deferredFull = settled;
     return settled;
   }
-  return { run: runWithIntent, request, requestCached, suspend, dispose };
+  return { run: runWithIntent, request, requestCached, preparePlayback, wake, suspend, dispose };
 }

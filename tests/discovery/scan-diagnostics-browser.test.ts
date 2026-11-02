@@ -16,6 +16,7 @@
 
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { build } from 'vite';
+import { resolve } from 'node:path';
 import { chromium, type Browser, type Page } from '@playwright/test';
 import type { SourceScanHost } from '../../src/ui/scan/source-scan-model';
 import type { StagedScanSelection } from '../../src/discovery/scan';
@@ -26,10 +27,21 @@ beforeAll(async () => {
   const output = await build({
     configFile: false,
     logLevel: 'silent',
+    plugins: [
+      {
+        name: 'scan-diagnostic-capacity',
+        resolveId: (id) =>
+          id.endsWith('virtual:scan-diagnostic') ? '\0scan-diagnostic' : undefined,
+        load: (id) =>
+          id === '\0scan-diagnostic'
+            ? `export * from ${JSON.stringify(resolve('src/ui/scan/source-scan.ts'))}; export {IncrementalRefreshCapacityError} from ${JSON.stringify(resolve('src/discovery/incremental-refresh.ts'))};`
+            : undefined,
+      },
+    ],
     build: {
       write: false,
       minify: false,
-      lib: { entry: 'src/ui/scan/source-scan.ts', formats: ['iife'], name: 'ScanUI' },
+      lib: { entry: 'virtual:scan-diagnostic', formats: ['iife'], name: 'ScanUI' },
     },
   });
   const result = Array.isArray(output) ? output[0] : output;
@@ -382,6 +394,52 @@ it('Cancel joins a late committed batch and Resume publishes retained unacknowle
           ).length,
       ),
     ).toBe(100);
+  } finally {
+    await page.evaluate(() => Reflect.get(window, 'scan').dispose());
+    await page.close();
+  }
+});
+
+it('fresh indexing capacity retains its fixed reason and preparation category without probe claims or private payloads', async () => {
+  const page = await fixture(true);
+  try {
+    await page.evaluate(() => {
+      const host = Reflect.get(window, 'scanHost');
+      host.indexedFreshAvailable = () => true;
+      host.createIndexedFreshResume = async () => {
+        const failure = new (Reflect.get(window, 'ScanUI').IncrementalRefreshCapacityError)();
+        failure.message = 'https://private.invalid/secret';
+        throw failure;
+      };
+      Reflect.set(window, 'capacityDiagnostics', []);
+      host.onDiagnostic = (value: unknown) =>
+        Reflect.get(window, 'capacityDiagnostics').push(value);
+      return Reflect.get(window, 'scan').refreshAutomatic(undefined, { intent: 'full-recheck' });
+    });
+    const snapshot = await page.evaluate(() => Reflect.get(window, 'scan').snapshot());
+    expect(snapshot).toMatchObject({
+      phase: 'failed',
+      busy: false,
+      total: 0,
+      checked: 0,
+      responded: 0,
+      published: 0,
+      pendingPublications: 0,
+      lastFailure: 'capacity',
+      lastFailureCode: 'source-refresh-capacity',
+      preparationFailure: 'prepare-capacity',
+    });
+    expect(await page.evaluate(() => Reflect.get(window, 'capacityDiagnostics'))).toEqual([
+      snapshot,
+    ]);
+    expect(await page.evaluate(() => Object.isFrozen(Reflect.get(window, 'scan').snapshot()))).toBe(
+      true,
+    );
+    expect(JSON.stringify(snapshot)).not.toMatch(/https|private|secret/);
+    expect(await page.getByRole('alert').textContent()).toContain('100,000-entry capture limit');
+    expect(await page.getByRole('alert').textContent()).not.toContain('private');
+    expect(await page.evaluate(() => Reflect.get(window, 'probes').length)).toBe(0);
+    expect(await page.evaluate(() => Reflect.get(window, 'commits').length)).toBe(0);
   } finally {
     await page.evaluate(() => Reflect.get(window, 'scan').dispose());
     await page.close();

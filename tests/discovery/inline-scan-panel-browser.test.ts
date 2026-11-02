@@ -16,17 +16,29 @@
 
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { build } from 'vite';
-import { chromium, type Browser, type Page } from '@playwright/test';
+import { resolve } from 'node:path';
+import { chromium, expect as browserExpect, type Browser, type Page } from '@playwright/test';
 let browser: Browser;
 let bundle: string;
 beforeAll(async () => {
   const output = await build({
     configFile: false,
     logLevel: 'silent',
+    plugins: [
+      {
+        name: 'inline-scan-remote',
+        resolveId: (id) =>
+          id.endsWith('virtual:inline-scan-remote') ? '\0inline-scan-remote' : undefined,
+        load: (id) =>
+          id === '\0inline-scan-remote'
+            ? `export {mountInlineScanPanel} from ${JSON.stringify(resolve('src/ui/scan/inline-scan-panel.ts'))}; export {installRemoteNavigation, createRemoteEditMode} from ${JSON.stringify(resolve('src/ui/shell/remote-navigation.ts'))};`
+            : undefined,
+      },
+    ],
     build: {
       write: false,
       minify: false,
-      lib: { entry: 'src/ui/scan/inline-scan-panel.ts', formats: ['iife'], name: 'Panel' },
+      lib: { entry: 'virtual:inline-scan-remote', formats: ['iife'], name: 'Panel' },
     },
   });
   const result = Array.isArray(output) ? output[0] : output;
@@ -111,6 +123,107 @@ const state = (page: Page) =>
   });
 const render = (page: Page, progress: object) =>
   page.evaluate((p) => Reflect.get(window, 'panel').render(p), progress);
+
+it('a delayed Finish scan handoff keeps Stop focused while active and Rescan focused after refusal', async () => {
+  const page = await fixture();
+  try {
+    await render(page, unfinished);
+    await page.evaluate(
+      ({ active, refused }) => {
+        document.getElementById('inline-scan-continue')!.addEventListener('click', () => {
+          Reflect.get(window, 'panel').render(active);
+          Reflect.set(
+            window,
+            'finishWork',
+            new Promise<void>((resolve) =>
+              Reflect.set(window, 'resolveFinish', () => {
+                Reflect.get(window, 'panel').render(refused);
+                resolve();
+              }),
+            ),
+          );
+        });
+      },
+      {
+        active: running,
+        refused: {
+          ...unfinished,
+          phase: 'failed',
+          canContinue: false,
+          resumeRefusal: 'unavailable',
+          error:
+            'This saved scan is outside its 24-hour resume window. Choose Rescan; saved channels are kept.',
+        },
+      },
+    );
+    await page.locator('#inline-scan-continue').focus();
+    await page.keyboard.press('Enter');
+    await browserExpect(page.locator('#inline-scan-stop')).toBeFocused();
+    await page.evaluate(() => Reflect.get(window, 'resolveFinish')());
+    await browserExpect(page.locator('#inline-scan-rescan')).toBeFocused();
+    await browserExpect(page.locator('#inline-scan-error')).toContainText('24-hour resume window');
+    await browserExpect(page.locator('#inline-scan-continue')).toBeHidden();
+  } finally {
+    await page.close();
+  }
+});
+
+it('Rescan import mutations preserve its deliberate remote focus before async progress arrives', async () => {
+  const page = await fixture();
+  try {
+    await render(page, unfinished);
+    await page.evaluate((active) => {
+      document.getElementById('inline-scan-rescan')!.addEventListener('click', () => {
+        // Same eager button transition as import-controller.startInlineDiscovery.
+        document.getElementById('inline-scan-stop')!.hidden = false;
+        (document.getElementById('inline-scan-stop') as HTMLButtonElement).disabled = false;
+        document.getElementById('inline-scan-continue')!.hidden = true;
+        document.getElementById('inline-scan-rescan')!.hidden = true;
+        Reflect.set(window, 'resolveDiscovery', () => Reflect.get(window, 'panel').render(active));
+      });
+    }, running);
+    await page.locator('#inline-scan-rescan').focus();
+    await page.keyboard.press('Enter');
+    await browserExpect(page.locator('#inline-scan-stop')).toBeFocused();
+    await page.evaluate(() => Reflect.get(window, 'resolveDiscovery')());
+    await browserExpect(page.locator('#inline-scan-stop')).toBeFocused();
+  } finally {
+    await page.close();
+  }
+});
+
+it('a late scan refusal or progress update cannot reclaim focus after the viewer navigates away', async () => {
+  const page = await fixture();
+  try {
+    await page.evaluate(() => {
+      const button = document.createElement('button');
+      button.id = 'elsewhere';
+      button.textContent = 'Browse channels';
+      document.body.append(button);
+    });
+    await render(page, unfinished);
+    await page.evaluate((active) => {
+      document
+        .getElementById('inline-scan-continue')!
+        .addEventListener('click', () => Reflect.get(window, 'panel').render(active));
+    }, running);
+    await page.locator('#inline-scan-continue').click();
+    await browserExpect(page.locator('#inline-scan-stop')).toBeFocused();
+    await page.locator('#elsewhere').focus();
+    await render(page, {
+      ...unfinished,
+      phase: 'failed',
+      canContinue: false,
+      resumeRefusal: 'unavailable',
+      error: 'Saved scan expired. Choose Rescan.',
+    });
+    await browserExpect(page.locator('#elsewhere')).toBeFocused();
+    await render(page, running);
+    await browserExpect(page.locator('#elsewhere')).toBeFocused();
+  } finally {
+    await page.close();
+  }
+});
 
 it('a finished saved scan is not shown at startup; the magnifier shows Refresh, Rescan and Close', async () => {
   const page = await fixture();
@@ -242,6 +355,63 @@ it('a running scan shows its kind, saved share, pace and time left', async () =>
       }),
     ).toBe('Refresh · 10 of 4,762 checked · 4 saved (40%) · measuring pace…');
   } finally {
+    await page.close();
+  }
+});
+
+it('one held remote Stop press cannot activate its replacement; paused focus offers Finish before full Rescan', async () => {
+  const page = await fixture();
+  try {
+    await render(page, running);
+    await page.evaluate((paused) => {
+      const api = Reflect.get(window, 'Panel');
+      Reflect.set(
+        window,
+        'removeRemote',
+        api.installRemoteNavigation({ editMode: api.createRemoteEditMode() }),
+      );
+      Reflect.set(window, 'activations', { stop: 0, finish: 0, rescan: 0 });
+      const stop = document.getElementById('inline-scan-stop') as HTMLButtonElement;
+      stop.addEventListener('click', () => {
+        Reflect.get(window, 'activations').stop++;
+        stop.disabled = true;
+        Reflect.set(window, 'settleStop', () => Reflect.get(window, 'panel').render(paused));
+      });
+      document
+        .getElementById('inline-scan-continue')!
+        .addEventListener('click', () => Reflect.get(window, 'activations').finish++);
+      document
+        .getElementById('inline-scan-rescan')!
+        .addEventListener('click', () => Reflect.get(window, 'activations').rescan++);
+    }, unfinished);
+    await page.locator('#inline-scan-stop').focus();
+    await page.keyboard.down('Enter');
+    expect(await page.evaluate(() => Reflect.get(window, 'activations'))).toEqual({
+      stop: 1,
+      finish: 0,
+      rescan: 0,
+    });
+    // The actual owner settles between keydown and keyup. The replacement is
+    // not another action requested by that still-held press.
+    await page.evaluate(() => Reflect.get(window, 'settleStop')());
+    await browserExpect(page.locator('#inline-scan-continue')).toBeFocused();
+    await page.keyboard.down('Enter');
+    await page.keyboard.up('Enter');
+    expect(await page.evaluate(() => Reflect.get(window, 'activations'))).toEqual({
+      stop: 1,
+      finish: 0,
+      rescan: 0,
+    });
+    // A separate, deliberate OK can finish retained work; it never starts a
+    // replacement scan merely because Stop disappeared under the remote.
+    await page.keyboard.press('Enter');
+    expect(await page.evaluate(() => Reflect.get(window, 'activations'))).toEqual({
+      stop: 1,
+      finish: 1,
+      rescan: 0,
+    });
+  } finally {
+    await page.evaluate(() => Reflect.get(window, 'removeRemote')?.());
     await page.close();
   }
 });

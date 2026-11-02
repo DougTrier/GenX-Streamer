@@ -131,10 +131,16 @@ beforeAll(async () => {
   page.on('worker', (worker) => {
     if (workerPaths.length < 2) workerPaths.push(new URL(worker.url()).pathname);
   });
-  page.on('response', (response) => {
+  context.on('response', (response) => {
     if (response.status() >= 400)
       process.stdout.write(
         `bounded-worker: HTTP ${response.status()} ${new URL(response.url()).pathname}\n`,
+      );
+  });
+  context.on('requestfailed', (request) => {
+    if (errors.length < 4)
+      errors.push(
+        `Request failed: ${new URL(request.url()).pathname}: ${request.failure()?.errorText}`,
       );
   });
   page.on('pageerror', (error) => {
@@ -147,6 +153,25 @@ beforeAll(async () => {
   });
   await page.goto(`http://127.0.0.1:${address.port}/__bounded-proof`);
   timing('page-ready');
+  // Browser/module startup belongs to the fixture's existing setup budget,
+  // rather than consuming the independent 12s check of the scan episode.
+  // This is the actual built production Worker, with no substituted protocol.
+  const workerCreated = page.waitForEvent('worker');
+  await page.evaluate((path) => {
+    Reflect.set(window, '__boundedFixtureWorker', new Worker(path, { type: 'module' }));
+  }, workerPath);
+  const worker = await workerCreated;
+  await worker.evaluate(
+    () =>
+      new Promise<void>((resolve) => {
+        const ready = () => {
+          if (typeof self.onmessage === 'function') resolve();
+          else setTimeout(ready, 10);
+        };
+        ready();
+      }),
+  );
+  timing('worker-ready');
 }, 30000);
 
 it('actual module Worker prepares once and joins a one-origin256candidate episode', async () => {
@@ -167,102 +192,105 @@ it('actual module Worker prepares once and joins a one-origin256candidate episod
         maximumCommit = 0,
         cursor = 0;
       const reservations = new Map<string, number>();
-      const service = createBoundedScanResumeService({
-        async admit() {
-          admitted++;
-          return {
-            schemaVersion: 1,
-            planId: 'plan',
-            jobId: 'job',
-            reviewDigest: 'a'.repeat(64),
-            sessionRevision: 'session',
-            query: 'News',
-            createdAtMs: Date.now(),
-            platform: 'native',
-            observerProfile: 'native-v1',
-            budgetMs: 20000,
-            sourcePolicies: [{ sourceId: 'source', fingerprint: 'captured', allowHttp: false }],
-            counts: { ...counts },
-            revisions: { ...revisions },
-          };
-        },
-        async take(_id: string, request: { blockedOrigins: readonly string[] }) {
-          taken++;
-          const rows = [];
-          if (cursor < counts.total && !request.blockedOrigins.includes('only')) {
-            const index = cursor++;
-            reservations.set(String(index), index);
-            rows.push({
-              candidateIndex: index,
-              reservationId: String(index),
-              originToken: 'only',
-              work: 'probe' as const,
-              candidate: {
-                key: `c-${index}`,
-                sourceId: 'source',
-                sourceFingerprint: 'captured',
-                sessionRevision: 'session',
-                channel: {
+      const service = createBoundedScanResumeService(
+        {
+          async admit() {
+            admitted++;
+            return {
+              schemaVersion: 1,
+              planId: 'plan',
+              jobId: 'job',
+              reviewDigest: 'a'.repeat(64),
+              sessionRevision: 'session',
+              query: 'News',
+              createdAtMs: Date.now(),
+              platform: 'native',
+              observerProfile: 'native-v1',
+              budgetMs: 20000,
+              sourcePolicies: [{ sourceId: 'source', fingerprint: 'captured', allowHttp: false }],
+              counts: { ...counts },
+              revisions: { ...revisions },
+            };
+          },
+          async take(_id: string, request: { blockedOrigins: readonly string[] }) {
+            taken++;
+            const rows = [];
+            if (cursor < counts.total && !request.blockedOrigins.includes('only')) {
+              const index = cursor++;
+              reservations.set(String(index), index);
+              rows.push({
+                candidateIndex: index,
+                reservationId: String(index),
+                originToken: 'only',
+                work: 'probe' as const,
+                candidate: {
+                  key: `c-${index}`,
                   sourceId: 'source',
-                  name: `Channel ${index}`,
-                  category: 'News',
-                  urls: [`https://fixture.invalid/${index}`],
+                  sourceFingerprint: 'captured',
+                  sessionRevision: 'session',
+                  channel: {
+                    sourceId: 'source',
+                    name: `Channel ${index}`,
+                    category: 'News',
+                    urls: [`https://fixture.invalid/${index}`],
+                  },
                 },
+              });
+            }
+            return { schemaVersion: 1, planId: 'plan', rows, exhausted: cursor === counts.total };
+          },
+          async probe(
+            candidate: { key: string; sourceId: string; sourceFingerprint: string },
+            _signal: AbortSignal,
+            _budget: number,
+            policy: { allowHttp: boolean },
+          ) {
+            if (policy.allowHttp !== false) throw new Error('Unexpected grant');
+            probed++;
+            return createHealthObservation(
+              {
+                channelId: candidate.key,
+                sourceId: candidate.sourceId,
+                fingerprint: candidate.sourceFingerprint,
               },
-            });
-          }
-          return { schemaVersion: 1, planId: 'plan', rows, exhausted: cursor === counts.total };
+              { platform: 'native', observedAt: Date.now() },
+              { kind: 'recognized-media-response' },
+            );
+          },
+          async commit(
+            _id: string,
+            request: import('../../src/application/discovery/bounded-scan-resume').BoundedScanCommit,
+          ) {
+            if (JSON.stringify(request.expectedRevisions) !== JSON.stringify(revisions))
+              throw new Error('Stale revision');
+            maximumCommit = Math.max(maximumCommit, request.observations.length);
+            counts.checked += request.observations.length;
+            counts.responded += request.observations.length;
+            counts.published += request.publicationIndices.length;
+            for (const key of Object.keys(revisions) as (keyof typeof revisions)[])
+              revisions[key] = String(BigInt(revisions[key]) + 1n);
+            return {
+              committed: true as const,
+              planId: 'plan',
+              ...revisions,
+              counts: { ...counts },
+              acknowledgedIndices: request.observations.map((row) => row.candidateIndex),
+              publicationIndices: [...request.publicationIndices],
+            };
+          },
+          async defer() {
+            throw new Error('Unexpected deferral');
+          },
+          async release(_id: string, ids: string[]) {
+            for (const id of ids) reservations.delete(id);
+          },
+          async close() {
+            closed++;
+            reservations.clear();
+          },
         },
-        async probe(
-          candidate: { key: string; sourceId: string; sourceFingerprint: string },
-          _signal: AbortSignal,
-          _budget: number,
-          policy: { allowHttp: boolean },
-        ) {
-          if (policy.allowHttp !== false) throw new Error('Unexpected grant');
-          probed++;
-          return createHealthObservation(
-            {
-              channelId: candidate.key,
-              sourceId: candidate.sourceId,
-              fingerprint: candidate.sourceFingerprint,
-            },
-            { platform: 'native', observedAt: Date.now() },
-            { kind: 'recognized-media-response' },
-          );
-        },
-        async commit(
-          _id: string,
-          request: import('../../src/application/discovery/bounded-scan-resume').BoundedScanCommit,
-        ) {
-          if (JSON.stringify(request.expectedRevisions) !== JSON.stringify(revisions))
-            throw new Error('Stale revision');
-          maximumCommit = Math.max(maximumCommit, request.observations.length);
-          counts.checked += request.observations.length;
-          counts.responded += request.observations.length;
-          counts.published += request.publicationIndices.length;
-          for (const key of Object.keys(revisions) as (keyof typeof revisions)[])
-            revisions[key] = String(BigInt(revisions[key]) + 1n);
-          return {
-            committed: true as const,
-            planId: 'plan',
-            ...revisions,
-            counts: { ...counts },
-            acknowledgedIndices: request.observations.map((row) => row.candidateIndex),
-            publicationIndices: [...request.publicationIndices],
-          };
-        },
-        async defer() {
-          throw new Error('Unexpected deferral');
-        },
-        async release(_id: string, ids: string[]) {
-          for (const id of ids) reservations.delete(id);
-        },
-        async close() {
-          closed++;
-          reservations.clear();
-        },
-      });
+        { workerFactory: () => Reflect.get(window, '__boundedFixtureWorker') },
+      );
       Reflect.set(window, '__boundedState', () => ({
         admitted,
         taken,

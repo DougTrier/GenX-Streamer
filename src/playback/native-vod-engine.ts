@@ -19,6 +19,7 @@ import {
   REPLAY_REACH_SECONDS,
   replayFrameSeconds,
   replayWindowFrom,
+  validDecodedProgress,
   type ChannelSelection,
   type EngineEvent,
   type FailureCode,
@@ -26,6 +27,8 @@ import {
   type PlaybackEngine,
 } from './controller';
 import type { AudioTracksSnapshot } from './audio-tracks';
+import { normalizeLiveBufferPreference, type LiveBufferTelemetry } from './live-buffer';
+import { accountLive } from './routing-engine';
 import type {
   NativeVideoBridge,
   NativeVideoStatus,
@@ -59,10 +62,10 @@ export interface NativeEngineHost {
 let sessions = 0;
 const MESSAGES: Record<FailureCode, string> = {
   network: 'The video stopped arriving. Retry the video.',
-  missing: 'The provider no longer has this video.',
+  missing: 'The requested video is unavailable.',
   unsupported: 'This TV cannot play this video’s format.',
   decode: 'This TV could not decode this video.',
-  access: 'The provider refused this video.',
+  access: 'Access to this video was refused.',
   dns: 'The provider could not be reached.',
   tls: 'The provider’s secure connection failed.',
   timeout: 'The video took too long to start.',
@@ -109,11 +112,16 @@ export function createNativeVodEngine(
   const stopEvery =
     host.clearInterval ?? ((handle) => clearInterval(handle as ReturnType<typeof setInterval>));
   let session = 0;
+  let paidLive = false;
+  let liveContent = options.live === true;
   let disposed = false;
   let poll: unknown = null;
   let polling = false;
   let stopWatching: (() => void) | null = null;
   let last: NativeVideoStatus | null = null;
+  let bufferTelemetry: Readonly<LiveBufferTelemetry> | null = null;
+  let bufferCommand = 0;
+  let bufferPending = 0;
   let lastState: NativeVideoStatus['state'] | null = null;
   let tracksKey = '';
   let pictureReported = false;
@@ -146,10 +154,16 @@ export function createNativeVodEngine(
     if (poll !== null) stopEvery(poll);
     poll = null;
   };
-  function observe(status: NativeVideoStatus): void {
+  let lastStatusAt = 0;
+  function observe(status: NativeVideoStatus, acceptBuffer = true): void {
     if (!live() || status.session !== session) return;
     const before = last;
+    const at = performance.now();
+    const elapsed = at - lastStatusAt;
+    lastStatusAt = at;
     last = status;
+    if (acceptBuffer && !bufferPending)
+      bufferTelemetry = status.liveBuffer ? Object.freeze({ ...status.liveBuffer }) : null;
     if (status.picture === 'unsupported' && !pictureReported) {
       pictureReported = true;
       options.onPictureUnsupported?.();
@@ -169,7 +183,13 @@ export function createNativeVodEngine(
           code,
           message: MESSAGES[code],
           retryable: code === 'network',
-          phase: code === 'network' ? 'body' : 'decode',
+          phase:
+            status.httpStatus !== undefined || code === 'access' || code === 'missing'
+              ? 'headers'
+              : code === 'network'
+                ? 'body'
+                : 'decode',
+          ...(status.httpStatus !== undefined ? { httpStatus: status.httpStatus } : {}),
           evidence: 'native',
         },
       });
@@ -180,15 +200,46 @@ export function createNativeVodEngine(
       emit({ type: 'ended' });
       return;
     }
+    if ((status.liveWindowRecoveries ?? 0) > (before?.liveWindowRecoveries ?? 0))
+      emit({ type: 'source-recovery', cause: 'live-window' });
     if (status.state === 'buffering' && lastState !== 'buffering') emit({ type: 'buffering' });
     if (
       status.state === 'ready' &&
       (status.playing
-        ? lastState !== 'ready' || !before || status.positionMs > before.positionMs
+        ? lastState !== 'ready' ||
+          !before ||
+          // A live playlist's relative position can clamp to zero while its
+          // absolute stream clock advances. Use the same clock on both reads.
+          (status.streamMs !== undefined && before.streamMs !== undefined
+            ? status.streamMs > before.streamMs
+            : status.positionMs > before.positionMs)
         : // A paused replay showing its picture again is not a stall.
           replay !== null && lastState !== 'ready')
     )
       emit({ type: 'progress' });
+    if (
+      !replay &&
+      before &&
+      status.state === 'ready' &&
+      status.playing &&
+      before.renderedFrames !== undefined &&
+      status.renderedFrames !== undefined
+    ) {
+      const sample = (s: NativeVideoStatus) => ({
+        mediaTime: (s.streamMs ?? s.positionMs) / 1000,
+        decodedFrames: s.renderedFrames!,
+        width: s.videoWidth ?? 0,
+        height: s.videoHeight ?? 0,
+        ...((s.audioRenderedFrames ?? 0) > 0 ? { audioObserved: true } : {}),
+      });
+      const evidence = {
+        kind: 'decoded' as const,
+        before: sample(before),
+        after: sample(status),
+        elapsedMilliseconds: elapsed,
+      };
+      if (validDecodedProgress(evidence)) emit({ type: 'decoded-progress', evidence });
+    }
     if (
       firstStreamMs === null &&
       status.state === 'ready' &&
@@ -201,8 +252,9 @@ export function createNativeVodEngine(
   async function tick(): Promise<void> {
     if (!live() || polling) return;
     polling = true;
+    const bufferEpoch = bufferCommand;
     try {
-      observe(await send({ action: 'status' }));
+      observe(await send({ action: 'status' }), bufferEpoch === bufferCommand);
     } catch {
       /* One missed reading is not a failure; the next tick reads again. */
     } finally {
@@ -216,6 +268,14 @@ export function createNativeVodEngine(
     async start(selection: ChannelSelection, signal: AbortSignal): Promise<void> {
       signal.throwIfAborted();
       if (disposed || session) throw new Error('Native player already used.');
+      const initialBuffer =
+        selection.liveBuffer === undefined
+          ? undefined
+          : normalizeLiveBufferPreference(selection.liveBuffer);
+      if (selection.liveBuffer !== undefined && !initialBuffer)
+        throw new Error('Invalid buffer preference.');
+      paidLive = accountLive(selection);
+      liveContent = options.live === true || paidLive;
       session = ++sessions;
       host.present(true);
       stopWatching = host.watchRect(place);
@@ -223,14 +283,27 @@ export function createNativeVodEngine(
         action: 'open',
         url: selection.url,
         rect: host.rect() ?? [0, 0, 0, 0],
-        ...(options.live ? { hls: true } : {}),
+        ...(initialBuffer ? { liveBuffer: initialBuffer } : {}),
+        ...(paidLive
+          ? { accountLive: true, hls: selection.mediaKind === 'hls' }
+          : options.live
+            ? { publicLive: true, hls: selection.mediaKind !== 'media' }
+            : {}),
+        ...(!liveContent && selection.id.startsWith('archive-') ? { archive: true } : {}),
       });
       if (signal.aborted || disposed)
         throw new DOMException('Native start canceled.', 'AbortError');
       if (muted || volume !== 1) applySound();
-      // A live channel stays HLS, so a retry starts again in the web player
-      // (which hands MPEG-2 back here) instead of trying a plain media file.
-      emit({ type: 'capability', mediaKind: options.live ? 'hls' : 'media' });
+      // Preserve the container on retry: HLS and progressive live need
+      // different native sources, without probing an account a second time.
+      emit({
+        type: 'capability',
+        mediaKind: paidLive
+          ? (selection.mediaKind ?? 'media')
+          : options.live
+            ? (selection.mediaKind ?? 'hls')
+            : 'media',
+      });
       observe(opened);
       poll = every(() => void tick(), NATIVE_POLL_MS);
     },
@@ -258,7 +331,7 @@ export function createNativeVodEngine(
       applySound();
     },
     liveReplay(): LiveReplayEngine | null {
-      if (!options.live || !live() || firstStreamMs === null) return null;
+      if (!liveContent || !live() || firstStreamMs === null) return null;
       const window = () => {
         const status = last;
         if (!live() || !status || status.streamMs === undefined || firstStreamMs === null)
@@ -333,6 +406,37 @@ export function createNativeVodEngine(
       };
     },
     readAudioTracks: () => (last ? nativeAudioSnapshot(last.audio) : null),
+    readLiveBuffer: () =>
+      live() && bufferTelemetry ? Object.freeze({ ...bufferTelemetry }) : null,
+    async setLiveBuffer(preference) {
+      const policy = normalizeLiveBufferPreference(preference);
+      if (!policy || !live() || bufferTelemetry?.capability !== 'controlled') return false;
+      const ownedSession = session;
+      const command = ++bufferCommand;
+      bufferPending = command;
+      try {
+        const status = await send({ action: 'buffer', liveBuffer: policy });
+        if (
+          !live() ||
+          session !== ownedSession ||
+          status.session !== ownedSession ||
+          command !== bufferCommand
+        )
+          return false;
+        observe(status, false);
+        if (!live()) return false;
+        bufferTelemetry = status.liveBuffer ? Object.freeze({ ...status.liveBuffer }) : null;
+        return (
+          bufferTelemetry?.capability === 'controlled' &&
+          bufferTelemetry.mode === policy.mode &&
+          (policy.mode === 'auto' || bufferTelemetry.targetSeconds === policy.targetSeconds)
+        );
+      } catch {
+        return false;
+      } finally {
+        if (bufferPending === command) bufferPending = 0;
+      }
+    },
     setAudioTrack(id: string | null) {
       if (!id || !last?.audio.some((track) => track.id === id && track.supported)) return false;
       controls.audio(id);
@@ -351,6 +455,7 @@ export function createNativeVodEngine(
     async dispose() {
       if (disposed) return;
       disposed = true;
+      bufferTelemetry = null;
       if (poll !== null) stopEvery(poll);
       poll = null;
       stopWatching?.();

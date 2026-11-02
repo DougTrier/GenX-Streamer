@@ -20,6 +20,7 @@
  * passes the shared state it owns through the environment.
  */
 import { restoreRemoteFocus } from '../../ui/shell/remote-navigation';
+import { recordPlaybackState } from '../../diagnostics/playback-trace';
 import { type LiveReplayControls } from '../../ui/player/live-replay';
 import { type PlaybackController, type PlaybackSnapshot } from '../../playback/controller';
 import { playbackFailureGuidance } from '../../playback/failure-guidance';
@@ -35,6 +36,7 @@ import { type createAccountBrowser } from '../accounts/account-browser';
 import { type mountGuide } from '../../ui/guide/guide';
 import { type createScanController } from '../discovery/scan-controller';
 import { type createSharingHost } from '../sharing/sharing-host';
+import { createSourceRecoveryWindow } from '../../playback/source-recovery';
 import { type ContentLibrary } from '../genxtra/content-library';
 import { type createArchivePlayer } from '../genxtra/archive-player';
 import { type PrimaryPage } from '../shell/primary-page';
@@ -46,6 +48,11 @@ import { type mountVODStop } from '../../ui/player/vod-stop';
 import { type AccountPreferencesReceipt } from '../../platform/account-preferences';
 import { type ChannelBrowser } from '../../ui/channels/channel-browser';
 import { type CatalogRecord } from '../../catalog';
+import { mountStreamBufferControls } from '../../ui/player/stream-buffer-controls';
+import { streamBufferKey, saveStreamBufferPreference } from './stream-buffer-state';
+import { recordLiveBufferSample } from '../../diagnostics/playback-trace';
+import { createWatchHistoryRecorder } from './watch-history-recorder';
+import { getWatchHistory } from '../../playback/watch-history';
 
 /** What this area reads from, and writes back to, the rest of the application. */
 export interface PlayerViewEnvironment {
@@ -93,6 +100,38 @@ export interface PlayerViewEnvironment {
 
 export function createPlayerView(env: PlayerViewEnvironment) {
   const finitePlayback = env.player;
+  const watchHistoryRecorder = createWatchHistoryRecorder(
+    env.player,
+    getWatchHistory(),
+    () => env.notice('Watch history could not be saved on this device.'),
+    (selection) =>
+      /^account-[a-f0-9]{32}-[a-f0-9]{64}$/.test(selection.id) ||
+      env.catalog.channels.some((channel) => channel.id === selection.id),
+  );
+  const streamBufferControls = mountStreamBufferControls(env.element('app'), {
+    current: () => ({
+      selection: env.player.snapshot.selection,
+      state: env.player.snapshot.state,
+      generation: env.player.liveBufferGeneration,
+      telemetry: env.player.liveBuffer,
+      external: env.castsActive || env.element('app').classList.contains('local-page-open'),
+    }),
+    key: streamBufferKey,
+    save: saveStreamBufferPreference,
+    apply: (preference) => env.player.setLiveBuffer(preference),
+    notice: env.notice,
+    trace: (telemetry) => {
+      const selection = env.player.snapshot.selection;
+      const mode = env.element('app').classList.contains('local-page-open')
+        ? 'web'
+        : selection?.id.startsWith('archive-')
+          ? 'genxtra'
+          : env.privatePlayback(selection)
+            ? 'paid'
+            : 'free';
+      recordLiveBufferSample(mode, telemetry);
+    },
+  });
   let vodSeekWork: Promise<void> | null = null;
   let vodSeekGeneration = 0;
   const vodPositionEvents = [
@@ -192,6 +231,8 @@ export function createPlayerView(env: PlayerViewEnvironment) {
   /** Instant replay on live TV (docs/instant-replay.md); installed with the dock's handlers. */
   let liveReplay: LiveReplayControls | null = null;
   async function disposeVODTransport(): Promise<void> {
+    await streamBufferControls.dispose();
+    await watchHistoryRecorder.dispose();
     liveReplay?.dispose();
     env.vodDock.dispose();
     vodSeekGeneration++;
@@ -202,8 +243,13 @@ export function createPlayerView(env: PlayerViewEnvironment) {
     await vodSeekWork;
   }
   let playbackFailureLogged = false;
+  let playbackRecoveryLogged = false;
   let alternateRetry: Promise<boolean> | null = null;
+  let bestRetry: Promise<boolean> | null = null;
+  const unstableSource = createSourceRecoveryWindow();
   function renderPlayer(snapshot: PlaybackSnapshot): void {
+    streamBufferControls.render();
+    recordPlaybackState(snapshot);
     env.archiveSearch?.syncDetails();
     // The sound-only note belongs to the channel that raised it.
     const pictureNote = env.element('picture-note');
@@ -219,14 +265,51 @@ export function createPlayerView(env: PlayerViewEnvironment) {
     if (snapshot.state === 'failed' && !playbackFailureLogged)
       void env.diagnostics.emit({ operation: 'playback', level: 'error', code: 'playback-failed' });
     playbackFailureLogged = snapshot.state === 'failed';
+    if (snapshot.state === 'reconnecting' && !playbackRecoveryLogged) {
+      const failure = snapshot.failure;
+      void env.diagnostics.emit({
+        operation: 'playback',
+        level: 'warning',
+        code: 'playback-recovering',
+        ...(failure
+          ? {
+              reason: `${failure.code}-${failure.phase ?? 'unknown'}-${failure.evidence ?? 'unknown'}`,
+            }
+          : {}),
+      });
+    }
+    playbackRecoveryLogged = snapshot.state === 'reconnecting';
     // Paid TV only: a start that delivered no video tries the provider's other
     // stored format once (never a guessed address; Free TV never reaches this).
-    if (snapshot.state === 'failed' && env.accountPlayer?.alternateAvailable && !alternateRetry) {
+    const recoveryAllowed =
+      !document.hidden && !env.applicationClosing && !env.backgroundSuspension;
+    const repeatedStall = unstableSource(snapshot, env.player.sourceObservationAllowed);
+    if (
+      recoveryAllowed &&
+      snapshot.state === 'failed' &&
+      env.accountPlayer?.alternateAvailable &&
+      !alternateRetry
+    ) {
       alternateRetry = env.accountPlayer
         .retryAlternate()
         .catch(() => false)
         .finally(() => {
           alternateRetry = null;
+        });
+    } else if (
+      recoveryAllowed &&
+      (snapshot.state === 'failed' || repeatedStall) &&
+      snapshot.selection?.playMode !== 'on-demand' &&
+      !alternateRetry &&
+      !bestRetry
+    ) {
+      const retry = env.accountPlayer?.selection
+        ? env.accountPlayer.retryBest?.()
+        : env.sharingBridge.retryBest?.();
+      bestRetry = (retry ?? Promise.resolve(false))
+        .catch(() => false)
+        .finally(() => {
+          bestRetry = null;
         });
     }
     const focusedControl = document.activeElement;
@@ -449,6 +532,15 @@ export function createPlayerView(env: PlayerViewEnvironment) {
     },
     now: () => Date.now(),
     notice: env.notice,
+    diagnostic: (event) => {
+      void env.diagnostics.emit({
+        operation: 'playback',
+        level: event.outcome === 'canceled' ? 'info' : 'warning',
+        code:
+          event.outcome === 'canceled' ? 'playback-health-canceled' : 'playback-health-save-failed',
+        reason: `${event.phase}-${event.reason}`,
+      });
+    },
   });
   return {
     renderPlayer,

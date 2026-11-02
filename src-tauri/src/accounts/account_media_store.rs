@@ -147,8 +147,14 @@ impl ResolvedMedia {
     }
 }
 fn sql<T>(r: rusqlite::Result<T>) -> Result<T, String> {
-    r.map_err(|_| "account-media-storage-failed".into())
+    r.map_err(|error| match error.sqlite_error_code() {
+        Some(rusqlite::ErrorCode::DatabaseBusy) => "sqlite-busy".into(),
+        Some(rusqlite::ErrorCode::DatabaseLocked) => "sqlite-locked".into(),
+        Some(rusqlite::ErrorCode::DiskFull) => "sqlite-storage-full".into(),
+        _ => "account-media-storage-failed".into(),
+    })
 }
+
 fn opaque(v: &str) -> bool {
     v.len() == 32
         && v.bytes()
@@ -777,4 +783,41 @@ pub(crate) fn recover_orphans(
     }
     check()?;
     Ok(())
+}
+
+#[cfg(test)]
+mod authority_sql_diagnostic_tests {
+    use super::*;
+    #[test]
+    fn authority_media_sql_preserves_contention_categories_without_error_text() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("authority.sqlite3");
+        let writer = Connection::open(&path).unwrap();
+        writer
+            .execute_batch("CREATE TABLE authority_probe(n);BEGIN EXCLUSIVE;")
+            .unwrap();
+        let reader = Connection::open(&path).unwrap();
+        reader.busy_timeout(std::time::Duration::ZERO).unwrap();
+        assert_eq!(
+            sql(
+                reader.query_row("SELECT count(*) FROM authority_probe", [], |row| row
+                    .get::<_, i64>(0))
+            )
+            .unwrap_err(),
+            "sqlite-busy"
+        );
+        writer.execute_batch("ROLLBACK;").unwrap();
+        for (code, expected) in [
+            (rusqlite::ffi::SQLITE_LOCKED, "sqlite-locked"),
+            (rusqlite::ffi::SQLITE_FULL, "sqlite-storage-full"),
+            (rusqlite::ffi::SQLITE_ERROR, "account-media-storage-failed"),
+        ] {
+            let error = rusqlite::Error::SqliteFailure(
+                rusqlite::ffi::Error::new(code),
+                Some("https://private.invalid/password".into()),
+            );
+            assert_eq!(sql::<()>(Err(error)).unwrap_err(), expected);
+        }
+        assert_eq!(sql(Ok(7)).unwrap(), 7);
+    }
 }

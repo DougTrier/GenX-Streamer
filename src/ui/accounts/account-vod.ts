@@ -33,7 +33,8 @@ import { createSharedContext } from '../../application/shell/shared-context';
  * and series. While open, a slim rail (Channels, search, Movies/TV Series,
  * categories) replaces the channel column, and the right side shows a banner
  * for the focused title above six posters per row. The remote moves by row and
- * column and never escapes to the player bar; Back steps out one level at a
+ * column within the posters; while watching, the rail reaches the player bar.
+ * Back steps out one level at a
  * time; returning restores the same section, category and title. Titles play
  * through the same account session as channels (one connection, credentials
  * stay native).
@@ -464,8 +465,12 @@ export function mountAccountVod(
   function play(title: AccountVodTitle): void {
     if (!account) return;
     const target = { accountId: account.id, accountRevision: account.revision };
+    const ownedFocus = gallery.contains(document.activeElement);
     // The chosen title opens in the viewing area itself.
     showGallery(false);
+    // The title that owned focus is now hidden. Keep its immediate return
+    // action usable through startup/failure; completion must never steal focus.
+    if (ownedFocus && !panel.hidden) reopen.focus({ preventScroll: true });
     host.run(
       host.play(title, target).catch((error: unknown) => {
         say(error instanceof Error ? error.message : 'This title could not start.', true);

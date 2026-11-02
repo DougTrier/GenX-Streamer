@@ -41,14 +41,7 @@ pub(crate) async fn guide_listed_channels(
         let (page, _) = context
             .storage_with_generation(generation, move |store, actual, check| {
                 check()?;
-                store.with_guide_read(|c| {
-                    listed_channels::query(
-                        c,
-                        &query,
-                        actual,
-                        Arc::new(move || during.check().is_err()),
-                    )
-                })
+                store.query_listed_guide(&query, actual, Arc::new(move || during.check().is_err()))
             })
             .await?;
         context.check()?;

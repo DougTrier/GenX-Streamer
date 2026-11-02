@@ -19,6 +19,7 @@ import { boundedJsonUtf8Bytes } from '../../data-transfer/json-byte-admission';
 export type ResumeCall = 'admit' | 'take' | 'probe' | 'commit' | 'defer' | 'release' | 'close';
 export type ResumeControl = 'prepare' | 'start' | 'suspend' | 'dispose';
 export type ResumeWire =
+  | { generation: number; sequence: number; kind: 'workload'; playbackBusy: boolean }
   | { generation: number; sequence: number; kind: 'control'; operation: ResumeControl }
   | { generation: number; sequence: number; kind: 'call'; operation: ResumeCall; args: unknown[] }
   | { generation: number; sequence: number; kind: 'cancel' }
@@ -52,7 +53,10 @@ export function validateResumeWire(raw: unknown): ResumeWire {
   )
     throw bad();
   const keys: string[] = ['generation', 'sequence', 'kind'];
-  if (r.kind === 'control') {
+  if (r.kind === 'workload') {
+    keys.push('playbackBusy');
+    if (typeof r.playbackBusy !== 'boolean') throw bad();
+  } else if (r.kind === 'control') {
     keys.push('operation');
     if (!['prepare', 'start', 'suspend', 'dispose'].includes(String(r.operation))) throw bad();
   } else if (r.kind === 'call') {

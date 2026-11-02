@@ -54,6 +54,7 @@ export function mountGuide(
   close(): Promise<void>;
   buildForChannels(): Promise<void>;
   presentAutomaticProgress(progress: Readonly<AutomaticGuideBuildProgress>): void;
+  presentAutomaticFailure(): void;
   refreshArtwork(): void;
   selectedChannelChanged(): void;
   catalogChanged(force?: boolean): void;
@@ -269,6 +270,7 @@ export function mountGuide(
     suspend,
     openPresentation,
     presentAutomaticProgress,
+    presentAutomaticFailure,
   } = guidePresentation;
 
   const button = (label: string, action: () => void) => {
@@ -591,12 +593,22 @@ export function mountGuide(
   let timelineChannels: readonly TimelineChannel[] = [];
   const timeline = host.enableTimeline
     ? mountGuideTimeline(timelinePanel, {
+        browseScope: host.browseScope,
         logos: host.logos,
         // The page Guide sits in the right panel beside the channel list.
         agendaWidth: host.presentation === 'page' ? PANEL_AGENDA_WIDTH : undefined,
         initiallyForeground: false,
         listedChannels: host.listedChannels
-          ? (start, end, signal, search) => host.listedChannels!(start, end, signal, search)
+          ? (start, end, signal, search, ppv, sports, history) =>
+              history
+                ? host.listedChannels!(start, end, signal, search, ppv, sports, history)
+                : sports
+                  ? host.listedChannels!(start, end, signal, search, ppv, sports)
+                  : ppv
+                    ? host.listedChannels!(start, end, signal, search, true)
+                    : search
+                      ? host.listedChannels!(start, end, signal, search)
+                      : host.listedChannels!(start, end, signal)
           : undefined,
         listedCount: (count, start, end, failed) => {
           if (disposed || !foreground || suspending || timelinePanel.hidden) return;
@@ -653,7 +665,9 @@ export function mountGuide(
               await host.watch({ ...current }, signal);
             },
             false,
-            true,
+            // The page Guide keeps browsing beside its mini player. Only a
+            // modal Guide dismisses after a direct channel selection.
+            !pagePresented,
           );
         },
         now: () => host.now(),
@@ -805,7 +819,7 @@ export function mountGuide(
     },
     catalogChanged(force = false): void {
       const key = canonicalKey();
-      if (!force && key === catalogKey) return;
+      if (!force && key === catalogKey && !guideReload.pageModelCatalogChanged()) return;
       catalogKey = key;
       if (dialog.open && !disposed) {
         reload();
@@ -844,11 +858,12 @@ export function mountGuide(
         signal.throwIfAborted();
         if (disposed || !foreground) return;
         automaticResult(result);
-        reload();
+        if (!result.deferred) reload();
       });
       return actionWork;
     },
     presentAutomaticProgress,
+    presentAutomaticFailure,
     refreshArtwork() {
       timeline?.refreshArtwork();
     },
@@ -865,6 +880,16 @@ export function mountGuide(
     selectedChannelChanged() {
       if (disposed) return;
       browsed = host.selectedChannel();
+      if (guideReload.reusePageTimelineSelection()) {
+        catalogKey = canonicalKey();
+        void syncSummary().catch(() => {
+          if (!disposed)
+            error.textContent =
+              'Current / next activity could not settle. Retry Now or close Guide.';
+        });
+        controls();
+        return;
+      }
       setView('channel');
       programSearch.field.value = '';
       day = 0;

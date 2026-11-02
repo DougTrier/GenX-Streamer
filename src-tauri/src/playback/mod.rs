@@ -18,6 +18,7 @@
 //!
 //! Guide for contributors: docs/components/playback-engine.md.
 
+pub(crate) mod equivalent_sources;
 pub(crate) mod native_live;
 pub(crate) mod native_video;
 pub(crate) mod ts_align;

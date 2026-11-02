@@ -838,12 +838,84 @@ pub fn frame_media(payload: &MediaPayload) -> Result<Vec<u8>, String> {
     Ok(framed)
 }
 
+#[cfg(test)]
 pub async fn media(
     raw: &str,
     allow_http: bool,
     range: Option<String>,
 ) -> Result<MediaPayload, String> {
+    let client = playback_client(allow_http)?;
+    media_with_client(raw, allow_http, range, &client).await
+}
+
+pub(crate) fn playback_client(allow_http: bool) -> Result<reqwest::Client, String> {
+    build_client(
+        allow_http,
+        false,
+        Duration::from_secs(5),
+        Duration::from_secs(5),
+        Duration::from_secs(20),
+    )
+    .map_err(|error| request_failure(error, "unknown", true))
+}
+
+/// Connection reuse is scoped to one HLS owner, never to the whole application.
+/// Separate policy clients prevent an HTTP grant leaking into HTTPS-only work.
+#[derive(Default)]
+pub(crate) struct MediaSessions {
+    entries: std::collections::HashMap<String, [Option<reqwest::Client>; 2]>,
+    closed: bool,
+}
+impl MediaSessions {
+    pub(crate) fn open(&mut self, id: String) -> Result<(), String> {
+        if self.closed {
+            return Err("application-closing".into());
+        }
+        if id.is_empty() || id.len() > 128 {
+            return Err("invalid-media-session".into());
+        }
+        if self.entries.contains_key(&id) {
+            return Err("duplicate-media-session".into());
+        }
+        if self.entries.len() >= 8 {
+            return Err("media-session-limit".into());
+        }
+        self.entries.insert(id, [None, None]);
+        Ok(())
+    }
+    pub(crate) fn client(&mut self, id: &str, allow_http: bool) -> Result<reqwest::Client, String> {
+        let clients = self.entries.get_mut(id).ok_or("media-session-closed")?;
+        let client = &mut clients[usize::from(allow_http)];
+        if client.is_none() {
+            *client = Some(playback_client(allow_http)?);
+        }
+        Ok(client.as_ref().unwrap().clone())
+    }
+    pub(crate) fn close(&mut self, id: &str) {
+        self.entries.remove(id);
+    }
+    pub(crate) fn stop(&mut self) {
+        self.closed = true;
+        self.entries.clear();
+    }
+}
+
+/// The caller owns the client for one playback session, including its idle
+/// connections. URL/range/redirect and per-request time/size limits still apply.
+pub(crate) async fn media_with_client(
+    raw: &str,
+    allow_http: bool,
+    range: Option<String>,
+    client: &reqwest::Client,
+) -> Result<MediaPayload, String> {
     let started = std::time::Instant::now();
+    if raw.len() > 16_384 {
+        return Err(failure("invalid-url", "unknown", true));
+    }
+    let url = Url::parse(raw).map_err(|_| failure("invalid-url", "unknown", true))?;
+    if !validate(&url, allow_http) {
+        return Err(failure("url-policy-refused", "unknown", true));
+    }
     if range
         .as_ref()
         .is_some_and(|value| !crate::relay::validate_range(value))
@@ -851,16 +923,14 @@ pub async fn media(
         return Err(failure("range-refused", "unknown", true));
     }
     let work = async {
-        let mut response = response_options(
-            raw,
-            allow_http,
-            range,
-            Duration::from_secs(20),
-            Duration::from_secs(5),
-            Duration::from_secs(5),
-            true,
-        )
-        .await?;
+        let mut request = client.get(url);
+        if let Some(range) = range {
+            request = request.header(reqwest::header::RANGE, range);
+        }
+        let mut response = request
+            .send()
+            .await
+            .map_err(|error| request_failure(error, "unknown", true))?;
         let headers_ms = started.elapsed().as_secs_f64() * 1000.0;
         let status = response.status().as_u16();
         let url = response.url().to_string();

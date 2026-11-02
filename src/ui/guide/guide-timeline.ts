@@ -15,6 +15,20 @@
  */
 
 import type { MappedProgram, ProgramPage, ProgramQuery } from '../../guide/native';
+import { isPpvChannel } from '../../catalog/ppv';
+import { captureGuideHistory, type GuideHistoryScope } from '../../guide/history-scope';
+import {
+  captureSportsScope,
+  matchesSportsFacet,
+  matchesSportsSearch,
+  planSportsSearch,
+  programmeSportsFacts,
+  programmeSportsTexts,
+  sportsFacts,
+  type SportsFacet,
+  type SportsScope,
+} from '../../search/sports';
+import { mountSportsFilters } from '../channels/sports-filters';
 
 import { programCountdown } from '../../guide/program-countdown';
 
@@ -93,11 +107,16 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
       button: () => button,
       channelCard: () => channelCard,
       channelCards: () => channelCards,
+      channelMarkedPpv: () => (channel: TimelineChannel) => {
+        const mask = listedCache?.channels.get(savedChannelKey(channel))?.filterMask;
+        return mask === undefined ? isPpvChannel(channel) : (mask & 8) !== 0;
+      },
       channelIndex: () => channelIndex,
       cleanupError: () => cleanupError,
       clock: () => clock,
       closed: () => closed,
       closeDetails: () => closeDetails,
+      openDetails: () => openDetails,
       content: () => content,
       controller: () => controller,
       controlsToggle: () => controlsToggle,
@@ -128,6 +147,11 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
       previousChannel: () => previousChannel,
       previousDay: () => previousDay,
       programMatches: () => programMatches,
+      ppv: () => filter === 'ppv',
+      historyScope: () => (filter === 'watched' ? inheritedHistory : undefined),
+      historyRevision: () => (filter === 'watched' ? historyRevision : null),
+      sportsScope: () => currentSportsScope(),
+      programSports: () => (semanticSports() ? currentSportsScope() : undefined),
       programPages: () => programPages,
       readLimit: () => readLimit,
       refresh: () => refresh,
@@ -139,6 +163,7 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
       renderedTotal: () => renderedTotal,
       renderedViewportHeight: () => renderedViewportHeight,
       report: () => report,
+      rememberRowFocus: () => rememberRowFocus,
       restoreRowFocus: () => restoreRowFocus,
       returnFocus: () => returnFocus,
       root: () => root,
@@ -219,6 +244,15 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
     // The right-panel Guide on a TV or desktop lists many channels in thin
     // single-line rows, like a set-top guide; touch screens keep touch-size rows.
     const app = doc.getElementById('app');
+    if (
+      app?.dataset.guidePanel === 'open' &&
+      app.dataset.deviceKind === 'personal' &&
+      doc.defaultView?.matchMedia('(max-width: 1100px) and (max-height: 650px)').matches
+    ) {
+      // Keep readable touch targets while leaving several programme rows on
+      // landscape handhelds; the TV's twelve-row fitting remains separate.
+      return Math.max(44, Math.ceil(parseFloat(getComputedStyle(root).fontSize) * 1.5 + 12));
+    }
     // Twelve rows fill the visible grid (owner request, October 19, 2026: 17
     // thin rows on the Sansui TV were too tight), never thinner than one line.
     if (app?.dataset.guidePanel === 'open' && app.dataset.deviceKind !== 'personal') {
@@ -341,6 +375,25 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
   let filter: TimelineCategory = 'all';
   // Typed Guide search; matches look ahead a week so a game later on is found.
   let search = '';
+  let sportsFacet: SportsFacet = {};
+  let capturedSports: SportsScope | undefined;
+  let sportsKey = '';
+  let inheritedScopeKey = '';
+  let inheritedHistory: GuideHistoryScope | undefined;
+  let inheritedHistoryKey = '';
+  let historyRevision = 0;
+  const semanticSports = () =>
+    (filter === 'sports' && !!(sportsFacet.sport || sportsFacet.league)) ||
+    planSportsSearch(search).semantic.length > 0;
+  const currentSportsScope = () => {
+    const facet = filter === 'sports' ? sportsFacet : {};
+    const key = JSON.stringify([search, facet]);
+    if (sportsKey !== key) {
+      sportsKey = key;
+      capturedSports = captureSportsScope(search, facet, host.now());
+    }
+    return capturedSports;
+  };
   let listedCache: ListedCache | null = null;
   /** Listings already read, newest last (see the row loop in refresh). */
   const programPages = new Map<string, ProgramPage>();
@@ -351,10 +404,21 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
     if (listedSignatureSource !== channels) {
       listedSignatureSource = channels;
       listedSignature = JSON.stringify(
-        channels.map((c) => [channelKey(c), c.favorite === true, c.category ?? null]),
+        channels.map((c) => [
+          channelKey(c),
+          c.favorite === true,
+          c.category ?? null,
+          c.originalCategory ?? null,
+          c.ppv === true,
+        ]),
       );
     }
-    return listedSignature;
+    return JSON.stringify([
+      filter === 'ppv',
+      currentSportsScope() ?? null,
+      filter === 'watched' ? inheritedHistory : null,
+      listedSignature,
+    ]);
   };
   const channelListed = (channel: TimelineChannel) => {
     if (!host.listedChannels) return true;
@@ -378,39 +442,101 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
   const searchMatches = (channel: TimelineChannel) =>
     !search ||
     !!host.listedChannels ||
-    guideSearchMatches(search, `${channel.name} ${channel.category ?? ''}`);
+    (semanticSports()
+      ? matchesSportsSearch(
+          planSportsSearch(search),
+          [channel.name, channel.category ?? '', channel.originalCategory ?? ''],
+          sportsFacts([channel.name, channel.category ?? '', channel.originalCategory ?? '']),
+        )
+      : guideSearchMatches(
+          search,
+          `${channel.name} ${channel.category ?? ''} ${channel.originalCategory ?? ''}`,
+        ));
   // Listings that match the search are highlighted so the schedule stands out.
+  let programmeChannelSource: readonly TimelineChannel[] | null = null;
+  let programmeChannels = new Map<string, TimelineChannel>();
   const programMatches = (program: {
     title: string;
     description?: string | null;
     categories?: readonly { text: string }[];
-  }) =>
-    !!search &&
-    guideSearchMatches(
+    appChannelId?: string;
+  }) => {
+    if (!search) return false;
+    if (semanticSports()) {
+      const source = host.channels();
+      if (source !== programmeChannelSource) {
+        programmeChannelSource = source;
+        programmeChannels = new Map(source.map((channel) => [channel.id, channel]));
+      }
+      const channel = programmeChannels.get(program.appChannelId ?? '');
+      const texts = channel
+        ? [channel.name, channel.category ?? '', channel.originalCategory ?? '']
+        : [];
+      return matchesSportsSearch(
+        planSportsSearch(search),
+        programmeSportsTexts(program, texts),
+        programmeSportsFacts(program, sportsFacts(texts)),
+      );
+    }
+    return guideSearchMatches(
       search,
       `${program.title} ${program.description ?? ''} ${(program.categories ?? []).map((c) => c.text).join(' ')}`,
     );
+  };
   const categoryMatches = (channel: TimelineChannel) => {
-    if (!listedCache?.grouped) return timelineCategoryMatches(channel, filter);
-    const mask = listedCache.channels.get(savedChannelKey(channel))?.filterMask ?? 0;
-    return filter === 'all' || (mask & { favorites: 1, news: 2, sports: 4 }[filter]) !== 0;
+    if (filter === 'watched') {
+      if (!inheritedHistory?.ids.includes(channel.id)) return false;
+      return (
+        !inheritedHistory.hideAdult ||
+        ![channel.category ?? '', channel.originalCategory ?? ''].some((text) =>
+          /xxx|adult/u.test(text.normalize('NFKC').toLowerCase()),
+        )
+      );
+    }
+    const member = listedCache?.channels.get(savedChannelKey(channel));
+    const mask = member?.filterMask;
+    const marked = mask === undefined ? isPpvChannel(channel) : (mask & 8) !== 0;
+    if (marked && filter !== 'ppv' && currentSportsScope()?.includePpv !== true) return false;
+    if (filter === 'ppv' && !marked) return false;
+    if (filter === 'sports' && semanticSports()) {
+      if (host.listedChannels) return true;
+      const texts = [channel.name, channel.category ?? '', channel.originalCategory ?? ''];
+      const facts = sportsFacts(texts);
+      return (
+        matchesSportsFacet(facts, sportsFacet) &&
+        matchesSportsSearch(planSportsSearch(search), texts, facts, marked)
+      );
+    }
+    if (!listedCache?.grouped)
+      return timelineCategoryMatches(
+        channel,
+        filter,
+        currentSportsScope()?.includePpv && filter !== 'ppv' ? false : marked,
+      );
+    return (
+      filter === 'all' ||
+      filter === 'ppv' ||
+      ((mask ?? 0) & { favorites: 1, news: 2, sports: 4 }[filter]) !== 0
+    );
   };
   const emptyCategoryStatus = () =>
-    search
-      ? host.listedChannels
-        ? `Nothing matches “${search}” in the next 7 days.`
-        : `No saved channels match “${search}”.`
-      : host.listedChannels && !host.channels().some(channelListed)
-        ? 'No saved listings for this time. Find program guides or choose another time.'
-        : filter === 'favorites'
-          ? host.listedChannels
-            ? 'No favorite channels have listings for this time. Choose All to browse saved listings.'
-            : 'No favorite channels. Choose All to browse saved channels.'
-          : filter === 'all'
-            ? 'No saved channels.'
-            : host.listedChannels
-              ? 'No saved listings in this category for this time. Choose All to browse saved listings.'
-              : 'No saved channels in this category. Choose All to browse saved channels.';
+    filter === 'watched'
+      ? 'No watched channels have saved listings here. Change the search, location or time, or choose All.'
+      : search
+        ? host.listedChannels
+          ? `Nothing matches “${search}” in the next 7 days.`
+          : `No saved channels match “${search}”.`
+        : host.listedChannels && !host.channels().some(channelListed)
+          ? 'No saved listings for this time. Find program guides or choose another time.'
+          : filter === 'favorites'
+            ? host.listedChannels
+              ? 'No favorite channels have listings for this time. Choose All to browse saved listings.'
+              : 'No favorite channels. Choose All to browse saved channels.'
+            : filter === 'all'
+              ? 'No saved channels.'
+              : host.listedChannels
+                ? 'No saved listings in this category for this time. Choose All to browse saved listings.'
+                : 'No saved channels in this category. Choose All to browse saved channels.';
   let filteredSource: readonly TimelineChannel[] | null = null;
   let filteredCategory: TimelineCategory | null = null;
   let filteredSearch = '';
@@ -431,6 +557,12 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
       filteredChannels = channels.filter(
         (c) => channelListed(c) && categoryMatches(c) && searchMatches(c),
       );
+      if (filter === 'watched' && inheritedHistory) {
+        const order = new Map(inheritedHistory.ids.map((id, index) => [id, index]));
+        filteredChannels = [...filteredChannels].sort(
+          (a, b) => order.get(a.id)! - order.get(b.id)!,
+        );
+      }
     }
     return filteredChannels;
   };
@@ -536,7 +668,8 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
   categories.className = 'gx-timeline-categories';
   categories.setAttribute('role', 'group');
   categories.setAttribute('aria-label', 'Guide channel categories');
-  for (const value of ['all', 'favorites', 'news', 'sports'] as const) {
+  let historyChoice: HTMLButtonElement;
+  for (const value of ['all', 'favorites', 'news', 'sports', 'ppv', 'watched'] as const) {
     const choice = button(
       value === 'all'
         ? 'All channels'
@@ -544,10 +677,16 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
           ? 'Favorites'
           : value === 'news'
             ? 'News'
-            : 'Sports',
+            : value === 'sports'
+              ? 'Sports'
+              : value === 'watched'
+                ? 'History'
+                : 'PPV',
       () => {
         if (filter === value) return;
         filter = value;
+        sportsControls.setActive(value === 'sports');
+        sportsControls.presentScope(currentSportsScope());
         agendaCursor = null;
         agendaProgramFocus = null;
         rowFocus = null;
@@ -558,6 +697,10 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
       },
     );
     choice.setAttribute('aria-label', choice.textContent!);
+    if (value === 'watched') {
+      historyChoice = choice;
+      choice.hidden = true;
+    }
     if (value === 'all') choice.textContent = 'All';
     choice.setAttribute('aria-pressed', String(value === filter));
     categories.append(choice);
@@ -575,6 +718,7 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
     const next = searchBox.value.trim().replace(/\s+/gu, ' ');
     if (closed || next === search) return;
     search = next;
+    sportsControls.presentScope(currentSportsScope());
     agendaCursor = null;
     agendaProgramFocus = null;
     rowFocus = null;
@@ -589,7 +733,18 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
   searchBox.addEventListener('keydown', (event) => {
     if (event.key === 'Enter') applySearch();
   });
-  toolbar.append(categories, date, searchBox, times);
+  const sportsContainer = doc.createElement('div');
+  const sportsControls = mountSportsFilters(sportsContainer, (facet) => {
+    sportsFacet = facet;
+    filteredSource = null;
+    sportsControls.presentScope(currentSportsScope());
+    agendaCursor = null;
+    agendaProgramFocus = null;
+    rowFocus = null;
+    viewport.scrollTop = 0;
+    void refresh().catch(report);
+  });
+  toolbar.append(categories, date, searchBox, sportsContainer, times);
   const agendaChannel = () =>
     visibleChannels().find((c) => savedChannelKey(c) === agendaChannelKey);
   const chooseAgendaChannel = (channel: TimelineChannel) => {
@@ -615,8 +770,7 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
     if (!channels.length) return;
     closeDetails();
     returnFocus = browseChannel;
-    details.hidden = false;
-    root.classList.add('gx-timeline-has-details');
+    openDetails();
     const title = doc.createElement('strong');
     title.textContent = 'Choose a channel to browse';
     const list = doc.createElement('div');
@@ -729,12 +883,20 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
     if (timer !== null) clearTimeout(timer);
     timer = null;
   }
+  function openDetails(): void {
+    details.hidden = false;
+    root.classList.add('gx-timeline-has-details');
+    for (const region of [toolbar, viewport, agendaHeader, controlsToggle])
+      region.setAttribute('inert', '');
+  }
   function closeDetails(): boolean {
     if (details.hidden) return false;
     ++detailVersion;
     detailController?.abort();
     details.hidden = true;
     root.classList.remove('gx-timeline-has-details');
+    for (const region of [toolbar, viewport, agendaHeader, controlsToggle])
+      region.removeAttribute('inert');
     details.replaceChildren();
     countdown = null;
     if (returnFocus?.isConnected && !returnFocus.closest('[hidden],[inert]')) {
@@ -804,6 +966,52 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
   const { resize, key } = timelineKeys;
   resize.observe(root);
   resize.observe(viewport);
+  const inheritBrowseScope = () => {
+    const scope = host.browseScope?.();
+    const key = JSON.stringify(scope ?? null);
+    if (!scope || key === inheritedScopeKey) return;
+    inheritedScopeKey = key;
+    filter =
+      (['all', 'favorites', 'news', 'sports', 'ppv', 'watched'] as const).find(
+        (item) => item === scope.filter,
+      ) ?? 'all';
+    inheritedHistory = scope.history
+      ? captureGuideHistory(scope.history)
+      : filter === 'watched'
+        ? { ids: [], hideAdult: true }
+        : undefined;
+    const historyKey = JSON.stringify(inheritedHistory ?? null);
+    if (historyKey !== inheritedHistoryKey) {
+      inheritedHistoryKey = historyKey;
+      historyRevision++;
+    }
+    historyChoice!.hidden = !inheritedHistory;
+    search = scope.query;
+    searchBox.value = search;
+    sportsFacet = scope.sports ? { sport: scope.sports.sport, league: scope.sports.league } : {};
+    sportsKey = JSON.stringify([search, filter === 'sports' ? sportsFacet : {}]);
+    capturedSports = scope.sports
+      ? { ...scope.sports }
+      : captureSportsScope(search, filter === 'sports' ? sportsFacet : {}, host.now());
+    sportsControls.setFacet(sportsFacet);
+    sportsControls.setActive(filter === 'sports');
+    sportsControls.presentScope(capturedSports);
+    for (const item of categories.querySelectorAll<HTMLButtonElement>('button'))
+      item.setAttribute(
+        'aria-pressed',
+        String(
+          item.getAttribute('aria-label')?.toLowerCase() ===
+            (filter === 'all' ? 'all channels' : filter === 'watched' ? 'history' : filter),
+        ),
+      );
+    listedCache = null;
+    filteredSource = null;
+    agendaCursor = null;
+    agendaProgramFocus = null;
+    rowFocus = null;
+    viewport.scrollTop = 0;
+  };
+  if (foreground) inheritBrowseScope();
   const initial = refresh();
   void initial.catch(report);
   async function suspend() {
@@ -826,6 +1034,7 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
   }
   return {
     refresh() {
+      if (foreground) inheritBrowseScope();
       listedCache = null;
       return refresh();
     },
@@ -834,6 +1043,7 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
     async setForeground(value: boolean) {
       if (!value) return suspend();
       if (closed) return;
+      inheritBrowseScope();
       foreground = true;
       // A cache reload may advance the global database revision through another feed.
       agendaCursor = null;
@@ -848,6 +1058,7 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
       viewport.removeEventListener('scroll', scroll);
       root.removeEventListener('keydown', key);
       resize.disconnect();
+      sportsControls.dispose();
       root.remove();
     },
   };

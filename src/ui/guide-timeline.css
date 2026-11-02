@@ -85,11 +85,14 @@
 }
 .gx-timeline-toolbar {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   overflow-x: auto;
   gap: 8px;
   align-items: center;
   flex-shrink: 0;
+}
+.gx-timeline-toolbar > .sports-filters {
+  order: 3;
 }
 .gx-timeline-categories,
 .gx-timeline-time-controls {
@@ -451,6 +454,14 @@
     overflow: hidden;
     clip-path: inset(50%);
   }
+  #app[data-device-kind='tv']
+    .guide-compact-page
+    .gx-timeline[data-layout='timeline']:not(.gx-timeline-has-details)
+    > .gx-timeline-status[data-state='ready'] {
+    position: static;
+    width: auto;
+    height: 1.25em;
+  }
   #app[data-device-kind='tv'] .guide-compact-page .gx-timeline-channel {
     white-space: nowrap;
     text-overflow: ellipsis;
@@ -532,6 +543,13 @@
     height: 1px;
     overflow: hidden;
     clip-path: inset(50%);
+  }
+  .guide-compact-page
+    .gx-timeline[data-layout='timeline']:not(.gx-timeline-has-details)
+    > .gx-timeline-status[data-state='ready'] {
+    position: static;
+    width: auto;
+    height: 1.25em;
   }
   .guide-compact-page .gx-timeline-channel {
     white-space: nowrap;

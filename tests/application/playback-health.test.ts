@@ -78,10 +78,11 @@ function fixture() {
     prepare: prepareDecodedHealth,
     now: () => 1700000000000,
     notice: vi.fn(),
+    diagnostic: vi.fn(),
   };
-  const observe = () => {
+  const observe = (decoded = evidence) => {
     owners.at(-1)!({ type: 'progress' });
-    owners.at(-1)!({ type: 'decoded-progress', evidence });
+    owners.at(-1)!({ type: 'decoded-progress', evidence: decoded });
   };
   const select = () => player.select({ id: channel.id, name: channel.name, url: channel.urls[1] });
   return { player, channel, source, host, writes, observe, select };
@@ -143,6 +144,12 @@ describe('owned decoded health capture (controlled engine evidence, not hardware
     await bounded.settled();
     expect(tries).toBe(3);
     expect(g.host.notice).toHaveBeenCalledTimes(1);
+    expect(g.host.diagnostic).toHaveBeenCalledExactlyOnceWith({
+      phase: 'write',
+      outcome: 'failed',
+      reason: 'health-conflict-exhausted',
+      attempt: 3,
+    });
     await bounded.dispose();
     await g.player.dispose();
   });
@@ -168,6 +175,20 @@ describe('owned decoded health capture (controlled engine evidence, not hardware
       f.observe();
       await capture.settled();
       expect(writes).toBe(1);
+      expect(f.host.notice).toHaveBeenCalledTimes(mode === 'catalog' ? 0 : 1);
+      expect(f.host.diagnostic).toHaveBeenCalledExactlyOnceWith({
+        phase: mode === 'receipt' ? 'receipt' : mode === 'storage' ? 'write' : 'read',
+        outcome: mode === 'catalog' ? 'canceled' : 'failed',
+        reason:
+          mode === 'catalog'
+            ? 'catalog-changed'
+            : mode === 'same'
+              ? 'health-revision-unchanged'
+              : mode === 'storage'
+                ? 'write-failed'
+                : 'receipt-invalid',
+        attempt: mode === 'catalog' || mode === 'same' ? 2 : 1,
+      });
       await capture.dispose();
       await f.player.dispose();
     }
@@ -181,6 +202,7 @@ describe('owned decoded health capture (controlled engine evidence, not hardware
     f.observe();
     await capture.settled();
     expect(f.writes).toHaveLength(1);
+    expect(f.host.diagnostic).not.toHaveBeenCalled();
     expect(f.writes[0]).toMatchObject({
       expectedCatalogRevision: '1',
       expectedHealthRevision: '2',
@@ -221,18 +243,28 @@ describe('owned decoded health capture (controlled engine evidence, not hardware
     await capture.settled();
     expect(preparations).toBe(2);
     expect(f.writes).toHaveLength(1);
+    expect(f.host.notice).not.toHaveBeenCalled();
+    expect(f.host.diagnostic).toHaveBeenCalledExactlyOnceWith({
+      phase: 'prepare',
+      outcome: 'canceled',
+      reason: 'owned-abort',
+      attempt: 1,
+    });
     await capture.dispose();
     await f.player.dispose();
   });
-  it('rejects changed source grants, URL slots and catalog revisions after preparation', async () => {
-    for (const change of ['grant', 'url', 'revision'] as const) {
+  it('quietly cancels owned context, target, source-grant, URL-slot and catalog supersession after preparation', async () => {
+    for (const change of ['grant', 'url', 'revision', 'context', 'missing'] as const) {
       const f = fixture();
       const resolve = f.host.resolve;
       f.host.prepare = async (input, signal) => {
         const prepared = await prepareDecodedHealth(input, signal);
         if (change === 'grant') Object.assign(f.source, { allowHttp: true });
         else if (change === 'url') f.channel.urls[1] += 'changed';
-        else f.host.resolve = (selection) => ({ ...resolve(selection)!, catalogRevision: '2' });
+        else if (change === 'revision')
+          f.host.resolve = (selection) => ({ ...resolve(selection)!, catalogRevision: '2' });
+        else if (change === 'context') f.host.isContextCurrent = () => false;
+        else f.host.resolve = () => null;
         return prepared;
       };
       const capture = createPlaybackHealthCapture(f.host);
@@ -240,6 +272,19 @@ describe('owned decoded health capture (controlled engine evidence, not hardware
       f.observe();
       await capture.settled();
       expect(f.writes).toHaveLength(0);
+      expect(f.host.notice).not.toHaveBeenCalled();
+      expect(f.host.diagnostic).toHaveBeenCalledExactlyOnceWith({
+        phase: 'prepare',
+        outcome: 'canceled',
+        reason: {
+          grant: 'source-grant-changed',
+          url: 'url-slot-changed',
+          revision: 'catalog-changed',
+          context: 'context-changed',
+          missing: 'target-missing',
+        }[change],
+        attempt: 1,
+      });
       await capture.dispose();
       await f.player.dispose();
     }
@@ -282,6 +327,7 @@ describe('owned decoded health capture (controlled engine evidence, not hardware
     await disposal;
     expect(f.writes).toHaveLength(1);
     expect(f.host.notice).not.toHaveBeenCalled();
+    expect(f.host.diagnostic).not.toHaveBeenCalled();
     await f.player.dispose();
   });
   it('cancels an uncommitted write and does not retry failed preparation on every frame', async () => {
@@ -324,7 +370,91 @@ describe('owned decoded health capture (controlled engine evidence, not hardware
     expect(canceled).toBe(true);
     expect(g.writes).toHaveLength(0);
     expect(g.host.notice).not.toHaveBeenCalled();
+    expect(g.host.diagnostic).toHaveBeenCalledExactlyOnceWith({
+      phase: 'write',
+      outcome: 'canceled',
+      reason: 'owned-abort',
+      attempt: 1,
+    });
     await g.player.dispose();
+  });
+  it('reports unowned storage AbortError instead of mistaking it for capture cancellation', async () => {
+    const f = fixture();
+    f.host.writeHealth = vi.fn(async (_input, signal) => {
+      expect(signal.aborted).toBe(false);
+      throw new DOMException('https://private.invalid/?password=do-not-export', 'AbortError');
+    });
+    const capture = createPlaybackHealthCapture(f.host);
+    await f.select();
+    f.observe();
+    await capture.settled();
+    expect(f.host.writeHealth).toHaveBeenCalledTimes(1);
+    expect(f.host.notice).toHaveBeenCalledTimes(1);
+    expect(f.host.diagnostic).toHaveBeenCalledExactlyOnceWith({
+      phase: 'write',
+      outcome: 'failed',
+      reason: 'unowned-abort',
+      attempt: 1,
+    });
+    expect(JSON.stringify(vi.mocked(f.host.diagnostic!).mock.calls)).not.toMatch(
+      /private|password|https/,
+    );
+    await capture.dispose();
+    await f.player.dispose();
+  });
+  it('keeps actual queue, read, prepare and storage failures observable with only fixed diagnostic tokens', async () => {
+    for (const phase of ['queue', 'read', 'prepare', 'write'] as const) {
+      const f = fixture();
+      const fail = vi.fn(async () => {
+        throw new Error('https://private.invalid/?token=do-not-export');
+      });
+      if (phase === 'queue') f.host.enqueue = fail;
+      else if (phase === 'read') f.host.readRecordPair = fail;
+      else if (phase === 'prepare') f.host.prepare = fail;
+      else f.host.writeHealth = fail;
+      const capture = createPlaybackHealthCapture(f.host);
+      await f.select();
+      f.observe();
+      await capture.settled();
+      f.observe();
+      await capture.settled();
+      expect(fail).toHaveBeenCalledTimes(1);
+      expect(f.host.notice).toHaveBeenCalledTimes(1);
+      expect(f.host.diagnostic).toHaveBeenCalledExactlyOnceWith({
+        phase,
+        outcome: 'failed',
+        reason: phase === 'queue' ? 'enqueue-failed' : `${phase}-failed`,
+        attempt: phase === 'queue' ? 0 : 1,
+      });
+      expect(JSON.stringify(vi.mocked(f.host.diagnostic!).mock.calls)).not.toMatch(
+        /private|token|https/,
+      );
+      await capture.dispose();
+      await f.player.dispose();
+    }
+  });
+  it('does not turn a real storage refusal into owned cancellation when its source changes concurrently', async () => {
+    const f = fixture();
+    f.host.writeHealth = async () => {
+      Object.assign(f.source, { allowHttp: true });
+      throw new Error('Storage refusal');
+    };
+    f.host.diagnostic = vi.fn(() => {
+      throw new Error('Diagnostic observer failed');
+    });
+    const capture = createPlaybackHealthCapture(f.host);
+    await f.select();
+    f.observe();
+    await capture.settled();
+    expect(f.host.notice).toHaveBeenCalledTimes(1);
+    expect(f.host.diagnostic).toHaveBeenCalledExactlyOnceWith({
+      phase: 'write',
+      outcome: 'failed',
+      reason: 'write-failed',
+      attempt: 1,
+    });
+    await capture.dispose();
+    await f.player.dispose();
   });
   it('validates frame evidence and captures preparation inputs before asynchronous hashing', async () => {
     const f = fixture();
@@ -350,5 +480,55 @@ describe('owned decoded health capture (controlled engine evidence, not hardware
     await expect(prepareDecodedHealth(input, abort.signal)).rejects.toMatchObject({
       name: 'AbortError',
     });
+  });
+  it('persists audio-positive playback without changing runtime ranking evidence or the legacy health schema', async () => {
+    const f = fixture();
+    const runtime = {
+      ...structuredClone(evidence),
+      before: { ...evidence.before, audioObserved: true },
+      after: { ...evidence.after, audioObserved: true },
+    };
+    const original = structuredClone(runtime);
+    const observed = vi.fn();
+    const unsubscribe = f.player.subscribeDecoded(observed);
+    const capture = createPlaybackHealthCapture(f.host);
+    try {
+      await f.select();
+      f.observe(runtime);
+      await capture.settled();
+      expect(f.writes).toHaveLength(1);
+      const record = parseHealthPayload(f.writes[0].health).records[0];
+      expect(record.verdict).toBe('PlayedHere');
+      expect(record.evidence).toEqual(evidence);
+      expect(runtime).toEqual(original);
+      expect(observed.mock.calls[0][0].evidence).toEqual(original);
+      expect(f.host.notice).not.toHaveBeenCalled();
+    } finally {
+      unsubscribe();
+      await capture.dispose();
+      await f.player.dispose();
+    }
+  });
+  it('still rejects unknown persisted sample fields when runtime audio hints are present', async () => {
+    const f = fixture();
+    const runtime = {
+      ...structuredClone(evidence),
+      before: { ...evidence.before, audioObserved: true, unrecognized: true },
+      after: { ...evidence.after, audioObserved: true },
+    };
+    const original = structuredClone(runtime);
+    await expect(
+      prepareDecodedHealth({
+        channel: f.channel,
+        source: f.source,
+        checkedUrlOrdinal: 1,
+        evidence: runtime,
+        platform: 'windows',
+        observerProfile: 'decoder-v1/html-video-quality-presented-v1',
+        observedAt: 1700000000000,
+      }),
+    ).rejects.toThrow('unsupported fields');
+    expect(runtime).toEqual(original);
+    await f.player.dispose();
   });
 });

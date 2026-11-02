@@ -17,6 +17,11 @@
 import type { ChannelSelection, PlaybackController, RecoveryPlan } from '../../playback/controller';
 import { createOwnedAbortSignals } from '../../platform/abort';
 import { startTiming } from '../../playback/start-timing';
+import { accountSourceKey } from '../../platform/best-paid-source';
+import {
+  paidStreamBufferKey,
+  paidVodStreamBufferKey,
+} from '../../playback/stream-buffer-preferences';
 import {
   validateAccountChannel,
   type AccountChannel,
@@ -37,7 +42,14 @@ import { viewingSettings, type PlaybackBuffer } from '../../platform/viewing-set
 export interface AccountPlayerHost {
   /** The application's existing local player: this owner never allocates a second engine. */
   player: Pick<PlaybackController, 'select' | 'stop' | 'suspend'> &
-    Partial<Pick<PlaybackController, 'note'>>;
+    Partial<
+      Pick<
+        PlaybackController,
+        'note' | 'rankSourceKeys' | 'forgetSourceKey' | 'snapshot' | 'canRecoverSource'
+      >
+    >;
+  equivalents?: (channel: AccountChannel, fence: AccountCatalogFence) => Promise<AccountChannel[]>;
+  sourceChoice?: (facts: { candidateCount: number; sourceChanged: boolean }) => void;
   /** Native "provider busy" notices; defaults to the application's event. */
   busy?: AccountPlaybackBusyListen;
   playback?: Pick<ReturnType<typeof createAccountPlayback>, 'start' | 'stop' | 'retryCleanup'>;
@@ -61,6 +73,7 @@ interface Session {
   choice: AccountPlayerSelection | null;
   /** This session already is the other-format try: it never bounces back. */
   alternateUsed: boolean;
+  exactSource?: boolean;
 }
 const canceled = () => new DOMException('Channel selection was canceled.', 'AbortError');
 class AccountPlayerCleanupError extends Error {
@@ -115,6 +128,9 @@ export function createAccountPlayer(host: AccountPlayerHost) {
   const bufferFor = (accountId: string) =>
     (host.bufferFor ?? ((id: string) => viewingSettings.bufferFor(id)))(accountId);
   let session: Session | null = null;
+  const alternateKnown = new Set<string>();
+  let bestRetries = 0;
+  let bestLookup = false;
   let grantedUrl: string | null = null;
   let requestScope: { origin: string; prefix: string } | null = null;
   let generation = 0;
@@ -225,14 +241,45 @@ export function createAccountPlayer(host: AccountPlayerHost) {
     revoke();
     return work;
   }
+  async function bestAccount(choice: AccountPlayerSelection) {
+    let candidates = [choice.channel];
+    if (host.equivalents) {
+      try {
+        candidates = await host.equivalents(choice.channel, choice.fence);
+      } catch {
+        /* Optional metadata lookup cannot prevent exact-source playback. */
+      }
+    }
+    const possibilities = new Map<string, { channel: AccountChannel; alternate: boolean }>();
+    for (const candidate of candidates.slice(0, 16)) {
+      const admitted = validateAccountChannel(candidate, choice.fence.accountId);
+      const primary = accountSourceKey(admitted, choice.fence);
+      const formats = [primary];
+      if (alternateKnown.has(primary)) formats.push(accountSourceKey(admitted, choice.fence, true));
+      const key = host.player.rankSourceKeys?.(formats)[0] ?? primary;
+      possibilities.set(key, { channel: admitted, alternate: key !== primary });
+    }
+    const key =
+      host.player.rankSourceKeys?.([...possibilities.keys()])[0] ??
+      possibilities.keys().next().value;
+    const best = key ? possibilities.get(key) : undefined;
+    const selected = best ?? { channel: choice.channel, alternate: false };
+    host.sourceChoice?.({
+      candidateCount: possibilities.size,
+      sourceChanged: selected.channel.id !== choice.channel.id || selected.alternate,
+    });
+    return selected;
+  }
   async function startSession(
     choice: AccountPlayerSelection | null,
     input: AccountPlaybackRequest | { vod: AccountVodPlayRequest },
     shown: { id: string; name: string },
     failure: string,
     signal?: AbortSignal,
-    alternate = false,
+    policy: { alternate?: boolean; chooseBest?: boolean; exact?: boolean } = {},
   ): Promise<void> {
+    let alternate = policy.alternate === true;
+    const chooseBest = policy.chooseBest !== false;
     const { current: captured, owned, stopped } = begin();
     pendingAccount = choice;
     if (choice) watchBusy();
@@ -251,12 +298,51 @@ export function createAccountPlayer(host: AccountPlayerHost) {
         await release(stopped);
         startTiming.mark('previous-released');
         if (!current(owned, captured, combined.signal)) throw canceled();
+        if (choice && !alternate && chooseBest) {
+          const best = await bestAccount(choice);
+          if (!current(owned, captured, combined.signal)) throw canceled();
+          if (best) {
+            choice = { channel: best.channel, fence: choice.fence };
+            pendingAccount = choice;
+            alternate = best.alternate;
+            shown = { id: best.channel.id, name: best.channel.name };
+            input = {
+              schemaVersion: 1,
+              accountId: choice.fence.accountId,
+              expectedAccountRevision: choice.fence.accountRevision,
+              expectedMediaRevision: choice.fence.mediaRevision,
+              streamReference: choice.channel.streamReference,
+            };
+          }
+        }
+        const liveBufferKey = choice
+          ? await paidStreamBufferKey(
+              choice.fence.accountId,
+              choice.channel.id,
+              alternate ? 'alternate' : 'primary',
+            )
+          : 'vod' in input
+            ? await paidVodStreamBufferKey(
+                input.vod.accountId,
+                input.vod.kind,
+                input.vod.itemId,
+                input.vod.extension,
+              )
+            : undefined;
+        if (!current(owned, captured, combined.signal)) throw canceled();
         const result = alternate
           ? await playback.start(input, combined.signal, { alternate: true })
           : await playback.start(input, combined.signal);
         const receipt = validateAccountPlaybackReceipt(result);
+        if (choice && receipt.alternateAvailable === true) {
+          const key = accountSourceKey(choice.channel, choice.fence);
+          alternateKnown.delete(key);
+          alternateKnown.add(key);
+          while (alternateKnown.size > 256)
+            alternateKnown.delete(alternateKnown.values().next().value!);
+        }
         startTiming.mark('session-ready');
-        issued = { receipt, choice, alternateUsed: alternate };
+        issued = { receipt, choice, alternateUsed: alternate, exactSource: policy.exact === true };
         session = issued;
         if (!current(owned, captured, combined.signal)) throw canceled();
         grantedUrl = receipt.mediaUrl;
@@ -270,6 +356,7 @@ export function createAccountPlayer(host: AccountPlayerHost) {
           id: shown.id,
           name: shown.name,
           url: receipt.mediaUrl,
+          ...(liveBufferKey ? { liveBufferKey } : {}),
           // A known format skips the player's separate check request.
           ...(receipt.mediaHint === 'hls'
             ? { mediaKind: 'hls' as const }
@@ -279,7 +366,12 @@ export function createAccountPlayer(host: AccountPlayerHost) {
           // A file plays from the video element itself; CORS mode makes it send the
           // Origin header the relay requires of cross-site requests.
           ...(choice ? {} : { playMode: 'on-demand' as const, crossOrigin: 'anonymous' as const }),
-          ...(choice ? { startupMs: PAID_LIVE_STARTUP_MS } : {}),
+          ...(choice
+            ? {
+                startupMs: PAID_LIVE_STARTUP_MS,
+                performanceKey: accountSourceKey(choice.channel, choice.fence, alternate),
+              }
+            : {}),
           ...(choice && bufferFor(choice.fence.accountId) !== 'balanced'
             ? { buffer: bufferFor(choice.fence.accountId) }
             : {}),
@@ -313,6 +405,8 @@ export function createAccountPlayer(host: AccountPlayerHost) {
     choice: AccountPlayerSelection,
     signal: AbortSignal | undefined,
     alternate: boolean,
+    chooseBest = true,
+    exact = false,
   ): Promise<void> {
     return startSession(
       choice,
@@ -326,7 +420,7 @@ export function createAccountPlayer(host: AccountPlayerHost) {
       { id: choice.channel.id, name: choice.channel.name },
       'This account channel could not start. Reload its channels or sign in again.',
       signal,
-      alternate,
+      { alternate, chooseBest, exact },
     );
   }
   return {
@@ -373,16 +467,33 @@ export function createAccountPlayer(host: AccountPlayerHost) {
       channel: AccountChannel,
       accountFence: AccountCatalogFence,
       signal?: AbortSignal,
+      options: { exact?: boolean } = {},
     ): Promise<void> {
+      bestRetries = 0;
       const admittedFence = fence(accountFence);
       const admittedChannel = validateAccountChannel(channel, admittedFence.accountId);
       if (signal?.aborted) throw canceled();
-      await startAccount({ channel: admittedChannel, fence: admittedFence }, signal, false);
+      if (options.exact) {
+        for (const alternate of [false, true])
+          host.player.forgetSourceKey?.(
+            accountSourceKey(admittedChannel, admittedFence, alternate),
+          );
+      }
+      await startAccount(
+        { channel: admittedChannel, fence: admittedFence },
+        signal,
+        false,
+        !options.exact,
+        options.exact === true,
+      );
     },
     /** A failed live start may try the provider's other stored format, once. */
     get alternateAvailable(): boolean {
       return (
-        !!session?.choice && session.receipt.alternateAvailable === true && !session.alternateUsed
+        !!session?.choice &&
+        !session.exactSource &&
+        session.receipt.alternateAvailable === true &&
+        !session.alternateUsed
       );
     },
     async retryAlternate(signal?: AbortSignal): Promise<boolean> {
@@ -391,6 +502,47 @@ export function createAccountPlayer(host: AccountPlayerHost) {
         return false;
       await startAccount(choice, signal, true);
       return true;
+    },
+    async retryBest(): Promise<boolean> {
+      const previous = session;
+      const captured = generation;
+      if (
+        bestLookup ||
+        bestRetries >= 2 ||
+        !previous?.choice ||
+        previous.exactSource ||
+        !host.equivalents ||
+        !(host.player.canRecoverSource ?? host.player.snapshot?.state === 'failed') ||
+        closed ||
+        closing ||
+        suspension
+      )
+        return false;
+      bestLookup = true;
+      bestRetries++;
+      try {
+        const best = await bestAccount(previous.choice);
+        if (
+          session !== previous ||
+          generation !== captured ||
+          closed ||
+          closing ||
+          suspension ||
+          !(host.player.canRecoverSource ?? host.player.snapshot?.state === 'failed') ||
+          (best.channel.id === previous.choice.channel.id &&
+            best.alternate === previous.alternateUsed)
+        )
+          return false;
+        await startAccount(
+          { channel: best.channel, fence: previous.choice.fence },
+          undefined,
+          best.alternate,
+          false,
+        );
+        return true;
+      } finally {
+        bestLookup = false;
+      }
     },
     /** Play a provider movie or episode in place of the current channel. */
     async selectVod(

@@ -1,0 +1,75 @@
+/* Copyright 2026 Doug Trier. SPDX-License-Identifier: Apache-2.0 */
+.sports-filters {
+  min-width: 0;
+  flex: 1 0 100%;
+}
+/* The Guide wraps horizontal toolbar rows; the browser stacks its controls.
+   A percentage flex basis there would reserve height instead of row width. */
+.browse-options > .sports-filters {
+  flex: 0 0 auto;
+  width: 100%;
+  grid-column: 1 / -1;
+}
+.sports-filter-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.sports-filter-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 12px;
+}
+.sports-filter-controls select,
+.sports-filter-controls .in-app-select > button {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  font: inherit;
+  color: inherit;
+  background: var(--panel, #152036);
+  border: 1px solid var(--line, #536779);
+  border-radius: 8px;
+  padding: 4px 8px;
+}
+.sports-inclusion-status {
+  margin: 3px 0 0;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--gx-cyan, #7feafa);
+}
+.ppv-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 4px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  font-size: 0.78em;
+  line-height: 1.2;
+  color: var(--gx-magenta, #f563c1);
+}
+#app
+  #channel-rows
+  .channel-copy
+  :is(.media-result-title, .channel-event-title, .channel-provider-label) {
+  white-space: normal;
+  overflow: visible;
+  text-overflow: clip;
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+}
+#app #channel-rows .media-result-title {
+  font-size: 1rem;
+}
+#app[data-content-library='genxtra'] #sports-filters,
+#app[data-vod='open'] #sports-filters,
+#app.local-page-open #sports-filters {
+  display: none;
+}
+@media (max-width: 400px) {
+  .sports-filter-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

@@ -35,6 +35,7 @@ import type {
   BoundedScanCommit,
 } from '../../src/application/discovery/bounded-scan-resume';
 import { createHealthObservation } from '../../src/discovery/health';
+import { createPlaybackProbeGate } from '../../src/application/health/playback-probe-gate';
 class Bridge implements BoundedResumeWorkerTransport {
   onmessage: ((event: MessageEvent) => void) | null = null;
   onerror: ((event: ErrorEvent) => void) | null = null;
@@ -174,6 +175,95 @@ const gate = () => {
   const promise = new Promise<void>((r) => (resolve = r));
   return { promise, resolve };
 };
+it('keeps late reserved callbacks valid while native probe deadlines start only after their playback slot', async () => {
+  vi.useFakeTimers();
+  try {
+    const f = backend(24),
+      bridge = new Bridge(),
+      probe = f.host.probe;
+    let busy = false;
+    const networkGate = createPlaybackProbeGate(() => busy, { limit: 1 });
+    const started: { key: string; at: number }[] = [];
+    f.host.probe = vi.fn((candidate, signal, budget, policy) =>
+      networkGate.run(async () => {
+        started.push({ key: candidate.key, at: Date.now() });
+        await new Promise<void>((resolve) => setTimeout(resolve, 19_000));
+        return probe(candidate, signal, budget, policy);
+      }, signal),
+    );
+    const service = createBoundedScanResumeService(f.host, {
+      workerFactory: () => bridge,
+      playbackBusy: () => busy,
+    });
+    const run = service.start();
+    // The first native Take was planned idle; the viewer starts before its
+    // already-owned callbacks acquire a real native transport/request deadline.
+    busy = true;
+    const beginning = Date.now();
+    await vi.advanceTimersByTimeAsync(62_000);
+    expect(f.host.probe).toHaveBeenCalledTimes(16);
+    expect(started).toHaveLength(4);
+    expect(networkGate.active).toBe(1);
+    expect(service.snapshot()).toMatchObject({
+      phase: 'checking',
+      failure: 'none',
+      counts: { checked: 3 },
+    });
+    expect(f.host.defer).not.toHaveBeenCalled();
+    busy = false;
+    await vi.advanceTimersByTimeAsync(50_000);
+    await run;
+    expect(started.find((row) => row.key === 'c-15')!.at - beginning).toBeGreaterThanOrEqual(
+      62_000,
+    );
+    expect(service.snapshot()).toMatchObject({
+      phase: 'completed',
+      failure: 'none',
+      counts: { checked: 24, published: 24 },
+    });
+    expect(f.host.defer).not.toHaveBeenCalled();
+    await service.dispose();
+    expect(vi.getTimerCount()).toBe(0);
+  } finally {
+    vi.useRealTimers();
+  }
+});
+it('carries live all-player pressure into the actual Worker endpoint and restores idle capacity', async () => {
+  vi.useFakeTimers();
+  try {
+    const f = backend(24),
+      bridge = new Bridge(),
+      holds = Array.from({ length: 24 }, gate);
+    const probe = f.host.probe;
+    let busy = true;
+    f.host.probe = vi.fn(async (candidate, signal, budget, policy) => {
+      await holds[Number(candidate.key.slice(2))]!.promise;
+      return probe(candidate, signal, budget, policy);
+    });
+    const service = createBoundedScanResumeService(f.host, {
+      workerFactory: () => bridge,
+      playbackBusy: () => busy,
+    });
+    const run = service.start();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(f.host.probe).toHaveBeenCalledTimes(1);
+    expect(service.snapshot().active).toBe(1);
+    busy = false;
+    await vi.advanceTimersByTimeAsync(250);
+    expect(service.snapshot().active).toBe(16);
+    holds.forEach((h) => h.resolve());
+    await run;
+    await service.dispose();
+    expect(service.snapshot()).toMatchObject({
+      phase: 'disposed',
+      counts: { checked: 24 },
+      workerStopped: true,
+    });
+    expect(vi.getTimerCount()).toBe(0);
+  } finally {
+    vi.useRealTimers();
+  }
+});
 it('joins held native close after a refused commit without replaying publication', async () => {
   const f = backend(16),
     held = gate(),

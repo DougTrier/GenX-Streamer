@@ -36,7 +36,10 @@ const CODES: &[&str] = &[
     "scan-save-failed",
     "scan-failed",
     "playback-failed",
+    "playback-recovering",
     "playback-audio-warning",
+    "playback-health-canceled",
+    "playback-health-save-failed",
     "application-archive-loc-unavailable",
     "application-archive-nasa-unavailable",
     "application-archive-commons-unavailable",
@@ -257,6 +260,14 @@ impl Store {
             disk.events.remove(0);
         }
         self.save(&disk)?;
+        if event.code == "playback-recovering" {
+            // Validated bounded internal tokens only; release console logs are disabled.
+            eprintln!(
+                "[GenX recovery] code={} reason={}",
+                event.code,
+                event.reason.as_deref().unwrap_or("unknown")
+            );
+        }
         Ok(event)
     }
     pub fn read(&self) -> Result<History, String> {
@@ -313,6 +324,45 @@ pub async fn clear_diagnostic_events(app: tauri::AppHandle) -> Result<ClearRecei
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn playback_health_codes_persist_with_bounded_reasons() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("events.json");
+        let store = Store::new(path.clone());
+        for (code, level, reason) in [
+            ("playback-health-canceled", "info", "capture-aborted"),
+            (
+                "playback-health-save-failed",
+                "warning",
+                "persist-storage-failed",
+            ),
+        ] {
+            let mut value = EventInput {
+                operation: "playback".into(),
+                level: level.into(),
+                code: code.into(),
+                reason: Some(reason.into()),
+                checked: None,
+                total: None,
+                published: None,
+            };
+            assert!(value.validate().is_ok());
+            value.operation = "scan".into();
+            assert!(value.validate().is_err());
+            value.operation = "playback".into();
+            value.reason = Some("https://secret.invalid/token".into());
+            assert!(value.validate().is_err());
+            value.reason = Some(reason.into());
+            let event = store.append(value).unwrap();
+            assert_eq!(event.code, code);
+            assert_eq!(event.reason.as_deref(), Some(reason));
+        }
+        let reopened = Store::new(path);
+        let events = reopened.read().unwrap().events;
+        assert_eq!(events.len(), 2);
+        assert_eq!(events[0].level, "info");
+        assert_eq!(events[1].level, "warning");
+    }
     #[test]
     fn archive_and_audio_codes_are_static_and_keep_operation_boundaries() {
         for code in [

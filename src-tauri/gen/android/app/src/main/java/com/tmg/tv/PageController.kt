@@ -600,12 +600,17 @@ class PageController(
       // page closes and GenX is told (returning false would end the process).
       override fun onRenderProcessGone(v: WebView, detail: RenderProcessGoneDetail): Boolean {
         if (v !== page) return true
+        host.genxEvent("genx-page-diagnostic",JSONObject().put("code",-999).put("http",false).put("fatal",true).put("mainFrame",true))
         log("renderer gone crashed=${detail.didCrash()}")
         close()
         host.genxEvent("genx-page-closed", null)
         return true
       }
+      override fun onReceivedHttpError(v: WebView, request: WebResourceRequest, response: WebResourceResponse) {
+        host.genxEvent("genx-page-diagnostic",JSONObject().put("code",response.statusCode).put("http",true).put("fatal",false).put("mainFrame",request.isForMainFrame))
+      }
       override fun onReceivedError(v: WebView, request: WebResourceRequest, error: WebResourceError) {
+        host.genxEvent("genx-page-diagnostic",JSONObject().put("code",error.errorCode).put("http",false).put("fatal",false).put("mainFrame",request.isForMainFrame))
         if (!request.isForMainFrame) return
         log("error ${error.errorCode} ${request.url.host}")
         val name = (request.url.host ?: "").replace(Regex("[^A-Za-z0-9.-]"), "")

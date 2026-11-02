@@ -73,6 +73,11 @@ import { createSourceSnapshotActivationTransport } from '../../platform/source-s
 
 export type BoundedRootStage =
   | 'created'
+  | 'capability-negotiating'
+  | 'capability-refused'
+  | 'native-admission'
+  | 'admission-acknowledged'
+  | 'admission-job-refused'
   | 'commit-queued'
   | 'commit-entered'
   | 'root-admission-refused'
@@ -125,6 +130,13 @@ export interface ScanEnvironment {
   readonly channelCheckStore: ReturnType<typeof createChannelCheckStore>;
   readonly savedChannelCheck: ReturnType<typeof createSavedChannelCheck>;
   readonly player: PlaybackController;
+  readonly scanPlaybackBusy: () => boolean;
+  readonly accountPlayer: { readonly selection: unknown } | undefined;
+  readonly archivePlayer: { readonly selection: unknown } | undefined;
+  readonly localStreams: { readonly pageOpen: boolean } | undefined;
+  readonly pendingAccountPlayback: object | null;
+  readonly pendingPublicPlayback: object | null;
+  readonly backgroundLiveChoice: object | null;
   readonly nativeViewingForeground: boolean;
   readonly contentLibrary: ContentLibrary;
   readonly addChannelsEntryWork: Promise<void> | null;
@@ -335,7 +347,13 @@ export function createScanController(env: ScanEnvironment) {
    * end; the progress counter shows the scan is moving meanwhile.
    */
   const SCAN_LIST_BATCH = 300;
-  const scanBatchThrottle = { listed: -1, guidePending: false, startedMs: 0, listPending: false };
+  const scanBatchThrottle = {
+    listed: -1,
+    guidePending: false,
+    startedMs: 0,
+    listPending: false,
+    catalogRenderPending: false,
+  };
   // The guide update after a scan; the Slow pass waits for it (it can hold the
   // database for minutes on a slow TV: about 5 on the Sansui, October 22, 2026).
   let postScanGuides: Promise<void> | null = null;
@@ -371,12 +389,16 @@ export function createScanController(env: ScanEnvironment) {
     const throttle = scanBatchThrottle;
     if (throttle.listPending && !env.applicationClosing) {
       // The native scan's held list, guide and location updates, once.
-      env.browser.search(env.element<HTMLInputElement>('search').value);
-      env.guide.catalogChanged();
-      env.geographyControls.update();
-      env.updateVisibleGuide();
+      if (throttle.catalogRenderPending) env.renderCatalog();
+      else {
+        env.browser.search(env.element<HTMLInputElement>('search').value);
+        env.guide.catalogChanged();
+        env.geographyControls.update();
+        env.updateVisibleGuide();
+      }
     }
     throttle.listPending = false;
+    throttle.catalogRenderPending = false;
     if (
       throttle.listed >= 0 &&
       throttle.listed !== env.catalog.channels.length &&
@@ -398,16 +420,11 @@ export function createScanController(env: ScanEnvironment) {
         });
   }
   const probeScheduler = createProbeScheduler();
-  // Scan checks yield the network to whatever is on screen (two at a time while viewing).
-  const scanProbeGate = createPlaybackProbeGate(() =>
-    ['connecting', 'playing', 'buffering', 'reconnecting'].includes(env.player.snapshot.state),
-  );
+  // All playback owners and Guide browsing share the same live pressure guard.
+  const scanProbeGate = createPlaybackProbeGate(env.scanPlaybackBusy, { limit: 1 });
   // The Slow list check: one at a time, rested, none while viewing or out of sight.
   const slowPassGate = createSlowPassGate(
-    () =>
-      document.hidden ||
-      !env.nativeViewingForeground ||
-      ['connecting', 'playing', 'buffering', 'reconnecting'].includes(env.player.snapshot.state),
+    () => document.hidden || !env.nativeViewingForeground || env.scanPlaybackBusy(),
   );
   /**
    * One stream check as health evidence, shared by scans and the quiet saved

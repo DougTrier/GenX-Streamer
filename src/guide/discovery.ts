@@ -17,6 +17,7 @@
 import type { Source } from '../catalog/parser';
 import { GUIDE_SOURCE_LIMIT } from './limits';
 import { boundedUtf8Text } from '../platform/bounded-text';
+import { sourceDocumentKey } from '../discovery/source-documents';
 
 export interface DiscoveredGuide {
   location: string;
@@ -105,6 +106,9 @@ export async function discoverPlaylistGuides(
     });
   }
   const outcomes: GuideDiscoveryResult['outcomes'] = [];
+  // Keep only bounded header references, not complete playlist bodies. Aliases
+  // still retain their own outcomes and playlist names.
+  const inspectedHeaders = new Map<string, readonly string[]>();
   for (const source of sources) {
     signal.throwIfAborted();
     if (source.kind !== 'url' || (source.contentKind && source.contentKind !== 'catalog')) {
@@ -116,17 +120,22 @@ export async function discoverPlaylistGuides(
       continue;
     }
     try {
-      const response = await inspect(source.location, source.allowHttp === true, signal);
-      signal.throwIfAborted();
-      if (response.kind !== 'catalog' || typeof response.text !== 'string') {
-        outcomes.push({
-          sourceId: source.id,
-          status: 'none',
-          message: 'This source did not return a channel playlist.',
-        });
-        continue;
+      const key = sourceDocumentKey(source);
+      let hints = inspectedHeaders.get(key);
+      if (!hints) {
+        const response = await inspect(source.location, source.allowHttp === true, signal);
+        signal.throwIfAborted();
+        if (response.kind !== 'catalog' || typeof response.text !== 'string') {
+          outcomes.push({
+            sourceId: source.id,
+            status: 'none',
+            message: 'This source did not return a channel playlist.',
+          });
+          continue;
+        }
+        hints = headerHints(response.text);
+        inspectedHeaders.set(key, hints);
       }
-      const hints = headerHints(response.text);
       const additions = hints.filter((hint) => !candidates.has(hint));
       if (candidates.size + additions.length > GUIDE_SOURCE_LIMIT) throw new Error('hint-limit');
       // Whole source admission precedes mutation: a rejected playlist cannot leave partial hints.

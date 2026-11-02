@@ -157,6 +157,7 @@ struct NativeState {
     #[cfg(windows)]
     bookmarks: Arc<Result<storage_recovery::Bookmarks, String>>,
     requests: Mutex<requests::Requests>,
+    media_sessions: Mutex<network::MediaSessions>,
     closing: Arc<AtomicBool>,
     close_owner: close_owner::CloseOwner,
     work: Arc<close_owner::WorkOwner>,
@@ -230,6 +231,12 @@ pub fn run() {
             app.manage(Arc::new(diagnostics::Store::new(
                 side_root.join("diagnostic-events.json"),
             )));
+            let playback_trace_store = Arc::new(platform::playback_trace::Store::new(
+                side_root.join("playback-diagnostics.json"),
+                &app.package_info().version.to_string(),
+            ));
+            platform::playback_trace::initialize(playback_trace_store.clone());
+            app.manage(playback_trace_store);
             app.manage(native_live::NativeLive::default());
             app.manage(Arc::new(discovery_unavailable::Store::new(
                 side_root.join("discovery-unavailable-v1.json"),
@@ -300,6 +307,7 @@ pub fn run() {
                 #[cfg(windows)]
                 bookmarks: Arc::new(bookmarks),
                 requests: Mutex::new(requests::Requests::default()),
+                media_sessions: Mutex::new(network::MediaSessions::default()),
                 closing: closing.clone(),
                 close_owner: close_owner::CloseOwner::default(),
                 work: work.clone(),
@@ -370,6 +378,8 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             diagnostics::append_diagnostic_event,
+            platform::playback_trace::playback_trace,
+            platform::playback_trace::export_playback_trace,
             discovery_unavailable::read_discovery_unavailable,
             discovery_unavailable::record_discovery_unavailable,
             diagnostics::read_diagnostic_events,
@@ -460,6 +470,9 @@ pub fn run() {
             commands::scan::scan_resume_capabilities,
             commands::scan::close_scan_resume_open,
             commands::scan::begin_source_snapshot,
+            commands::scan::begin_source_cleanup,
+            commands::scan::finish_source_cleanup,
+            commands::scan::cancel_source_cleanup,
             commands::scan::append_source_snapshot,
             commands::scan::promote_source_snapshot,
             commands::scan::source_snapshot_status,
@@ -505,6 +518,8 @@ pub fn run() {
             native_speech::speech_cancel,
             commands::sources::fetch_media,
             commands::sources::fetch_media_bytes,
+            commands::sources::open_media_session,
+            commands::sources::close_media_session,
             device_capabilities::device_capabilities,
             commands::casting::cast_discover,
             commands::casting::cast_cancel_discovery,
@@ -519,6 +534,8 @@ pub fn run() {
             web_page::web_page,
             native_video::native_video,
             native_live::native_live_open,
+            playback::equivalent_sources::equivalent_live_channels,
+            playback::equivalent_sources::equivalent_paid_channels,
             native_live::native_live_renew,
             native_live::native_live_close,
             vpn_status::vpn_status,

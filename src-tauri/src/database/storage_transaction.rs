@@ -97,6 +97,8 @@ mod scan_checkpoint_tests;
 #[cfg(test)]
 #[path = "scan_window_tests.rs"]
 mod scan_window_tests;
+#[path = "source_cleanup.rs"]
+pub(crate) mod source_cleanup;
 #[path = "source_snapshot.rs"]
 pub(crate) mod source_snapshot;
 #[path = "source_snapshot_activation.rs"]
@@ -277,8 +279,11 @@ pub struct CatalogGroupReceipt {
 pub struct PairStore {
     root: PathBuf,
     require_database: bool,
+    /// Cleanup authority ends when this opened root is replaced or closed.
+    cleanup_runtime: std::sync::OnceLock<String>,
     /// Ordered result of the last channel-list query, reused for its next pages.
     page_cache: crate::catalog_query::PageCache,
+    guide_listed_cache: crate::guide::listed_channels::InventoryCache,
 }
 #[cfg(not(test))]
 fn write_backup_interval() -> std::time::Duration {
@@ -472,7 +477,9 @@ impl PairStore {
         let s = Self {
             root,
             require_database,
+            cleanup_runtime: Default::default(),
             page_cache: Default::default(),
+            guide_listed_cache: Default::default(),
         };
         s.recover_observed_locked(lease, &mut |_| {})?;
         Ok(s)

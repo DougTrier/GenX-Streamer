@@ -16,6 +16,8 @@
 
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { boundedUtf8Text } from './bounded-text';
+import { validateSportsScope, type SportsScope } from '../search/sports';
+import { validateHistoryIds } from '../playback/watch-history';
 export interface CatalogCursor {
   schemaVersion: 1;
   queryKey: string;
@@ -30,6 +32,8 @@ export interface CatalogRow {
   providerId?: string;
   name: string;
   category: string;
+  originalCategory?: string;
+  ppv?: boolean;
   geography?: { country?: string; region?: string; state?: string };
   favorite: boolean;
 }
@@ -38,8 +42,10 @@ export interface CatalogQuery {
   requestId: string;
   expectedCatalogRevision?: string | null;
   expectedViewRevision?: string | null;
+  expectedGuideRevision?: string;
   query: string;
-  filter: 'all' | 'favorites' | 'news' | 'sports' | 'movies' | 'unresponsive';
+  filter: 'all' | 'favorites' | 'news' | 'sports' | 'movies' | 'ppv' | 'unresponsive' | 'watched';
+  historyIds?: readonly string[];
   geography?: {
     country?: string | null;
     region?: string | null;
@@ -51,6 +57,7 @@ export interface CatalogQuery {
   favoritesFirst?: boolean;
   /** Leave out channels explicitly labeled adult. */
   hideAdult?: boolean;
+  sports?: SportsScope;
   after?: CatalogCursor | null;
   startIndex?: number;
   anchorId?: string | null;
@@ -61,6 +68,7 @@ export interface CatalogPage {
   requestId: string;
   catalogRevision: string;
   viewRevision: string;
+  guideRevision?: string;
   queryVersion: string;
   totalCount: number;
   startIndex: number;
@@ -190,12 +198,15 @@ function query(input: CatalogQueryInput, requestId: string): CatalogQuery {
       'schemaVersion',
       'expectedCatalogRevision',
       'expectedViewRevision',
+      'expectedGuideRevision',
       'query',
       'filter',
       'geography',
       'sort',
       'favoritesFirst',
       'hideAdult',
+      'sports',
+      'historyIds',
       'after',
       'startIndex',
       'anchorId',
@@ -206,7 +217,9 @@ function query(input: CatalogQueryInput, requestId: string): CatalogQuery {
   if (
     v.schemaVersion !== 1 ||
     !boundedUtf8Text(v.query, 16384, true) ||
-    !['all', 'favorites', 'news', 'sports', 'movies', 'unresponsive'].includes(String(v.filter)) ||
+    !['all', 'favorites', 'news', 'sports', 'movies', 'ppv', 'unresponsive', 'watched'].includes(
+      String(v.filter),
+    ) ||
     !['source', 'name', 'geography'].includes(String(v.sort)) ||
     (v.favoritesFirst !== undefined && typeof v.favoritesFirst !== 'boolean') ||
     (v.hideAdult !== undefined && typeof v.hideAdult !== 'boolean') ||
@@ -215,8 +228,26 @@ function query(input: CatalogQueryInput, requestId: string): CatalogQuery {
     !text(requestId, 256)
   )
     fail('invalid-query');
+  let historyIds: string[] | undefined;
+  try {
+    if (v.filter === 'watched') historyIds = validateHistoryIds(v.historyIds);
+    else if (v.historyIds !== undefined) fail('invalid-query');
+  } catch {
+    fail('invalid-query');
+  }
   for (const k of ['expectedCatalogRevision', 'expectedViewRevision'])
     if (v[k] !== undefined && v[k] !== null && !revision(v[k])) fail('invalid-query');
+  if (
+    v.expectedGuideRevision !== undefined &&
+    (!revision(v.expectedGuideRevision) || v.sports === undefined)
+  )
+    fail('invalid-query');
+  if (
+    v.sports !== undefined &&
+    Number(v.startIndex ?? 0) > 0 &&
+    v.expectedGuideRevision === undefined
+  )
+    fail('invalid-query');
   if (
     v.startIndex !== undefined &&
     (!integer(v.startIndex, 100000) || (v.after !== undefined && v.after !== null))
@@ -234,9 +265,19 @@ function query(input: CatalogQueryInput, requestId: string): CatalogQuery {
       v.expectedViewRevision !== after.viewRevision)
   )
     fail('invalid-query');
+  let sports: SportsScope | undefined;
+  if (v.sports !== undefined) {
+    try {
+      sports = validateSportsScope(v.sports, v.query as string);
+    } catch {
+      fail('invalid-query');
+    }
+  }
   return {
     ...v,
     requestId,
+    ...(sports === undefined ? {} : { sports }),
+    ...(historyIds === undefined ? {} : { historyIds }),
     ...(v.geography === undefined
       ? {}
       : { geography: geography(v.geography, true, 'invalid-query') }),
@@ -256,6 +297,7 @@ export function validateCatalogPage(raw: unknown, q: CatalogQuery): CatalogPage 
       'requestId',
       'catalogRevision',
       'viewRevision',
+      'guideRevision',
       'queryVersion',
       'totalCount',
       'startIndex',
@@ -270,6 +312,7 @@ export function validateCatalogPage(raw: unknown, q: CatalogQuery): CatalogPage 
     v.requestId !== q.requestId ||
     !revision(v.catalogRevision) ||
     !revision(v.viewRevision) ||
+    (q.sports ? !revision(v.guideRevision) : v.guideRevision !== undefined) ||
     typeof v.queryVersion !== 'string' ||
     !/^v1-[a-f0-9]{64}$/.test(v.queryVersion) ||
     !integer(v.totalCount, 100000) ||
@@ -283,6 +326,8 @@ export function validateCatalogPage(raw: unknown, q: CatalogQuery): CatalogPage 
   if (q.expectedCatalogRevision != null && v.catalogRevision !== q.expectedCatalogRevision)
     fail('catalog-stale');
   if (q.expectedViewRevision != null && v.viewRevision !== q.expectedViewRevision)
+    fail('view-stale');
+  if (q.expectedGuideRevision !== undefined && v.guideRevision !== q.expectedGuideRevision)
     fail('view-stale');
   if (!q.after && !q.anchorId && v.startIndex !== (q.startIndex ?? 0)) fail('invalid-page');
   if (!q.anchorId && v.anchorIndex !== null) fail('invalid-page');
@@ -298,7 +343,17 @@ export function validateCatalogPage(raw: unknown, q: CatalogQuery): CatalogPage 
   const rows = v.rows.map((rawRow) => {
     const r = object(
       rawRow,
-      ['id', 'sourceId', 'providerId', 'name', 'category', 'geography', 'favorite'],
+      [
+        'id',
+        'sourceId',
+        'providerId',
+        'name',
+        'category',
+        'originalCategory',
+        'ppv',
+        'geography',
+        'favorite',
+      ],
       'invalid-page',
     );
     if (
@@ -306,9 +361,16 @@ export function validateCatalogPage(raw: unknown, q: CatalogQuery): CatalogPage 
       !text(r.sourceId, 256) ||
       !text(r.name, 16384) ||
       !text(r.category, 16384, true) ||
+      (r.originalCategory !== undefined && !text(r.originalCategory, 16384, true)) ||
+      (r.ppv !== undefined &&
+        (typeof r.ppv !== 'boolean' ||
+          (q.filter === 'ppv'
+            ? !r.ppv
+            : q.filter !== 'watched' && r.ppv && q.sports?.includePpv !== true))) ||
       (r.providerId !== undefined && !text(r.providerId, 16384)) ||
       typeof r.favorite !== 'boolean' ||
-      ids.has(r.id)
+      ids.has(r.id) ||
+      (q.filter === 'watched' && !q.historyIds!.includes(r.id as string))
     )
       fail('invalid-page');
     ids.add(r.id);
@@ -319,6 +381,15 @@ export function validateCatalogPage(raw: unknown, q: CatalogQuery): CatalogPage 
         : { geography: geography(r.geography, false, 'invalid-page') }),
     } as unknown as CatalogRow;
   });
+  if (
+    q.filter === 'watched' &&
+    (Number(v.totalCount) > q.historyIds!.length ||
+      rows.some(
+        (row, i) =>
+          i > 0 && q.historyIds!.indexOf(row.id) <= q.historyIds!.indexOf(rows[i - 1]!.id),
+      ))
+  )
+    fail('invalid-page');
   if (rows.length && Number(v.startIndex) + rows.length > Number(v.totalCount))
     fail('invalid-page');
   const after = v.after === null ? null : cursor(v.after, 'invalid-page');

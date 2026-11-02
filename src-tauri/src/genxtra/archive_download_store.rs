@@ -514,7 +514,7 @@ pub(crate) fn verify_local_live(directory: &Path, proof: &LocalProof) -> Result<
 mod tests;
 
 #[cfg(test)]
-pub(crate) use tests::{local_fixture, local_proxy_fixture};
+pub(crate) use tests::{local_fixture, local_proxy_fixture, local_proxy_fixture_sized};
 
 // This module's parts, by area, are in archive_download_store/.
 mod snapshot;

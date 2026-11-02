@@ -24,5 +24,7 @@ pub(crate) mod channel_logos;
 pub(crate) mod health_storage;
 pub(crate) mod local_favorites;
 pub(crate) mod native_catalog;
+pub(crate) mod ppv;
 pub(crate) mod refresh_cadence;
 pub(crate) mod series_identity;
+pub(crate) mod sports;

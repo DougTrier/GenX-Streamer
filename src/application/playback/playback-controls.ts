@@ -23,10 +23,13 @@ import { type createLibraryState } from '../genxtra/library-state';
 import { type PlaybackController, type PlaybackSnapshot } from '../../playback/controller';
 import { type AccountPlaybackChoice, type createAccountPlayer } from '../accounts/account-player';
 import { type createArchivePlayer } from '../genxtra/archive-player';
+import { type createFullscreenOwner } from '../../ui/player/fullscreen-owner';
 import { type mountLibrarySwitcher } from '../../ui/genxtra/library-switcher';
 
 /** What this area reads from, and writes back to, the rest of the application. */
 export interface PlaybackControlsEnvironment {
+  readonly setExpanded: (enabled: boolean) => void;
+  readonly fullscreenOwner: ReturnType<typeof createFullscreenOwner>;
   backgroundLiveChoice:
     | { kind: 'public'; selection: NonNullable<PlaybackSnapshot['selection']> }
     | { kind: 'account'; choice: AccountPlaybackChoice }
@@ -55,6 +58,10 @@ export function createPlaybackControls(env: PlaybackControlsEnvironment) {
   /** A Paid TV movie or episode is the current selection (it has a Stop button). */
   const accountVodSelected = () => !!env.player.snapshot.selection?.id.startsWith('vod:');
   async function stopLocalPlayback(): Promise<void> {
+    // Leave presentation before Stop removes the selection and its controls.
+    // This also covers remote MediaStop and a failed/slow decoder cleanup.
+    await env.fullscreenOwner.set(false);
+    env.setExpanded(false);
     env.backgroundLiveChoice = null;
     if (env.archivePlayer?.selection || env.library.archiveResumeChoice) {
       env.clearArchiveResume();

@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { GUIDE_REFRESH_INTERVAL_MS } from '../../guide/refresh-interval';
 import type { AccountMetadata } from '../../platform/account-vault';
 import type {
   AccountGuide,
@@ -22,12 +23,25 @@ import type {
 } from '../../platform/account-guide';
 import type { GuideCursor, MappedProgram } from '../../guide/native';
 import { mountGuideTimeline } from './guide-timeline';
-import { PANEL_AGENDA_WIDTH, type TimelineChannel } from './guide-timeline-model';
+import {
+  PANEL_AGENDA_WIDTH,
+  type TimelineChannel,
+  type TimelineHost,
+} from './guide-timeline-model';
+import { matchesGeography, type GeographyFilter } from '../../catalog/geography';
+import { captureGuideLocation, guideLocationKey } from '../../guide/location-filter';
+import { isPpvChannel } from '../../catalog/ppv';
 
 /** A stored guide older than this is downloaded again when the guide opens. */
-export const PAID_GUIDE_STALE_MS = 12 * 3_600_000;
+export const PAID_GUIDE_STALE_MS = GUIDE_REFRESH_INTERVAL_MS;
 
 export interface PaidGuideHost {
+  /** A different committed local guide snapshot has been loaded, including manual updates. */
+  cachedChanged?(accountId: string): void;
+  browseScope?: TimelineHost['browseScope'];
+  geography?(): GeographyFilter;
+  /** A cached guide became available; wake its background renewal owner. */
+  opened?(): void;
   guide: Pick<AccountGuide, 'refresh' | 'status' | 'channels' | 'listed' | 'programs'>;
   /** Play this Paid TV channel (its opaque playback reference, never a URL). */
   watch(channel: AccountGuideChannel, signal: AbortSignal): Promise<void>;
@@ -105,7 +119,25 @@ export function mountPaidGuide(container: HTMLElement, host: PaidGuideHost) {
   let owner: AbortController | null = null;
   let disposed = false;
   const source = () => `account:${account?.id ?? ''}`;
-  const revision = () => `${account?.id ?? ''}:${account?.revision ?? ''}:${stored?.revision ?? 0}`;
+  let location = captureGuideLocation(host.geography?.());
+  let locationKey = guideLocationKey(location);
+  const captureLocation = () => {
+    location = captureGuideLocation(host.geography?.());
+    locationKey = guideLocationKey(location);
+  };
+  const revision = () =>
+    `${account?.id ?? ''}:${account?.revision ?? ''}:${stored?.revision ?? 0}:${locationKey}`;
+  let scopedSource: readonly TimelineChannel[] | null = null;
+  let scopedLocation = '';
+  let scoped: TimelineChannel[] = [];
+  const scopedChannels = () => {
+    if (scopedSource !== channels || scopedLocation !== locationKey) {
+      scopedSource = channels;
+      scopedLocation = locationKey;
+      scoped = channels.filter((channel) => matchesGeography(channel, location));
+    }
+    return scoped;
+  };
   const describe = (s: AccountGuideStatus) => {
     const parts = [
       `Guide from ${host.formatTime(s.fetchedMs)}`,
@@ -117,27 +149,43 @@ export function mountPaidGuide(container: HTMLElement, host: PaidGuideHost) {
   };
 
   const timeline = mountGuideTimeline(panel, {
+    browseScope: host.browseScope,
     initiallyForeground: false,
     agendaWidth: PANEL_AGENDA_WIDTH,
-    channels: () => channels,
+    channels: scopedChannels,
     catalogRevision: revision,
-    async listedChannels(start, end, signal, search) {
+    async listedChannels(start, end, signal, search, ppv, sports, history) {
       const current = account;
       if (!current || !stored) throw new Error('Paid TV guide is not loaded.');
-      const reply = await host.guide.listed(current, start, end, search ?? '', signal);
+      const reply = history
+        ? await host.guide.listed(current, start, end, search ?? '', signal, ppv, sports, history)
+        : sports
+          ? await host.guide.listed(current, start, end, search ?? '', signal, ppv, sports)
+          : await host.guide.listed(current, start, end, search ?? '', signal, ppv);
       if (reply.revision !== stored.revision) throw new Error('Paid TV guide changed.');
+      if ((ppv || sports || history) && reply.channelIds === undefined)
+        throw new Error('Paid TV guide channel scope is unavailable.');
+      if (history && reply.ppvChannelIds === undefined)
+        throw new Error('Paid TV guide History PPV scope is unavailable.');
       const listed = new Set(reply.epgIds);
+      const listedChannels = reply.channelIds === undefined ? null : new Set(reply.channelIds);
+      const ppvChannels = reply.ppvChannelIds === undefined ? null : new Set(reply.ppvChannelIds);
       return {
         catalogRevision: revision(),
         databaseRevision: stored.revision,
-        channels: channels
-          .filter((channel) => listed.has(channel.xmltvChannelId!))
+        channels: scopedChannels()
+          .filter((channel) =>
+            listedChannels ? listedChannels.has(channel.id) : listed.has(channel.xmltvChannelId!),
+          )
           .map((channel) => ({
             catalogSourceId: channel.sourceId,
             appChannelId: channel.id,
             guideSourceId: channel.guideSourceId!,
             xmltvChannelId: channel.xmltvChannelId!,
             sourceRevision: stored!.revision,
+            filterMask: (ppvChannels ? ppvChannels.has(channel.id) : ppv || isPpvChannel(channel))
+              ? 8
+              : 0,
           })),
       };
     },
@@ -150,7 +198,7 @@ export function mountPaidGuide(container: HTMLElement, host: PaidGuideHost) {
         ? { startMs: query.cursor.startMs, ordinal: query.cursor.ordinal }
         : null;
       const pageSize = Math.min(50, query.pageSize);
-      const reply = await host.guide.programs(
+      const args = [
         current,
         channel.xmltvChannelId!,
         query.windowStartMs,
@@ -158,7 +206,21 @@ export function mountPaidGuide(container: HTMLElement, host: PaidGuideHost) {
         after,
         pageSize,
         signal,
-      );
+        query.ppv,
+        channel.id,
+      ] as const;
+      const history =
+        query.historyIds === undefined
+          ? undefined
+          : {
+              ids: query.historyIds,
+              hideAdult: query.hideAdult ?? true,
+            };
+      const reply = history
+        ? await host.guide.programs(...args, query.sports, query.search, history)
+        : query.sports
+          ? await host.guide.programs(...args, query.sports, query.search)
+          : await host.guide.programs(...args);
       if (reply.revision !== stored.revision) throw new Error('Paid TV guide changed.');
       const programs: MappedProgram[] = reply.programs.map((program) => ({
         catalogSourceId: channel.sourceId,
@@ -176,7 +238,15 @@ export function mountPaidGuide(container: HTMLElement, host: PaidGuideHost) {
       const nextCursor: GuideCursor | null =
         last && programs.length === pageSize
           ? {
-              queryKey: JSON.stringify([channel.id, query.windowStartMs, query.windowEndMs]),
+              queryKey: JSON.stringify([
+                channel.id,
+                query.windowStartMs,
+                query.windowEndMs,
+                query.ppv ?? false,
+                query.sports ?? null,
+                query.search,
+                history ?? null,
+              ]),
               guideSourceId: channel.guideSourceId!,
               sourceRevision: stored.revision,
               databaseRevision: stored.revision,
@@ -205,13 +275,19 @@ export function mountPaidGuide(container: HTMLElement, host: PaidGuideHost) {
       new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' }).format(ms),
   });
 
-  async function load(forceDownload: boolean, signal: AbortSignal): Promise<void> {
+  async function load(
+    forceDownload: boolean,
+    signal: AbortSignal,
+    storedOnly = false,
+  ): Promise<void> {
     const current = account!;
+    const previousRevision = stored?.revision ?? null;
     setStatus("Checking your provider's guide…");
     stored = await host.guide.status(current, signal);
-    const stale = !stored || host.now() - stored.fetchedMs > PAID_GUIDE_STALE_MS;
-    if (forceDownload || stale) {
+    const stale = !stored || host.now() - stored.fetchedMs >= PAID_GUIDE_STALE_MS;
+    if (!storedOnly && (forceDownload || stale)) {
       setStatus("Downloading your provider's guide… This can take a minute.");
+      if (document.activeElement === update) close.focus({ preventScroll: true });
       update.disabled = true;
       try {
         stored = await host.guide.refresh(current, signal);
@@ -232,6 +308,7 @@ export function mountPaidGuide(container: HTMLElement, host: PaidGuideHost) {
         update.disabled = false;
       }
     }
+    if (!stored) return;
     const loaded = await host.guide.channels(current, signal);
     rows = new Map(loaded.map((row) => [row.id, row]));
     channels = loaded.map((row) => ({
@@ -239,35 +316,54 @@ export function mountPaidGuide(container: HTMLElement, host: PaidGuideHost) {
       sourceId: source(),
       name: row.name,
       category: row.category,
+      originalCategory: row.originalCategory,
+      ppv: row.ppv,
       favorite: row.favorite,
+      ...(row.country ? { geography: { country: row.country } } : {}),
       guideSourceId: source(),
       xmltvChannelId: row.epgId,
       guideRevision: stored!.revision,
     }));
+    if (previousRevision !== stored.revision) host.cachedChanged?.(current.id);
     if (!status.textContent?.includes('Showing the guide from')) setStatus(describe(stored!));
     await timeline.setForeground(true);
   }
-  function run(forceDownload: boolean): Promise<void> {
+  function run(forceDownload: boolean, storedOnly = false): Promise<void> {
     owner?.abort();
     const work = new AbortController();
     owner = work;
-    return load(forceDownload, work.signal).catch((error: unknown) => {
+    return load(forceDownload, work.signal, storedOnly).catch((error: unknown) => {
       if (aborted(error) || work.signal.aborted) return;
       setStatus(paidGuideFailure(error));
     });
   }
   update.addEventListener('click', () => {
-    if (account) void run(true);
+    if (account) void run(true).then(() => host.opened?.());
   });
   close.addEventListener('click', () => host.close());
 
   return {
+    /** Native Back unwinds this local pane before leaving the Paid Guide page. */
+    closeDetails(): boolean {
+      return !disposed && timeline.closeDetails();
+    },
+    /** Reload a background receipt from SQLite without another provider request. */
+    async cacheChanged(): Promise<void> {
+      if (!disposed && !root.hidden) await run(false, true);
+    },
+    /** Changes the visible rows from the stored guide, without another provider download. */
+    async locationChanged(): Promise<void> {
+      if (disposed) return;
+      captureLocation();
+      if (!root.hidden) await timeline.refresh();
+    },
     get open() {
       return !root.hidden;
     },
     /** Show the guide for this account, downloading it if missing or stale. */
     async show(target: AccountMetadata): Promise<void> {
       if (disposed) return;
+      captureLocation();
       if (account?.id !== target.id || account.revision !== target.revision) {
         stored = null;
         channels = [];
@@ -277,6 +373,7 @@ export function mountPaidGuide(container: HTMLElement, host: PaidGuideHost) {
       title.textContent = `Paid TV guide · ${target.name}`;
       root.hidden = false;
       await run(false);
+      host.opened?.();
     },
     async hide(): Promise<void> {
       owner?.abort();
@@ -285,7 +382,7 @@ export function mountPaidGuide(container: HTMLElement, host: PaidGuideHost) {
       await timeline.setForeground(false);
     },
     focus() {
-      update.focus({ preventScroll: true });
+      close.focus({ preventScroll: true });
     },
     async dispose() {
       disposed = true;

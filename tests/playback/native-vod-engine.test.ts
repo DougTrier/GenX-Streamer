@@ -14,9 +14,13 @@
  * limitations under the License.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createNativeVodEngine, nativeAudioSnapshot } from '../../src/playback/native-vod-engine';
-import { accountOnDemand, createRoutingEngineFactory } from '../../src/playback/routing-engine';
+import {
+  accountOnDemand,
+  nativePlaybackSelection,
+  createRoutingEngineFactory,
+} from '../../src/playback/routing-engine';
 import {
   createNativeVideoBridge,
   validateNativeVideoStatus,
@@ -50,13 +54,17 @@ function fixture() {
   const requests: NativeVideoRequest[] = [];
   let state: NativeVideoStatus['state'] = 'buffering';
   let position = 0;
+  let streamMs: number | undefined;
+  let metrics: Partial<NativeVideoStatus> = {};
   let error: NativeVideoStatus['error'];
   let audio = [english, spanish];
   const status = (session: number): NativeVideoStatus => ({
+    ...metrics,
     session,
     state,
     playing: state === 'ready',
     positionMs: position,
+    ...(streamMs !== undefined ? { streamMs } : {}),
     durationMs: 7_200_000,
     ...(error ? { error } : {}),
     audio,
@@ -106,10 +114,14 @@ function fixture() {
     set(next: {
       state?: NativeVideoStatus['state'];
       position?: number;
+      streamMs?: number;
+      metrics?: Partial<NativeVideoStatus>;
       error?: NativeVideoStatus['error'];
     }) {
+      if (next.metrics) metrics = next.metrics;
       if (next.state) state = next.state;
       if (next.position !== undefined) position = next.position;
+      if (next.streamMs !== undefined) streamMs = next.streamMs;
       error = next.error;
     },
     get polling() {
@@ -119,10 +131,145 @@ function fixture() {
 }
 
 describe('native on-demand engine', () => {
+  it('retains observed HTTP status and distinguishes access from retryable network failures', async () => {
+    for (const [error, httpStatus, retryable] of [
+      ['access', 403, false],
+      ['network', 502, true],
+    ] as const) {
+      const f = fixture();
+      await f.engine.start(movie, new AbortController().signal);
+      f.set({ state: 'error', error, metrics: { httpStatus } });
+      await f.poll();
+      expect(f.events.find((e) => e.type === 'error')).toMatchObject({
+        failure: { code: error, httpStatus, phase: 'headers', retryable },
+      });
+      await f.engine.dispose();
+    }
+  });
+  it('Paid live channels retain their account session and select HLS or TS without another relay', async () => {
+    for (const kind of ['hls', 'media'] as const) {
+      const f = fixture();
+      await f.engine.start(
+        { id: 'account-channel', name: 'Paid live', url: RELAY, mediaKind: kind },
+        new AbortController().signal,
+      );
+      expect(f.requests[0]).toMatchObject({
+        action: 'open',
+        url: RELAY,
+        accountLive: true,
+        hls: kind === 'hls',
+      });
+      expect(f.requests[0]?.archive).toBeUndefined();
+      expect(f.events[0]).toEqual({ type: 'capability', mediaKind: kind });
+      await f.engine.dispose();
+      expect(f.requests.at(-1)?.action).toBe('close');
+    }
+  });
+  it('tags GenXtra for native-side session admission and retains progress/cleanup', async () => {
+    const f = fixture();
+    await f.engine.start(
+      {
+        ...movie,
+        id: 'archive-file',
+        url: `http://127.0.0.1:41234/archive/${'a'.repeat(64)}/${'b'.repeat(64)}.mp4`,
+      },
+      new AbortController().signal,
+    );
+    expect(f.requests[0]).toMatchObject({ action: 'open', archive: true });
+    expect(f.requests[0]?.hls).toBeUndefined();
+    f.set({ state: 'ready', position: 12_000 });
+    await f.poll();
+    expect(f.engine.readVODposition!()).toBe(12);
+    await f.engine.dispose();
+    expect(f.requests.at(-1)?.action).toBe('close');
+    expect(f.watching).toBe(0);
+    expect(f.polling).toBe(false);
+  });
+  it('publishes actual native decoded frame evidence and live-window recovery counters', async () => {
+    const now = vi.spyOn(performance, 'now').mockReturnValue(0);
+    const f = fixture();
+    try {
+      await f.engine.start(
+        { id: 'account-live', name: 'Live', url: RELAY },
+        new AbortController().signal,
+      );
+      now.mockReturnValue(1000);
+      f.set({
+        state: 'ready',
+        position: 1000,
+        streamMs: 80000,
+        metrics: {
+          renderedFrames: 60,
+          audioRenderedFrames: 10,
+          videoWidth: 1280,
+          videoHeight: 720,
+          liveWindowRecoveries: 0,
+        },
+      });
+      await f.poll();
+      now.mockReturnValue(2000);
+      f.set({
+        position: 0,
+        streamMs: 81000,
+        metrics: {
+          renderedFrames: 120,
+          audioRenderedFrames: 20,
+          videoWidth: 1280,
+          videoHeight: 720,
+          liveWindowRecoveries: 0,
+        },
+      });
+      await f.poll();
+      expect(f.events.filter((e) => e.type === 'decoded-progress')).toHaveLength(1);
+      expect(f.events.find((e) => e.type === 'decoded-progress')).toMatchObject({
+        evidence: {
+          elapsedMilliseconds: 1000,
+          after: {
+            mediaTime: 81,
+            decodedFrames: 120,
+            width: 1280,
+            height: 720,
+            audioObserved: true,
+          },
+        },
+      });
+      f.set({ metrics: { liveWindowRecoveries: 1 } });
+      await f.poll();
+      await f.poll();
+      expect(f.events.filter((e) => e.type === 'source-recovery')).toEqual([
+        { type: 'source-recovery', cause: 'live-window' },
+      ]);
+    } finally {
+      await f.engine.dispose();
+      now.mockRestore();
+    }
+  });
+
+  it('uses absolute live progress when a sliding window clamps or moves relative positions', async () => {
+    const f = fixture();
+    await f.engine.start(
+      { id: 'account-live', name: 'Live', url: RELAY },
+      new AbortController().signal,
+    );
+    f.set({ state: 'ready', position: 5000, streamMs: 80000 });
+    await f.poll();
+    f.set({ position: 0, streamMs: 81000 });
+    await f.poll();
+    f.set({ position: 0, streamMs: 82000 });
+    await f.poll();
+    expect(f.events.filter((event) => event.type === 'progress')).toHaveLength(3);
+    // A moving window-relative coordinate cannot conceal a frozen stream position.
+    f.set({ position: 1000, streamMs: 82000 });
+    await f.poll();
+    expect(f.events.filter((event) => event.type === 'progress')).toHaveLength(3);
+    await f.engine.dispose();
+  });
+
   it('opens the relay address at the picture, then reports buffering and progress', async () => {
     const f = fixture();
     await f.engine.start(movie, new AbortController().signal);
     expect(f.requests[0]).toMatchObject({ action: 'open', url: RELAY, rect: [100, 50, 1280, 720] });
+    expect(f.requests[0]?.archive).toBeUndefined();
     expect(f.presented).toEqual([true]);
     expect(f.events.map((e) => e.type)).toEqual(['capability', 'audio-tracks', 'buffering']);
     f.set({ state: 'ready', position: 1000 });
@@ -202,6 +349,20 @@ describe('native on-demand engine', () => {
 });
 
 describe('engine routing', () => {
+  it('GenXtra goes native only for the explicit Fire OS capability; Paid TV keeps its native route', () => {
+    const archive = { ...movie, id: 'archive-file' };
+    expect(nativePlaybackSelection(archive, true)).toBe(true);
+    expect(nativePlaybackSelection(archive, false)).toBe(false);
+    expect(nativePlaybackSelection(movie, false)).toBe(true);
+    expect(nativePlaybackSelection({ ...movie, id: 'vod:episode:7' }, true)).toBe(true);
+    expect(nativePlaybackSelection({ ...archive, playMode: undefined }, true)).toBe(false);
+    expect(
+      nativePlaybackSelection({ id: 'account-channel', name: 'Paid live', url: RELAY }, true),
+    ).toBe(true);
+    expect(
+      nativePlaybackSelection({ id: 'account-channel', name: 'Paid live', url: RELAY }, false),
+    ).toBe(false);
+  });
   const recorder = (name: string, log: string[]) => () =>
     ({
       start: async () => void log.push(name),
@@ -255,6 +416,9 @@ describe('native player replies', () => {
       text: [],
     };
     expect(validateNativeVideoStatus(good, 3).state).toBe('ready');
+    expect(
+      validateNativeVideoStatus({ ...good, state: 'error', error: 'access', httpStatus: 403 }, 3),
+    ).toMatchObject({ error: 'access', httpStatus: 403 });
     expect(validateNativeVideoStatus({ ...good, picture: 'unsupported' }, 3).picture).toBe(
       'unsupported',
     );
@@ -265,6 +429,9 @@ describe('native player replies', () => {
       { ...good, error: 'Connection refused by provider.invalid' },
       { ...good, audio: [{ ...english, id: '<b>' }] },
       { ...good, positionMs: -5 },
+      { ...good, httpStatus: 600 },
+      { ...good, httpStatus: 99 },
+      { ...good, renderedFrames: -1 },
     ])
       expect(() => validateNativeVideoStatus(bad, 3)).toThrow();
     const bridge = createNativeVideoBridge(async () => good);

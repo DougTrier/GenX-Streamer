@@ -1,5 +1,7 @@
 # Signing Android releases
 
+Current release source and assets use **0.1.25 / build 1025**. Historical measurements below retain their recorded versions.
+
 An Android app's signing key is its identity. Every update must be signed with
 the same key, or Android refuses to install it over the copy people have. GenX
 Streamer's release key is the owner's: it is never committed, never shared,
@@ -89,7 +91,7 @@ install or share such an APK.
 ## Moving a device from a development copy to the release
 
 A release-signed GenX cannot install over a debug-signed one. On that device:
-Settings → Audio and preferences → **Full backup** (save the file somewhere
+Settings → **Full backup** (save the file somewhere
 you can reach), uninstall GenX Streamer, install the release APK, then import
 the backup. Uninstalling removes the app's saved channels, favorites and
 settings, so the backup comes first.
@@ -101,3 +103,73 @@ key): universal 84.9 MiB, 64-bit-only 50.9 MiB. The difference (+34 MiB,
 +67%) is the 32-bit library (`armeabi-v7a`, 33.9 MiB); Android keeps native
 libraries uncompressed in the APK. Startup, memory and playback on devices are
 not yet compared.
+
+## Release acceptance and publication
+
+The owner updated acceptance on November 1, 2026: use short targeted Scan, Menu,
+Guide and remote-navigation checks; no additional five-minute playback interval is
+required. Existing sustained captures remain supporting evidence. A signed APK and
+a successful launch alone are not sufficient. Do not publish
+a GitHub release or promote its version/download on the landing page while
+repeated rebuffering, automatic restarts, black pictures or view traps remain.
+
+For the exact candidate APK, record its version/build, hash, signing identity,
+device/OS, channel, stream type, test duration and results. Use the owner's
+configured local Google Streamer for the affected Free TV and Paid TV paths. When
+playback code changes, include the reported Weather Channel, multiple US sports sources
+and each changed Free TV playback path. For a status-only or navigation change, use
+short targeted checks and explicitly retain prior evidence for unchanged playback code.
+When a household client is already using a limited Paid provider, keep local Paid
+streams closed. Use offline authority/protocol/selection fixtures and explicitly scoped
+prior observations; a new local Paid provider stream is not required under that
+constraint. Otherwise coordinate one provider client at a time for any authorized
+physical Paid check.
+
+Include actual fast-motion sports footage, with more than one US sports source.
+Record the channel, observed content, resolution, frame progress/drop counters,
+buffering and recovery events. A studio segment or advertisement alone does not
+verify fast-motion sports quality. Check embedded/fullscreen/return placement
+and channel switching as part of this matrix.
+
+Use short targeted checks of Finish scan, Stop, saved progress, loading/ready Guide
+rows and remote focus while browsing or playing. Verify the relevant menus, native
+keyboard dismissal, embedded/fullscreen/return, channel switching and expanded/fullscreen
+Stop. A full catalog scan and a new five-minute capture per stream are not prerequisites.
+Repeated buffering, an unexpected restart or a view trap observed during these checks
+still fails acceptance and must be investigated. Keep exact results and unavailable
+measurements explicit; do not infer them from a screenshot or call an incomplete
+observation a pass.
+
+The accepted publication sequence is exact-candidate automated checks, signed
+package verification, scoped local Google Streamer/Thor checks and confirmed
+local closing, followed by the GitHub release and source/site update. The owner's
+Fire TV Stick and Retroid Pocket Flip 2 in-house upgrades follow publication.
+Those devices and their untested paths remain explicitly unverified until the
+owner reports results; they are not an additional approval gate before publishing.
+Do not substitute synthetic density tests or another model's results for physical
+acceptance. Keep GenXtra expanded/fullscreen Stop and usable title navigation in
+the relevant local check matrix.
+
+Save redacted reports in the ignored artifacts directory. Automated protocol,
+geometry and lifecycle tests must pass, but do not replace physical playback
+acceptance. After the accepted local gates pass and the release maintainer confirms the exact
+receipts, promote the matching release assets, README version, update manifests
+and public landing page together under the existing conditional authorization.
+Keep new owner-device follow-up labelled unverified. A public copy must never
+claim unperformed Paid-provider, Fire TV Stick, Flip 2 or other-platform tests.
+
+Existing long captures can optionally be assessed with the unchanged historical preflight:
+
+```powershell
+node scripts/check-playback-report.mjs --free <free-capture.json> --paid <paid-capture.json> --apk <exact-candidate.apk> --version <x.y.z> --output <acceptance.json>
+```
+
+This optional tool requires at least 300 seconds of decoded/rendered progress per selected
+Free/Paid stream, excludes only the first five seconds after initial Playing
+from buffering checks, and fails recovery, later buffering, stable measured
+misalignment or measured frame drops over five percent. Missing frame progress
+or a short capture is incomplete for that optional tool, not a failure of the current
+short targeted release gate. Do not relabel such output PASS. A frame-counter freeze over fifteen seconds fails; gaps between frame observations over fifteen seconds leave coverage incomplete. The report binds the candidate APK hash and
+app version; device identity and low-level compositor/driver warnings still
+need the physical acceptance record. Do not treat this preflight alone as Fire
+TV, Flip 2, sound or complete release acceptance.

@@ -24,6 +24,25 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class NativeVideoRulesTest {
+  @Test fun liveWindowRecoveryIsBoundedAndNeverAppliedToOnDemandOrOtherErrors() {
+    val behind = PlaybackException.ERROR_CODE_BEHIND_LIVE_WINDOW
+    assertEquals("network", NativeVideoRules.failure(behind))
+    assertTrue(NativeVideoRules.canRejoinLiveWindow(true, behind, 0))
+    assertTrue(NativeVideoRules.canRejoinLiveWindow(true, behind, 1))
+    for (count in listOf(-1, 2, 3, Int.MAX_VALUE))
+      assertFalse(NativeVideoRules.canRejoinLiveWindow(true, behind, count))
+    assertFalse(NativeVideoRules.canRejoinLiveWindow(false, behind, 0))
+    assertFalse(NativeVideoRules.canRejoinLiveWindow(true, PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED, 0))
+  }
+
+  @Test fun archiveDecoderAdmitsOnlyOpaqueLoopbackMediaPaths() {
+    val good = "http://127.0.0.1:41234/archive/${"a".repeat(64)}/${"b".repeat(64)}.mp4"
+    assertTrue(NativeVideoRules.archiveRelay(good))
+    for (bad in listOf(good + "?x=1", good + "#x", good.replace("127.0.0.1","example.com"),
+      good.replace("/archive/","/account/"), good.replace(".mp4",".mp4/extra"),
+      good.replace("http://","https://"), "http://127.0.0.1:41234/archive/a/b.mp4"))
+      assertFalse(bad, NativeVideoRules.archiveRelay(bad))
+  }
   private val cap = "a".repeat(64)
   private val id = "b".repeat(64)
   private val relay = "http://127.0.0.1:41234/account/$cap/media/$id"
@@ -93,7 +112,7 @@ class NativeVideoRulesTest {
   @Test
   fun failuresMapToFixedCodes() {
     assertEquals("network", NativeVideoRules.failure(PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED))
-    assertEquals("missing", NativeVideoRules.failure(PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS))
+    assertEquals("network", NativeVideoRules.failure(PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS))
     assertEquals("unsupported", NativeVideoRules.failure(PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED))
     assertEquals("unsupported", NativeVideoRules.failure(PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED))
     assertEquals("decode", NativeVideoRules.failure(PlaybackException.ERROR_CODE_DECODING_FAILED))
@@ -101,6 +120,12 @@ class NativeVideoRulesTest {
     assertEquals("unknown", NativeVideoRules.failure(PlaybackException.ERROR_CODE_UNSPECIFIED))
   }
 
+  @Test fun httpFailuresKeepTheirActualMeaningWithoutProviderText() {
+    val code=PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS
+    for(status in listOf(401,403,407)) assertEquals("access",NativeVideoRules.failure(code,status))
+    for(status in listOf(404,410)) assertEquals("missing",NativeVideoRules.failure(code,status))
+    for(status in listOf(408,429,500,502,503,504)) assertEquals("network",NativeVideoRules.failure(code,status))
+  }
   @Test fun pictureIsUnsupportedOnlyWhenNoVideoTrackDecodes() {
     assertNull(NativeVideoRules.picture(emptyList()))
     assertEquals("shown", NativeVideoRules.picture(listOf(listOf(false, true))))

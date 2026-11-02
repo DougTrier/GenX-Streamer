@@ -18,6 +18,8 @@ import { invoke, isTauri } from '@tauri-apps/api/core';
 import { validateAccountMetadata, type AccountMetadata } from './account-vault';
 import { invokeOwnedNative, type OwnedNativeRuntime } from './owned-native-command';
 import { validateGuideCategories, type GuideCategory } from '../guide/categories';
+import { validateSportsScope, type SportsScope } from '../search/sports';
+import { captureGuideHistory, type GuideHistoryScope } from '../guide/history-scope';
 
 /** The provider's guide as stored for one Paid TV account (native owns the address). */
 export interface AccountGuideStatus {
@@ -32,11 +34,16 @@ export interface AccountGuideChannel {
   id: string;
   name: string;
   category: string;
+  originalCategory?: string;
   epgId: string;
   providerId: string | null;
   /** Opaque native playback capability, as in the channel list. */
   streamReference: string;
   favorite: boolean;
+  /** Positive PPV evidence from original/effective provider metadata. */
+  ppv?: boolean;
+  /** Canonical country from the provider's original group; absent legacy values are Unknown. */
+  country?: string | null;
 }
 export interface AccountGuideProgram {
   epgId: string;
@@ -64,6 +71,12 @@ const text = (value: unknown, limit: number, empty = false) => {
     throw invalid();
   return value;
 };
+const guideChannelId = (value: unknown, accountId: string): string => {
+  const id = text(value, 512);
+  const prefix = `account-${accountId}-`;
+  if (!id.startsWith(prefix) || !/^[a-f0-9]{64}$/u.test(id.slice(prefix.length))) throw invalid();
+  return id;
+};
 
 export function validateAccountGuideStatus(value: unknown): AccountGuideStatus | null {
   if (value === null) return null;
@@ -83,23 +96,38 @@ function validateChannel(value: unknown, accountId: string): AccountGuideChannel
     'id',
     'name',
     'category',
+    'originalCategory',
     'epgId',
     'providerId',
     'streamReference',
     'favorite',
+    'ppv',
+    'country',
   ]);
   const id = text(row.id, 512);
   if (!id.startsWith(`account-${accountId}-`) || typeof row.favorite !== 'boolean') throw invalid();
+  if (row.ppv !== undefined && typeof row.ppv !== 'boolean') throw invalid();
   const streamReference = text(row.streamReference, 32);
   if (!/^[a-f0-9]{32}$/u.test(streamReference)) throw invalid();
+  if (
+    row.country !== undefined &&
+    row.country !== null &&
+    (typeof row.country !== 'string' || !/^[A-Z]{2}$/.test(row.country))
+  )
+    throw invalid();
   return {
     id,
     name: text(row.name, 16384),
     category: text(row.category, 16384, true),
+    ...(row.originalCategory === undefined
+      ? {}
+      : { originalCategory: text(row.originalCategory, 16384, true) }),
     epgId: text(row.epgId, 16384),
     providerId: row.providerId === null ? null : text(row.providerId, 16384),
     streamReference,
     favorite: row.favorite,
+    ...(row.ppv === undefined ? {} : { ppv: row.ppv as boolean }),
+    ...(row.country === undefined ? {} : { country: row.country as string | null }),
   };
 }
 function validateProgram(value: unknown, epgId: string): AccountGuideProgram {
@@ -148,8 +176,12 @@ export function createAccountGuide(runtime?: OwnedNativeRuntime) {
       { signal, validate },
     );
   return {
-    /** Download the provider's guide now (only on the viewer's request). */
-    refresh(account: AccountMetadata, signal?: AbortSignal): Promise<AccountGuideStatus> {
+    /** Explicit downloads or enabled, due renewal of an already cached guide. */
+    refresh(
+      account: AccountMetadata,
+      signal?: AbortSignal,
+      options?: { automatic?: boolean },
+    ): Promise<AccountGuideStatus> {
       const admitted = validateAccountMetadata(account);
       return invokeOwnedNative(
         native,
@@ -159,6 +191,7 @@ export function createAccountGuide(runtime?: OwnedNativeRuntime) {
             schemaVersion: 1,
             accountId: admitted.id,
             expectedRevision: admitted.revision,
+            ...(options?.automatic === true ? { automatic: true } : {}),
           },
         },
         {
@@ -201,17 +234,58 @@ export function createAccountGuide(runtime?: OwnedNativeRuntime) {
       toMs: number,
       search: string,
       signal?: AbortSignal,
+      ppv = false,
+      sports?: SportsScope,
+      history?: GuideHistoryScope,
     ) {
+      const sportScope = sports === undefined ? undefined : validateSportsScope(sports, search);
+      const watched = history === undefined ? undefined : captureGuideHistory(history);
+      if (watched && ppv) throw invalid();
+      if (watched) watched.ids.forEach((id) => guideChannelId(id, account.id));
       return read(
         'read_iptv_account_guide_listed',
         account,
-        { fromMs, toMs, search },
+        {
+          fromMs,
+          toMs,
+          search,
+          ...(ppv ? { ppv: true } : {}),
+          ...(sportScope ? { sports: sportScope } : {}),
+          ...(watched ? { historyIds: [...watched.ids], hideAdult: watched.hideAdult } : {}),
+        },
         (value) => {
-          const row = record(value, ['revision', 'epgIds']);
+          const row = record(value, ['revision', 'epgIds', 'channelIds', 'ppvChannelIds']);
           if (!Array.isArray(row.epgIds) || row.epgIds.length > 50000) throw invalid();
+          if ((ppv || sportScope || watched) && row.channelIds === undefined) throw invalid();
+          let channelIds: string[] | undefined;
+          if (row.channelIds !== undefined) {
+            if (!Array.isArray(row.channelIds) || row.channelIds.length > 100000) throw invalid();
+            channelIds = row.channelIds.map((value) => guideChannelId(value, account.id));
+            if (new Set(channelIds).size !== channelIds.length) throw invalid();
+            if (watched && channelIds.some((id) => !watched.ids.includes(id))) throw invalid();
+          }
+          let ppvChannelIds: string[] | undefined;
+          if (row.ppvChannelIds !== undefined) {
+            if (
+              !Array.isArray(row.ppvChannelIds) ||
+              row.ppvChannelIds.length > 100000 ||
+              !channelIds
+            )
+              throw invalid();
+            const admitted = new Set(channelIds);
+            ppvChannelIds = row.ppvChannelIds.map((value) => guideChannelId(value, account.id));
+            if (
+              new Set(ppvChannelIds).size !== ppvChannelIds.length ||
+              ppvChannelIds.some((id) => !admitted.has(id))
+            )
+              throw invalid();
+          }
+          if ((sportScope?.includePpv || watched) && ppvChannelIds === undefined) throw invalid();
           return {
             revision: count(row.revision),
             epgIds: row.epgIds.map((id) => text(id, 16384)),
+            ...(channelIds === undefined ? {} : { channelIds }),
+            ...(ppvChannelIds === undefined ? {} : { ppvChannelIds }),
           };
         },
         signal,
@@ -225,7 +299,20 @@ export function createAccountGuide(runtime?: OwnedNativeRuntime) {
       after: { startMs: number; ordinal: number } | null,
       limit: number,
       signal?: AbortSignal,
+      ppv = false,
+      channelId?: string,
+      sports?: SportsScope,
+      search = '',
+      history?: GuideHistoryScope,
     ) {
+      const sportScope = sports === undefined ? undefined : validateSportsScope(sports, search);
+      const watched = history === undefined ? undefined : captureGuideHistory(history);
+      if (watched && ppv) throw invalid();
+      if (watched) watched.ids.forEach((id) => guideChannelId(id, account.id));
+      if ((ppv || sportScope || watched) && channelId === undefined) throw invalid();
+      const admittedChannel =
+        channelId === undefined ? undefined : guideChannelId(channelId, account.id);
+      if (watched && !watched.ids.includes(admittedChannel!)) throw invalid();
       return read(
         'read_iptv_account_guide_programs',
         account,
@@ -234,6 +321,10 @@ export function createAccountGuide(runtime?: OwnedNativeRuntime) {
           fromMs,
           toMs,
           limit,
+          ...(ppv ? { ppv: true } : {}),
+          ...(sportScope ? { sports: sportScope, search } : {}),
+          ...(watched ? { historyIds: [...watched.ids], hideAdult: watched.hideAdult } : {}),
+          ...(admittedChannel === undefined ? {} : { channelId: admittedChannel }),
           ...(after ? { afterStartMs: after.startMs, afterOrdinal: after.ordinal } : {}),
         },
         (value) => {

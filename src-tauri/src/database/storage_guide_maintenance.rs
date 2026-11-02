@@ -27,6 +27,42 @@ const VACUUM_BUDGET: Duration = Duration::from_secs(120);
 const MAX_SCHEMA_OBJECTS: usize = 1024;
 const MAX_SCHEMA_BYTES: usize = 1024 * 1024;
 
+enum LogPhase {
+    Exclusive,
+    Vacuum,
+    Verify,
+}
+struct PhaseLog {
+    phase: LogPhase,
+    started: Instant,
+}
+impl PhaseLog {
+    fn begin(phase: LogPhase) -> Self {
+        let span = Self {
+            phase,
+            started: Instant::now(),
+        };
+        eprintln!("[GenX maintenance] phase={} event=start", span.token());
+        span
+    }
+    fn token(&self) -> &'static str {
+        match self.phase {
+            LogPhase::Exclusive => "exclusive",
+            LogPhase::Vacuum => "vacuum",
+            LogPhase::Verify => "verify",
+        }
+    }
+}
+impl Drop for PhaseLog {
+    fn drop(&mut self) {
+        eprintln!(
+            "[GenX maintenance] phase={} event=end elapsed_ms={}",
+            self.token(),
+            self.started.elapsed().as_millis()
+        );
+    }
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct PageState {
@@ -396,6 +432,7 @@ impl PairStore {
         sql(c.execute_batch("PRAGMA locking_mode=EXCLUSIVE;"))?;
         c.execute_batch("BEGIN EXCLUSIVE;COMMIT;")
             .map_err(|e| vacuum_error(&e, &cancel, &AtomicBool::new(false)))?;
+        let _exclusive_log = PhaseLog::begin(LogPhase::Exclusive);
         observer(Stage::Exclusive, &c)?;
         admitted()?;
         let unchanged = preflight(&c)?;
@@ -522,7 +559,10 @@ impl PairStore {
                 return receipt;
             }
         };
-        let result = c.execute_batch("VACUUM main;");
+        let result = {
+            let _vacuum_log = PhaseLog::begin(LogPhase::Vacuum);
+            c.execute_batch("VACUUM main;")
+        };
         // SQL executes synchronously on this retained worker. Clearing this hook
         // joins the entire operation; verification must ignore later cancellation.
         drop(progress);
@@ -530,6 +570,7 @@ impl PairStore {
         let verification = after_sql
             .and_then(|_| observer(Stage::BeforeVerify, c))
             .and_then(|_| {
+                let _verify_log = PhaseLog::begin(LogPhase::Verify);
                 if !c.is_autocommit() {
                     return Err("sqlite-maintenance-open-transaction".into());
                 }

@@ -48,3 +48,5 @@ pub(crate) mod vpn_status;
 pub(crate) mod windows_manifest_protector;
 #[cfg(windows)]
 pub(crate) mod windows_speech;
+
+pub(crate) mod playback_trace;

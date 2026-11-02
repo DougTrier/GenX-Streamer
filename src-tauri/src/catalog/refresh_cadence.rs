@@ -12,6 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#[cfg(test)]
 use chrono::{Datelike, TimeZone, Timelike, Utc};
 use serde_json::Value;
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -48,6 +49,9 @@ impl Cadence {
             Self::Monthly => "monthly",
         }
     }
+    // Channel acquisition scheduling lives in the renderer. Keep the native
+    // arithmetic as a test-only calendar-policy parity reference.
+    #[cfg(test)]
     pub(crate) fn next(self, last: i64) -> Result<Option<i64>, String> {
         if self == Self::Off {
             return Ok(None);

@@ -106,12 +106,14 @@ body:has(#app[data-device-kind='tv']) .in-app-select-options {
 }
 
 body:has(#app[data-device-kind='tv']) .browse-options .filters button {
+  flex: 1 0 auto;
   padding-inline: 4px !important;
   height: 34px !important;
   white-space: nowrap;
 }
 
 body:has(#app[data-device-kind='tv']) #app .browse-options .filters {
+  flex-wrap: wrap;
   min-height: 34px;
   align-items: center;
 }

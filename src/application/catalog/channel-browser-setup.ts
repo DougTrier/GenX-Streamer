@@ -34,6 +34,7 @@ import { type createVisibleGuideState } from '../guide/visible-guide-state';
 import { type createChannelEdits } from './channel-edits';
 import { type createChannelListControls } from './channel-list-controls';
 import { type CatalogRecord } from '../../catalog';
+import { getWatchHistory } from '../../playback/watch-history';
 
 /** What this area reads from, and writes back to, the rest of the application. */
 export interface ChannelBrowserSetupEnvironment {
@@ -124,6 +125,8 @@ export function createChannelBrowserSetup(env: ChannelBrowserSetupEnvironment) {
             (env.accountBrowser.selectedAccount
               ? env.accountBrowser.identity()
               : `${env.catalogRevision}:${env.catalogBrowseViewRevision}`),
+          scopeIdentity: () =>
+            `${env.library.archiveStorageEpoch}:${env.library.libraryIntent}:${env.accountBrowser.identity()}`,
           query: (input, signal) => {
             if (
               env.element('app').dataset.ready !== 'true' ||
@@ -151,6 +154,7 @@ export function createChannelBrowserSetup(env: ChannelBrowserSetupEnvironment) {
       : undefined,
     {
       logos: env.channelLogos,
+      sportsControls: env.element('sports-filters'),
       baseRowHeight: () =>
         env.element('app').dataset.deviceKind === 'tv'
           ? 52
@@ -161,6 +165,14 @@ export function createChannelBrowserSetup(env: ChannelBrowserSetupEnvironment) {
               : 72,
       onFavorite: (id) => env.toggleChannelFavorite(id),
       onManage: (id) => env.channelActions.open(id),
+      history: {
+        store: getWatchHistory(),
+        scope: () =>
+          env.accountBrowser.selectedAccount
+            ? { kind: 'paid', accountId: env.accountBrowser.selectedAccount.id }
+            : { kind: 'free' },
+        controls: env.element('channel-count').parentElement ?? undefined,
+      },
     },
   );
   paidNowPlaying = createPaidNowPlaying({
@@ -168,6 +180,10 @@ export function createChannelBrowserSetup(env: ChannelBrowserSetupEnvironment) {
     account: () =>
       env.library.contentLibrary === 'live' ? env.accountBrowser.selectedAccount : null,
     epgId: (id) => env.accountBrowser.selectionFor(id)?.channel.epgId ?? null,
+    scopeFor: (id) => {
+      const selection = env.accountBrowser.selectionFor(id);
+      return selection ? { epgId: selection.channel.epgId, ppv: selection.ppv === true } : null;
+    },
     now: () => Date.now(),
     publish: (rows) => browser.setNowPlaying(rows),
   });

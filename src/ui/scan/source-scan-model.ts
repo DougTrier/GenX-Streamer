@@ -18,6 +18,7 @@
  * The scan screen's types, failures and the comparisons used when a saved
  * scan is resumed. Re-exported by source-scan.ts.
  */
+import { IncrementalRefreshCapacityError } from '../../discovery/incremental-refresh';
 import { type createBoundedScanResumeService } from '../../application/discovery/bounded-scan-resume-service';
 import { type ScanPreparationFailureCode } from '../../discovery/selection-failure';
 import {
@@ -48,6 +49,7 @@ import {
 /** First fixed error code in an error or its causes (native failures are codes); never free text. */
 export function scanFailureCode(failure: unknown): string {
   for (let current: unknown = failure, depth = 0; current !== undefined && depth < 4; depth++) {
+    if (current instanceof IncrementalRefreshCapacityError) return 'source-refresh-capacity';
     const value = current instanceof Error ? current.message : current;
     if (typeof value === 'string' && /^[a-z0-9][a-z0-9-]{1,63}$/u.test(value)) return value;
     if (current instanceof DOMException && current.name === 'AbortError') return 'aborted';
@@ -98,6 +100,7 @@ export interface SourceScanSnapshot {
 
 /** Only exact owned messages/codes qualify; payloads and unrecognized errors stay private. */
 export function classifyScanFailure(failure: unknown, publication = false): ScanFailure {
+  if (failure instanceof IncrementalRefreshCapacityError) return 'capacity';
   const value =
     typeof failure === 'string' ? failure : failure instanceof Error ? failure.message : '';
   if (
@@ -344,6 +347,14 @@ export type ScanResumeRefusal = 'missing' | 'completed' | 'changed' | 'unavailab
 export class ScanSourcesChanged extends Error {
   constructor() {
     super('Your channel sources were updated after this scan paused.');
+  }
+}
+/** Issued only after a native expired admission has actually joined its closure. */
+export class ScanCheckpointExpired extends Error {
+  constructor() {
+    super(
+      'This saved scan is outside its 24-hour resume window. Choose Rescan; saved channels are kept.',
+    );
   }
 }
 

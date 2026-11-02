@@ -213,10 +213,41 @@ mod tests {
     }
     #[test]
     fn a_waiting_writer_is_visible_until_admitted() {
+        // This policy is process-global: unrelated parallel Store tests may
+        // legitimately own waiting writers. Check zero/count/drop transitions
+        // in an exact-test child, while the parent deliberately owns a waiter.
+        const CHILD: &str = "GENX_BACKUP_WRITER_POLICY_CHILD";
+        if std::env::var_os(CHILD).as_deref() != Some(std::ffi::OsStr::new("1")) {
+            let waiting = WaitingWriter::begin();
+            assert!(writer_waiting());
+            let output = std::process::Command::new(std::env::current_exe().unwrap())
+                .args([
+                    "--exact",
+                    "database::storage_backup_policy::tests::a_waiting_writer_is_visible_until_admitted",
+                    "--nocapture",
+                ])
+                .env(CHILD, "1")
+                .output()
+                .unwrap();
+            assert!(writer_waiting(), "the parent's waiter remains owned");
+            drop(waiting);
+            assert!(
+                output.status.success(),
+                "isolated writer policy failed: status={:?} stdout={} stderr={}",
+                output.status.code(),
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+            return;
+        }
         assert!(!writer_waiting());
         let waiting = WaitingWriter::begin();
         assert!(writer_waiting());
+        let overlapping = WaitingWriter::begin();
+        assert!(writer_waiting());
         drop(waiting);
+        assert!(writer_waiting(), "one remaining waiter still blocks backup");
+        drop(overlapping);
         assert!(!writer_waiting());
     }
     #[test]

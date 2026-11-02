@@ -56,25 +56,36 @@ async function fixture(
   );
   await page.addStyleTag({
     content:
-      '#list{height:360px;width:420px;overflow:auto;position:relative}#channel-rows{position:absolute;top:0;width:100%}.channel{height:72px;width:100%;display:block;padding:4px}.channel-copy{display:block}',
+      '*{box-sizing:border-box}#list{height:360px;width:420px;overflow:auto;position:relative}#channel-rows{position:absolute;top:0;width:100%}.channel{height:72px;width:100%;display:block;padding:4px}.channel-copy{display:block}',
   });
   await page.addScriptTag({ content: bundle });
   await page.addScriptTag({
     content: `
     window.calls=[];window.selections=[];window.hold=${JSON.stringify(held)};window.pending=[];window.outcome='ready';
     window.browseReady=${JSON.stringify(ready)};window.durableRevision="7";
+    window.viewRevision='9';window.ownerIdentity='public';window.dataIdentity='fixture';
+    window.inserted=0;window.removed=[];window.reversed=false;
     const row=i=>({id:'c'+i,sourceId:'public',name:'Channel '+i,category:i%2?'Sports':'News',favorite:i%100===0,geography:{country:'US',state:'US-IL'}});
     const oracle=q=>{
       const filtered=q.query==='needle'||q.filter==='favorites';
-      const total=filtered?1000:100000;
+      const total=Math.min(100000,(filtered?1000:100000)+window.inserted-window.removed.length);
       const scale=filtered?100:1;
-      const rank=q.anchorId?Number(q.anchorId.slice(1))/scale:null;
+      const original=q.anchorId?.startsWith('c')?Number(q.anchorId.slice(1))/scale:null;
+      const forwardRank=original===null||window.removed.includes(original)?null:original+window.inserted-window.removed.filter(i=>i<original).length;
+      const rank=forwardRank===null?null:window.reversed?total-1-forwardRank:forwardRank;
       const anchor=rank!==null&&Number.isInteger(rank)&&rank>=0&&rank<total?rank:null;
       const start=q.anchorId?anchor===null?0:Math.max(0,anchor-1):q.startIndex??0;
-      return {schemaVersion:1,requestId:'fixture',catalogRevision:window.durableRevision,viewRevision:'9',queryVersion:'v1-'+ 'a'.repeat(64),totalCount:total,startIndex:start,anchorIndex:anchor,
-        rows:Array.from({length:Math.min(q.pageSize,total-start)},(_,i)=>row((start+i)*scale)),after:null};
+      const at=index=>{
+        if(window.reversed)index=total-1-index;
+        if(index<window.inserted)return {...row(0),id:'inserted'+index};
+        let value=index-window.inserted;
+        for(const removed of window.removed)if(removed<=value)value++;
+        return row(value*scale);
+      };
+      return {schemaVersion:1,requestId:'fixture',catalogRevision:window.durableRevision,viewRevision:window.viewRevision,...(q.sports?{guideRevision:'1'}:{}),queryVersion:'v1-'+ 'a'.repeat(64),totalCount:total,startIndex:start,anchorIndex:anchor,
+        rows:Array.from({length:Math.min(q.pageSize,total-start)},(_,i)=>at(start+i)),after:null};
     };
-    const host={revision:()=> window.durableRevision,ready:()=>window.browseReady,identity:()=> 'fixture',query:async(q,signal)=>{window.calls.push(structuredClone(q));
+    const host={revision:()=> window.durableRevision,ready:()=>window.browseReady,identity:()=>window.dataIdentity,scopeIdentity:()=>window.ownerIdentity,query:async(q,signal)=>{window.calls.push(structuredClone(q));
       if(window.hold)await new Promise(resolve=>window.pending.push(resolve));
       if(window.outcome==='error')throw new Error('private query failed');
       const result=oracle(q);
@@ -102,6 +113,314 @@ async function cleanup(page: Page) {
   });
   await page.close();
 }
+
+async function browseAt(page: Page, index: number, focus = true) {
+  await page.locator('#list').evaluate(
+    (element, offset) => {
+      element.scrollTop = offset;
+      element.dispatchEvent(new Event('scroll'));
+    },
+    index * 72 + 17,
+  );
+  await browserExpect(page.locator(`[data-channel="c${index + 2}"]`)).toBeVisible();
+  if (focus) await page.locator(`[data-channel="c${index + 2}"]`).focus();
+}
+
+it('refreshes indexed sports membership after a committed guide update without changing window, filters or anchor', async () => {
+  const page = await fixture();
+  try {
+    const ordinaryCalls = await page.evaluate(() => Reflect.get(window, 'calls').length);
+    await page.evaluate(() => Reflect.get(window, 'cb').refreshProgrammeMembership());
+    expect(await page.evaluate(() => Reflect.get(window, 'calls').length)).toBe(ordinaryCalls);
+    await page.evaluate(() => {
+      const cb = Reflect.get(window, 'cb');
+      cb.setFilter('sports');
+      cb.setSportsFacet({ sport: 'american-football', league: 'nfl' });
+    });
+    // A new explicit facet intentionally replaces the old list. Begin deep
+    // browsing only after its first owned page has actually painted.
+    await browserExpect(page.locator('[data-channel="c0"]')).toBeVisible();
+    await browseAt(page, 1000);
+    const target = page.locator('[data-channel="c1002"]');
+    const before = await target.boundingBox();
+    const scope = await page.evaluate(() => Reflect.get(window, 'cb').getSportsScope());
+    const calls = await page.evaluate(() => Reflect.get(window, 'calls').length);
+    await page.evaluate(() => {
+      Reflect.set(window, 'hold', true);
+      Reflect.set(window, 'inserted', 17);
+      Reflect.set(window, 'viewRevision', '10');
+      Reflect.get(window, 'cb').refreshProgrammeMembership();
+    });
+    await expect.poll(() => page.evaluate(() => Reflect.get(window, 'pending').length)).toBe(1);
+    await browserExpect(target).toBeFocused();
+    await expect.poll(async () => (await target.boundingBox())?.y).toBe(before?.y);
+    await page.evaluate(() => Reflect.get(window, 'release')());
+    await expect
+      .poll(() => page.evaluate(() => Reflect.get(window, 'calls').length))
+      .toBeGreaterThan(calls);
+    await browserExpect(target).toBeFocused();
+    await expect.poll(async () => (await target.boundingBox())?.y).toBe(before?.y);
+    expect(await page.evaluate(() => Reflect.get(window, 'cb').getSportsScope())).toEqual(scope);
+    const requests = await page.evaluate(
+      (count) => Reflect.get(window, 'calls').slice(count),
+      calls,
+    );
+    expect(requests.some((request: { anchorId?: string }) => request.anchorId === 'c1002')).toBe(
+      true,
+    );
+    for (const request of requests)
+      expect(request).toMatchObject({ filter: 'sports', sports: scope });
+    expect(await page.evaluate(() => Reflect.get(window, 'selections'))).toEqual([]);
+  } finally {
+    await cleanup(page);
+  }
+});
+
+it('keeps the browsed channel and exact focus offset through scan insertions and repeated health search', async () => {
+  const page = await fixture('c0');
+  try {
+    await browseAt(page, 1000);
+    const before = await page.locator('[data-channel="c1002"]').boundingBox();
+    await page.evaluate(() => {
+      Reflect.set(window, 'hold', true);
+      Reflect.set(window, 'inserted', 17);
+      Reflect.set(window, 'durableRevision', '8');
+      Reflect.set(window, 'viewRevision', '10');
+      Reflect.set(window, 'dataIdentity', 'scan-8');
+      Reflect.get(window, 'cb').update([], [], 'c0');
+      // Health and catalog publication repeat the existing search, too.
+      Reflect.get(window, 'cb').search('  ');
+      Reflect.get(window, 'cb').setFilter('all');
+    });
+    await expect.poll(() => page.evaluate(() => Reflect.get(window, 'pending').length)).toBe(1);
+    await browserExpect(page.locator('[data-channel="c1002"]')).toBeFocused();
+    await browserExpect(page.locator('#list')).toHaveAttribute('data-catalog-empty', 'false');
+    await expect
+      .poll(async () => (await page.locator('[data-channel="c1002"]').boundingBox())?.y)
+      .toBe(before?.y);
+    expect(await page.locator('#list').evaluate((element) => element.scrollTop)).toBe(72017);
+    await page.evaluate(() => Reflect.get(window, 'release')());
+    await expect.poll(() => page.locator('#channel-count').textContent()).toBe('100,000 channels');
+    await browserExpect(page.locator('[data-channel="c1002"]')).toBeFocused();
+    await expect
+      .poll(async () => (await page.locator('[data-channel="c1002"]').boundingBox())?.y)
+      .toBe(before?.y);
+    expect(await page.locator('#list').evaluate((element) => element.scrollTop)).toBe(73241);
+    const calls = await page.evaluate(() => Reflect.get(window, 'calls'));
+    expect(calls.some((call: { anchorId?: string }) => call.anchorId === 'c1002')).toBe(true);
+    expect(calls.every((call: { pageSize: number }) => call.pageSize === 50)).toBe(true);
+    expect(await page.evaluate(() => Reflect.get(window, 'selections'))).toEqual([]);
+    expect(await page.locator('[data-channel]').count()).toBeLessThan(20);
+    // Health/favorite order may move this row far from its old ordinal, too.
+    await page.evaluate(() => {
+      Reflect.set(window, 'reversed', true);
+      Reflect.set(window, 'viewRevision', '11');
+      Reflect.set(window, 'dataIdentity', 'reordered-health-11');
+      Reflect.get(window, 'cb').update([], [], 'c0');
+    });
+    await expect
+      .poll(() => page.locator('#list').evaluate((element) => element.scrollTop))
+      .toBe(7126433);
+    await browserExpect(page.locator('[data-channel="c1002"]')).toBeFocused();
+    await expect
+      .poll(async () => (await page.locator('[data-channel="c1002"]').boundingBox())?.y)
+      .toBe(before?.y);
+  } finally {
+    await cleanup(page);
+  }
+});
+
+it('a removed focus anchor uses its nearest surviving row instead of the playing channel', async () => {
+  const page = await fixture('c0');
+  try {
+    await browseAt(page, 1000);
+    const before = await page.locator('[data-channel="c1002"]').boundingBox();
+    await page.evaluate(() => {
+      Reflect.set(window, 'removed', [1002]);
+      Reflect.set(window, 'viewRevision', '10');
+      Reflect.set(window, 'dataIdentity', 'remove-1');
+      Reflect.get(window, 'cb').update([], [], 'c0');
+    });
+    await browserExpect(page.locator('[data-channel="c1003"]')).toBeFocused();
+    await expect
+      .poll(async () => (await page.locator('[data-channel="c1003"]').boundingBox())?.y)
+      .toBe(before?.y);
+    expect(await page.locator('#list').evaluate((element) => element.scrollTop)).toBe(72017);
+    expect(await page.evaluate(() => Reflect.get(window, 'selections'))).toEqual([]);
+    // If all retained neighbours disappear, use the same ordinal, not row zero.
+    await page.evaluate(() => {
+      Reflect.set(window, 'removed', [1001, 1002, 1003, 1004]);
+      Reflect.set(window, 'viewRevision', '11');
+      Reflect.set(window, 'dataIdentity', 'remove-4');
+      Reflect.get(window, 'cb').update([], [], 'c0');
+    });
+    await browserExpect(page.locator('[data-channel="c1006"]')).toBeFocused();
+    await expect
+      .poll(async () => (await page.locator('[data-channel="c1006"]').boundingBox())?.y)
+      .toBe(before?.y);
+    expect(await page.locator('#list').evaluate((element) => element.scrollTop)).toBe(72017);
+  } finally {
+    await cleanup(page);
+  }
+});
+
+it('preserves intervening scroll and lets search retain focus while the anchor page is held', async () => {
+  const page = await fixture('c0');
+  try {
+    await browseAt(page, 8000, false);
+    await page.evaluate(() => {
+      Reflect.set(window, 'hold', true);
+      Reflect.set(window, 'inserted', 25);
+      Reflect.set(window, 'viewRevision', '10');
+      Reflect.set(window, 'dataIdentity', 'health-10');
+      Reflect.get(window, 'cb').update([], [], 'c0');
+    });
+    await expect.poll(() => page.evaluate(() => Reflect.get(window, 'pending').length)).toBe(1);
+    await page.locator('#search').focus();
+    await page.locator('#list').evaluate((element) => {
+      element.scrollTop += 144;
+      element.dispatchEvent(new Event('scroll'));
+    });
+    await page.evaluate(() => Reflect.get(window, 'release')());
+    await browserExpect(page.locator('#channel-count')).toHaveText('100,000 channels');
+    await browserExpect(page.locator('[data-channel="c8002"]')).toBeVisible();
+    expect(await page.locator('#list').evaluate((element) => element.scrollTop)).toBe(577961);
+    await browserExpect(page.locator('#search')).toBeFocused();
+  } finally {
+    await cleanup(page);
+  }
+});
+
+it('an owner switch cancels pending anchoring, and an explicit changed search resets intentionally', async () => {
+  const page = await fixture();
+  try {
+    await browseAt(page, 1000);
+    await page.evaluate(() => {
+      Reflect.set(window, 'hold', true);
+      Reflect.set(window, 'dataIdentity', 'background');
+      Reflect.get(window, 'cb').update([], [], 'c0');
+    });
+    await expect.poll(() => page.evaluate(() => Reflect.get(window, 'pending').length)).toBe(1);
+    await page.locator('#search').focus();
+    await page.evaluate(() => {
+      Reflect.set(window, 'ownerIdentity', 'another-root-account-grant');
+      Reflect.set(window, 'dataIdentity', 'replacement');
+      Reflect.get(window, 'cb').update([], [], null);
+      Reflect.get(window, 'release')();
+    });
+    await browserExpect(page.locator('[data-channel="c0"]')).toBeVisible();
+    expect(await page.locator('#list').evaluate((element) => element.scrollTop)).toBe(0);
+    await browserExpect(page.locator('#search')).toBeFocused();
+    await browseAt(page, 1000, false);
+    await page.evaluate(() => Reflect.get(window, 'cb').search('needle'));
+    await browserExpect(page.locator('#channel-count')).toHaveText('1,000 channels');
+    expect(await page.locator('#list').evaluate((element) => element.scrollTop)).toBe(0);
+    await browserExpect(page.locator('#search')).toBeFocused();
+  } finally {
+    await cleanup(page);
+  }
+});
+
+it('focus leaving after the native acknowledgement but before its animation frame is never reclaimed', async () => {
+  const page = await fixture();
+  try {
+    await browseAt(page, 1000);
+    await page.evaluate(async () => {
+      await new Promise<void>((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+      );
+      Reflect.set(window, 'originalFrame', window.requestAnimationFrame);
+      Reflect.set(window, 'heldFrames', []);
+      window.requestAnimationFrame = (callback) => {
+        Reflect.get(window, 'heldFrames').push(callback);
+        return 100000;
+      };
+      Reflect.set(window, 'inserted', 1);
+      Reflect.set(window, 'dataIdentity', 'ack-before-frame');
+      Reflect.get(window, 'cb').update([], [], 'c0');
+    });
+    await expect
+      .poll(() => page.evaluate(() => Reflect.get(window, 'heldFrames').length))
+      .toBeGreaterThan(0);
+    // The native result relocated the scroll already; its paint is still held.
+    expect(await page.locator('#list').evaluate((element) => element.scrollTop)).toBe(72089);
+    await page.locator('#search').focus();
+    await page.evaluate(() => {
+      window.requestAnimationFrame = Reflect.get(window, 'originalFrame');
+      for (const callback of Reflect.get(window, 'heldFrames').splice(0))
+        callback(performance.now());
+    });
+    await browserExpect(page.locator('[data-channel="c1002"]')).toBeVisible();
+    await browserExpect(page.locator('#search')).toBeFocused();
+  } finally {
+    await page.evaluate(() => {
+      if (Reflect.get(window, 'originalFrame'))
+        window.requestAnimationFrame = Reflect.get(window, 'originalFrame');
+    });
+    await cleanup(page);
+  }
+});
+
+it('the JS virtual list retains a favorite action and pixel offset through insertion and favorite reordering', async () => {
+  const page = await fixture();
+  try {
+    await page.evaluate(async () => {
+      await Reflect.get(window, 'cb').dispose();
+      const rows = Array.from({ length: 250 }, (_, index) => ({
+        id: 'c' + index,
+        name: 'Channel ' + index,
+        category: 'Sports',
+      }));
+      Reflect.set(window, 'localRows', rows);
+      const BrowserUI = Reflect.get(window, 'IndexedUI');
+      Reflect.set(
+        window,
+        'cb',
+        new BrowserUI.ChannelBrowser(
+          document.querySelector('#list'),
+          () => {},
+          undefined,
+          undefined,
+          { onFavorite: () => {}, onManage: () => {} },
+        ),
+      );
+      Reflect.get(window, 'cb').update(rows, [], 'c0');
+    });
+    await browseAt(page, 100, false);
+    await page.locator('[data-channel-id="c102"][data-channel-action="favorite"]').focus();
+    const before = await page.locator('[data-channel="c102"]').boundingBox();
+    await page.evaluate(() => {
+      const added = Array.from({ length: 20 }, (_, index) => ({
+        id: 'new' + index,
+        name: 'New ' + index,
+        category: 'News',
+      }));
+      Reflect.get(window, 'cb').update(
+        [...added, ...Reflect.get(window, 'localRows')],
+        ['c180'],
+        'c0',
+      );
+      Reflect.get(window, 'cb').search('');
+    });
+    await browserExpect(
+      page.locator('[data-channel-id="c102"][data-channel-action="favorite"]'),
+    ).toBeFocused();
+    await expect
+      .poll(async () => (await page.locator('[data-channel="c102"]').boundingBox())?.y)
+      .toBe(before?.y);
+    expect(await page.locator('#list').evaluate((element) => element.scrollTop)).toBe(8729);
+    await page.keyboard.press('ArrowDown');
+    await browserExpect(
+      page.locator('[data-channel-id="c103"][data-channel-action="favorite"]'),
+    ).toBeFocused();
+    expect(await page.locator('[data-channel]').count()).toBeLessThan(20);
+    await page.evaluate(() => Reflect.get(window, 'cb').setFilter('news'));
+    expect(await page.locator('#list').evaluate((element) => element.scrollTop)).toBe(0);
+    await browserExpect(page.locator('#channel-count')).toHaveText('20 channels');
+  } finally {
+    await cleanup(page);
+  }
+});
 
 it('renders bounded windows of 100k indexed rows, scrolls across pages and focuses End', async () => {
   const page = await fixture();
@@ -140,6 +459,7 @@ it('held native first query and failed replacement never claim an empty count', 
     await browserExpect(page.locator('#channel-count')).toHaveText('Loading channels…');
     await browserExpect(page.locator('#list')).toHaveAttribute('aria-busy', 'true');
     await browserExpect(page.locator('#list')).toHaveAttribute('data-catalog-state', 'pending');
+    await browserExpect(page.locator('#list')).toHaveAttribute('data-catalog-empty', 'false');
     await browserExpect(page.locator('#list-empty')).toHaveText('Loading channels…');
     await browserExpect(page.locator('[data-channel]')).toHaveCount(0);
     await page.evaluate(() => {
@@ -148,12 +468,14 @@ it('held native first query and failed replacement never claim an empty count', 
     });
     await browserExpect(page.locator('#channel-count')).toHaveText('0 channels');
     await browserExpect(page.locator('#list')).toHaveAttribute('data-catalog-state', 'ready');
+    await browserExpect(page.locator('#list')).toHaveAttribute('data-catalog-empty', 'true');
     await page.evaluate(() => {
       Reflect.set(window, 'hold', true);
       Reflect.get(window, 'cb').search('another');
     });
     await expect.poll(() => page.evaluate(() => Reflect.get(window, 'pending').length)).toBe(1);
     await browserExpect(page.locator('#channel-count')).toHaveText('Loading channels…');
+    await browserExpect(page.locator('#list')).toHaveAttribute('data-catalog-empty', 'false');
     await page.evaluate(() => {
       Reflect.set(window, 'outcome', 'error');
       Reflect.get(window, 'release')();
@@ -161,6 +483,7 @@ it('held native first query and failed replacement never claim an empty count', 
     await browserExpect(page.locator('#channel-count')).toHaveText('Channels unavailable');
     await browserExpect(page.locator('#list')).toHaveAttribute('aria-busy', 'false');
     await browserExpect(page.locator('#list')).toHaveAttribute('data-catalog-state', 'error');
+    await browserExpect(page.locator('#list')).toHaveAttribute('data-catalog-empty', 'false');
     await browserExpect(page.locator('#list-empty')).toContainText('could not be loaded');
     expect(await page.locator('#list-empty').textContent()).not.toContain('private');
     expect(await page.evaluate(() => Reflect.get(window, 'selections'))).toEqual([]);

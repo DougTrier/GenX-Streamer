@@ -126,6 +126,12 @@ it('a row with a logo shows the programme on now and its time; the name stays in
     expect(logoRow.mode).toBe('title');
     expect(logoRow.subtitle).toMatch(/^.+ – .+$/);
     expect(logoRow.label).toContain('Channel 1');
+    expect(await page.locator('[data-channel="c1"] .channel-provider-label').isVisible()).toBe(
+      true,
+    );
+    expect(await page.locator('[data-channel="c1"] .channel-provider-label').textContent()).toBe(
+      'Channel 1',
+    );
     expect(logoRow.label).toContain('Now: <b>Late</b> News');
     // Rendered as text, never markup.
     expect(await page.locator('[data-channel="c1"] b').count()).toBe(0);

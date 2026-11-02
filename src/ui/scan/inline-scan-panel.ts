@@ -56,13 +56,63 @@ export function mountInlineScanPanel(
   const refresh = get<HTMLButtonElement>('inline-scan-refresh');
   const rescanButton = get<HTMLButtonElement>('inline-scan-rescan');
   const finish = get<HTMLButtonElement>('inline-scan-continue');
+  const stop = get<HTMLButtonElement>('inline-scan-stop');
+  const actions = panel.querySelector<HTMLElement>('.inline-scan-actions')!;
+  let pendingFocus: HTMLButtonElement | null = null;
+  const available = (button: HTMLButtonElement) =>
+    !button.hidden && !button.disabled && !panel.hidden && button.getClientRects().length > 0;
+  const recoverFocus = () => {
+    if (doc.hidden) {
+      pendingFocus = null;
+      return;
+    }
+    const active = doc.activeElement;
+    const owned =
+      active instanceof HTMLButtonElement && actions.contains(active) ? active : pendingFocus;
+    if (!owned || panel.hidden) {
+      pendingFocus = null;
+      return;
+    }
+    if (active !== owned && active !== doc.body) {
+      pendingFocus = null;
+      return;
+    }
+    if (available(owned)) return;
+    const target = available(stop)
+      ? stop
+      : available(finish)
+        ? finish
+        : available(rescanButton)
+          ? rescanButton
+          : null;
+    if (target) {
+      pendingFocus = null;
+      target.focus({ preventScroll: true });
+    }
+  };
+  // Import/start can hide an activated action before the asynchronous progress
+  // callback reaches render(). Remember only this deliberate panel action.
+  panel.addEventListener(
+    'click',
+    (event) => {
+      const button = event.target instanceof Element ? event.target.closest('button') : null;
+      pendingFocus =
+        button instanceof HTMLButtonElement && actions.contains(button) ? button : null;
+    },
+    true,
+  );
+  doc.addEventListener('focusin', (event) => {
+    if (pendingFocus && event.target !== pendingFocus && event.target !== doc.body)
+      pendingFocus = null;
+  });
   const follow = () => {
     const hidden = rescanButton.hidden || !finish.hidden || !refreshable;
     if (refresh.hidden !== hidden) refresh.hidden = hidden;
     if (refresh.disabled !== rescanButton.disabled) refresh.disabled = rescanButton.disabled;
+    recoverFocus();
   };
   const watch = new MutationObserver(follow);
-  for (const button of [rescanButton, finish])
+  for (const button of [rescanButton, finish, refresh, stop])
     watch.observe(button, { attributes: true, attributeFilter: ['hidden', 'disabled'] });
   follow();
   const pace = createScanPace(now);
@@ -70,11 +120,14 @@ export function mountInlineScanPanel(
     revealed = false,
     last: Readonly<AutomaticScanProgress> | null = null;
   close.addEventListener('click', () => {
+    pendingFocus = null;
     dismissed = true;
     revealed = false;
     panel.hidden = true;
   });
   function render(progress: Readonly<AutomaticScanProgress>): void {
+    const focused = doc.activeElement;
+    if (focused instanceof HTMLButtonElement && actions.contains(focused)) pendingFocus = focused;
     last = progress;
     refreshable =
       progress.phase === 'completed' &&
@@ -136,7 +189,6 @@ export function mountInlineScanPanel(
     const message = get('inline-scan-error');
     message.textContent = progress.error;
     message.hidden = !progress.error;
-    const stop = get<HTMLButtonElement>('inline-scan-stop');
     stop.hidden = !active;
     stop.disabled = closing();
     const resume = get<HTMLButtonElement>('inline-scan-continue');
@@ -151,6 +203,7 @@ export function mountInlineScanPanel(
     rescan.hidden = active || (progress.phase === 'idle' && !progress.error && !progress.total);
     rescan.disabled = closing();
     close.hidden = active;
+    follow();
   }
   return {
     render,

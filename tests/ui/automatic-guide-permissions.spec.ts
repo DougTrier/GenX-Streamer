@@ -341,7 +341,16 @@ test('bundled main previews a separately granted existing HTTP guide by ID witho
   await page.locator('#guide-button').click();
   const guide = page.getByRole('dialog', { name: 'Program guide', exact: true });
   await guide.getByRole('button', { name: 'Find program guides', exact: true }).click();
+  await expect(guide.getByRole('status', { name: 'Guide update' })).toHaveText(
+    'Guide update queued until playback and browsing stop. Previous schedules remain available.',
+  );
+  expect(
+    f.calls.some((c) => c.command === 'guide_preview' || c.command === 'guide_save_source'),
+  ).toBe(false);
+  await guide.getByRole('button', { name: 'Close guide', exact: true }).click();
+  await expect(guide).toBeHidden();
   await expect.poll(() => f.mapped()).toBe(true);
+  await page.locator('#guide-button').click();
   await expect(guide).toContainText('1 channel with listings');
   expect(f.calls.filter((c) => c.command === 'guide_preview')).toHaveLength(1);
   expect(f.calls.some((c) => c.command === 'guide_save_source')).toBe(false);
@@ -362,14 +371,30 @@ test('bundled main refuses a captured HTTP grant revoked during a held latest-so
   await page.locator('#guide-button').click();
   const guide = page.getByRole('dialog', { name: 'Program guide', exact: true });
   await guide.getByRole('button', { name: 'Find program guides', exact: true }).click();
+  await expect(guide.getByRole('status', { name: 'Guide update' })).toHaveText(
+    'Guide update queued until playback and browsing stop. Previous schedules remain available.',
+  );
+  expect(f.pendingCount()).toBe(0);
+  expect(
+    f.calls.some((c) => c.command === 'guide_preview' || c.command === 'guide_save_source'),
+  ).toBe(false);
+  await guide.getByRole('button', { name: 'Close guide', exact: true }).click();
+  await expect(guide).toBeHidden();
   await expect.poll(() => f.pendingCount()).toBeGreaterThan(0);
   expect(
     f.calls.some((c) => c.command === 'guide_preview' || c.command === 'guide_save_source'),
   ).toBe(false);
   f.revokeAndRelease();
-  await expect(guide.getByRole('alert')).toHaveText(
-    'Guide action failed. Previous schedule retained; retry or review the source and mapping.',
+  await expect(page.locator('#source-refresh-status')).toHaveText(
+    'Program guide work could not finish. Previous schedules remain available.',
   );
+  await page.locator('#guide-button').click();
+  await expect(guide.getByRole('status', { name: 'Guide update' })).toHaveText(
+    'Program guide work could not finish. Previous schedules remain available. Review guide sources or try Find again.',
+  );
+  await expect(
+    guide.getByRole('button', { name: 'Find program guides', exact: true }),
+  ).toBeEnabled();
   expect(
     f.calls.some(
       (c) =>

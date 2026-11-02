@@ -23,6 +23,7 @@
  * October 18, 2026). The viewer's buffer choice is the starting point.
  */
 export type LiveBufferProfile = 'fast' | 'balanced' | 'smooth';
+import { normalizeLiveBufferPreference, type LiveBufferPreference } from './live-buffer';
 
 /** Never more than this behind live; bounds memory on small TVs as well. */
 export const ADAPTIVE_MAX_SECONDS = 20;
@@ -32,22 +33,37 @@ const RAISE = 1.6;
 const HOLD_LIMIT_MS = 12_000;
 
 /** A level this channel already reached (a reconnect keeps it; never lower). */
-export function createAdaptiveBuffer(profile: LiveBufferProfile, learned = 0) {
+export function createAdaptiveBuffer(
+  profile: LiveBufferProfile,
+  learned = 0,
+  initial: LiveBufferPreference = { mode: 'auto' },
+) {
   const floor = FLOOR[profile] ?? FLOOR.balanced;
   let target = Math.min(ADAPTIVE_MAX_SECONDS, Math.max(floor, learned));
+  let preference = normalizeLiveBufferPreference(initial) ?? { mode: 'auto' as const };
   const round = (value: number) => Math.round(value * 10) / 10;
   return {
     get target(): number {
-      return target;
+      return preference.mode === 'manual' ? preference.targetSeconds : target;
+    },
+    get mode(): LiveBufferPreference['mode'] {
+      return preference.mode;
+    },
+    setPreference(value: LiveBufferPreference): boolean {
+      const next = normalizeLiveBufferPreference(value);
+      if (!next) return false;
+      preference = next;
+      return true;
     },
     holdLimitMs: HOLD_LIMIT_MS,
     /** A stall: ask for more video from now on. */
     stalled(): number {
+      if (preference.mode === 'manual') return preference.targetSeconds;
       target = round(Math.min(ADAPTIVE_MAX_SECONDS, Math.max(target * RAISE, target + 2)));
       return target;
     },
     ready(aheadSeconds: number): boolean {
-      return aheadSeconds >= target;
+      return aheadSeconds >= (preference.mode === 'manual' ? preference.targetSeconds : target);
     },
   };
 }
@@ -65,3 +81,14 @@ export const learnedLiveBuffer = {
     while (learned.size > LEARNED_LIMIT) learned.delete(learned.keys().next().value as string);
   },
 };
+
+/** Session-local key: alternatives for one channel must not share a learned hold.
+ * The URL is already held by the selection; this key is never persisted or exported.
+ */
+export function liveBufferIdentity(selection: {
+  id: string;
+  url: string;
+  performanceKey?: string;
+}): string {
+  return selection.performanceKey ?? JSON.stringify([selection.id, selection.url]);
+}

@@ -14,18 +14,24 @@
  * limitations under the License.
  */
 
+import { inspectSource } from '../platform/records';
 import { invoke } from '@tauri-apps/api/core';
 import type { ChannelSelection, EngineEvent, PlaybackEngine } from './controller';
 import { createNativeVodEngine, type NativeEngineHost } from './native-vod-engine';
 
 /** GenX's loopback relay for a live channel (src-tauri/src/playback/native_live.rs). */
 export interface NativeLiveRelay {
-  open(url: string, allowHttp: boolean): Promise<{ session: number; url: string }>;
+  open(
+    url: string,
+    allowHttp: boolean,
+    progressive?: boolean,
+  ): Promise<{ session: number; url: string }>;
   renew(session: number): Promise<void>;
   close(session: number): Promise<void>;
 }
 export const nativeLiveRelay: NativeLiveRelay = {
-  open: (url, allowHttp) => invoke('native_live_open', { url, allowHttp }),
+  open: (url, allowHttp, progressive = false) =>
+    invoke('native_live_open', { url, allowHttp, progressive }),
   renew: (session) => invoke('native_live_renew', { session }),
   close: (session) => invoke('native_live_close', { session }),
 };
@@ -46,6 +52,7 @@ export function createNativeLiveEngine(
   onSilent: () => void = () => undefined,
   /** The channel's sound plays, but this device cannot decode its picture. */
   onPictureUnsupported: () => void = () => undefined,
+  inspect: typeof inspectSource = inspectSource,
 ): PlaybackEngine {
   const every = host.setInterval ?? ((callback, ms) => setInterval(callback, ms));
   const stopEvery =
@@ -81,7 +88,16 @@ export function createNativeLiveEngine(
   return {
     async start(selection: ChannelSelection, signal: AbortSignal) {
       signal.throwIfAborted();
-      const opened = await relay.open(selection.url, allowHttp(selection.url));
+      const allowed = allowHttp(selection.url);
+      // A known format survives retries. Probe only an unknown public source;
+      // account streams use their existing owner and never pass through here.
+      const kind = selection.mediaKind ?? (await inspect(selection.url, allowed, signal)).kind;
+      signal.throwIfAborted();
+      if (kind !== 'hls' && kind !== 'media') throw new Error('native-live-format-unsupported');
+      const opened =
+        kind === 'media'
+          ? await relay.open(selection.url, allowed, true)
+          : await relay.open(selection.url, allowed);
       session = opened.session;
       if (disposed || signal.aborted) {
         await release();
@@ -90,7 +106,7 @@ export function createNativeLiveEngine(
       renewal = every(() => {
         if (session) void relay.renew(session).catch(() => undefined);
       }, LIVE_RELAY_RENEW_MS);
-      await player.start({ ...selection, url: opened.url, mediaKind: 'hls' }, signal);
+      await player.start({ ...selection, url: opened.url, mediaKind: kind }, signal);
     },
     pause: () => player.pause(),
     resume: () => player.resume(),
@@ -98,6 +114,9 @@ export function createNativeLiveEngine(
     setVolume: (volume) => player.setVolume(volume),
     readAudioTracks: () => player.readAudioTracks?.() ?? null,
     setAudioTrack: (id) => player.setAudioTrack?.(id) ?? false,
+    readLiveBuffer: () => (!disposed ? (player.readLiveBuffer?.() ?? null) : null),
+    setLiveBuffer: (preference) =>
+      !disposed ? (player.setLiveBuffer?.(preference) ?? false) : false,
     liveReplay: () => player.liveReplay?.() ?? null,
     async dispose() {
       if (disposed) return;

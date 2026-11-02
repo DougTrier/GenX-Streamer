@@ -23,11 +23,19 @@ import {
 } from '../../guide/channel-coverage';
 import { describeChannelCoverage } from '../../guide/coverage-presentation';
 import { validateGuideCategories } from '../../guide/categories';
-import { WINDOW, aborted, type TimelineChannel, type TimelineHost } from './guide-timeline-model';
+import {
+  appendPpvBadge,
+  timelineProgramPpv,
+  WINDOW,
+  aborted,
+  type TimelineChannel,
+  type TimelineHost,
+} from './guide-timeline-model';
 
 /** What this part reads from, and writes back to, mountGuideTimeline. */
 export interface TimelineDetailsEnvironment {
   readonly closeDetails: () => boolean;
+  readonly openDetails: () => void;
   returnFocus: HTMLElement | null;
   readonly details: HTMLElement;
   readonly root: HTMLElement;
@@ -67,8 +75,7 @@ export function createTimelineDetails(env: TimelineDetailsEnvironment) {
   ) {
     env.closeDetails();
     env.returnFocus = cell;
-    env.details.hidden = false;
-    env.root.classList.add('gx-timeline-has-details');
+    env.openDetails();
     const heading = env.doc.createElement('strong');
     heading.textContent = 'Choose a listing';
     const exit = env.button('Back to timeline', () => env.closeDetails());
@@ -150,8 +157,7 @@ export function createTimelineDetails(env: TimelineDetailsEnvironment) {
       version === env.detailVersion &&
       env.host.catalogRevision() === revision &&
       env.currentChannel(channel);
-    env.details.hidden = false;
-    env.root.classList.add('gx-timeline-has-details');
+    env.openDetails();
     env.details.replaceChildren();
     const exit = env.button('Back to timeline', () => env.closeDetails());
     const title = env.doc.createElement('strong');
@@ -286,12 +292,12 @@ export function createTimelineDetails(env: TimelineDetailsEnvironment) {
       version === env.detailVersion &&
       env.host.catalogRevision() === revision &&
       env.currentChannel(channel);
-    env.details.hidden = false;
-    env.root.classList.add('gx-timeline-has-details');
+    env.openDetails();
     env.details.replaceChildren();
     const exit = env.button('Back to timeline', () => env.closeDetails());
     const title = env.doc.createElement('strong');
     title.textContent = program.title;
+    appendPpvBadge(title, timelineProgramPpv(channel, program));
     title.className = 'gx-timeline-detail-title';
     const channelName = env.doc.createElement('span');
     channelName.className = 'gx-timeline-detail-channel';
@@ -369,6 +375,9 @@ export function createTimelineDetails(env: TimelineDetailsEnvironment) {
       if (!current) return;
       const watch = env.button('Watch current channel', () => {
         if (!valid() || watch.disabled) return;
+        // Disabling the focused button otherwise drops remote focus to BODY
+        // during native confirmation. Retain the live pane's explicit exit.
+        if (env.doc.activeElement === watch) exit.focus({ preventScroll: true });
         watch.disabled = true;
         const job = (async () => {
           if (!(await confirmed(channel, program, revision, abort.signal)) || !valid()) return;

@@ -23,6 +23,7 @@ import {
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { GUIDE_SOURCE_LIMIT } from './limits';
 import { boundedUtf8Text } from '../platform/bounded-text';
+import type { GeographyFilter } from '../catalog/geography';
 import { validateGuideCategories, type GuideCategory } from './categories';
 import { validateReviewedGuideAliases, type GuideCommitAliases } from './reviewed-aliases';
 import { previewProposedNativeGuide } from './proposed-preview';
@@ -406,6 +407,13 @@ export interface MappedProgram {
   ordinal: number;
 }
 export interface ProgramQuery {
+  /** Explicit History scope permits only these exact current live identities, including PPV. */
+  historyIds?: string[];
+  hideAdult?: boolean;
+  sports?: import('../search/sports').SportsScope;
+  /** Explicit PPV scope; ordinary listings/searches exclude PPV channels and marked events. */
+  ppv?: boolean;
+  geography?: GeographyFilter;
   guideSourceId: string;
   appChannelIds: string[];
   windowStartMs: number;

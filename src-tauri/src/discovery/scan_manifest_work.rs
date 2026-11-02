@@ -34,6 +34,11 @@ pub(crate) struct Context {
     _work: WorkGuard,
 }
 impl Context {
+    #[cfg(test)]
+    pub(crate) fn replace_root_for_test(&self, root: std::path::PathBuf) -> Result<(), String> {
+        *self.store.exclusive()? = Ok(Store::new(root, "test".into())?);
+        Ok(())
+    }
     fn new(request_id: String, app: &tauri::AppHandle) -> Result<Arc<Self>, String> {
         let state = app.state::<NativeState>();
         let work = state.admit_work()?;

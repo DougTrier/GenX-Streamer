@@ -88,6 +88,7 @@ export function createBoundedScanResumeService(
   options: {
     workerFactory?: () => BoundedResumeWorkerTransport;
     signal?: AbortSignal;
+    playbackBusy?: () => boolean;
     onDiagnostic?(event: Readonly<BoundedScanServiceDiagnostic>): void;
   } = {},
 ) {
@@ -109,6 +110,8 @@ export function createBoundedScanResumeService(
     current = initial,
     plan: BoundedScanResumePlan | null = null;
   let cleanup: Promise<void> | null = null;
+  let workloadTimer: ReturnType<typeof setTimeout> | undefined;
+  let sentPlaybackBusy: boolean | undefined;
   let closeWork: Promise<void> | null = null;
   let prepareWork: Promise<BoundedScanResumePlan> | null = null;
   const controls = new Map<
@@ -174,6 +177,15 @@ export function createBoundedScanResumeService(
   const post = (message: ResumeWire) => {
     if (!stopped) worker.postMessage(message);
   };
+  function publishWorkload() {
+    if (stopped || disposing) return;
+    const playbackBusy = options.playbackBusy?.() === true;
+    if (playbackBusy !== sentPlaybackBusy) {
+      sentPlaybackBusy = playbackBusy;
+      post({ kind: 'workload', generation, sequence: ++sequence, playbackBusy });
+    }
+    workloadTimer = setTimeout(publishWorkload, 250);
+  }
   function closeLease(): Promise<void> {
     if (closeWork) return closeWork;
     if (!plan) return Promise.reject(bad());
@@ -219,6 +231,7 @@ export function createBoundedScanResumeService(
   function finish() {
     if (stopped) return;
     stopped = true;
+    clearTimeout(workloadTimer);
     worker.onmessage = null;
     worker.onerror = null;
     worker.onmessageerror = null;
@@ -503,17 +516,24 @@ export function createBoundedScanResumeService(
           ok: false,
           failure:
             message.operation === 'admit' &&
+            controller.signal.aborted &&
             error instanceof Error &&
-            error.name === 'ScanAdmissionClosedError'
-              ? 'admission-closed'
-              : controller.signal.aborted &&
-                  error instanceof DOMException &&
-                  error.name === 'AbortError'
-                ? 'canceled'
-                : error instanceof Error &&
-                    error.message === 'Native command cancellation could not be confirmed.'
-                  ? 'cancel-unconfirmed'
-                  : 'callback-failed',
+            error.name === 'ScanAdmissionClosedError' &&
+            error.cause instanceof DOMException &&
+            error.cause.name === 'AbortError'
+              ? 'canceled'
+              : message.operation === 'admit' &&
+                  error instanceof Error &&
+                  error.name === 'ScanAdmissionClosedError'
+                ? 'admission-closed'
+                : controller.signal.aborted &&
+                    error instanceof DOMException &&
+                    error.name === 'AbortError'
+                  ? 'canceled'
+                  : error instanceof Error &&
+                      error.message === 'Native command cancellation could not be confirmed.'
+                    ? 'cancel-unconfirmed'
+                    : 'callback-failed',
         });
       } finally {
         calls.delete(message.sequence);
@@ -567,5 +587,6 @@ export function createBoundedScanResumeService(
       return beginCleanup();
     },
   };
+  if (options.playbackBusy) publishWorkload();
   return service;
 }

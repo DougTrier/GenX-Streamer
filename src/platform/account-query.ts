@@ -22,11 +22,15 @@ import {
   type AccountCatalogFence,
 } from './account-catalog';
 import { invokeOwnedNative, type OwnedNativeRuntime } from './owned-native-command';
+import { validateSportsScope, type SportsScope } from '../search/sports';
+import { CatalogQueryError } from './catalog-query';
+import { validateHistoryIds } from '../playback/watch-history';
 
-export const ACCOUNT_QUERY_VERSION = 'account-sqlite-ascii-v2' as const;
+export const ACCOUNT_QUERY_VERSION = 'account-sqlite-ascii-v4-sports' as const;
 export interface AccountQueryChannel extends AccountChannel {
   favorite: boolean;
   originalCategory: string;
+  ppv?: boolean;
 }
 export interface AccountChannelQuery {
   schemaVersion: 1;
@@ -35,9 +39,13 @@ export interface AccountChannelQuery {
   /** null captures the current revision only for an initial startIndex:0 query. */
   expectedMediaRevision: string | null;
   expectedPreferencesRevision?: string | null;
+  /** Cached programme metadata is part of a sports page's membership snapshot. */
+  expectedGuideRevision?: string;
   query: string;
   category: string | null;
-  filter: 'all' | 'news' | 'sports' | 'favorites' | 'movies';
+  filter: 'all' | 'news' | 'sports' | 'favorites' | 'movies' | 'ppv' | 'watched';
+  historyIds?: readonly string[];
+  sports?: SportsScope;
   sort: 'source' | 'name' | 'category' | 'country';
   favoritesFirst?: boolean;
   /** An app country code, several joined by commas ("US,CA,UK"), or '' for channels whose country is unknown. */
@@ -52,6 +60,7 @@ export interface AccountChannelQueryPage extends AccountCatalogFence {
   schemaVersion: 1;
   queryVersion: typeof ACCOUNT_QUERY_VERSION;
   preferencesRevision: string;
+  guideRevision?: string;
   startIndex: number;
   anchorIndex: number | null;
   total: number;
@@ -64,6 +73,12 @@ export class AccountChannelsNotImported extends Error {
   readonly code = 'account-not-imported';
   constructor() {
     super('This account has no channels yet. Choose Refresh channels in Settings.');
+  }
+}
+export class AccountGuideRevisionConflict extends CatalogQueryError {
+  readonly nativeCode = 'account-guide-revision-conflict';
+  constructor() {
+    super('view-stale');
   }
 }
 const pageLimit = 1024 * 1024;
@@ -107,17 +122,22 @@ export function validateAccountQueryChannel(
   value: unknown,
   accountId: string,
 ): AccountQueryChannel {
-  const row = record(value, [
-    'id',
-    'name',
-    'category',
-    'providerId',
-    'epgId',
-    'streamReference',
-    'favorite',
-    'originalCategory',
-  ]);
+  const row = record(
+    value,
+    [
+      'id',
+      'name',
+      'category',
+      'providerId',
+      'epgId',
+      'streamReference',
+      'favorite',
+      'originalCategory',
+    ],
+    ['ppv'],
+  );
   if (typeof row.favorite !== 'boolean' || !text(row.originalCategory, 16_384)) throw invalid();
+  if (row.ppv !== undefined && typeof row.ppv !== 'boolean') throw invalid();
   const channel = validateAccountChannel(
     {
       id: row.id,
@@ -129,7 +149,12 @@ export function validateAccountQueryChannel(
     },
     accountId,
   );
-  return { ...channel, favorite: row.favorite, originalCategory: row.originalCategory };
+  return {
+    ...channel,
+    favorite: row.favorite,
+    originalCategory: row.originalCategory,
+    ...(row.ppv === undefined ? {} : { ppv: row.ppv as boolean }),
+  };
 }
 export function validateAccountChannelQuery(value: AccountChannelQuery): AccountChannelQuery {
   const row = record(
@@ -146,7 +171,16 @@ export function validateAccountChannelQuery(value: AccountChannelQuery): Account
       'startIndex',
       'pageSize',
     ],
-    ['anchorId', 'expectedPreferencesRevision', 'favoritesFirst', 'country', 'hideAdult'],
+    [
+      'anchorId',
+      'expectedPreferencesRevision',
+      'expectedGuideRevision',
+      'favoritesFirst',
+      'country',
+      'hideAdult',
+      'sports',
+      'historyIds',
+    ],
   );
   if (
     row.schemaVersion !== 1 ||
@@ -162,8 +196,15 @@ export function validateAccountChannelQuery(value: AccountChannelQuery): Account
       (row.expectedPreferencesRevision == null && row.startIndex === 0)
     ) ||
     !text(row.query, 256) ||
+    (row.expectedGuideRevision !== undefined &&
+      (!revision(row.expectedGuideRevision, true) || row.sports === undefined)) ||
+    (row.sports !== undefined &&
+      (row.startIndex as number) > 0 &&
+      row.expectedGuideRevision === undefined) ||
     (row.category !== null && !text(row.category, 16_384)) ||
-    !['all', 'news', 'sports', 'favorites', 'movies'].includes(row.filter as string) ||
+    !['all', 'news', 'sports', 'favorites', 'movies', 'ppv', 'watched'].includes(
+      row.filter as string,
+    ) ||
     !['source', 'name', 'category', 'country'].includes(row.sort as string) ||
     (row.country != null &&
       (typeof row.country !== 'string' ||
@@ -179,6 +220,15 @@ export function validateAccountChannelQuery(value: AccountChannelQuery): Account
     (row.anchorId != null && !channelId(row.anchorId, row.accountId))
   )
     throw invalid();
+  let historyIds: string[] | undefined;
+  try {
+    if (row.filter === 'watched') {
+      historyIds = validateHistoryIds(row.historyIds);
+      if (historyIds.some((id) => !channelId(id, row.accountId as string))) throw invalid();
+    } else if (row.historyIds !== undefined) throw invalid();
+  } catch {
+    throw invalid();
+  }
   return {
     schemaVersion: 1,
     accountId: row.accountId,
@@ -187,6 +237,11 @@ export function validateAccountChannelQuery(value: AccountChannelQuery): Account
     expectedPreferencesRevision:
       row.expectedPreferencesRevision == null ? null : (row.expectedPreferencesRevision as string),
     query: row.query,
+    ...(row.expectedGuideRevision === undefined
+      ? {}
+      : { expectedGuideRevision: row.expectedGuideRevision as string }),
+    ...(row.sports === undefined ? {} : { sports: validateSportsScope(row.sports, row.query) }),
+    ...(historyIds === undefined ? {} : { historyIds }),
     category: row.category as string | null,
     filter: row.filter as AccountChannelQuery['filter'],
     sort: row.sort as AccountChannelQuery['sort'],
@@ -244,18 +299,22 @@ export function validateAccountChannelQueryPage(
   expected: AccountChannelQuery,
 ): AccountChannelQueryPage {
   const request = validateAccountChannelQuery(expected);
-  const row = record(value, [
-    'schemaVersion',
-    'accountId',
-    'accountRevision',
-    'mediaRevision',
-    'preferencesRevision',
-    'queryVersion',
-    'startIndex',
-    'anchorIndex',
-    'total',
-    'items',
-  ]);
+  const row = record(
+    value,
+    [
+      'schemaVersion',
+      'accountId',
+      'accountRevision',
+      'mediaRevision',
+      'preferencesRevision',
+      'queryVersion',
+      'startIndex',
+      'anchorIndex',
+      'total',
+      'items',
+    ],
+    ['guideRevision'],
+  );
   if (
     row.schemaVersion !== 1 ||
     row.accountId !== request.accountId ||
@@ -267,6 +326,11 @@ export function validateAccountChannelQueryPage(
     (request.expectedPreferencesRevision != null &&
       row.preferencesRevision !== request.expectedPreferencesRevision) ||
     row.queryVersion !== ACCOUNT_QUERY_VERSION ||
+    (request.sports
+      ? !revision(row.guideRevision, true) ||
+        (request.expectedGuideRevision !== undefined &&
+          row.guideRevision !== request.expectedGuideRevision)
+      : row.guideRevision !== undefined) ||
     !Number.isSafeInteger(row.startIndex) ||
     (row.startIndex as number) < 0 ||
     (row.startIndex as number) > 100_000 ||
@@ -292,7 +356,15 @@ export function validateAccountChannelQueryPage(
   let bytes = 0;
   const items = row.items.map((value) => {
     const item = validateAccountQueryChannel(value, request.accountId);
+    if (
+      item.ppv !== undefined &&
+      (request.filter === 'ppv'
+        ? !item.ppv
+        : request.filter !== 'watched' && item.ppv && request.sports?.includePpv !== true)
+    )
+      throw invalid();
     if (request.filter === 'favorites' && !item.favorite) throw invalid();
+    if (request.filter === 'watched' && !request.historyIds!.includes(item.id)) throw invalid();
     if (identities.has(item.id) || references.has(item.streamReference)) throw invalid();
     identities.add(item.id);
     references.add(item.streamReference);
@@ -300,12 +372,23 @@ export function validateAccountChannelQueryPage(
     if (bytes > pageLimit) throw invalid();
     return item;
   });
+  if (
+    request.filter === 'watched' &&
+    (Number(row.total) > request.historyIds!.length ||
+      items.some(
+        (item, i) =>
+          i > 0 &&
+          request.historyIds!.indexOf(item.id) <= request.historyIds!.indexOf(items[i - 1]!.id),
+      ))
+  )
+    throw invalid();
   const page: AccountChannelQueryPage = {
     schemaVersion: 1,
     accountId: request.accountId,
     accountRevision: request.expectedAccountRevision,
     mediaRevision: row.mediaRevision,
     preferencesRevision: row.preferencesRevision,
+    ...(row.guideRevision === undefined ? {} : { guideRevision: row.guideRevision as string }),
     queryVersion: ACCOUNT_QUERY_VERSION,
     startIndex: row.startIndex as number,
     anchorIndex: row.anchorIndex as number | null,
@@ -344,6 +427,11 @@ export function createAccountQuery(runtime?: OwnedNativeRuntime) {
           signal,
           validate: (value) => validateAccountChannelQueryPage(value, admitted),
           failure: (error) => {
+            if (
+              (error instanceof Error ? error.message : String(error)) ===
+              'account-guide-revision-conflict'
+            )
+              throw new AccountGuideRevisionConflict();
             throw String(error).includes('account-media-not-collected')
               ? new AccountChannelsNotImported()
               : new Error('Native command could not finish.');

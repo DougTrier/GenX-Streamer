@@ -21,6 +21,8 @@ use reqwest::{
 };
 use std::{net::SocketAddr, time::Duration};
 
+pub(crate) use super::relay_clients::Clients;
+
 pub struct Reply {
     pub body: Vec<u8>,
     pub content_type: String,
@@ -274,7 +276,30 @@ pub async fn fetch_with_policy(
     range: Option<String>,
     allow_http: bool,
 ) -> Result<Reply, &'static str> {
-    let mut opened = open_with_policy(url, range, allow_http).await?;
+    finish_reply(open_with_policy(url, range, allow_http).await?).await
+}
+/// Same validated redirect/range/body limits with a native session's pinned clients.
+pub(crate) async fn fetch_with_clients(
+    url: Url,
+    range: Option<String>,
+    allow_http: bool,
+    clients: std::sync::Arc<Clients>,
+) -> Result<Reply, &'static str> {
+    let opened = open_with_remaining_transport(
+        url,
+        range,
+        allow_http,
+        tokio::time::Instant::now() + Duration::from_secs(20),
+        5,
+        move |url, range, deadline| {
+            let clients = clients.clone();
+            async move { clients.request(url, range, deadline).await }
+        },
+    )
+    .await?;
+    finish_reply(opened).await
+}
+async fn finish_reply(mut opened: OpenedUpstream) -> Result<Reply, &'static str> {
     let mut body = Vec::new();
     while let Some(chunk) = opened.next_chunk().await? {
         body.extend_from_slice(&chunk);

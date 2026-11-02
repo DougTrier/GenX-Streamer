@@ -100,7 +100,7 @@ it('first arrow from BODY in an open primary Guide enters its channel instead of
   const page = await emptyFixture(true);
   try {
     await page.addStyleTag({ content: fullCss });
-    await page.evaluate(() => {
+    await page.evaluate(async () => {
       const root = document.querySelector('#app')!;
       const dialog = document.createElement('dialog');
       dialog.className = 'guide-dialog';
@@ -108,6 +108,12 @@ it('first arrow from BODY in an open primary Guide enters its channel instead of
       root.before(dialog);
       dialog.append(root);
       dialog.show();
+      // Reparenting into the styled dialog changes the timeline's dimensions.
+      // Let ResizeObserver apply that layout and settle its row refresh before
+      // testing the first key from BODY, rather than racing row replacement.
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+      await Reflect.get(window, 'owner').refresh();
       if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
     });
     await page.addScriptTag({ content: remoteBundle });
@@ -382,7 +388,7 @@ it('declared native grouped inventory refuses missing or unknown filter bits wit
             guideSourceId: 'g',
             xmltvChannelId: 'x20',
             sourceRevision: 1,
-            filterMask: 8,
+            filterMask: 16,
           },
         ],
       });

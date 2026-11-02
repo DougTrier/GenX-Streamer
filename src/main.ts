@@ -69,6 +69,7 @@ import './ui/live-replay.css';
 import './ui/guide-panel.css';
 import './ui/premium-buttons.css';
 import './ui/category-menu.css';
+import './ui/sports-filters.css';
 import './ui/saved-channel-check.css';
 import './ui/picture-states.css';
 import './ui/header-art.css';
@@ -95,7 +96,9 @@ import { mountLocalStreams } from './ui/scan/local-streams';
 
 // Last stylesheet: the shared pop-up look sits over every component sheet.
 import './ui/dialog-polish.css';
+import './ui/stream-buffer.css';
 import { createScanController } from './application/discovery/scan-controller';
+import { sourceCleanupPlaybackIdle } from './application/discovery/source-cleanup-episode';
 import type { ContentLibrary } from './application/genxtra/content-library';
 
 import { createGuideController } from './application/guide/guide-controller';
@@ -139,6 +142,16 @@ import { createSharingAndCasting } from './application/sharing/sharing-and-casti
 import { createPreferencesSetup } from './application/shell/preferences-setup';
 import { createPlaybackSetup } from './application/playback/playback-setup';
 import { createShellSetup } from './application/shell/shell-setup';
+import { createGuidePlaybackIntents } from './application/playback/guide-playback-intent';
+import { joinGuideWork } from './application/guide/join-guide-work';
+
+const guidePlaybackIntents = createGuidePlaybackIntents({
+  prepare: () => joinGuideWork([{ suspend: automaticGuides.preparePlayback }, dailyGuideRefresh]),
+  wake: () =>
+    joinGuideWork([{ suspend: automaticGuides.wake }, { suspend: dailyGuideRefresh.wake }]),
+  wakeFailed: () =>
+    notice('Guide update could not finish. Close and reopen GenX Streamer before retrying.'),
+});
 
 /**
  * The application context: everything the area controllers share with the
@@ -162,6 +175,7 @@ const app = createSharedContext(
     addChannelsEntryGeneration: () => addChannelsEntry.addChannelsEntryGeneration,
     addChannelsEntryWork: () => addChannelsEntry.addChannelsEntryWork,
     admitForegroundPlayback: () => admitForegroundPlayback,
+    beginPlaybackIntent: () => () => guidePlaybackIntents.begin(),
     adoptIncludedHttp: () => adoptIncludedHttp,
     applicationClosing: () => applicationClosing,
     applySettings: () => applySettings,
@@ -175,6 +189,7 @@ const app = createSharedContext(
     archiveRuntimeScope: () => archiveRuntimeScope,
     archiveSearch: () => archiveSearch,
     audioDiagnostics: () => audioDiagnostics,
+    playbackDiagnostics: () => playbackDiagnostics,
     automaticGuides: () => automaticGuides,
     automaticGuideUpdates: () => automaticGuideUpdates,
     backgroundLiveChoice: () => backgroundLiveChoice,
@@ -215,6 +230,7 @@ const app = createSharedContext(
     foregroundPlaybackAllowed: () => foregroundPlaybackAllowed,
     friendlyError: () => friendlyError,
     fullscreenOwner: () => fullscreenOwner,
+    setExpanded: () => setExpanded,
     fullscreenPresentation: () => fullscreenPresentation,
     genxtraNavigation: () => genxtraNavigation,
     geographyControls: () => geographyControls,
@@ -314,6 +330,23 @@ const app = createSharedContext(
     soundNow: () => soundNow,
     sourceActivation: () => sourceActivation,
     sourceIndex: () => sourceIndex,
+    // Playback ownership spans all libraries; open Guide reads also take priority.
+    scanPlaybackBusy: () => () =>
+      guidePlaybackIntents.pending > 0 ||
+      !!localStreams?.pageCleanupPending ||
+      element('app').dataset.guidePanel === 'open' ||
+      !sourceCleanupPlaybackIdle({
+        snapshot: player.snapshot,
+        accountSelected: !!accountPlayer?.selection,
+        archiveSelected: !!archivePlayer?.selection,
+        webPageOpen: localStreams?.pageOpen,
+        pendingPlayback: !!(pendingAccountPlayback || pendingPublicPlayback),
+        retainedPlayback: !!(
+          backgroundLiveChoice ||
+          library.archiveResumeChoice ||
+          library.archiveBackgroundPaused
+        ),
+      }),
     sourceScan: () => sourceScan,
     speechSearch: () => speechSearch,
     startInlineDiscovery: () => startInlineDiscovery,
@@ -467,6 +500,7 @@ if (isTauri())
   );
 const shellSetup = createShellSetup(app);
 const {
+  playbackDiagnostics,
   audioDiagnostics,
   categoryMenu,
   diagnostics,
@@ -918,12 +952,13 @@ element('restore-channels').addEventListener('click', () => {
     if (saved) notice('Removed channels restored.');
   });
 });
-element('expand-button').addEventListener('click', () => {
-  expanded = !expanded;
+function setExpanded(next: boolean): void {
+  expanded = next;
   element('app').classList.toggle('expanded', expanded);
   element('expand-button').textContent = expanded ? 'Show channels' : 'Expand';
   element('expand-button').setAttribute('aria-pressed', String(expanded));
-});
+}
+element('expand-button').addEventListener('click', () => setExpanded(!expanded));
 const foregroundController = createForegroundController(app);
 const { fullscreenOwner, handleBack } = foregroundController;
 installPanelDivider(app);

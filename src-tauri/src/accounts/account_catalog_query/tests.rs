@@ -82,9 +82,12 @@ mod geography_tests {
             expected_account_revision: "1".into(),
             expected_media_revision: None,
             expected_preferences_revision: None,
+            expected_guide_revision: None,
+            sports: None,
             query: String::new(),
             category: None,
             filter,
+            history_ids: None,
             sort,
             favorites_first: false,
             country: country.map(str::to_owned),
@@ -341,12 +344,30 @@ mod geography_tests {
             .unwrap();
         }
         let (_, sports) = names(&c, &query(None, false, Sort::Source, Filter::Sports));
-        for wanted in ["1pm Bears at Falcons", "Sport One", "Bulls"] {
-            assert!(sports.iter().any(|n| n == wanted), "{wanted} in {sports:?}");
-        }
-        assert!(!sports
-            .iter()
-            .any(|n| n == "Evening News" || n == "Movie Night"));
+        assert!(sports.iter().any(|n| n == "Sport One"), "{sports:?}");
+        assert!(!sports.iter().any(|n| n == "Evening News"
+            || n == "Movie Night"
+            || n == "1pm Bears at Falcons"
+            || n == "Bulls"));
+        let (_, ppv) = names(&c, &query(None, false, Sort::Source, Filter::Ppv));
+        assert_eq!(ppv, ["1pm Bears at Falcons", "Bulls"]);
+        c.execute(
+            "INSERT INTO account_channel_preferences_v1 VALUES(?1,?2,1,0,'Sports')",
+            params![ACCOUNT, id('1')],
+        )
+        .unwrap();
+        let mut search = query(None, false, Sort::Source, Filter::All);
+        search.query = "Bears".into();
+        assert_eq!(names(&c, &search).0, 0);
+        assert!(
+            !names(&c, &query(None, false, Sort::Source, Filter::Favorites))
+                .1
+                .contains(&"1pm Bears at Falcons".to_owned())
+        );
+        search.filter = Filter::Ppv;
+        assert_eq!(names(&c, &search).1, ["1pm Bears at Falcons"]);
+        search.country = Some("UK".into());
+        assert_eq!(names(&c, &search).0, 0);
     }
     #[test]
     fn country_sorted_pages_keep_totals_and_boundaries() {
@@ -437,6 +458,264 @@ mod geography_tests {
                 crate::scan_manifest_work::bookmark_context_fixture();
             let request = query(Some(value), false, Sort::Source, Filter::All);
             assert!(read_page(&c, &request, context).is_err(), "{value}");
+        }
+    }
+    #[test]
+    fn sports_paid_list_uses_raw_overrides_cached_affiliates_and_ppv_before_count() {
+        let c = database();
+        let admitted_ids = |q: &Query| {
+            let (_r, ctx, _p, _w, _requests) =
+                crate::scan_manifest_work::bookmark_context_fixture();
+            read_page(&c, q, ctx)
+                .unwrap()
+                .items
+                .into_iter()
+                .map(|i| i.id.chars().last().unwrap())
+                .collect::<String>()
+        };
+        c.execute("UPDATE account_media_entry_v1 SET name='Event 1',category='US | NFL' WHERE channel_id=?1",[id('a')]).unwrap();
+        c.execute(
+            "INSERT INTO account_channel_preferences_v1 VALUES(?1,?2,0,0,'US | Sports')",
+            params![ACCOUNT, id('a')],
+        )
+        .unwrap();
+        c.execute("UPDATE account_media_entry_v1 SET name='Chicago Bears PPV',category='US | PPV' WHERE channel_id=?1",[id('b')]).unwrap();
+        c.execute("UPDATE account_media_entry_v1 SET name='NFLive PPV',category='US | PPV' WHERE channel_id=?1",[id('c')]).unwrap();
+        c.execute("UPDATE account_media_entry_v1 SET name='FOX 43',category='US | Locals',epg_id='fox' WHERE channel_id=?1",[id('d')]).unwrap();
+        crate::account_guide::install(&c).unwrap();
+        c.execute(
+            "INSERT INTO account_guide_v1 VALUES(?1,1,1,1000,1,1,0)",
+            [ACCOUNT],
+        )
+        .unwrap();
+        c.execute("INSERT INTO account_guide_program_v1 VALUES(?1,'fox',1200,1800,0,'Chicago Bears at Detroit Lions',NULL,'[]')",[ACCOUNT]).unwrap();
+        let mut q = query(Some("US"), false, Sort::Source, Filter::All);
+        q.query = "NFL".into();
+        assert_eq!(admitted_ids(&q), "a");
+        q.sports = Some(crate::catalog::sports::Scope {
+            sport: None,
+            league: None,
+            include_ppv: true,
+            window_start_ms: 1000,
+            window_end_ms: 1000 + 7 * 86400000,
+            vocabulary_version: serde_json::from_str::<serde_json::Value>(
+                crate::catalog::sports::VOCABULARY,
+            )
+            .unwrap()["vocabularyVersion"]
+                .as_str()
+                .unwrap()
+                .into(),
+        });
+        assert_eq!(admitted_ids(&q), "abd");
+        q.filter = Filter::Sports;
+        assert_eq!(admitted_ids(&q), "abd");
+        q.query = "football".into();
+        q.sports.as_mut().unwrap().include_ppv = false;
+        assert_eq!(admitted_ids(&q), "ad");
+        q.query = "NFL".into();
+        q.sports.as_mut().unwrap().include_ppv = true;
+        q.page_size = 1;
+        let (_root, ctx, _playback, _work, _requests) =
+            crate::scan_manifest_work::bookmark_context_fixture();
+        let first = read_page(&c, &q, ctx).unwrap();
+        assert_eq!(first.total, 3);
+        assert_eq!(first.items[0].id, id('a'));
+        q.start_index = 1;
+        q.expected_media_revision = Some(first.media_revision);
+        q.expected_preferences_revision = Some(first.preferences_revision);
+        q.expected_guide_revision = first.guide_revision;
+        let expected = q.expected_guide_revision.take();
+        let (_r, ctx, _p, _w, _requests) = crate::scan_manifest_work::bookmark_context_fixture();
+        assert_eq!(
+            read_page(&c, &q, ctx).err().unwrap(),
+            "account-guide-revision-conflict"
+        );
+        q.expected_guide_revision = Some("00".into());
+        let (_r, ctx, _p, _w, _requests) = crate::scan_manifest_work::bookmark_context_fixture();
+        assert_eq!(
+            read_page(&c, &q, ctx).err().unwrap(),
+            "account-guide-revision-invalid"
+        );
+        q.expected_guide_revision = expected;
+        let scope = q.sports.take();
+        let (_r, ctx, _p, _w, _requests) = crate::scan_manifest_work::bookmark_context_fixture();
+        assert_eq!(
+            read_page(&c, &q, ctx).err().unwrap(),
+            "account-guide-revision-invalid"
+        );
+        q.sports = scope;
+        c.execute(
+            "UPDATE account_guide_v1 SET revision=2 WHERE account_id=?1",
+            [ACCOUNT],
+        )
+        .unwrap();
+        let (_r, ctx, _p, _w, _requests) = crate::scan_manifest_work::bookmark_context_fixture();
+        assert_eq!(
+            read_page(&c, &q, ctx).err().unwrap(),
+            "account-guide-revision-conflict"
+        );
+        c.execute(
+            "UPDATE account_guide_v1 SET revision=1 WHERE account_id=?1",
+            [ACCOUNT],
+        )
+        .unwrap();
+        let (_root, ctx, _playback, _work, _requests) =
+            crate::scan_manifest_work::bookmark_context_fixture();
+        assert_eq!(read_page(&c, &q, ctx).unwrap().items[0].id, id('b'));
+        q.start_index = 0;
+        q.anchor_id = Some(id('d'));
+        q.page_size = 64;
+        assert_eq!(admitted_ids(&q), "bd");
+        q.filter = Filter::All;
+        q.query = "fox".into();
+        q.sports.as_mut().unwrap().include_ppv = false;
+        assert_eq!(admitted_ids(&q), "d", "EPG literal remains searchable");
+        c.execute(
+            "UPDATE account_media_entry_v1 SET provider_id='fixture.provider' WHERE channel_id=?1",
+            [id('d')],
+        )
+        .unwrap();
+        q.query = "fixture.provider".into();
+        assert_eq!(admitted_ids(&q), "d", "provider literal remains searchable");
+    }
+
+    #[test]
+    fn watched_history_scopes_recency_counts_visibility_and_live_authority() {
+        let c = database();
+        c.execute(
+            "UPDATE account_media_entry_v1 SET category='UK Sports PPV' WHERE channel_id=?1",
+            [id('b')],
+        )
+        .unwrap();
+        c.execute(
+            "INSERT INTO account_channel_preferences_v1 VALUES(?1,?2,0,0,'News')",
+            params![ACCOUNT, id('d')],
+        )
+        .unwrap();
+        let mut q = query(None, false, Sort::Name, Filter::Watched);
+        q.favorites_first = true;
+        q.history_ids = Some(vec![id('b'), id('d'), id('a'), id('c')]);
+        assert_eq!(letters(&c, &q), "BDAC");
+        q.hide_adult = true;
+        assert_eq!(letters(&c, &q), "BAC");
+        q.country = Some("UK".into());
+        assert_eq!(letters(&c, &q), "B");
+        q.country = None;
+        q.page_size = 1;
+        let read = |q: &Query| {
+            let (_r, ctx, _p, _w, _requests) =
+                crate::scan_manifest_work::bookmark_context_fixture();
+            read_page(&c, q, ctx)
+        };
+        let first = read(&q).unwrap();
+        assert_eq!(first.total, 3);
+        assert_eq!(first.items[0].id, id('b'));
+        assert!(first.items[0].ppv);
+        q.expected_media_revision = Some(first.media_revision);
+        q.expected_preferences_revision = Some(first.preferences_revision);
+        q.start_index = 1;
+        assert_eq!(read(&q).unwrap().items[0].id, id('a'));
+        q.start_index = 0;
+        q.history_ids.as_mut().unwrap().swap(0, 2);
+        assert_eq!(read(&q).unwrap().items[0].id, id('a'));
+        q.history_ids = Some(vec![]);
+        assert_eq!(read(&q).unwrap().total, 0);
+        q.history_ids = Some(vec![format!(
+            "account-{}-{}",
+            "f".repeat(32),
+            "a".repeat(64)
+        )]);
+        assert!(read(&q).is_err());
+        q.history_ids = Some(vec![id('a')]);
+        c.execute(
+            "DELETE FROM account_vault_references_v1 WHERE reference=?1",
+            ["a".repeat(32)],
+        )
+        .unwrap();
+        assert_eq!(
+            read(&q).unwrap().total,
+            0,
+            "History cannot revive a revoked reference"
+        );
+        q.filter = Filter::All;
+        assert!(read(&q).is_err());
+        q.history_ids = None;
+        q.page_size = 64;
+        assert!(
+            !letters(&c, &q).contains('B'),
+            "normal All still excludes PPV"
+        );
+    }
+
+    #[test]
+    fn watched_history_paid_programme_search_is_scoped_before_ppv_admission() {
+        let c = database();
+        crate::account_guide::install(&c).unwrap();
+        c.execute(
+            "INSERT INTO account_guide_v1 VALUES(?1,1,1,1000,1,1,0)",
+            [ACCOUNT],
+        )
+        .unwrap();
+        for letter in ['a', 'b'] {
+            c.execute("UPDATE account_media_entry_v1 SET epg_id='shared',category='News' WHERE channel_id=?1",[id(letter)]).unwrap();
+        }
+        c.execute("INSERT INTO account_guide_program_v1 VALUES(?1,'shared',1200,1800,0,'Boxing PPV final',NULL,'[]')",[ACCOUNT]).unwrap();
+        let mut q = query(None, false, Sort::Source, Filter::All);
+        q.query = "Boxing".into();
+        q.sports = Some(crate::catalog::sports::Scope {
+            sport: None,
+            league: None,
+            include_ppv: false,
+            window_start_ms: 1000,
+            window_end_ms: 3000,
+            vocabulary_version: serde_json::from_str::<serde_json::Value>(
+                crate::catalog::sports::VOCABULARY,
+            )
+            .unwrap()["vocabularyVersion"]
+                .as_str()
+                .unwrap()
+                .into(),
+        });
+        assert_eq!(letters(&c, &q), "");
+        q.filter = Filter::Watched;
+        q.history_ids = Some(vec![id('b')]);
+        assert_eq!(letters(&c, &q), "B");
+        q.history_ids = Some(vec![id('a')]);
+        assert_eq!(letters(&c, &q), "A");
+    }
+
+    #[test]
+    fn watched_history_paid_adult_policy_folds_all_legacy_terms_in_both_categories() {
+        let c = database();
+        let mut q = query(None, true, Sort::Source, Filter::Watched);
+        q.history_ids = Some(vec![id('a')]);
+        c.execute(
+            "INSERT INTO account_channel_preferences_v1 VALUES(?1,?2,0,0,'News')",
+            params![ACCOUNT, id('a')],
+        )
+        .unwrap();
+        for category in ["ＡＤＵＬＴ", "ＰＯＲＮ", "１８＋", "ＸＸＸ", "🔞"] {
+            for original in [true, false] {
+                let (raw, effective) = if original {
+                    (category, "News")
+                } else {
+                    ("News", category)
+                };
+                c.execute(
+                    "UPDATE account_media_entry_v1 SET category=?1 WHERE channel_id=?2",
+                    params![raw, id('a')],
+                )
+                .unwrap();
+                c.execute("UPDATE account_channel_preferences_v1 SET category=?1 WHERE account_id=?2 AND channel_id=?3",params![effective,ACCOUNT,id('a')]).unwrap();
+                assert_eq!(
+                    letters(&c, &q),
+                    "",
+                    "History must retain the full folded adult policy across overrides"
+                );
+                q.hide_adult = false;
+                assert_eq!(letters(&c, &q), "A");
+                q.hide_adult = true;
+            }
         }
     }
 }

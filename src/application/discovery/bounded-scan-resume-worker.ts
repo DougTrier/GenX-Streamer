@@ -77,11 +77,15 @@ export function attachBoundedScanResumeWorker(port: BoundedResumeWorkerPort) {
     } catch {
       throw new Error('Bounded resume worker message refused.');
     }
-    if (message.kind === 'control' && !started) {
+    if ((message.kind === 'control' || message.kind === 'workload') && !started) {
       generation = message.generation;
       started = true;
     }
     if (message.generation !== generation) return;
+    if (message.kind === 'workload') {
+      owner.setPlaybackBusy(message.playbackBusy);
+      return;
+    }
     if (message.kind === 'reply') {
       const target = pending.get(message.sequence);
       if (!target) throw new Error('Bounded resume worker reply refused.');

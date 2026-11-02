@@ -20,6 +20,8 @@ use tauri::Manager;
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub(crate) struct DeviceCapabilities {
     pub is_television: bool,
+    #[serde(default)]
+    pub native_embedded_playback: bool,
 }
 impl DeviceCapabilities {
     pub fn allow_cast_entry(&self) -> Result<(), String> {
@@ -57,6 +59,7 @@ pub(crate) async fn device_capabilities(
     {
         Ok(DeviceCapabilities {
             is_television: false,
+            native_embedded_playback: false,
         })
     }
 }
@@ -77,7 +80,10 @@ mod tests {
     #[test]
     fn tv_refusal_precedes_network_entry_and_non_tv_remains_available() {
         for is_television in [true, false] {
-            let capabilities = DeviceCapabilities { is_television };
+            let capabilities = DeviceCapabilities {
+                is_television,
+                native_embedded_playback: false,
+            };
             let mut network_actions = 0;
             let result = capabilities.allow_cast_entry().map(|_| {
                 network_actions += 1;

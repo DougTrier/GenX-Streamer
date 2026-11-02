@@ -1,0 +1,233 @@
+{
+  "schemaVersion": 1,
+  "scope": "Shared TS/Rust row-evidence golden cases. Query intent, PPV visibility, window, geography, authority and live-state tests remain separate. Text fields deliberately contain no query-derived evidence.",
+  "cases": [
+    {
+      "id": "explicit_nfl_group",
+      "texts": [
+        "1pm Bears at Falcons",
+        "US | NFL"
+      ],
+      "sports": [
+        "american-football"
+      ],
+      "leagues": [
+        "nfl"
+      ]
+    },
+    {
+      "id": "full_nfl_franchises",
+      "texts": [
+        "Buffalo Bills at Cincinnati Bengals",
+        "Sports"
+      ],
+      "sports": [
+        "american-football"
+      ],
+      "leagues": [
+        "nfl"
+      ]
+    },
+    {
+      "id": "full_nfl_name_unicode",
+      "texts": [
+        "Ｃｈｉｃａｇｏ　Ｂｅａｒｓ vs Green Bay Packers"
+      ],
+      "sports": [
+        "american-football"
+      ],
+      "leagues": [
+        "nfl"
+      ]
+    },
+    {
+      "id": "original_category_evidence",
+      "texts": [
+        "Event 1",
+        "Sports",
+        "US | NFL"
+      ],
+      "sports": [
+        "american-football"
+      ],
+      "leagues": [
+        "nfl"
+      ]
+    },
+    {
+      "id": "nfl_ppv_is_still_nfl",
+      "texts": [
+        "1pm Bears at Falcons",
+        "US | NFL PPV"
+      ],
+      "sports": [
+        "american-football"
+      ],
+      "leagues": [
+        "nfl"
+      ]
+    },
+    {
+      "id": "no_query_supplied_row_evidence",
+      "texts": [
+        "Bears at Cardinals",
+        "Sports"
+      ],
+      "sports": [],
+      "leagues": []
+    },
+    {
+      "id": "wildlife_bears",
+      "texts": [
+        "Bears of Alaska",
+        "Nature and wildlife"
+      ],
+      "sports": [],
+      "leagues": []
+    },
+    {
+      "id": "baseball_cardinals",
+      "texts": [
+        "Cardinals at Cubs",
+        "MLB"
+      ],
+      "sports": [
+        "baseball"
+      ],
+      "leagues": [
+        "mlb"
+      ]
+    },
+    {
+      "id": "soccer_jets",
+      "texts": [
+        "Newcastle Jets at Melbourne Victory",
+        "Soccer"
+      ],
+      "sports": [
+        "soccer"
+      ],
+      "leagues": []
+    },
+    {
+      "id": "college_mascot_ambiguous",
+      "texts": [
+        "Bears at Cardinals",
+        "NCAA"
+      ],
+      "sports": [],
+      "leagues": []
+    },
+    {
+      "id": "explicit_college_football",
+      "texts": [
+        "Bears at Cardinals",
+        "NCAAF"
+      ],
+      "sports": [
+        "american-football"
+      ],
+      "leagues": [
+        "college-football"
+      ]
+    },
+    {
+      "id": "explicit_college_basketball",
+      "texts": [
+        "Bears at Cardinals",
+        "NCAA BB"
+      ],
+      "sports": [
+        "basketball"
+      ],
+      "leagues": [
+        "college-basketball"
+      ]
+    },
+    {
+      "id": "city_alone_is_not_sport",
+      "texts": [
+        "Chicago Tonight",
+        "Local news"
+      ],
+      "sports": [],
+      "leagues": []
+    },
+    {
+      "id": "literal_football_code_unknown",
+      "texts": [
+        "Football tonight",
+        "Sports"
+      ],
+      "sports": [],
+      "leagues": []
+    },
+    {
+      "id": "explicit_american_football",
+      "texts": [
+        "Gridiron action"
+      ],
+      "sports": [
+        "american-football"
+      ],
+      "leagues": []
+    },
+    {
+      "id": "nba_metadata",
+      "texts": [
+        "Lakers vs Bulls",
+        "NBA"
+      ],
+      "sports": [
+        "basketball"
+      ],
+      "leagues": [
+        "nba"
+      ]
+    },
+    {
+      "id": "nhl_metadata",
+      "texts": [
+        "Wild vs Panthers",
+        "National Hockey League"
+      ],
+      "sports": [
+        "hockey"
+      ],
+      "leagues": [
+        "nhl"
+      ]
+    },
+    {
+      "id": "epl_metadata",
+      "texts": [
+        "Arsenal at Chelsea",
+        "EPL"
+      ],
+      "sports": [
+        "soccer"
+      ],
+      "leagues": [
+        "premier-league"
+      ]
+    },
+    {
+      "id": "no_substring_league_match",
+      "texts": [
+        "Thornfl studio",
+        "WNBAA group"
+      ],
+      "sports": [],
+      "leagues": []
+    },
+    {
+      "id": "not_nfl_just_paid",
+      "texts": [
+        "Premium PPV Event 27",
+        "Paid Sports"
+      ],
+      "sports": [],
+      "leagues": []
+    }
+  ]
+}

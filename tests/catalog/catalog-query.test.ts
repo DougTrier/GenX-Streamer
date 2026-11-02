@@ -95,6 +95,22 @@ it('passes exact URL-free metadata and distinguishes omitted All from null Unkno
   });
   expect(JSON.stringify(result)).not.toMatch(/urls|location/);
 });
+
+it('accepts native PPV group evidence only in the explicit PPV query scope', async () => {
+  const raw = { ...page(), rows: [{ ...row, name: 'Unmarked representative', ppv: true }] };
+  await expect(
+    adapter(raw).read({ ...input, filter: 'ppv' }, new AbortController().signal),
+  ).resolves.toMatchObject({ rows: [{ ppv: true }] });
+  await expect(adapter(raw).read(input, new AbortController().signal)).rejects.toMatchObject({
+    code: 'invalid-page',
+  });
+  await expect(
+    adapter({ ...raw, rows: [{ ...raw.rows[0], ppv: 'true' }] }).read(
+      { ...input, filter: 'ppv' },
+      new AbortController().signal,
+    ),
+  ).rejects.toMatchObject({ code: 'invalid-page' });
+});
 it.each([
   { pageSize: 0 },
   { pageSize: 51 },

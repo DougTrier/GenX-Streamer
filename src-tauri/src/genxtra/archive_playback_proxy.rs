@@ -37,6 +37,7 @@ const ERR: &str = "archive-proxy-refused";
 const LEASE: Duration = Duration::from_secs(60);
 const MAX_LIFE: Duration = Duration::from_secs(24 * 60 * 60);
 const DEADLINE: Duration = Duration::from_secs(20);
+const BODY_AUTHORITY_CHECK: Duration = Duration::from_secs(2);
 const CHUNK: usize = 64 * 1024;
 const MAX_FILE: u64 = 64 * 1024 * 1024 * 1024;
 pub(crate) type Authority =
@@ -53,6 +54,7 @@ struct State {
     path: String,
     host: String,
     generation: u64,
+    request_sequence: u64,
     started: Instant,
     renewed: Instant,
     authority: Authority,
@@ -440,6 +442,305 @@ struct Request {
     options: bool,
     origin: Option<String>,
 }
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum RequestPhase {
+    Admitted,
+    Authority,
+    Open,
+    Headers,
+    UpstreamRead,
+    LocalRead,
+    SocketWrite,
+}
+impl RequestPhase {
+    fn code(self) -> &'static str {
+        match self {
+            Self::Admitted => "admitted",
+            Self::Authority => "authority",
+            Self::Open => "open",
+            Self::Headers => "headers",
+            Self::UpstreamRead => "upstream-read",
+            Self::LocalRead => "local-read",
+            Self::SocketWrite => "socket-write",
+        }
+    }
+}
+#[derive(Clone, Copy)]
+enum RequestEnd {
+    Start,
+    Complete,
+    Canceled,
+    OwnerInvalid,
+    ConsumerClosed,
+    ConsumerInput,
+    ConsumerReadFailed,
+    Failed,
+}
+#[derive(Clone, Copy)]
+enum TimeoutBoundary {
+    None,
+    Socket,
+    Authority,
+    Open,
+    UpstreamRead,
+}
+impl TimeoutBoundary {
+    fn code(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Socket => "socket",
+            Self::Authority => "authority",
+            Self::Open => "open",
+            Self::UpstreamRead => "upstream-read",
+        }
+    }
+}
+impl RequestEnd {
+    fn code(self) -> &'static str {
+        match self {
+            Self::Start => "start",
+            Self::Complete => "complete",
+            Self::Canceled => "canceled",
+            Self::OwnerInvalid => "owner-invalid",
+            Self::ConsumerClosed => "consumer-closed",
+            Self::ConsumerInput => "consumer-input",
+            Self::ConsumerReadFailed => "consumer-read-failed",
+            Self::Failed => "failed",
+        }
+    }
+}
+// Numeric/closed-token request facts only. Never retain or format the media
+// capability, upstream URL, origin, file/title reference or arbitrary errors.
+struct RequestDiagnostic {
+    generation: u64,
+    sequence: u64,
+    method: &'static str,
+    range: Option<(u64, u64)>,
+    started: Instant,
+    response_started: Option<Instant>,
+    headers_complete: bool,
+    expected_bytes: Option<u64>,
+    written_bytes: u64,
+    body_bytes: u64,
+    phase: RequestPhase,
+    phase_started: Option<Instant>,
+    timeout_boundary: TimeoutBoundary,
+    authority_ms: u64,
+    write_ms: u64,
+}
+fn bounded_ms(duration: Duration) -> u64 {
+    duration.as_millis().min(MAX_LIFE.as_millis()) as u64
+}
+impl RequestDiagnostic {
+    fn new(state: &Arc<Mutex<State>>, request: &Request) -> Self {
+        let (generation, sequence) = state.lock().map_or((0, 0), |mut s| {
+            s.request_sequence = s.request_sequence.saturating_add(1);
+            (s.generation, s.request_sequence)
+        });
+        Self {
+            generation,
+            sequence,
+            method: if request.options {
+                "options"
+            } else if request.head {
+                "head"
+            } else {
+                "get"
+            },
+            range: request.range,
+            started: Instant::now(),
+            response_started: None,
+            headers_complete: false,
+            expected_bytes: None,
+            written_bytes: 0,
+            body_bytes: 0,
+            phase: RequestPhase::Admitted,
+            phase_started: None,
+            timeout_boundary: TimeoutBoundary::None,
+            authority_ms: 0,
+            write_ms: 0,
+        }
+    }
+    fn begin(&mut self, phase: RequestPhase) {
+        self.finish();
+        self.phase = phase;
+        self.phase_started = Some(Instant::now());
+    }
+    fn finish(&mut self) {
+        if let Some(started) = self.phase_started.take() {
+            let elapsed = bounded_ms(started.elapsed());
+            let total = match self.phase {
+                RequestPhase::Authority => Some(&mut self.authority_ms),
+                RequestPhase::SocketWrite | RequestPhase::Headers => Some(&mut self.write_ms),
+                _ => None,
+            };
+            if let Some(total) = total {
+                *total = total.saturating_add(elapsed).min(bounded_ms(MAX_LIFE));
+            }
+        }
+    }
+    fn line(&mut self, end: RequestEnd, code: Option<&str>, owner_current: bool) -> String {
+        self.finish();
+        let failure = match code {
+            None => "none",
+            Some("archive-proxy-write-timeout") => "write-timeout",
+            Some("archive-proxy-write-failed") => "write-failed",
+            Some("archive-proxy-read-timeout") => "read-timeout",
+            Some("archive-proxy-timeout") => "timeout",
+            Some("archive-proxy-network") => "network",
+            Some("archive-proxy-expired" | "archive-playback-replaced") => "owner-invalid",
+            Some(_) => "other",
+        };
+        let (range_start, range_end) = self.range.unwrap_or((0, 0));
+        format!(
+            "[GenX archive-request] event={} generation={} request={} method={} has_range={} range_start={} range_end={} written_bytes={} body_bytes={} expected_bytes={} expected_known={} request_age_ms={} response_age_ms={} response_started={} headers_complete={} authority_ms={} write_ms={} phase={} timeout_boundary={} owner_current={} failure={}",
+            end.code(), self.generation, self.sequence, self.method, self.range.is_some(),
+            range_start, range_end, self.written_bytes, self.body_bytes,
+            self.expected_bytes.unwrap_or(0), self.expected_bytes.is_some(),
+            bounded_ms(self.started.elapsed()), self.response_started.map_or(0, |at| bounded_ms(at.elapsed())),
+            self.response_started.is_some(), self.headers_complete,
+            self.authority_ms, self.write_ms, self.phase.code(), self.timeout_boundary.code(), owner_current, failure,
+        )
+    }
+}
+
+struct CountedOutput<'a, W> {
+    socket: &'a mut W,
+    written: &'a mut u64,
+    body_written: &'a mut u64,
+    body: bool,
+}
+impl<W: tokio::io::AsyncWrite + Unpin> tokio::io::AsyncWrite for CountedOutput<'_, W> {
+    fn poll_write(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+        bytes: &[u8],
+    ) -> std::task::Poll<std::io::Result<usize>> {
+        let result = Pin::new(&mut *self.socket).poll_write(cx, bytes);
+        if let std::task::Poll::Ready(Ok(count)) = result {
+            *self.written = self.written.saturating_add(count as u64);
+            if self.body {
+                *self.body_written = self.body_written.saturating_add(count as u64);
+            }
+        }
+        result
+    }
+    fn poll_flush(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        Pin::new(&mut *self.socket).poll_flush(cx)
+    }
+    fn poll_shutdown(
+        mut self: Pin<&mut Self>,
+        cx: &mut std::task::Context<'_>,
+    ) -> std::task::Poll<std::io::Result<()>> {
+        Pin::new(&mut *self.socket).poll_shutdown(cx)
+    }
+}
+
+async fn observed_authority(
+    state: &Arc<Mutex<State>>,
+    diagnostic: &mut RequestDiagnostic,
+) -> Result<(), String> {
+    diagnostic.begin(RequestPhase::Authority);
+    let result = authority(state).await;
+    if result.as_ref().err().map(String::as_str) == Some("archive-proxy-timeout") {
+        diagnostic.timeout_boundary = TimeoutBoundary::Authority;
+    }
+    diagnostic.finish();
+    result
+}
+async fn observed_output<W: tokio::io::AsyncWrite + Unpin>(
+    socket: &mut W,
+    bytes: &[u8],
+    body: bool,
+    diagnostic: &mut RequestDiagnostic,
+) -> Result<(), String> {
+    diagnostic.begin(if body {
+        RequestPhase::SocketWrite
+    } else {
+        RequestPhase::Headers
+    });
+    let result = write_output(
+        &mut CountedOutput {
+            socket,
+            written: &mut diagnostic.written_bytes,
+            body_written: &mut diagnostic.body_bytes,
+            body,
+        },
+        bytes,
+    )
+    .await;
+    if result.as_ref().err().map(String::as_str) == Some("archive-proxy-write-timeout") {
+        diagnostic.timeout_boundary = TimeoutBoundary::Socket;
+    }
+    diagnostic.finish();
+    result
+}
+// Readiness does not consume or write bytes. Revalidate after it resolves and
+// use a nonblocking write, so an authorization made before a long wait cannot
+// admit the bytes that resume afterward. A racing WouldBlock preserves offset.
+trait BodyOutput {
+    fn writable(&self) -> impl Future<Output = std::io::Result<()>> + Send;
+    fn try_body_write(&self, bytes: &[u8]) -> std::io::Result<usize>;
+}
+impl BodyOutput for OwnedWriteHalf {
+    fn writable(&self) -> impl Future<Output = std::io::Result<()>> + Send {
+        OwnedWriteHalf::writable(self)
+    }
+    fn try_body_write(&self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.try_write(bytes)
+    }
+}
+fn body_owner_current(state: &Arc<Mutex<State>>) -> Result<(), String> {
+    if state.lock().map_err(|_| ERR)?.active() {
+        Ok(())
+    } else {
+        Err("archive-proxy-expired".into())
+    }
+}
+async fn observed_remote_chunk<W: BodyOutput + Sync>(
+    state: &Arc<Mutex<State>>,
+    socket: &W,
+    bytes: &[u8],
+    diagnostic: &mut RequestDiagnostic,
+) -> Result<(), String> {
+    let mut offset = 0;
+    while offset < bytes.len() {
+        body_owner_current(state)?;
+        diagnostic.begin(RequestPhase::SocketWrite);
+        tokio::select! {biased;
+            _=tokio::time::sleep(BODY_AUTHORITY_CHECK)=>{
+                diagnostic.finish();
+                observed_authority(state, diagnostic).await?;
+                body_owner_current(state)?;
+                continue;
+            }
+            ready=socket.writable()=>{
+                diagnostic.finish();
+                ready.map_err(|_| "archive-proxy-write-failed")?;
+            }
+        }
+        observed_authority(state, diagnostic).await?;
+        body_owner_current(state)?;
+        diagnostic.begin(RequestPhase::SocketWrite);
+        let result = socket.try_body_write(&bytes[offset..]);
+        diagnostic.finish();
+        match result {
+            Ok(0) => return Err("archive-proxy-write-failed".into()),
+            Ok(count) => {
+                offset += count;
+                diagnostic.written_bytes = diagnostic.written_bytes.saturating_add(count as u64);
+                diagnostic.body_bytes = diagnostic.body_bytes.saturating_add(count as u64);
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::WouldBlock => (),
+            Err(_) => return Err("archive-proxy-write-failed".into()),
+        }
+    }
+    Ok(())
+}
 fn parse(bytes: &[u8], s: &State) -> Result<Request, String> {
     let text = std::str::from_utf8(bytes).map_err(|_| ERR)?;
     let mut lines = text.split("\r\n");
@@ -551,26 +852,30 @@ async fn client_inner(
     state: Arc<Mutex<State>>,
     sent: &mut bool,
     request: Request,
+    diagnostic: &mut RequestDiagnostic,
 ) -> Result<(), String> {
-    authority(&state).await?;
+    observed_authority(&state, diagnostic).await?;
     if request.options {
         let origin = request.origin.ok_or(ERR)?;
         let headers=format!("HTTP/1.1 204 No Content\r\nAccess-Control-Allow-Origin: {origin}\r\nAccess-Control-Allow-Methods: GET, HEAD, OPTIONS\r\nAccess-Control-Allow-Headers: Range\r\nContent-Length: 0\r\nConnection: close\r\n\r\n");
         *sent = true;
-        tokio::time::timeout(DEADLINE, socket.write_all(headers.as_bytes()))
-            .await
-            .map_err(|_| ERR)?
-            .map_err(|_| ERR)?;
+        diagnostic.response_started = Some(Instant::now());
+        observed_output(socket, headers.as_bytes(), false, diagnostic).await?;
+        diagnostic.headers_complete = true;
         return Ok(());
     }
     let local = state.lock().map_err(|_| ERR)?.local.clone();
     let size = state.lock().map_err(|_| ERR)?.size;
     let mime = state.lock().map_err(|_| ERR)?.mime;
     let mut response = if local.is_none() {
+        diagnostic.begin(RequestPhase::Open);
         Some(
             tokio::time::timeout(DEADLINE, open(&state, request.range, request.head))
                 .await
-                .map_err(|_| "archive-proxy-timeout")??,
+                .map_err(|_| {
+                    diagnostic.timeout_boundary = TimeoutBoundary::Open;
+                    "archive-proxy-timeout"
+                })??,
         )
     } else {
         None
@@ -579,7 +884,8 @@ async fn client_inner(
         Some(response) => response_length_for(response, request.range, size, mime)?,
         None => request.range.map_or(size, |(start, end)| end - start + 1),
     };
-    authority(&state).await?;
+    diagnostic.expected_bytes = Some(length);
+    observed_authority(&state, diagnostic).await?;
     let mut headers=format!("HTTP/1.1 {} OK\r\nContent-Type: {mime}\r\nContent-Length: {length}\r\nAccept-Ranges: bytes\r\nConnection: close\r\nCache-Control: no-store\r\nX-Content-Type-Options: nosniff\r\n",if request.range.is_some(){206}else{200});
     if let Some((start, end)) = request.range {
         headers.push_str(&format!("Content-Range: bytes {start}-{end}/{size}\r\n"));
@@ -589,10 +895,9 @@ async fn client_inner(
     }
     headers.push_str("\r\n");
     *sent = true;
-    tokio::time::timeout(DEADLINE, socket.write_all(headers.as_bytes()))
-        .await
-        .map_err(|_| ERR)?
-        .map_err(|_| ERR)?;
+    diagnostic.response_started = Some(Instant::now());
+    observed_output(socket, headers.as_bytes(), false, diagnostic).await?;
+    diagnostic.headers_complete = true;
     if request.head {
         return Ok(());
     }
@@ -600,7 +905,8 @@ async fn client_inner(
         let mut offset = request.range.map_or(0, |(start, _)| start);
         let end = offset.checked_add(length).ok_or(ERR)?;
         while offset < end {
-            authority(&state).await?;
+            observed_authority(&state, diagnostic).await?;
+            diagnostic.begin(RequestPhase::LocalRead);
             let bytes = local_chunk(
                 &state,
                 body.clone(),
@@ -608,22 +914,22 @@ async fn client_inner(
                 (end - offset).min(CHUNK as u64) as usize,
             )
             .await?;
-            authority(&state).await?;
-            tokio::time::timeout(DEADLINE, socket.write_all(&bytes))
-                .await
-                .map_err(|_| "archive-proxy-timeout")?
-                .map_err(|_| ERR)?;
+            observed_remote_chunk(&state, socket, &bytes, diagnostic).await?;
             offset += bytes.len() as u64;
         }
         return Ok(());
     }
     let response = response.as_mut().ok_or(ERR)?;
     let mut delivered = 0u64;
-    while let Some(bytes) = tokio::time::timeout(DEADLINE, response.chunk())
-        .await
-        .map_err(|_| "archive-proxy-timeout")?
-        .map_err(|_| "archive-proxy-network")?
-    {
+    loop {
+        diagnostic.begin(RequestPhase::UpstreamRead);
+        let result = read_upstream(response).await;
+        if result.as_ref().err().map(String::as_str) == Some("archive-proxy-read-timeout") {
+            diagnostic.timeout_boundary = TimeoutBoundary::UpstreamRead;
+        }
+        let Some(bytes) = result? else {
+            break;
+        };
         if bytes.len() > CHUNK {
             return Err("archive-proxy-chunk-limit".into());
         }
@@ -632,18 +938,39 @@ async fn client_inner(
             return Err("archive-media-size-changed".into());
         }
         for chunk in bytes.chunks(CHUNK) {
-            tokio::time::timeout(DEADLINE, async {
-                authority(&state).await?;
-                socket.write_all(chunk).await.map_err(|_| ERR.to_owned())
-            })
-            .await
-            .map_err(|_| "archive-proxy-timeout")??;
+            observed_remote_chunk(&state, socket, chunk, diagnostic).await?;
         }
     }
     if delivered != length {
         return Err("archive-media-truncated".into());
     }
     Ok(())
+}
+
+// Response headers still require bounded delivery. A buffered VOD decoder's
+// body backpressure is handled separately by observed_remote_chunk.
+async fn write_output<W: tokio::io::AsyncWrite + Unpin>(
+    socket: &mut W,
+    bytes: &[u8],
+) -> Result<(), String> {
+    tokio::time::timeout(DEADLINE, socket.write_all(bytes))
+        .await
+        .map_err(|_| "archive-proxy-write-timeout")?
+        .map_err(|_| "archive-proxy-write-failed".into())
+}
+
+async fn read_upstream(response: &mut reqwest::Response) -> Result<Option<bytes::Bytes>, String> {
+    tokio::time::timeout(DEADLINE, response.chunk())
+        .await
+        .map_err(|_| "archive-proxy-read-timeout")?
+        .map_err(|error| {
+            if error.is_timeout() {
+                "archive-proxy-read-timeout"
+            } else {
+                "archive-proxy-network"
+            }
+            .into()
+        })
 }
 async fn client(socket: TcpStream, state: Arc<Mutex<State>>, mut cancel: watch::Receiver<bool>) {
     if *cancel.borrow() {
@@ -655,13 +982,47 @@ async fn client(socket: TcpStream, state: Arc<Mutex<State>>, mut cancel: watch::
             match result {Ok(Ok(request))=>request,_=>return}
         }
     };
+    let mut diagnostic = RequestDiagnostic::new(&state, &request);
+    let owner_current = !*cancel.borrow() && state.lock().is_ok_and(|s| s.active());
+    eprintln!(
+        "{}",
+        diagnostic.line(RequestEnd::Start, None, owner_current)
+    );
     let mut sent = false;
     let mut unexpected = [0u8; 1];
-    let result = tokio::select! {biased;_=cancel.changed()=>None,_=invalidated(&state)=>None,
+    let (end, result) = tokio::select! {biased;_=cancel.changed()=>(RequestEnd::Canceled,None),_=invalidated(&state)=>(RequestEnd::OwnerInvalid,None),
     // Decoder requests have no body/pipelining. EOF or unexpected request
     // bytes release this client promptly, even during an upstream stall.
-    _=reader.read(&mut unexpected)=>None,
-    result=client_inner(&mut writer,state.clone(),&mut sent,request)=>Some(result)};
+    read=reader.read(&mut unexpected)=>(match read {
+        Ok(0)=>RequestEnd::ConsumerClosed,
+        Ok(_)=>RequestEnd::ConsumerInput,
+        Err(_)=>RequestEnd::ConsumerReadFailed,
+    },None),
+    result=client_inner(&mut writer,state.clone(),&mut sent,request,&mut diagnostic)=>{
+        (if result.is_ok(){RequestEnd::Complete}else{RequestEnd::Failed},Some(result))
+    }};
+    let owner_current = !*cancel.borrow() && state.lock().is_ok_and(|s| s.active());
+    eprintln!(
+        "{}",
+        diagnostic.line(
+            end,
+            result
+                .as_ref()
+                .and_then(|r| r.as_ref().err())
+                .map(String::as_str),
+            owner_current
+        )
+    );
+    if let Some(Err(code)) = &result {
+        crate::platform::playback_trace::native_failure(
+            "genxtra",
+            code,
+            code.contains("timeout"),
+            false,
+            sent,
+        );
+    }
+
     if result.is_some_and(|r| r.is_err()) && !sent {
         // Never reflect URLs, remote headers or login/error bodies. Once media
         // headers crossed, only close: a second HTTP response would corrupt it.
@@ -744,6 +1105,7 @@ impl ArchivePlaybackProxy {
             path,
             host: String::new(),
             generation,
+            request_sequence: 0,
             started: Instant::now(),
             renewed: Instant::now(),
             authority: authorization,
@@ -812,6 +1174,7 @@ impl ArchivePlaybackProxy {
             path: format!("/archive/{}/{}.mp4", opaque()?, opaque()?),
             host: String::new(),
             generation,
+            request_sequence: 0,
             started: Instant::now(),
             renewed: Instant::now(),
             authority: authorization,

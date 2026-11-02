@@ -85,7 +85,15 @@ export function createNativePictureHost(
       const modes = new MutationObserver(soon);
       modes.observe(elements.app, {
         attributes: true,
-        attributeFilter: ['class', 'data-guide-panel', 'data-vod-browsing', 'data-compact-view'],
+        attributeFilter: [
+          'class',
+          'data-guide-panel',
+          'data-vod-browsing',
+          'data-compact-view',
+          'data-content-library',
+          'data-play-mode',
+          'data-vod',
+        ],
       });
       window.addEventListener('resize', soon);
       document.addEventListener('fullscreenchange', soon);

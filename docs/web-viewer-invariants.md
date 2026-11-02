@@ -1,5 +1,7 @@
 # Web viewer invariants (hostile websites)
 
+Current source: **0.1.25 / build 1025**. The dated device evidence below is retained at its original scope; current source does not turn it into new owner-device or hostile-site physical acceptance.
+
 > Public copy. Evidence paths (`artifacts/...`) and linked internal reports are kept in the project's private archive; the measurements and decisions are summarised here.
 
 October 18, 2026. Local's station pages and Websites tab show arbitrary websites inside GenX on Android TV (`WebPagePlugin.kt`) and Windows (`src-tauri/src/browser/web_page.rs`, a WebView2 child webview). Every page is treated as hostile: it may be written to trap the remote, take over the screen, spam prompts, exhaust memory, phish, or reach GenX itself, and a user may follow links across many such sites in a row. These invariants extend the existing registers (the original playback/catalog/sharing invariants, C01–C08 casting, G01–G08 guide); they do not renumber them.
@@ -26,6 +28,18 @@ Status: **Enforced** (implemented and verified as stated), **Partial** (implemen
 | W12 | The page's real address is visible, so a page can't pass itself off as GenX. | PC: the strip always shows the page's title and host; TV: the bar shows them on entering a page, on arriving at another site, and on request (Up at the top of the page, or Menu); it no longer shows on every key, because it covered the search boxes sites keep at the top (owner report, October 19, 2026); GenX never asks for passwords inside the page area. | Device check. | Partial: a page can still draw convincing fake UI inside its own area; the address line is the defense. |
 
 ## Architecture: isolation
+
+### Placement architecture (introduced in 0.1.4)
+
+The current Android trusted host retains CSS viewing-area bounds plus the matching CSS
+viewport size. `WebPagePlugin` uses the shared native geometry conversion to
+map them once to the actual app WebView, then translates its window origin to
+parent margins. The in-process page frame and separate-process SurfaceView use
+the same resulting dimensions. Fullscreen, viewport and app layout changes
+refresh placement. Windows retains its physical-pixel coordinate contract.
+The remote page still receives no Tauri bridge or access to the host's geometry
+commands; isolation, URL admission, download and remote-control policies are
+unchanged. Fire TV physical verification is pending.
 
 Third-party sites never run in the WebView that hosts GenX's interface.
 

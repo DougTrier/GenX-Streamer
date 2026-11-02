@@ -40,6 +40,7 @@ import app.tauri.annotation.Command
 import app.tauri.annotation.InvokeArg
 import app.tauri.annotation.TauriPlugin
 import app.tauri.plugin.Invoke
+import app.tauri.plugin.JSArray
 import app.tauri.plugin.JSObject
 import app.tauri.plugin.Plugin
 import org.json.JSONObject
@@ -47,11 +48,13 @@ import org.json.JSONObject
 @InvokeArg
 class WebPageArgs {
   var url: String = ""
-  /** The viewing area in window pixels; a width of 0 or less means the whole window. */
-  var left: Int = 0
-  var top: Int = 0
-  var width: Int = 0
-  var height: Int = 0
+  /** CSS pixels with viewport; legacy window pixels without it. Zero size means the window. */
+  var left: Double = 0.0
+  var top: Double = 0.0
+  var width: Double = 0.0
+  var height: Double = 0.0
+  var viewportWidth: Int = 0
+  var viewportHeight: Int = 0
 }
 
 /**
@@ -70,6 +73,7 @@ class WebPagePlugin(private val activity: Activity) : Plugin(activity) {
 
   /** The page's place in the window: the in-process container or the SurfaceView. */
   private var frame: View? = null
+  private var lastPlacement: WebPageArgs? = null
   private var local: PageController? = null
   private var entered = false
   private val notes = ArrayList<String>()
@@ -77,21 +81,22 @@ class WebPagePlugin(private val activity: Activity) : Plugin(activity) {
     synchronized(notes) { if (notes.size < 100) notes.add("${System.currentTimeMillis()} $note") }
   }
 
-  private fun bounds(args: WebPageArgs): FrameLayout.LayoutParams =
-    if (args.width <= 0 || args.height <= 0) {
-      FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT)
-    } else {
-      FrameLayout.LayoutParams(args.width, args.height).apply {
-        // The rectangle is in GenX's WebView; the page sits in the window, so
-        // add where that WebView starts (it is inset from the system bars on
-        // Android 15+, and at the window's corner elsewhere).
-        val origin = IntArray(2).also { appView()?.getLocationInWindow(it) }
-        leftMargin = args.left.coerceAtLeast(0) + origin[0]
-        topMargin = args.top.coerceAtLeast(0) + origin[1]
-      }
-    }
-  private fun size(args: WebPageArgs) =
-    if (args.width > 0 && args.height > 0) args.width to args.height else root.width to root.height
+  private fun geometry(args: WebPageArgs): NativePictureBounds {
+    if (args.width <= 0 || args.height <= 0)
+      return NativePictureBounds(0, 0, root.width.coerceAtLeast(1), root.height.coerceAtLeast(1))
+    val web = appView() ?: return NativePictureBounds(0, 0, 1, 1)
+    val webAt = IntArray(2).also { web.getLocationInWindow(it) }
+    val rootAt = IntArray(2).also { root.getLocationInWindow(it) }
+    return NativeVideoGeometry.bounds(args.left, args.top, args.width, args.height,
+      args.viewportWidth, args.viewportHeight, web.width, web.height,
+      NativeVideoGeometry.parentOffset(webAt[0], rootAt[0], root.paddingLeft),
+      NativeVideoGeometry.parentOffset(webAt[1], rootAt[1], root.paddingTop))
+      ?: NativePictureBounds(0, 0, 1, 1)
+  }
+  private fun bounds(args: WebPageArgs): FrameLayout.LayoutParams = geometry(args).let { box ->
+    FrameLayout.LayoutParams(box.width, box.height).apply { leftMargin = box.left; topMargin = box.top }
+  }
+  private fun size(args: WebPageArgs) = geometry(args).let { it.width to it.height }
 
   /** GenX's own WebView (not the page). */
   private fun appView(): WebView? {
@@ -125,6 +130,8 @@ class WebPagePlugin(private val activity: Activity) : Plugin(activity) {
       return
     }
     val safe = when (name) {
+      "genx-page-diagnostic" -> JSONObject().put("code",(detail?.optInt("code") ?: 0).coerceIn(-1000,599))
+        .put("http",detail?.optBoolean("http") == true).put("fatal",detail?.optBoolean("fatal") == true).put("mainFrame",detail?.optBoolean("mainFrame") == true)
       "genx-page-save" -> JSONObject()
         .put("url", detail?.optString("url")?.take(2048) ?: "")
         .put("title", detail?.optString("title")?.take(400) ?: "")
@@ -274,6 +281,7 @@ class WebPagePlugin(private val activity: Activity) : Plugin(activity) {
     }
     activity.runOnUiThread {
       closePage()
+      lastPlacement = args
       if (separate) {
         bind()
         val surface = SurfaceView(activity).apply {
@@ -308,10 +316,33 @@ class WebPagePlugin(private val activity: Activity) : Plugin(activity) {
     }
   }
 
+  /** Measures the hosted page surface, without reading its URL or document. */
+  @Command fun diagnostics(invoke: Invoke) {
+    activity.runOnUiThread {
+      val result=JSObject().put("engine","web-page").put("separateProcess",separate).put("visible",frame?.isShown == true).put("pixelPositionVerified",false)
+      frame?.let { target ->
+        val actual=IntArray(2).also {target.getLocationOnScreen(it)}
+        result.put("playerNative",JSArray().put(actual[0]).put(actual[1]).put(target.width).put(target.height)).put("layoutPending",target.isLayoutRequested)
+        lastPlacement?.let { args ->
+          val expected=geometry(args)
+          val origin=IntArray(2).also {root.getLocationOnScreen(it)}
+          val x=origin[0]+root.paddingLeft+expected.left
+          val y=origin[1]+root.paddingTop+expected.top
+          val delta=intArrayOf(actual[0]-x,actual[1]-y,target.width-expected.width,target.height-expected.height)
+          result.put("expectedPlayerNative",JSArray().put(x).put(y).put(expected.width).put(expected.height))
+            .put("deltaNative",JSArray().put(delta[0]).put(delta[1]).put(delta[2]).put(delta[3]))
+            .put("aligned",delta.all {kotlin.math.abs(it)<=2})
+        }
+      }
+      invoke.resolve(result)
+    }
+  }
+
   /** Follows the viewing area (layout changes, fullscreen). */
   @Command fun place(invoke: Invoke) {
     val args = invoke.parseArgs(WebPageArgs::class.java)
     activity.runOnUiThread {
+      lastPlacement = args
       frame?.layoutParams = bounds(args)
       val (width, height) = size(args)
       local?.resized(width, height)
@@ -418,6 +449,7 @@ class WebPagePlugin(private val activity: Activity) : Plugin(activity) {
   @Command fun close(invoke: Invoke) {
     activity.runOnUiThread {
       closePage()
+      lastPlacement = null
       if (separate) unbind()
       log("closed")
       invoke.resolve(JSObject().apply { put("schemaVersion", 1); put("closed", true) })

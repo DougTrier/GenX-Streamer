@@ -31,6 +31,26 @@ const source = (id: string, location: string, allowHttp = false): Source => ({
 });
 const included = source('included', 'https://included.fixture.invalid/list.m3u');
 const custom = source('custom', 'https://custom.fixture.invalid/list.m3u');
+it('skips included templates and redundant variants while retaining explicit custom sources', () => {
+  const p = defaultPreferences();
+  p.reviewedChannelProviders = ['best', 'online', 'index'].map((name) => ({
+    id: name,
+    name,
+    location: `https://dearbulut.github.io/iptv/playlists/${name}.m3u`,
+    provenance: 'https://github.com/dearbulut/iptv',
+  }));
+  p.reviewedChannelProviders.push({
+    id: 'example',
+    name: 'Example',
+    location: 'https://example.com/channels.m3u',
+    provenance: 'https://directory.fixture.invalid/',
+  });
+  const saved = source('manual-example', 'https://example.com/manual.m3u');
+  const catalog = { ...emptyCatalog(), sources: [saved] };
+  expect(providerScanSources(catalog, p).map((s) => s.id)).toEqual(['manual-example', 'index']);
+  expect(p.reviewedChannelProviders).toHaveLength(4);
+  expect(catalog.sources).toEqual([saved]);
+});
 const setup = () => {
   const preferences = {
     ...defaultPreferences(),
@@ -82,5 +102,51 @@ it('scans with the adopted grant for saved and not-yet-saved included sources', 
     ['included', true],
     ['custom', false],
     ['unsaved', true],
+  ]);
+});
+
+it('retains the same playlist with different HTTP grants in the complete scan plan', () => {
+  const location = 'https://grant.fixture.invalid/list.m3u';
+  const saved = source('saved-without-http', location);
+  const preferences = defaultPreferences();
+  preferences.reviewedChannelProviders = [
+    { id: 'same-grant', name: 'Same grant', location, provenance: location, allowHttp: false },
+    { id: 'with-http', name: 'With HTTP', location, provenance: location, allowHttp: true },
+    {
+      id: 'duplicate-http',
+      name: 'Duplicate HTTP',
+      location,
+      provenance: location,
+      allowHttp: true,
+    },
+  ];
+  expect(
+    providerScanSources({ ...emptyCatalog(), sources: [saved] }, preferences).map((s) => [
+      s.id,
+      s.allowHttp,
+    ]),
+  ).toEqual([
+    ['saved-without-http', false],
+    ['with-http', true],
+  ]);
+});
+
+it('retains both provider grants while canonicalizing duplicate document addresses', () => {
+  const location = 'https://grant.fixture.invalid/list.m3u';
+  const preferences = defaultPreferences();
+  preferences.reviewedChannelProviders = [
+    { id: 'without-http', name: 'Without HTTP', location, provenance: location },
+    { id: 'with-http', name: 'With HTTP', location, provenance: location, allowHttp: true },
+    {
+      id: 'duplicate-default-port',
+      name: 'Duplicate default port',
+      location: 'https://grant.fixture.invalid:443/list.m3u',
+      provenance: location,
+      allowHttp: false,
+    },
+  ];
+  expect(providerScanSources(emptyCatalog(), preferences).map((s) => s.id)).toEqual([
+    'without-http',
+    'with-http',
   ]);
 });

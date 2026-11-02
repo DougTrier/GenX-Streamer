@@ -17,7 +17,7 @@
 import type Hls from 'hls.js';
 import type Mpegts from 'mpegts.js';
 import { createBrowserAudioTracks } from './browser-audio-tracks';
-import { createBrowserAudioHealth } from './browser-audio-health';
+import { createBrowserAudioHealth, readAudioHealth } from './browser-audio-health';
 export { AUDIO_HEALTH_CHANGE, readAudioHealth } from './browser-audio-health';
 export { AUDIO_TRACKS_CHANGE, readAudioTracks, setAudioTrack } from './browser-audio-tracks';
 import { createOwnedAbortSignals } from './abort';
@@ -47,6 +47,11 @@ import {
 } from '../playback/resource-owners';
 import { createBrowserEngineStart } from './browser-engine-start';
 import { createSharedContext } from '../application/shell/shared-context';
+import {
+  createMeasuredTransportRate,
+  normalizeLiveBufferPreference,
+  type LiveBufferTelemetry,
+} from '../playback/live-buffer';
 export type PlaybackSourceReader = (url: string, signal: AbortSignal) => Promise<ConfiguredSource>;
 export const mediaAttachmentOwners = new WeakMap<
   HTMLVideoElement,
@@ -211,6 +216,9 @@ export function createBrowserEngine(
       initialization: () => initialization,
       inspect: () => inspect,
       inspectFragment: () => inspectFragment,
+      measuredTransfer: () => measuredTransfer,
+      measuredRate: () => measuredRate,
+      resetLiveBufferMeasurements: () => resetLiveBufferMeasurements,
       listen: () => listen,
       livePlayed: () => livePlayed,
       nativeSession: () => nativeSession,
@@ -268,6 +276,7 @@ export function createBrowserEngine(
   const initialization = createOwnedWork(owners);
   const attachmentToken = {};
   let nativeSession: ReturnType<typeof createNativeHlsSession> | null = null;
+  let startupBufferChecked = false;
   let drainPromise: Promise<void> | null = null;
   let releaseHls: (() => void) | null = null;
   const hlsListeners: Array<() => void> = [];
@@ -423,6 +432,7 @@ export function createBrowserEngine(
         sample: {
           mediaTime: video.currentTime,
           decodedFrames: quality.totalVideoFrames - quality.droppedVideoFrames,
+          ...((readAudioHealth(video)?.decodedBytes ?? 0) > 0 ? { audioObserved: true } : {}),
           width: video.videoWidth,
           height: video.videoHeight,
         },
@@ -440,6 +450,28 @@ export function createBrowserEngine(
   // Adaptive live rebuffering (playback/adaptive-buffer.ts): live only.
   let adaptive: ReturnType<typeof createAdaptiveBuffer> | null = null;
   let adaptiveChannel = '';
+  const incomingRate = createMeasuredTransportRate(
+    options.monotonicNow ?? (() => performance.now()),
+  );
+  const resetLiveBufferMeasurements = (): void => incomingRate.clear();
+  const measuredTransfer = (bytes: number, milliseconds: number): void => {
+    if (!disposed && !signal?.aborted && !desiredPaused) incomingRate.transfer(bytes, milliseconds);
+  };
+  const measuredRate = (bitsPerSecond: number): void => {
+    if (!disposed && !signal?.aborted && !desiredPaused) incomingRate.rate(bitsPerSecond);
+  };
+  const applyLiveBufferTarget = (): void => {
+    if (!hls || !adaptive) return;
+    const profile = liveBufferProfile(buffer).hls;
+    hls.config.maxBufferLength =
+      adaptive.mode === 'manual'
+        ? adaptive.target
+        : Math.max(profile.maxBufferLength, adaptive.target);
+    hls.config.maxMaxBufferLength =
+      adaptive.mode === 'manual'
+        ? adaptive.target
+        : Math.max(profile.maxMaxBufferLength, adaptive.target);
+  };
   let holdTimer: ReturnType<typeof setInterval> | null = null;
   let releaseHoldTimer: (() => void) | null = null;
   // Holds apply only once this stream has played: during startup the first
@@ -552,7 +584,9 @@ export function createBrowserEngine(
       signal?.aborted
     )
       return;
-    learnedLiveBuffer.set(adaptiveChannel, adaptive.stalled());
+    const target = adaptive.stalled();
+    if (adaptive.mode === 'auto') learnedLiveBuffer.set(adaptiveChannel, target);
+    applyLiveBufferTarget();
     const started = Date.now();
     video.pause();
     releaseHoldTimer = owners.acquire('loaderTimers');
@@ -648,6 +682,7 @@ export function createBrowserEngine(
     };
     try {
       stage('finite-seek', () => pendingSeek?.finish('unavailable'));
+      stage('live-buffer-measurements', resetLiveBufferMeasurements);
       stage('abort', () => ownedAbort.abort());
       stage('composite-signal', () => signalOwner?.dispose());
       stage('initialization', () => {
@@ -725,7 +760,10 @@ export function createBrowserEngine(
     const failures = cleanup();
     if (failures.length) throw new AggregateError(failures, 'Playback cleanup did not finish.');
     if (drainPromise) return drainPromise;
-    if (!initialization.pending() && !nativeSession?.pending()) {
+    // A native session can finish cleanup after an abort but before dispose.
+    // Its settled result still needs checking: zero pending RPCs alone does
+    // not acknowledge a failed pool close.
+    if (!initialization.pending() && !nativeSession) {
       releaseEngine();
       return;
     }
@@ -756,6 +794,50 @@ export function createBrowserEngine(
   };
   const play = async (): Promise<void> => {
     if (desiredPaused || disposed || signal?.aborted) return;
+    if (!startupBufferChecked && (hls || tsPlayer) && adaptive && !finiteMode && signal) {
+      startupBufferChecked = true;
+      // Only this exact source's demonstrated requirement delays startup.
+      // Fresh sources retain their existing fast start; VOD/replay stay separate.
+      if (learnedLiveBuffer.get(adaptiveChannel) > 0) {
+        const startupLimit = adaptive.holdLimitMs;
+        const startupSignal = signal;
+        report({ type: 'buffering' });
+        await initialization.run(
+          'initializationWaits',
+          () =>
+            new Promise<void>((resolve) => {
+              const started = performance.now();
+              const releaseTimer = owners.acquire('loaderTimers');
+              const releaseListener = owners.acquire('abortListeners');
+              let finished = false;
+              let timer: ReturnType<typeof setInterval> | null = null;
+              const finish = (): void => {
+                if (finished) return;
+                finished = true;
+                if (timer !== null) clearInterval(timer);
+                startupSignal.removeEventListener('abort', finish);
+                releaseTimer();
+                releaseListener();
+                resolve();
+              };
+              const check = (): void => {
+                if (
+                  disposed ||
+                  startupSignal.aborted ||
+                  desiredPaused ||
+                  aheadSeconds() >= adaptive!.target ||
+                  performance.now() - started >= startupLimit
+                )
+                  finish();
+              };
+              startupSignal.addEventListener('abort', finish, { once: true });
+              timer = setInterval(check, 250);
+              check();
+            }),
+        );
+        if (desiredPaused || disposed || signal?.aborted) return;
+      }
+    }
     startTiming.mark('play-called');
     try {
       await video.play();
@@ -780,6 +862,7 @@ export function createBrowserEngine(
     pause: () => {
       previousDecoded = null;
       desiredPaused = true;
+      incomingRate.clear();
       endReplay();
       endHold(false);
       if (!disposed) {
@@ -804,6 +887,53 @@ export function createBrowserEngine(
     },
     setVolume: (value) => {
       if (!disposed) video.volume = value;
+    },
+    readLiveBuffer: (): Readonly<LiveBufferTelemetry> | null => {
+      if (
+        disposed ||
+        signal?.aborted ||
+        !readyToPlay ||
+        mediaAttachmentOwners.get(video)?.token !== attachmentToken
+      )
+        return null;
+      let bufferedSeconds: number | null = null;
+      try {
+        const ahead = aheadSeconds();
+        if (Number.isFinite(video.currentTime) && Number.isFinite(ahead) && ahead >= 0)
+          bufferedSeconds = ahead;
+      } catch {
+        // Native-element buffering can be opaque.
+      }
+      const controlled = !!adaptive && !!(hls || tsPlayer);
+      return {
+        incomingBitsPerSecond:
+          desiredPaused || (!hls && !tsPlayer)
+            ? null
+            : hls
+              ? incomingRate.readPayloadWindow()
+              : incomingRate.read(),
+        bufferedSeconds,
+        targetSeconds: controlled ? adaptive!.target : null,
+        mode: controlled ? adaptive!.mode : 'auto',
+        capability: controlled ? 'controlled' : 'observe-only',
+      };
+    },
+    setLiveBuffer: (value) => {
+      const preference = normalizeLiveBufferPreference(value);
+      if (
+        !preference ||
+        finiteMode ||
+        disposed ||
+        signal?.aborted ||
+        !readyToPlay ||
+        !adaptive ||
+        (!hls && !tsPlayer) ||
+        mediaAttachmentOwners.get(video)?.token !== attachmentToken
+      )
+        return false;
+      adaptive.setPreference(preference);
+      applyLiveBufferTarget();
+      return true;
     },
     dispose,
     liveReplay: (): LiveReplayEngine | null => {

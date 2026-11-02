@@ -21,7 +21,7 @@ use crate::{scan_candidate_manifest::Entry, storage_transaction::CommitReceipt};
 use serde::Serialize;
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use unicode_normalization::UnicodeNormalization;
 use zeroize::Zeroize;
 
@@ -33,6 +33,17 @@ pub(crate) struct Fence {
     pub catalog: i64,
     pub health: i64,
     pub checkpoint: i64,
+}
+impl Fence {
+    /// Health samples do not issue source, target, grant or checkpoint authority.
+    /// Their revision may advance while the exact admitted catalog/root/job is
+    /// still current. SQL publication reconciles against that current health.
+    pub(crate) fn admits_health_progress(self, current: Self) -> bool {
+        self.root_generation == current.root_generation
+            && self.catalog == current.catalog
+            && self.checkpoint == current.checkpoint
+            && current.health >= self.health
+    }
 }
 #[derive(Clone, Copy)]
 pub(crate) struct Context<'a> {
@@ -68,6 +79,8 @@ pub(crate) struct Plan {
     header: Value,
     candidate_hashes: Vec<[u8; 32]>,
     primary_url_hashes: Vec<[u8; 32]>,
+    normalized_targets: usize,
+    initial_transport_memo: crate::scan_resume_runtime::probe_memo::Memo,
     progress: Vec<Progress>,
     counts: Counts,
     // Immutable full-review ambiguity authority; never shipped as an O(N) JS scope.
@@ -171,6 +184,8 @@ impl Plan {
         let candidates = value["review"]["candidates"].as_array().ok_or(ERR)?;
         let mut candidate_hashes = Vec::with_capacity(candidates.len());
         let mut primary_url_hashes = Vec::with_capacity(candidates.len());
+        let mut transport_targets = BTreeSet::new();
+        let mut target_keys = Vec::with_capacity(candidates.len());
         let mut providers = HashMap::<[u8; 32], usize>::new();
         let mut metadata = HashMap::<[u8; 32], usize>::new();
         for ordinal in 0..candidates.len() {
@@ -180,6 +195,21 @@ impl Plan {
             let candidate = super::resume_candidate(&value, ordinal)?;
             candidate_hashes.push(hash(&candidate)?);
             primary_url_hashes.push(reference_hash(&candidate["reference"]["urlHashes"][0])?);
+            let definition = value["sourceDefinitions"]
+                .as_array()
+                .ok_or(ERR)?
+                .iter()
+                .find(|d| d["source"]["id"] == candidate["channel"]["sourceId"])
+                .ok_or(ERR)?;
+            let target_key = crate::scan_resume_runtime::probe_memo::Key::from_url_hash(
+                *primary_url_hashes.last().ok_or(ERR)?,
+                definition["source"]["allowHttp"].as_bool().unwrap_or(false),
+                platform,
+                observer_profile,
+                value["budgetMs"].as_u64().ok_or(ERR)?,
+            );
+            transport_targets.insert(target_key.clone());
+            target_keys.push(target_key);
             let (p, m) = keys(&candidate["channel"])?;
             if candidate["channel"]["providerId"]
                 .as_str()
@@ -205,6 +235,21 @@ impl Plan {
         }
         for index in value["publishedIndices"].as_array().ok_or(ERR)? {
             progress[index.as_u64().ok_or(ERR)? as usize].published = true;
+        }
+        let mut initial_transport_memo = crate::scan_resume_runtime::probe_memo::Memo::default();
+        for o in value["observations"].as_array().ok_or(ERR)? {
+            let ordinal = o[0].as_u64().ok_or(ERR)? as usize;
+            if let Some(outcome) =
+                crate::scan_resume_probe::cache_outcome(&o[3], o[2].as_str().ok_or(ERR)?)
+            {
+                initial_transport_memo.insert(
+                    target_keys.get(ordinal).ok_or(ERR)?.clone(),
+                    crate::scan_resume_runtime::probe_memo::ObservedTarget {
+                        observed_at: o[1].as_u64().ok_or(ERR)?,
+                        outcome,
+                    },
+                );
+            }
         }
         let counts = Counts {
             total: progress.len(),
@@ -244,6 +289,8 @@ impl Plan {
             header,
             candidate_hashes,
             primary_url_hashes,
+            normalized_targets: transport_targets.len(),
+            initial_transport_memo,
             progress,
             counts,
             ambiguous_providers: providers
@@ -256,8 +303,11 @@ impl Plan {
                 .collect(),
         })
     }
+    pub(crate) fn take_transport_memo(&mut self) -> crate::scan_resume_runtime::probe_memo::Memo {
+        std::mem::take(&mut self.initial_transport_memo)
+    }
     pub(crate) fn check_fence(&self, current: Fence, now: u64) -> Result<(), String> {
-        if self.fence != current {
+        if !self.fence.admits_health_progress(current) {
             return Err("scan-resume-plan-stale".into());
         }
         if now > self.expires_at || now < self.header["createdAtMs"].as_u64().ok_or(ERR)? {
@@ -341,7 +391,7 @@ impl Plan {
         let result = json!({"schemaVersion":1,"planId":plan_id,"jobId":self.header["jobId"],"reviewDigest":self.header["reviewDigest"],
             "sessionRevision":self.header["review"]["sessionRevision"],"query":self.header["review"]["query"],"createdAtMs":self.header["createdAtMs"],
             "platform":self.header["platform"],"observerProfile":self.header["observerProfile"],"budgetMs":self.header["budgetMs"],"sourcePolicies":source_policies,
-            "counts":self.counts(),"revisions":{"catalogRevision":self.fence.catalog.to_string(),"healthRevision":self.fence.health.to_string(),"checkpointRevision":self.fence.checkpoint.to_string()}});
+            "counts":self.counts(),"normalization":{"entries":self.counts.total,"uniqueTargets":self.normalized_targets,"duplicates":self.counts.total-self.normalized_targets},"revisions":{"catalogRevision":self.fence.catalog.to_string(),"healthRevision":self.fence.health.to_string(),"checkpointRevision":self.fence.checkpoint.to_string()}});
         if serde_json::to_vec(&result).map_err(|_| ERR)?.len() > PAGE_BYTES {
             return Err("scan-resume-header-limit".into());
         }
@@ -455,7 +505,7 @@ impl Plan {
             2 => 240,
             _ => return Err("scan-resume-commit-stale".into()),
         };
-        if base != self.fence
+        if !self.fence.admits_health_progress(base)
             || !receipt.committed
             || after.root_generation != base.root_generation
             || after.catalog < base.catalog

@@ -20,9 +20,18 @@ import {
   ArchivePlaybackFailureError,
   ArchivePlaybackCleanupError,
   archivePlaybackFailureGuidance,
+  archivePlaybackDiagnosticReason,
 } from '../../src/platform/archive-playback';
 const request = { schemaVersion: 1 as const, fileRef: 'a'.repeat(64), expectedRevision: '1' };
 const cases = [
+  ['archive-request-timeout', 'network'],
+  ['archive-dns-unavailable', 'dns'],
+  ['archive-network-unavailable', 'network'],
+  ['archive-rate-limited', 'rate-limit'],
+  ['archive-server-unavailable', 'network'],
+  ['archive-response-refused', 'network'],
+  ['archive-response-limit', 'network'],
+  ['archive-metadata-invalid', 'network'],
   ['archive-proxy-url-refused', 'destination'],
   ['archive-proxy-host-unverified', 'destination'],
   ['archive-proxy-path-unverified', 'path'],
@@ -88,6 +97,30 @@ it.each([
     'This Archive file could not open. Choose another file or retry.',
   );
 });
+it.each([
+  ['sqlite-busy', 'storage-busy'],
+  ['sqlite-locked', 'storage-locked'],
+  ['sqlite-storage-full', 'storage-full'],
+  ['archive-database-failed', 'storage-failed'],
+  ['storage-worker-failed', 'worker-failed'],
+] as const)(
+  'keeps exact native %s as closed diagnostic facts without changing guidance',
+  async (raw, reason) => {
+    const playback = createArchivePlayback({
+      invoke: async () => {
+        throw raw;
+      },
+    });
+    const error = await playback.start(request).catch((error) => error);
+    expect(error.category).toBe('unknown');
+    expect(archivePlaybackDiagnosticReason(error)).toBe(reason);
+    expect(archivePlaybackFailureGuidance(error)).toBe(
+      'This Archive file could not open. Choose another file or retry.',
+    );
+    expect(error.cause).toBeUndefined();
+    expect(archivePlaybackDiagnosticReason(Error(raw))).toBeNull();
+  },
+);
 it('cancellation joins original and exact cancel, with cleanup failure taking priority', async () => {
   let reject!: (value: unknown) => void;
   let releaseCancel!: () => void;

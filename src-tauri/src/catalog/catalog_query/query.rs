@@ -58,6 +58,15 @@ pub(super) fn query_page_inner(
 ) -> Result<Page, String> {
     crate::native_catalog::observe_stage(&query.request_id, "sql-enter");
     check(cancel)?;
+    crate::catalog::ppv::register(c)?;
+    crate::catalog::sports::register_evidence(c)?;
+    if !valid_history_ids(
+        query.history_ids.as_deref(),
+        query.filter == Filter::Watched,
+    ) {
+        return Err("catalog-query-invalid".into());
+    }
+    register_watch_history(c, query.history_ids.as_deref().unwrap_or_default())?;
     if query.schema_version != 1
         || query.request_id.is_empty()
         || query.request_id.len() > 256
@@ -74,6 +83,25 @@ pub(super) fn query_page_inner(
     {
         return Err("catalog-query-invalid".into());
     }
+    if query.sports.is_none() && query.expected_guide_revision.is_some() {
+        return Err("catalog-query-invalid".into());
+    }
+    let expected_guide = query
+        .expected_guide_revision
+        .as_deref()
+        .map(|value| revision(value).map_err(|_| "catalog-query-invalid"))
+        .transpose()?;
+    if query.sports.is_some()
+        && query.start_index.is_some_and(|i| i > 0)
+        && expected_guide.is_none()
+    {
+        return Err("catalog-view-revision-stale".into());
+    }
+    let sports = query
+        .sports
+        .as_ref()
+        .map(|scope| crate::catalog::sports::Plan::new(scope, &query.query))
+        .transpose()?;
     let q = fold(query.query.trim_matches(ecma_space));
     let aq = alias_fold(&q);
     let code = |s: &str| {
@@ -132,6 +160,7 @@ pub(super) fn query_page_inner(
     };
     let outcome = (|| {
         let tx = sql(c.unchecked_transaction())?;
+
         let endpoint_projection = crate::catalog_endpoint_projection::present(&tx)?;
         let database_version: i64 = sql(tx.query_row("PRAGMA user_version", [], |r| r.get(0)))?;
         if database_version >= 12 && !endpoint_projection {
@@ -177,16 +206,38 @@ pub(super) fn query_page_inner(
             [],
             |r| r.get(0),
         ))? && sql(tx.query_row("SELECT EXISTS(SELECT 1 FROM channel_speed_v1 WHERE slow=1)", [], |r| r.get(0)))?;
+        let sports_guide_revision =
+            if sports.is_some() && crate::catalog::sports::present(&tx, "guide_program")? {
+                let revision: i64 = sql(tx.query_row(
+                    "SELECT revision FROM guide_meta WHERE singleton=1",
+                    [],
+                    |r| r.get(0),
+                ))?;
+                if revision < 0 {
+                    return Err("catalog-query-invalid-guide-revision".into());
+                }
+                revision
+            } else {
+                0
+            };
+        if expected_guide.is_some_and(|v| v != sports_guide_revision) {
+            return Err("catalog-view-revision-stale".into());
+        }
         let query_key = format!(
             "{:x}",
             Sha256::digest(
                 serde_json::to_vec(&(
                     QUERY_VERSION,
+                    ("sports-v1", sports_guide_revision),
+                    &query.sports,
+                    crate::catalog::sports::VOCABULARY,
                     endpoint_projection.then_some(crate::catalog_endpoint_projection::POLICY),
                     &version,
                     &q,
+                    &query.query,
                     &aq,
                     query.filter,
+                    &query.history_ids,
                     &query.geography,
                     query.sort,
                     query.favorites_first,
@@ -196,6 +247,41 @@ pub(super) fn query_page_inner(
                 .map_err(|_| "catalog-query-invalid")?
             )
         );
+        let mut sports_cached_json = "[]".to_owned();
+        let mut event_only_ppv = Arc::new(std::collections::HashSet::new());
+        let mut pre_cached = None;
+        if let Some(plan) = &sports {
+            if let Some((store, path)) = cache {
+                let key = format!(
+                    "{}\n{cr}\n{vr}\n{}\n{query_key}",
+                    database_stamp(path)?,
+                    query.hide_adult
+                );
+                pre_cached = store
+                    .0
+                    .lock()
+                    .map_err(|_| "catalog-query-cache-lock")?
+                    .as_ref()
+                    .filter(|(held, _, _)| held == &key)
+                    .map(|(_, list, flags)| (list.clone(), flags.clone()));
+            }
+            if let Some((_, flags)) = &pre_cached {
+                event_only_ppv = flags.clone();
+            } else {
+                let matches = if query.filter == Filter::Watched {
+                    crate::catalog::sports::register_public_watched_list(&tx, plan)?
+                } else {
+                    crate::catalog::sports::register_public_list(
+                        &tx,
+                        plan,
+                        query.filter == Filter::Ppv,
+                    )?
+                };
+                sports_cached_json =
+                    serde_json::to_string(&matches.all).map_err(|_| "sports-query-too-large")?;
+                event_only_ppv = Arc::new(matches.event_only_ppv);
+            }
+        }
         let base_sort = match query.sort {
             Sort::Source => "p.source_key",
             Sort::Name => "p.name_key",
@@ -211,10 +297,18 @@ pub(super) fn query_page_inner(
             (false, true) => format!("CAST({speed} || {base_sort} AS BLOB)"),
             (true, true) => format!("CAST({favorite} || {speed} || {base_sort} AS BLOB)"),
         };
+        let sort = if query.filter == Filter::Watched {
+            format!("CAST(genx_watch_rank(p.channel_id) || {sort} AS BLOB)")
+        } else {
+            sort
+        };
         let mut values: Vec<SqlValue> = Vec::new();
         let mut predicates =
             vec!["NOT EXISTS(SELECT 1 FROM removed r WHERE r.id=p.channel_id)".to_string()];
-        if !q.is_empty() {
+        if sports.as_ref().is_some_and(|p| p.sports_filter()) {
+            let category = effective_category_expression(&tx)?;
+            predicates.push(format!("(genx_sports_list_channel(c.name,c.category,{category},p.search_text||char(10)||p.provider_key) OR genx_sports_cached(c.id))"));
+        } else if !q.is_empty() {
             let chars: Vec<char> = q.chars().collect();
             let (table, token) = match chars.as_slice() {
                 [a] => ("catalog_shortgram", format!("u{:06x}", *a as u32)),
@@ -266,11 +360,39 @@ pub(super) fn query_page_inner(
             for value in [q.clone(), q.clone(), q.clone(), aq.clone(), aq.clone()] {
                 values.push(value.into());
             }
+            if sports.is_some() {
+                let literal = predicates.pop().expect("literal predicate");
+                predicates.push(format!(
+                    "({literal} OR p.channel_id IN(SELECT value FROM json_each(?)))"
+                ));
+                values.push(sports_cached_json.into());
+            }
         }
+        let ppv = if endpoint_projection {
+            "ppg.ppv".to_owned()
+        } else {
+            crate::catalog::ppv::channel(
+                "c.name",
+                "c.category",
+                effective_category_expression(&tx)?,
+            )
+        };
+        predicates.push(if query.filter == Filter::Watched {
+            "p.channel_id IN(SELECT value FROM json_each(genx_watch_ids()))".to_owned()
+        } else if query.filter == Filter::Ppv {
+            ppv
+        } else {
+            if sports.as_ref().is_some_and(|p| p.include_ppv()) { let category=effective_category_expression(&tx)?; format!("(NOT {ppv} OR genx_sports_ppv_list_channel(c.name,c.category,{category},p.search_text||char(10)||p.provider_key) OR genx_sports_ppv_cached(c.id))") } else { format!("NOT {ppv}") }
+        });
         match query.filter {
             Filter::Favorites => predicates.push("p.channel_id IN(SELECT id FROM favorite)".into()),
             Filter::News => predicates.push("instr(p.category_key,'news')>0".into()),
-            Filter::Sports => predicates.push("instr(p.category_key,'sports')>0".into()),
+            Filter::Sports => {
+                if sports.as_ref().is_none_or(|p| !p.sports_filter()) {
+                    let category = effective_category_expression(&tx)?;
+                    predicates.push(format!("(instr(p.category_key,'sports')>0 OR genx_sports_evidence(c.name,c.category,{category}))"));
+                }
+            }
             Filter::Movies => predicates.push("instr(p.category_key,'movie')>0".into()),
             Filter::Unresponsive => predicates.push(
                 if crate::storage_transaction::channel_check::table_present(c)? {
@@ -281,11 +403,14 @@ pub(super) fn query_page_inner(
                     "0".into()
                 },
             ),
-            Filter::All => {}
+            Filter::All | Filter::Ppv | Filter::Watched => {}
         }
         if query.hide_adult {
             predicates
                 .push("instr(p.category_key,'xxx')=0 AND instr(p.category_key,'adult')=0".into());
+            if query.filter == Filter::Watched {
+                predicates.push("NOT genx_watch_adult(c.category)".into());
+            }
         }
         for (field, value) in &query.geography {
             if let Some(list) = value.as_array() {
@@ -305,16 +430,18 @@ pub(super) fn query_page_inner(
         // group's representative need not itself carry the matching title,
         // category or geography. All operations share these exact predicates.
         let mut prefix = String::new();
-        let base = if endpoint_projection {
-            let members = crate::catalog_endpoint_projection::MEMBERS_CTE.trim_end();
-            prefix = format!("{members}, matching_aliases AS MATERIALIZED(SELECT DISTINCT am.endpoint_key,am.preferred,am.custom_category,am.guide_source,am.guide_channel FROM endpoint_members am JOIN catalog_projection p ON p.channel_id=am.channel_id JOIN channel c ON c.id=p.channel_id WHERE {}) ", predicates.join(" AND "));
+        let base = if endpoint_projection && query.filter == Filter::Watched {
+            // History names exact watched identities; do not substitute an
+            // unwatched equivalent representative or fan out to other aliases.
+            "catalog_projection p JOIN channel c ON c.id=p.channel_id".to_owned()
+        } else if endpoint_projection {
+            let members = crate::catalog::ppv::groups_cte();
+            prefix = format!("{}, matching_aliases AS MATERIALIZED(SELECT DISTINCT am.endpoint_key,am.preferred,am.custom_category,am.guide_source,am.guide_channel FROM endpoint_members am JOIN ppv_groups ppg ON {} JOIN catalog_projection p ON p.channel_id=am.channel_id JOIN channel c ON c.id=p.channel_id WHERE {}) ", members.trim_end(), crate::catalog::ppv::same_group("ppg", "am"), predicates.join(" AND "));
             predicates = vec!["em.position=1".into()];
             format!(
                 "catalog_projection p JOIN endpoint_members em ON em.channel_id=p.channel_id JOIN matching_aliases ma ON {}",
                 crate::catalog_endpoint_projection::SAME_GROUP.replace("am.", "ma.")
             )
-        } else if query.geography.is_empty() {
-            "catalog_projection p".to_owned()
         } else {
             "catalog_projection p JOIN channel c ON c.id=p.channel_id".to_owned()
         };
@@ -328,13 +455,13 @@ pub(super) fn query_page_inner(
                     database_stamp(database)?,
                     query.hide_adult
                 );
-                let hit = store
+                let hit = pre_cached.as_ref().map(|(list, _)| list.clone()).or(store
                     .0
                     .lock()
                     .map_err(|_| "catalog-query-cache-lock")?
                     .as_ref()
-                    .filter(|(held, _)| *held == key)
-                    .map(|(_, list)| list.clone());
+                    .filter(|(held, _, _)| *held == key)
+                    .map(|(_, list, _)| list.clone()));
                 Some(match hit {
                     Some(list) => list,
                     None => {
@@ -355,7 +482,7 @@ pub(super) fn query_page_inner(
                         }
                         let list = Arc::new(list);
                         *store.0.lock().map_err(|_| "catalog-query-cache-lock")? =
-                            Some((key, list.clone()));
+                            Some((key, list.clone(), event_only_ppv.clone()));
                         list
                     }
                 })
@@ -379,7 +506,7 @@ pub(super) fn query_page_inner(
         let mut anchor_index = None;
         if let Some(anchor) = &query.anchor_id {
             let mut anchor_values = values.clone();
-            let anchor = if endpoint_projection {
+            let anchor = if endpoint_projection && query.filter != Filter::Watched {
                 crate::catalog_endpoint_projection::representative(&tx, anchor)?
                     .unwrap_or_else(|| anchor.clone())
             } else {
@@ -433,17 +560,22 @@ pub(super) fn query_page_inner(
                     != Some(cursor.catalog_revision.as_str())
                 || query.expected_view_revision.as_deref() != Some(cursor.view_revision.as_str())
                 || cursor.id.len() > 16384
+                || (query.filter == Filter::Watched
+                    && !query
+                        .history_ids
+                        .as_ref()
+                        .is_some_and(|ids| ids.contains(&cursor.id)))
             {
                 return Err("catalog-query-cursor-stale".into());
             }
             let key = unhex(&cursor.sort_key)?;
             // Cursor anchors must exist exactly in this projection, not fabricate skipped ranges.
-            let cursor_prefix = if endpoint_projection {
+            let cursor_prefix = if endpoint_projection && query.filter != Filter::Watched {
                 crate::catalog_endpoint_projection::MEMBERS_CTE
             } else {
                 ""
             };
-            let cursor_base = if endpoint_projection {
+            let cursor_base = if endpoint_projection && query.filter != Filter::Watched {
                 "catalog_projection p JOIN endpoint_members em ON em.channel_id=p.channel_id AND em.position=1"
             } else {
                 "catalog_projection p"
@@ -543,7 +675,24 @@ pub(super) fn query_page_inner(
                     geography.insert(field.into(), Value::String(v));
                 }
             }
+            let ppv = if endpoint_projection {
+                let evidence = crate::catalog::ppv::indexed_channel_group("c");
+                sql(tx.query_row(
+                    &format!("SELECT {evidence} FROM channel c WHERE c.id=?1"),
+                    [&raw.id],
+                    |r| r.get(0),
+                ))?
+            } else {
+                let category = effective_category_expression(&tx)?;
+                let evidence = crate::catalog::ppv::channel("c.name", "c.category", category);
+                sql(tx.query_row(
+                    &format!("SELECT {evidence} FROM channel c WHERE c.id=?1"),
+                    [&raw.id],
+                    |r| r.get(0),
+                ))?
+            };
             let item = Row {
+                ppv: ppv || event_only_ppv.contains(&raw.id),
                 id: raw.id,
                 source_id: raw.source_id,
                 provider_id: raw.provider_id,
@@ -589,6 +738,7 @@ pub(super) fn query_page_inner(
             request_id: query.request_id.clone(),
             catalog_revision: cr.to_string(),
             view_revision: vr.to_string(),
+            guide_revision: sports.as_ref().map(|_| sports_guide_revision.to_string()),
             query_version: version,
             total_count,
             start_index,

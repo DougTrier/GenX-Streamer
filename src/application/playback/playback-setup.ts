@@ -20,7 +20,7 @@
  */
 import { type NativeEngineHost } from '../../playback/native-vod-engine';
 import { PlaybackController } from '../../playback/controller';
-import { accountOnDemand, createRoutingEngineFactory } from '../../playback/routing-engine';
+import { nativePlaybackSelection, createRoutingEngineFactory } from '../../playback/routing-engine';
 import { createBrowserEngineFactory, readVideoQuality } from '../../platform/browser-engine';
 import { inspectSource } from '../../platform/records';
 import { createNativeVodEngine } from '../../playback/native-vod-engine';
@@ -28,10 +28,13 @@ import { createNativeLiveEngine, nativeLiveRelay } from '../../playback/native-l
 import { createAccountPlayer } from '../accounts/account-player';
 import { playbackResourceOwners } from '../../playback/resource-owners';
 import { invoke, isTauri } from '@tauri-apps/api/core';
+import { recordSourceChoice } from '../../diagnostics/playback-trace';
+import { readEquivalentPaidChannels } from '../../platform/best-paid-source';
 import { startTiming } from '../../playback/start-timing';
 import { type createBootstrapBoundary } from '../shell/bootstrap-boundary';
 import { type createCatalogView } from '../catalog/catalog-view';
 import { type createArchivePlayer } from '../genxtra/archive-player';
+import { savedStreamBufferPreference } from './stream-buffer-state';
 
 /** What this area reads from, and writes back to, the rest of the application. */
 export interface PlaybackSetupEnvironment {
@@ -67,7 +70,11 @@ export function createPlaybackSetup(env: PlaybackSetupEnvironment) {
             },
           ),
           nativePicture ? (emit) => createNativeVodEngine(emit, nativePicture) : null,
-          accountOnDemand,
+          (selection) =>
+            nativePlaybackSelection(
+              selection,
+              env.element('app').dataset.nativeEmbeddedPlayback === 'true',
+            ),
           // Live channels whose MPEG-2 picture the WebView cannot show.
           nativePicture
             ? (emit) =>
@@ -94,10 +101,21 @@ export function createPlaybackSetup(env: PlaybackSetupEnvironment) {
                   },
                 )
             : null,
+          (selection) =>
+            env.element('app').dataset.nativeEmbeddedPlayback === 'true' &&
+            selection.playMode !== 'on-demand' &&
+            !selection.id.startsWith('account-'),
         ),
+        undefined,
+        undefined,
+        { liveBufferPreference: savedStreamBufferPreference },
       ),
   );
-  env.accountPlayer = createAccountPlayer({ player });
+  env.accountPlayer = createAccountPlayer({
+    player,
+    equivalents: isTauri() ? readEquivalentPaidChannels : undefined,
+    sourceChoice: (facts) => recordSourceChoice('paid', facts),
+  });
   // Read-only, redacted ownership evidence for deterministic packaged diagnostics.
   // This exposes no channels, addresses, credentials, commands or mutable registry.
   Object.defineProperty(window, '__GENX_PLAYBACK_OWNERS__', {

@@ -41,8 +41,14 @@ pub struct Query {
     pub request_id: String,
     pub expected_catalog_revision: Option<String>,
     pub expected_view_revision: Option<String>,
+    #[serde(default)]
+    pub expected_guide_revision: Option<String>,
     pub query: String,
+    #[serde(default)]
+    pub sports: Option<crate::catalog::sports::Scope>,
     pub filter: Filter,
+    #[serde(default)]
+    pub history_ids: Option<Vec<String>>,
     #[serde(default)]
     pub geography: Map<String, Value>,
     pub sort: Sort,
@@ -64,6 +70,8 @@ pub enum Filter {
     News,
     Sports,
     Movies,
+    Ppv,
+    Watched,
     /// Saved channels that failed quiet checks on two different days (`channel_check`).
     Unresponsive,
 }
@@ -73,6 +81,62 @@ pub enum Sort {
     Source,
     Name,
     Geography,
+}
+
+pub(crate) fn valid_history_ids(ids: Option<&[String]>, watched: bool) -> bool {
+    if !watched {
+        return ids.is_none();
+    }
+    ids.is_some_and(|ids| {
+        ids.len() <= 256
+            && ids.iter().all(|id| {
+                !id.trim().is_empty()
+                    && id.len() <= 16384
+                    && !id.chars().any(char::is_control)
+                    && !id.contains("://")
+                    && !id.to_ascii_lowercase().starts_with("data:")
+                    && !id.to_ascii_lowercase().starts_with("file:")
+            })
+            && ids.iter().collect::<BTreeSet<_>>().len() == ids.len()
+    })
+}
+
+/// Query-local ordered membership only; it grants no catalog/account authority.
+pub(crate) fn register_watch_history(c: &Connection, ids: &[String]) -> Result<(), String> {
+    use rusqlite::functions::FunctionFlags;
+    let flags = FunctionFlags::SQLITE_UTF8 | FunctionFlags::SQLITE_DETERMINISTIC;
+    let ranks = Arc::new(
+        ids.iter()
+            .enumerate()
+            .map(|(i, id)| (id.clone(), i as u16))
+            .collect::<HashMap<_, _>>(),
+    );
+    let contains = ranks.clone();
+    let json = serde_json::to_string(ids).map_err(|_| "catalog-query-invalid")?;
+    sql(c.create_scalar_function("genx_watch_ids", 0, flags, move |_| Ok(json.clone())))?;
+    // Match the projection's existing NFKC/case-folded adult vocabulary even
+    // when an effective category override has replaced its category key.
+    sql(
+        c.create_scalar_function("genx_watch_adult", 1, flags, |ctx| {
+            let category = fold(&ctx.get::<String>(0)?);
+            Ok(category.contains("xxx") || category.contains("adult"))
+        }),
+    )?;
+    sql(
+        c.create_scalar_function("genx_watched", 1, flags, move |ctx| {
+            Ok(i64::from(contains.contains_key(&ctx.get::<String>(0)?)))
+        }),
+    )?;
+    sql(
+        c.create_scalar_function("genx_watch_rank", 1, flags, move |ctx| {
+            Ok(ranks
+                .get(&ctx.get::<String>(0)?)
+                .copied()
+                .unwrap_or(u16::MAX)
+                .to_be_bytes()
+                .to_vec())
+        }),
+    )
 }
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -96,14 +160,16 @@ pub struct Row {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub geography: Option<Map<String, Value>>,
     pub favorite: bool,
+    pub ppv: bool,
 }
 /// The ordered result of the last catalog query at one database state. Later
 /// pages of the same query are slices of it instead of re-running the whole
 /// grouping query, which costs seconds per page on a TV. Owned by the store of
 /// one database; the key includes both revisions and the database file stamp
 /// read inside the query's read transaction.
+type CachedOrder = (String, Ordered, Arc<std::collections::HashSet<String>>);
 #[derive(Default)]
-pub(crate) struct PageCache(std::sync::Mutex<Option<(String, Ordered)>>);
+pub(crate) struct PageCache(std::sync::Mutex<Option<CachedOrder>>);
 /// Channel IDs with their sort keys, in result order.
 type Ordered = Arc<Vec<(String, Vec<u8>)>>;
 struct RawRow {
@@ -145,6 +211,8 @@ pub struct Page {
     pub request_id: String,
     pub catalog_revision: String,
     pub view_revision: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub guide_revision: Option<String>,
     pub query_version: String,
     pub total_count: i64,
     pub start_index: usize,
@@ -278,7 +346,7 @@ fn labels() -> &'static Labels {
             version: format!(
                 "v{QUERY_VERSION}-{:x}",
                 Sha256::digest(format!(
-                    "{COUNTRIES}\0{SUBDIVISIONS}\0{}",
+                    "{COUNTRIES}\0{SUBDIVISIONS}\0original-category-v2\0{}",
                     crate::catalog_endpoint_projection::POLICY
                 ))
             ),
@@ -399,6 +467,7 @@ CREATE VIRTUAL TABLE catalog_shortgram USING fts5(text,tokenize='ascii',content=
     rebuild_projection(tx)
 }
 struct ProjectionRow {
+    original_category: String,
     id: String,
     source: String,
     provider: Option<String>,
@@ -413,6 +482,7 @@ struct ProjectionRow {
 }
 fn projection_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<ProjectionRow> {
     Ok(ProjectionRow {
+        original_category: row.get(11)?,
         id: row.get(0)?,
         source: row.get(1)?,
         provider: row.get(2)?,
@@ -454,6 +524,7 @@ impl<'a> ProjectionWriter<'a> {
     }
     fn apply(&mut self, row: ProjectionRow) -> Result<(), String> {
         let ProjectionRow {
+            original_category,
             id,
             source,
             provider,
@@ -474,6 +545,7 @@ impl<'a> ProjectionWriter<'a> {
                 &provider,
                 &name,
                 &category,
+                &original_category,
                 ordinal,
                 &country,
                 &region,
@@ -487,8 +559,9 @@ impl<'a> ProjectionWriter<'a> {
         }
         let geo = [country.as_deref(), region.as_deref(), state.as_deref()];
         let text = format!(
-            "{} {} {} {}",
+            "{} {} {} {} {}",
             fold(&name),
+            fold(&original_category),
             fold(&category),
             network(provider.as_deref()),
             location(geo[0], geo[1], geo[2])
@@ -598,7 +671,7 @@ pub fn rebuild_projection(tx: &Transaction<'_>) -> Result<(), String> {
         writer.remove(rowid)?;
     }
     let category = effective_category_expression(tx)?;
-    let mut read=sql(tx.prepare(&format!("SELECT c.id,c.source_id,c.provider_id,c.name,{category},c.ordinal,c.country,c.region,c.state,p.rowid,p.stamp FROM channel c LEFT JOIN catalog_projection p ON p.channel_id=c.id ORDER BY c.ordinal")))?;
+    let mut read=sql(tx.prepare(&format!("SELECT c.id,c.source_id,c.provider_id,c.name,{category},c.ordinal,c.country,c.region,c.state,p.rowid,p.stamp,c.category FROM channel c LEFT JOIN catalog_projection p ON p.channel_id=c.id ORDER BY c.ordinal")))?;
     let mut rows = sql(read.query([]))?;
     while let Some(row) = sql(rows.next())? {
         writer.apply(sql(projection_row(row))?)?;
@@ -642,7 +715,7 @@ fn reconcile_projection_observed(
         return rebuild_projection(tx);
     }
     let category = effective_category_expression(tx)?;
-    let mut read=sql(tx.prepare(&format!("SELECT c.id,c.source_id,c.provider_id,c.name,{category},c.ordinal,c.country,c.region,c.state,p.rowid,p.stamp FROM channel c LEFT JOIN catalog_projection p ON p.channel_id=c.id WHERE c.id=?1")))?;
+    let mut read=sql(tx.prepare(&format!("SELECT c.id,c.source_id,c.provider_id,c.name,{category},c.ordinal,c.country,c.region,c.state,p.rowid,p.stamp,c.category FROM channel c LEFT JOIN catalog_projection p ON p.channel_id=c.id WHERE c.id=?1")))?;
     let mut missing = sql(tx.prepare("SELECT rowid FROM catalog_projection WHERE channel_id=?1"))?;
     let mut rows = Vec::new();
     let mut deletes = Vec::new();

@@ -258,6 +258,30 @@ mod start_path_tests {
 #[cfg(test)]
 mod manifest_tests {
     use super::*;
+    #[tokio::test]
+    async fn native_live_admission_excludes_vod_expired_and_stopped_proxies() {
+        let shared = Arc::new(Mutex::new(state()));
+        let (cancel, _) = watch::channel(false);
+        let mut proxy = AccountPlaybackProxy {
+            media_url: "http://127.0.0.1:9/account/c/media/r".into(),
+            state: shared.clone(),
+            cancel,
+            task: Some(tokio::spawn(async {})),
+            join_failed: false,
+        };
+        assert!(proxy.native_live_url().is_some());
+        shared.lock().unwrap().vod = true;
+        assert!(proxy.native_live_url().is_none());
+        {
+            let mut s = shared.lock().unwrap();
+            s.vod = false;
+            s.renewed = Instant::now() - LEASE - Duration::from_secs(1);
+        }
+        assert!(proxy.native_live_url().is_none());
+        shared.lock().unwrap().renewed = Instant::now();
+        proxy.stop().await.unwrap();
+        assert!(proxy.native_live_url().is_none());
+    }
     fn state() -> State {
         State {
             resources: HashMap::new(),
@@ -422,6 +446,115 @@ mod authority_tests {
             preopen: None,
         }))
     }
+    fn hold_authority(
+        state: &Arc<Mutex<State>>,
+        calls: Arc<AtomicUsize>,
+        result: Result<(), &'static str>,
+    ) -> (Arc<tokio::sync::Notify>, Arc<tokio::sync::Semaphore>) {
+        let entered = Arc::new(tokio::sync::Notify::new());
+        let release = Arc::new(tokio::sync::Semaphore::new(0));
+        let callback_entered = entered.clone();
+        let callback_release = release.clone();
+        state.lock().unwrap().authority = Arc::new(move || {
+            calls.fetch_add(1, SeqCst);
+            let entered = callback_entered.clone();
+            let release = callback_release.clone();
+            Box::pin(async move {
+                entered.notify_one();
+                release.acquire().await.unwrap().forget();
+                result.map_err(str::to_owned)
+            })
+        });
+        (entered, release)
+    }
+    #[tokio::test(start_paused = true)]
+    async fn delayed_authority_cannot_refresh_or_satisfy_the_cache_before_fresh_success() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let state = state(calls.clone(), Arc::new(AtomicBool::new(false)));
+        authority(&state).await.unwrap();
+        let original = {
+            let s = state.lock().unwrap();
+            (s.verified, s.renewed)
+        };
+        tokio::time::advance(Duration::from_millis(2100)).await;
+        let (entered, release) = hold_authority(&state, calls.clone(), Ok(()));
+        let first_state = state.clone();
+        let first = tokio::spawn(async move { authority(&first_state).await });
+        entered.notified().await;
+        tokio::time::advance(Duration::from_secs(6)).await;
+        assert!(
+            !first.is_finished(),
+            "an unconfirmed callback cannot admit traffic"
+        );
+        {
+            let s = state.lock().unwrap();
+            assert_eq!((s.verified, s.renewed), original);
+        }
+        // A concurrent chunk must also await real authority, not a cache entry
+        // created merely by the first callback starting or waiting on storage.
+        let second_state = state.clone();
+        let second = tokio::spawn(async move { authority(&second_state).await });
+        entered.notified().await;
+        assert_eq!(calls.load(SeqCst), 3);
+        assert!(!first.is_finished() && !second.is_finished());
+        {
+            let s = state.lock().unwrap();
+            assert_eq!((s.verified, s.renewed), original);
+        }
+        let confirmed_at = Instant::now();
+        release.add_permits(2);
+        first.await.unwrap().unwrap();
+        second.await.unwrap().unwrap();
+        let confirmed = {
+            let s = state.lock().unwrap();
+            assert!(s.verified.unwrap() >= confirmed_at && s.renewed >= confirmed_at);
+            (s.verified, s.renewed)
+        };
+        tokio::time::advance(Duration::from_secs(1)).await;
+        authority(&state).await.unwrap();
+        assert_eq!(
+            calls.load(SeqCst),
+            3,
+            "only confirmed success creates the two-second cache"
+        );
+        let s = state.lock().unwrap();
+        assert_eq!(s.verified, confirmed.0);
+        assert!(s.renewed > confirmed.1);
+    }
+    #[tokio::test(start_paused = true)]
+    async fn delayed_changed_or_replaced_authority_still_denies_without_renewal() {
+        for refusal in [
+            "account-media-reference-revoked",
+            "account-playback-session-replaced",
+        ] {
+            let calls = Arc::new(AtomicUsize::new(0));
+            let state = state(calls.clone(), Arc::new(AtomicBool::new(false)));
+            authority(&state).await.unwrap();
+            let original = {
+                let s = state.lock().unwrap();
+                (s.verified, s.renewed)
+            };
+            tokio::time::advance(Duration::from_millis(2100)).await;
+            let (entered, release) = hold_authority(&state, calls.clone(), Err(refusal));
+            let checking_state = state.clone();
+            let checking = tokio::spawn(async move { authority(&checking_state).await });
+            entered.notified().await;
+            tokio::time::advance(Duration::from_secs(6)).await;
+            assert!(!checking.is_finished());
+            {
+                let s = state.lock().unwrap();
+                assert_eq!((s.verified, s.renewed), original);
+            }
+            release.add_permits(1);
+            assert_eq!(
+                checking.await.unwrap().unwrap_err(),
+                "account-proxy-revoked"
+            );
+            let s = state.lock().unwrap();
+            assert_eq!((s.verified, s.renewed), original);
+            assert_eq!(calls.load(SeqCst), 2);
+        }
+    }
     #[tokio::test(start_paused = true)]
     async fn the_account_is_rechecked_every_two_seconds_not_every_chunk() {
         let calls = Arc::new(AtomicUsize::new(0));
@@ -442,7 +575,32 @@ mod authority_tests {
         // Removing or editing the account still stops playback at the next check.
         revoked.store(true, SeqCst);
         tokio::time::advance(Duration::from_millis(2_100)).await;
-        assert!(authority(&state).await.is_err());
+        assert_eq!(
+            authority(&state).await.unwrap_err(),
+            "account-proxy-revoked"
+        );
+    }
+    #[tokio::test(start_paused = true)]
+    async fn a_diagnosed_storage_refusal_still_denies_without_renewing_authority() {
+        let state = state(
+            Arc::new(AtomicUsize::new(0)),
+            Arc::new(AtomicBool::new(false)),
+        );
+        authority(&state).await.unwrap();
+        let (verified, renewed) = {
+            let s = state.lock().unwrap();
+            (s.verified, s.renewed)
+        };
+        tokio::time::advance(Duration::from_millis(2100)).await;
+        state.lock().unwrap().authority =
+            Arc::new(|| Box::pin(async { Err("sqlite-busy".into()) }));
+        assert_eq!(
+            authority(&state).await.unwrap_err(),
+            "account-proxy-revoked"
+        );
+        let s = state.lock().unwrap();
+        assert_eq!(s.verified, verified);
+        assert_eq!(s.renewed, renewed);
     }
 }
 
@@ -530,5 +688,617 @@ mod busy_tests {
     fn a_nearly_spent_window_gives_up_instead_of_overrunning() {
         assert_eq!(busy_delay(4, true, Duration::from_millis(3500)), None);
         assert_eq!(busy_delay(0, true, Duration::from_millis(2000)), None);
+    }
+}
+
+#[cfg(test)]
+mod bursty_live_tests {
+    use super::*;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    async fn bursty(
+        gap: Duration,
+    ) -> (
+        AccountPlaybackProxy,
+        Arc<AtomicUsize>,
+        tokio::task::JoinHandle<()>,
+    ) {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        FIXTURE_PORTS.lock().unwrap().push(port);
+        let requests = Arc::new(AtomicUsize::new(0));
+        let count = requests.clone();
+        let task = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut bytes = vec![];
+            let mut b = [0u8; 1];
+            while !bytes.ends_with(b"\r\n\r\n") {
+                if socket.read(&mut b).await.unwrap_or(0) == 0 {
+                    return;
+                }
+                bytes.push(b[0]);
+            }
+            count.fetch_add(1, Ordering::SeqCst);
+            let mut ts = vec![0xff; 188 * 20];
+            for i in (0..ts.len()).step_by(188) {
+                ts[i] = 0x47;
+            }
+            socket
+                .write_all(
+                    b"HTTP/1.1 200 OK\r\nContent-Type: video/mp2t\r\nConnection: close\r\n\r\n",
+                )
+                .await
+                .unwrap();
+            socket.write_all(&ts).await.unwrap();
+            tokio::time::sleep(gap).await;
+            let _ = socket.write_all(&ts).await;
+        });
+        let origin = format!("http://127.0.0.1:{port}");
+        let proxy = AccountPlaybackProxy::start(
+            Zeroizing::new(format!("{origin}/live.ts")),
+            origin,
+            9801,
+            Arc::new(|| Box::pin(async { Ok(()) })),
+            false,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        (proxy, requests, task)
+    }
+    #[tokio::test]
+    async fn six_second_live_delivery_gap_does_not_close_or_reopen_the_stream() {
+        let _turn = TIMING_TESTS.lock().await;
+        let (mut proxy, requests, server) = bursty(Duration::from_secs(6)).await;
+        let response = reqwest::Client::new()
+            .get(proxy.media_url())
+            .send()
+            .await
+            .unwrap();
+        let bytes = tokio::time::timeout(Duration::from_secs(10), response.bytes())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(bytes.len(), 188 * 40);
+        assert_eq!(requests.load(Ordering::SeqCst), 1);
+        proxy.stop().await.unwrap();
+        server.await.unwrap();
+    }
+    #[tokio::test]
+    async fn stop_cancels_a_waiting_live_body_without_waiting_out_the_idle_budget() {
+        let _turn = TIMING_TESTS.lock().await;
+        let (mut proxy, _, server) = bursty(Duration::from_secs(60)).await;
+        let mut response = reqwest::Client::new()
+            .get(proxy.media_url())
+            .send()
+            .await
+            .unwrap();
+        assert!(!response.chunk().await.unwrap().unwrap().is_empty());
+        tokio::time::timeout(Duration::from_secs(1), proxy.stop())
+            .await
+            .unwrap()
+            .unwrap();
+        server.abort();
+        let _ = server.await;
+    }
+}
+
+#[cfg(test)]
+mod finite_vod_body_tests {
+    use super::*;
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+
+    fn vod_state(calls: Arc<AtomicUsize>, revoked: Arc<AtomicBool>) -> Arc<Mutex<State>> {
+        Arc::new(Mutex::new(State {
+            resources: HashMap::new(),
+            groups: HashMap::new(),
+            root: "fixture".into(),
+            capability: "fixture".into(),
+            local_origin: "http://127.0.0.1:1234".into(),
+            authorized_origin: "https://vod.fixture.invalid".into(),
+            media_origins: Vec::new(),
+            started: Instant::now(),
+            renewed: Instant::now(),
+            generation: 19802,
+            authority: Arc::new(move || {
+                let calls = calls.clone();
+                let revoked = revoked.clone();
+                Box::pin(async move {
+                    calls.fetch_add(1, Ordering::SeqCst);
+                    if revoked.load(Ordering::SeqCst) {
+                        Err("account-removed".into())
+                    } else {
+                        Ok(())
+                    }
+                })
+            }),
+            authorities: Vec::new(),
+            busy: None,
+            on_media: None,
+            verified: None,
+            vod: true,
+            vod_kind: None,
+            preopen: None,
+        }))
+    }
+    async fn join_authorities(state: &Arc<Mutex<State>>) {
+        let tasks = std::mem::take(&mut state.lock().unwrap().authorities);
+        for task in tasks {
+            task.await.unwrap();
+        }
+    }
+    async fn settle() {
+        for _ in 0..8 {
+            tokio::task::yield_now().await;
+        }
+    }
+    struct ControlledVodBody {
+        blocked: AtomicBool,
+        ready: tokio::sync::Notify,
+        bytes: Mutex<Vec<u8>>,
+        would_block_once: AtomicBool,
+        revoke_when_ready: AtomicBool,
+        revoked: Arc<AtomicBool>,
+    }
+    impl ControlledVodBody {
+        fn blocked(revoked: Arc<AtomicBool>) -> Arc<Self> {
+            Arc::new(Self {
+                blocked: AtomicBool::new(true),
+                ready: tokio::sync::Notify::new(),
+                bytes: Mutex::new(Vec::new()),
+                would_block_once: AtomicBool::new(false),
+                revoke_when_ready: AtomicBool::new(false),
+                revoked,
+            })
+        }
+        fn release(&self) {
+            self.blocked.store(false, Ordering::SeqCst);
+            self.ready.notify_waiters();
+        }
+    }
+    impl VodBodyOutput for ControlledVodBody {
+        async fn writable(&self) -> std::io::Result<()> {
+            loop {
+                let ready = self.ready.notified();
+                if !self.blocked.load(Ordering::SeqCst) {
+                    break;
+                }
+                ready.await;
+            }
+            if self.revoke_when_ready.swap(false, Ordering::SeqCst) {
+                self.revoked.store(true, Ordering::SeqCst);
+            }
+            Ok(())
+        }
+        fn try_body_write(&self, bytes: &[u8]) -> std::io::Result<usize> {
+            if self.would_block_once.swap(false, Ordering::SeqCst) {
+                return Err(std::io::ErrorKind::WouldBlock.into());
+            }
+            let count = bytes.len().min(2);
+            self.bytes
+                .lock()
+                .unwrap()
+                .extend_from_slice(&bytes[..count]);
+            Ok(count)
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn owned_vod_backpressure_requires_fresh_success_beyond_idle_lease_and_preserves_framing()
+    {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let revoked = Arc::new(AtomicBool::new(false));
+        let state = vod_state(calls.clone(), revoked.clone());
+        let observed = state.clone();
+        let writer = ControlledVodBody::blocked(revoked);
+        writer.would_block_once.store(true, Ordering::SeqCst);
+        let output = writer.clone();
+        let task = tokio::spawn(async move {
+            vod_chunk(output.as_ref(), &observed, b"abcdefgh").await?;
+            write_vod_body(output.as_ref(), &observed, b"0\r\n\r\n").await
+        });
+        settle().await;
+        for _ in 0..35 {
+            tokio::time::advance(AUTHORITY_INTERVAL).await;
+            settle().await;
+        }
+        assert!(!task.is_finished());
+        assert!(calls.load(Ordering::SeqCst) >= 35);
+        assert!(state.lock().unwrap().active());
+        assert!(state.lock().unwrap().started.elapsed() > LEASE);
+        assert!(writer.bytes.lock().unwrap().is_empty());
+        writer.release();
+        task.await.unwrap().unwrap();
+        join_authorities(&state).await;
+        assert_eq!(
+            decode_chunked(&writer.bytes.lock().unwrap()).unwrap(),
+            b"abcdefgh"
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn vod_resume_rechecks_after_readiness_even_when_periodic_success_is_cached() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let revoked = Arc::new(AtomicBool::new(false));
+        let state = vod_state(calls.clone(), revoked.clone());
+        let writer = ControlledVodBody::blocked(revoked);
+        let output = writer.clone();
+        let observed = state.clone();
+        let task = tokio::spawn(async move {
+            write_vod_body(output.as_ref(), &observed, b"must-not-cross").await
+        });
+        settle().await;
+        tokio::time::advance(AUTHORITY_INTERVAL).await;
+        settle().await;
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        let renewed = state.lock().unwrap().renewed;
+        assert!(state.lock().unwrap().verified.is_some());
+        // Metadata changes at readiness, immediately after the last successful
+        // periodic check. The still-fresh cache must not admit resumed bytes.
+        writer.revoke_when_ready.store(true, Ordering::SeqCst);
+        writer.release();
+        assert_eq!(task.await.unwrap(), Err("account-proxy-revoked"));
+        join_authorities(&state).await;
+        assert_eq!(calls.load(Ordering::SeqCst), 2);
+        assert!(writer.bytes.lock().unwrap().is_empty());
+        assert_eq!(state.lock().unwrap().renewed, renewed);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn forced_vod_check_never_uses_a_cached_success_or_renews_on_refusal() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let state = vod_state(calls.clone(), Arc::new(AtomicBool::new(true)));
+        let renewed = Instant::now() - Duration::from_secs(30);
+        {
+            let mut state = state.lock().unwrap();
+            state.renewed = renewed;
+            state.verified = Some(Instant::now());
+        }
+        assert_eq!(
+            fresh_vod_authority(&state).await,
+            Err("account-proxy-revoked")
+        );
+        join_authorities(&state).await;
+        assert_eq!(calls.load(Ordering::SeqCst), 1);
+        assert_eq!(state.lock().unwrap().renewed, renewed);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn vod_checks_cannot_revive_idle_expiry_maxlife_or_a_non_vod_owner() {
+        for scenario in ["idle", "maxlife", "live"] {
+            let calls = Arc::new(AtomicUsize::new(0));
+            let state = vod_state(calls.clone(), Arc::new(AtomicBool::new(false)));
+            {
+                let mut s = state.lock().unwrap();
+                match scenario {
+                    "idle" => s.renewed = Instant::now() - LEASE,
+                    "maxlife" => s.started = Instant::now() - MAX_LIFETIME,
+                    _ => s.vod = false,
+                }
+            }
+            let renewed = state.lock().unwrap().renewed;
+            let error = if scenario == "live" {
+                "account-proxy-state"
+            } else {
+                "account-proxy-expired"
+            };
+            assert_eq!(fresh_vod_authority(&state).await, Err(error));
+            assert_eq!(calls.load(Ordering::SeqCst), 0);
+            assert_eq!(state.lock().unwrap().renewed, renewed);
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_timed_out_fresh_vod_observer_retains_and_joins_its_real_callback_without_renewal() {
+        let state = vod_state(
+            Arc::new(AtomicUsize::new(0)),
+            Arc::new(AtomicBool::new(false)),
+        );
+        let entered = Arc::new(tokio::sync::Notify::new());
+        let release = Arc::new(tokio::sync::Notify::new());
+        let observed = entered.clone();
+        let wait = release.clone();
+        state.lock().unwrap().authority = Arc::new(move || {
+            let observed = observed.clone();
+            let wait = wait.clone();
+            Box::pin(async move {
+                observed.notify_one();
+                wait.notified().await;
+                Ok(())
+            })
+        });
+        let renewed = state.lock().unwrap().renewed;
+        let checking = state.clone();
+        let task = tokio::spawn(async move { fresh_vod_authority(&checking).await });
+        entered.notified().await;
+        tokio::time::advance(Duration::from_secs(20)).await;
+        assert_eq!(task.await.unwrap(), Err("account-proxy-timeout"));
+        assert_eq!(state.lock().unwrap().authorities.len(), 1);
+        assert_eq!(state.lock().unwrap().renewed, renewed);
+        assert!(state.lock().unwrap().verified.is_none());
+        release.notify_one();
+        join_authorities(&state).await;
+        assert_eq!(state.lock().unwrap().renewed, renewed);
+        assert!(state.lock().unwrap().verified.is_none());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn an_unused_vod_proxy_still_expires_without_periodic_authority_or_lease_renewal() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let observed = calls.clone();
+        // VOD never preopens a provider connection. No request is made to this
+        // fixture origin: only the otherwise-unused supervisor is exercised.
+        let mut proxy = AccountPlaybackProxy::start(
+            Zeroizing::new("https://vod.fixture.invalid/movie/fixture.mp4".into()),
+            "https://vod.fixture.invalid".into(),
+            19803,
+            Arc::new(move || {
+                let observed = observed.clone();
+                Box::pin(async move {
+                    observed.fetch_add(1, Ordering::SeqCst);
+                    Ok(())
+                })
+            }),
+            true,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        let initial_calls = calls.load(Ordering::SeqCst);
+        let renewed = proxy.state.lock().unwrap().renewed;
+        settle().await;
+        tokio::time::advance(LEASE + Duration::from_secs(1)).await;
+        settle().await;
+        assert!(proxy.task.as_ref().unwrap().is_finished());
+        assert_eq!(calls.load(Ordering::SeqCst), initial_calls);
+        assert_eq!(proxy.state.lock().unwrap().renewed, renewed);
+        proxy.stop().await.unwrap();
+        assert!(proxy.state.lock().unwrap().resources.is_empty());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn a_fresh_success_after_idle_or_maxlife_expiry_cannot_revive_the_owner() {
+        for maxlife in [false, true] {
+            let state = vod_state(
+                Arc::new(AtomicUsize::new(0)),
+                Arc::new(AtomicBool::new(false)),
+            );
+            let entered = Arc::new(tokio::sync::Notify::new());
+            let release = Arc::new(tokio::sync::Notify::new());
+            let observed = entered.clone();
+            let wait = release.clone();
+            state.lock().unwrap().authority = Arc::new(move || {
+                let observed = observed.clone();
+                let wait = wait.clone();
+                Box::pin(async move {
+                    observed.notify_one();
+                    wait.notified().await;
+                    Ok(())
+                })
+            });
+            let checking = state.clone();
+            let task = tokio::spawn(async move { fresh_vod_authority(&checking).await });
+            entered.notified().await;
+            {
+                let mut s = state.lock().unwrap();
+                if maxlife {
+                    s.started = Instant::now() - MAX_LIFETIME;
+                } else {
+                    s.renewed = Instant::now() - LEASE;
+                }
+            }
+            let renewed = state.lock().unwrap().renewed;
+            release.notify_one();
+            assert_eq!(task.await.unwrap(), Err("account-proxy-expired"));
+            join_authorities(&state).await;
+            assert_eq!(state.lock().unwrap().renewed, renewed);
+            assert!(state.lock().unwrap().verified.is_none());
+        }
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn legacy_live_and_hls_body_chunks_keep_the_five_second_write_deadline() {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let decoder = tokio::net::TcpSocket::new_v4().unwrap();
+        decoder.set_recv_buffer_size(16384).unwrap();
+        let decoder = decoder
+            .connect(listener.local_addr().unwrap())
+            .await
+            .unwrap();
+        let (mut socket, _) = listener.accept().await.unwrap();
+        socket2::SockRef::from(&socket)
+            .set_send_buffer_size(1024)
+            .unwrap();
+        let task = tokio::spawn(async move { chunk(&mut socket, &vec![1; 2 * 1024 * 1024]).await });
+        settle().await;
+        tokio::time::advance(Duration::from_secs(6)).await;
+        assert_eq!(task.await.unwrap(), Err("account-proxy-write-timeout"));
+        drop(decoder);
+    }
+
+    fn decode_chunked(mut wire: &[u8]) -> Result<Vec<u8>, &'static str> {
+        let mut body = Vec::new();
+        loop {
+            let end = wire
+                .windows(2)
+                .position(|part| part == b"\r\n")
+                .ok_or("missing chunk size")?;
+            let size = std::str::from_utf8(&wire[..end])
+                .ok()
+                .and_then(|value| usize::from_str_radix(value, 16).ok())
+                .ok_or("invalid chunk size")?;
+            wire = &wire[end + 2..];
+            if size == 0 {
+                return (wire == b"\r\n")
+                    .then_some(body)
+                    .ok_or("invalid final chunk framing");
+            }
+            if wire.len() < size + 2 || &wire[size..size + 2] != b"\r\n" {
+                return Err("truncated chunk or invalid body framing");
+            }
+            body.extend_from_slice(&wire[..size]);
+            wire = &wire[size + 2..];
+        }
+    }
+
+    struct RangedFixture {
+        proxy: AccountPlaybackProxy,
+        decoder: TcpStream,
+        expected: Vec<u8>,
+        headers: Vec<u8>,
+        server: JoinHandle<bool>,
+        port: u16,
+        requests: Arc<AtomicUsize>,
+    }
+    async fn ranged_fixture(authority: Authority) -> RangedFixture {
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let port = listener.local_addr().unwrap().port();
+        FIXTURE_PORTS.lock().unwrap().push(port);
+        let mut body: Vec<u8> = (0..8 * 1024 * 1024).map(|n| (n % 251) as u8).collect();
+        body[..12].copy_from_slice(b"\0\0\0\x18ftypisom");
+        let expected = body.clone();
+        let length = body.len();
+        let requests = Arc::new(AtomicUsize::new(0));
+        let observed = requests.clone();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let mut head = Vec::new();
+            let mut byte = [0; 1];
+            while !head.ends_with(b"\r\n\r\n") && head.len() < HEADER_LIMIT {
+                if socket.read(&mut byte).await.unwrap_or(0) == 0 {
+                    return false;
+                }
+                head.push(byte[0]);
+            }
+            observed.fetch_add(1, Ordering::SeqCst);
+            let ranged = String::from_utf8_lossy(&head)
+                .to_ascii_lowercase()
+                .contains(&format!("range: bytes=0-{}\r\n", length - 1));
+            let headers = format!("HTTP/1.1 206 Partial Content\r\nContent-Type: video/mp4\r\nContent-Length: {length}\r\nContent-Range: bytes 0-{}/{length}\r\nConnection: close\r\n\r\n", length - 1);
+            if socket.write_all(headers.as_bytes()).await.is_ok() {
+                let _ = socket.write_all(&body).await;
+            }
+            ranged
+        });
+        let origin = format!("http://127.0.0.1:{port}");
+        let proxy = AccountPlaybackProxy::start(
+            Zeroizing::new(format!("{origin}/movie/fixture.mp4")),
+            origin,
+            19801,
+            authority,
+            true,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+        let url = Url::parse(proxy.media_url()).unwrap();
+        let decoder_socket = tokio::net::TcpSocket::new_v4().unwrap();
+        decoder_socket.set_recv_buffer_size(16384).unwrap();
+        let mut decoder = decoder_socket
+            .connect(
+                format!("127.0.0.1:{}", url.port().unwrap())
+                    .parse()
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        let request = format!("GET {} HTTP/1.1\r\nHost: 127.0.0.1:{}\r\nOrigin: http://tauri.localhost\r\nRange: bytes=0-{}\r\n\r\n", url.path(), url.port().unwrap(), length - 1);
+        decoder.write_all(request.as_bytes()).await.unwrap();
+        let mut headers = Vec::new();
+        let mut byte = [0; 1];
+        while !headers.ends_with(b"\r\n\r\n") && headers.len() < HEADER_LIMIT {
+            if decoder.read(&mut byte).await.unwrap_or(0) == 0 {
+                break;
+            }
+            headers.push(byte[0]);
+        }
+        RangedFixture {
+            proxy,
+            decoder,
+            expected,
+            headers,
+            server,
+            port,
+            requests,
+        }
+    }
+
+    #[tokio::test]
+    async fn ranged_vod_survives_a_six_second_decoder_pause_with_exact_chunked_body() {
+        let RangedFixture {
+            mut proxy,
+            mut decoder,
+            expected,
+            headers,
+            server,
+            port,
+            requests,
+        } = ranged_fixture(Arc::new(|| Box::pin(async { Ok(()) }))).await;
+        // Keep the actual decoder socket connected but stop consuming bytes.
+        // This exceeds the old five-second local write deadline; the provider
+        // is healthy and already delivering the exact recognized MP4 range.
+        tokio::time::sleep(Duration::from_secs(6)).await;
+        socket2::SockRef::from(&decoder)
+            .set_recv_buffer_size(1024 * 1024)
+            .unwrap();
+        let mut wire = Vec::new();
+        let read =
+            tokio::time::timeout(Duration::from_secs(12), decoder.read_to_end(&mut wire)).await;
+        drop(decoder);
+        let stopped = tokio::time::timeout(Duration::from_secs(3), proxy.stop()).await;
+        let ranged = server.await.unwrap();
+        FIXTURE_PORTS.lock().unwrap().retain(|value| *value != port);
+        stopped.unwrap().unwrap();
+        assert!(
+            ranged,
+            "The valid provider request must retain the exact range"
+        );
+        assert_eq!(requests.load(Ordering::SeqCst), 1);
+        assert!(String::from_utf8_lossy(&headers).starts_with("HTTP/1.1 206 "));
+        read.unwrap().unwrap();
+        assert_eq!(
+            decode_chunked(&wire).expect("VOD body must finish with exact HTTP chunk framing"),
+            expected,
+            "A paused decoder must resume without skipped, repeated or overwritten bytes"
+        );
+    }
+
+    #[tokio::test]
+    async fn stop_joins_a_real_vod_client_while_its_decoder_remains_backpressured() {
+        let calls = Arc::new(AtomicUsize::new(0));
+        let observed = calls.clone();
+        let RangedFixture {
+            mut proxy,
+            decoder,
+            server,
+            port,
+            requests,
+            ..
+        } = ranged_fixture(Arc::new(move || {
+            let observed = observed.clone();
+            Box::pin(async move {
+                observed.fetch_add(1, Ordering::SeqCst);
+                Ok(())
+            })
+        }))
+        .await;
+        tokio::time::sleep(Duration::from_secs(6)).await;
+        let fresh_calls = calls.load(Ordering::SeqCst);
+        let stopped = tokio::time::timeout(Duration::from_secs(1), proxy.stop()).await;
+        drop(decoder);
+        let ranged = server.await.unwrap();
+        FIXTURE_PORTS.lock().unwrap().retain(|value| *value != port);
+        stopped.unwrap().unwrap();
+        assert!(ranged);
+        assert_eq!(requests.load(Ordering::SeqCst), 1);
+        assert!(
+            fresh_calls >= 4,
+            "The blocked owned body must still obtain fresh authority"
+        );
+        assert!(proxy.task.is_none());
+        assert!(proxy.state.lock().unwrap().resources.is_empty());
+        assert!(proxy.state.lock().unwrap().authorities.is_empty());
     }
 }

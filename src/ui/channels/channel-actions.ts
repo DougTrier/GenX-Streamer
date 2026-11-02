@@ -19,6 +19,7 @@ export interface ChannelActionsHost {
   saveCategory(id: string, category: string | null): Promise<void>;
   removeChannel(id: string): Promise<void>;
   notice(message: string): void;
+  tryStream?(id: string): Promise<void>;
 }
 const categories = [
   'Sports',
@@ -48,7 +49,9 @@ export function mountChannelActions(host: ChannelActionsHost) {
   heading.id = 'channel-actions-heading';
   dialog.setAttribute('aria-labelledby', heading.id);
   const description = document.createElement('p');
-  description.textContent = 'Choose a category for this channel.';
+  description.textContent = host.tryStream
+    ? 'Choose a category or retest this stream.'
+    : 'Choose a category for this channel.';
   const choices = document.createElement('div');
   choices.className = 'channel-category-choices';
   const close = document.createElement('button');
@@ -78,7 +81,31 @@ export function mountChannelActions(host: ChannelActionsHost) {
         if (!disposed) remove.disabled = false;
       });
   });
-  dialog.append(heading, description, choices, remove, close);
+  const retest = document.createElement('button');
+  retest.type = 'button';
+  retest.textContent = 'Retest this stream';
+  retest.hidden = !host.tryStream;
+  retest.addEventListener('click', () => {
+    const id = selectedId;
+    if (!id || busy || disposed || !host.tryStream) return;
+    const lease = generation;
+    busy = true;
+    retest.disabled = true;
+    void host
+      .tryStream(id)
+      .then(() => {
+        if (!disposed && lease === generation) dialog.close();
+      })
+      .catch(() => {
+        if (!disposed && lease === generation)
+          host.notice('This stream could not start. Try again.');
+      })
+      .finally(() => {
+        busy = false;
+        if (!disposed) retest.disabled = false;
+      });
+  });
+  dialog.append(heading, description, choices, retest, remove, close);
   document.body.append(dialog);
   let disposed = false;
   let busy = false;

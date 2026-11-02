@@ -1,3 +1,4 @@
+import { recordWebTrace } from '../diagnostics/playback-trace';
 /*
  * Copyright 2026 Doug Trier
  *
@@ -120,24 +121,35 @@ export async function scanLocalStreams(area: string): Promise<LocalStreams> {
   }
 }
 
-/** The viewing area in window pixels, for the native page view. */
+/** Android uses CSS viewport pixels; desktops retain physical window pixels. */
 export type PageRect = [left: number, top: number, width: number, height: number];
+export const pagePixelScale = (): number =>
+  /Android/i.test(navigator.userAgent) ? 1 : window.devicePixelRatio || 1;
+const pageViewport = () =>
+  /Android/i.test(navigator.userAgent) ? { viewport: [window.innerWidth, window.innerHeight] } : {};
 export function pageRect(element: HTMLElement): PageRect {
   const box = element.getBoundingClientRect();
-  const scale = window.devicePixelRatio || 1;
+  const scale = pagePixelScale();
   return [
-    Math.max(0, Math.round(box.left * scale)),
-    Math.max(0, Math.round(box.top * scale)),
-    Math.max(1, Math.round(box.width * scale)),
-    Math.max(1, Math.round(box.height * scale)),
+    Math.max(0, box.left * scale),
+    Math.max(0, box.top * scale),
+    Math.max(1, box.width * scale),
+    Math.max(1, box.height * scale),
   ];
 }
 
 /** A station's own website inside the viewing area (Android TV for now). */
 export const pageView = {
   open: (url: string, rect: PageRect) =>
-    invoke('web_page', { action: 'open', url, rect }).then(() => true),
-  place: (rect: PageRect) => invoke('web_page', { action: 'place', url: null, rect }),
+    invoke('web_page', { action: 'open', url, rect, ...pageViewport() }).then(() => {
+      recordWebTrace('open', rect);
+      return true;
+    }),
+  place: (rect: PageRect) =>
+    invoke('web_page', { action: 'place', url: null, rect, ...pageViewport() }).then((value) => {
+      recordWebTrace('place', rect);
+      return value;
+    }),
   enter: () => invoke('web_page', { action: 'enter', url: null, rect: null }),
   /** The page's own history. */
   history: (step: 'back' | 'forward') =>
@@ -158,7 +170,11 @@ export const pageView = {
   /** The page is drawn above GenX, so it steps aside for GenX dialogs. */
   shown: (value: boolean) =>
     invoke('web_page', { action: value ? 'show' : 'hide', url: null, rect: null }),
-  close: () => invoke('web_page', { action: 'close', url: null, rect: null }),
+  close: () =>
+    invoke('web_page', { action: 'close', url: null, rect: null }).then((value) => {
+      recordWebTrace('close');
+      return value;
+    }),
 };
 
 /** Saved stations (from any area's scan) and saved areas (searches rerun when chosen). */

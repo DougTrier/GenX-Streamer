@@ -27,6 +27,16 @@ export interface AutomaticGuidePermission {
 const refused = (): never => {
   throw new Error('Automatic program guide permission is invalid.');
 };
+const preflightRefusals = new WeakSet<object>();
+function changed(kind: 'configuration' | 'permission'): DOMException {
+  const error = new DOMException(`Program guide ${kind} changed.`, 'AbortError');
+  preflightRefusals.add(error);
+  return error;
+}
+/** Identity proof from this metadata-only producer, never inferred from an error message. */
+export function isAutomaticGuidePermissionRefusal(error: unknown): error is DOMException {
+  return typeof error === 'object' && error !== null && preflightRefusals.has(error);
+}
 function locationUrl(location: unknown): URL {
   if (
     !boundedUtf8Text(location, 16_384) ||
@@ -134,12 +144,12 @@ export async function previewPermittedAutomaticGuide<T>(
     captured.source &&
     (!fresh.source || fresh.source.id !== captured.source.id || fresh.source.kind !== 'url')
   )
-    throw new DOMException('Program guide configuration changed.', 'AbortError');
+    throw changed('configuration');
   if (
     locationUrl(captured.location).protocol === 'http:' &&
     (!captured.allowHttp || !fresh.allowHttp || !fresh.source)
   )
-    throw new DOMException('Program guide permission changed.', 'AbortError');
+    throw changed('permission');
   if (fresh.source) return gateway.previewSource(fresh.source.id, signal);
   if (locationUrl(captured.location).protocol !== 'https:') return refused();
   return gateway.previewProposedSource(captured.location, name, signal);

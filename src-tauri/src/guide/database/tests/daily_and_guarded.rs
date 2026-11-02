@@ -28,7 +28,7 @@ fn daily_guide_attempt_claim_is_durable_scoped_and_does_not_publish_on_failure()
     )
     .unwrap();
     install(&mut f.c, "g", "Old");
-    let due = 3000 + 86_400_000;
+    let due = 3000 + refresh::INTERVAL_MS;
     assert_eq!(refresh::plan(&f.c, 0).unwrap().sources[0].next_due_ms, due);
     assert!(!refresh::claim(&mut f.c, "g", 2, due - 1).unwrap().2);
     assert!(refresh::claim(&mut f.c, "g", 2, due).unwrap().2);
@@ -38,7 +38,7 @@ fn daily_guide_attempt_claim_is_durable_scoped_and_does_not_publish_on_failure()
     let reopened = Connection::open(path).unwrap();
     assert_eq!(
         refresh::plan(&reopened, due).unwrap().sources[0].next_due_ms,
-        due + 86_400_000
+        due + refresh::INTERVAL_MS
     );
     assert_eq!(list_sources(&reopened).unwrap()[0].updated_ms, Some(3000));
     assert_eq!(
@@ -64,7 +64,7 @@ fn daily_guide_attempt_claim_is_durable_scoped_and_does_not_publish_on_failure()
     .unwrap();
     assert_eq!(
         refresh::plan(&f.c, due).unwrap().sources[0].next_due_ms,
-        due + 100 + 86_400_000
+        due + 100 + refresh::INTERVAL_MS
     );
     assert!(!refresh::claim(&mut f.c, "g", 3, due + 100).unwrap().2);
     save_source(&mut f.c, &source("unreviewed"), 0).unwrap();
@@ -139,7 +139,7 @@ fn guarded_guide_zero_exact_matches_does_not_publish_and_checks_both_revisions()
 #[test]
 fn guarded_guide_retains_exact_existing_and_maps_all_distinct_variants_atomically() {
     let mut f = fixture();
-    f.c.execute_batch("ALTER TABLE metadata ADD COLUMN catalog_revision INTEGER NOT NULL DEFAULT 7;ALTER TABLE channel ADD COLUMN provider_id TEXT;UPDATE channel SET provider_id='xml-a';INSERT INTO channel VALUES('removed-match','catalog-a','xml-a');INSERT INTO removed VALUES('removed-match');").unwrap();
+    f.c.execute_batch("ALTER TABLE metadata ADD COLUMN catalog_revision INTEGER NOT NULL DEFAULT 7;ALTER TABLE channel ADD COLUMN provider_id TEXT;UPDATE channel SET provider_id='xml-a';INSERT INTO channel(id,source_id,provider_id) VALUES('removed-match','catalog-a','xml-a');INSERT INTO removed VALUES('removed-match');").unwrap();
     install(&mut f.c, "g", "Old");
     save_mapping(&mut f.c, &mapping("g", "app-a", "catalog-a")).unwrap();
     let reply = replace_guide_if_matched(
@@ -297,7 +297,7 @@ fn guide_daily_permission_is_independent_of_channel_cadence_and_reuses_attempt()
         .unwrap();
     f.c.execute_batch("CREATE TABLE preference(singleton INTEGER PRIMARY KEY,source_refresh_cadence TEXT);INSERT INTO preference VALUES(1,'hourly');ALTER TABLE metadata ADD COLUMN automatic_guide_updates INTEGER;UPDATE metadata SET automatic_guide_updates=1;PRAGMA user_version=8;").unwrap();
     install(&mut f.c, "g", "Old");
-    let due = 3000 + 86_400_000;
+    let due = 3000 + refresh::INTERVAL_MS;
     assert_eq!(refresh::plan(&f.c, 0).unwrap().sources[0].next_due_ms, due);
     assert!(refresh::claim(&mut f.c, "g", 2, due).unwrap().2);
     f.c.execute(
@@ -307,14 +307,14 @@ fn guide_daily_permission_is_independent_of_channel_cadence_and_reuses_attempt()
     .unwrap();
     assert_eq!(
         refresh::plan(&f.c, due).unwrap().sources[0].next_due_ms,
-        due + 86_400_000
+        due + refresh::INTERVAL_MS
     );
     assert!(!refresh::claim(&mut f.c, "g", 2, due + 3_600_000).unwrap().2);
     f.c.execute("UPDATE preference SET source_refresh_cadence='off'", [])
         .unwrap();
     assert_eq!(
         refresh::plan(&f.c, due).unwrap().sources[0].next_due_ms,
-        due + 86_400_000
+        due + refresh::INTERVAL_MS
     );
     f.c.execute("UPDATE metadata SET automatic_guide_updates=0", [])
         .unwrap();
@@ -335,7 +335,7 @@ fn guide_daily_permission_is_independent_of_channel_cadence_and_reuses_attempt()
         .unwrap();
     assert_eq!(
         refresh::plan(&f.c, due).unwrap().sources[0].next_due_ms,
-        due + 86_400_000
+        due + refresh::INTERVAL_MS
     );
 }
 
@@ -370,8 +370,8 @@ fn daily_guide_claim_ignores_monthly_channel_cadence_and_retains_last_good() {
         )
         .unwrap();
     }
-    let next_a = jan31 + 86_400_000;
-    let next_b = jan15 + 86_400_000;
+    let next_a = jan31 + refresh::INTERVAL_MS;
+    let next_b = jan15 + refresh::INTERVAL_MS;
     let plan = refresh::plan(&f.c, jan31).unwrap();
     assert_eq!(
         plan.sources
@@ -390,7 +390,7 @@ fn daily_guide_claim_ignores_monthly_channel_cadence_and_retains_last_good() {
         next_b
     );
     assert!(refresh::claim(&mut f.c, "a", 2, next_a).unwrap().2);
-    let after_claim = next_a + 86_400_000;
+    let after_claim = next_a + refresh::INTERVAL_MS;
     assert_eq!(
         refresh::plan(&f.c, next_a)
             .unwrap()

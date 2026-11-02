@@ -16,6 +16,7 @@
 //! connection, and following the redirect chain.
 
 use super::*;
+use crate::platform::playback_trace::{native_authority_failure, AuthorityMode, AuthorityPhase};
 
 /// How long a confirmed authority stands. The relay asks before every read
 /// and every 64 KB written; confirming each time was a database transaction
@@ -24,13 +25,34 @@ use super::*;
 pub(super) const AUTHORITY_INTERVAL: Duration = Duration::from_secs(2);
 
 pub(super) async fn authority(state: &Arc<Mutex<State>>) -> Result<(), &'static str> {
-    let received = {
+    authority_with_cache(state, true).await
+}
+
+/// Only an admitted finite VOD body owns these checks while its decoder is
+/// backpressuring the socket. An actual fresh success may renew that active
+/// request's lease; a cache hit, expired owner or timed-out observer may not.
+/// The callback task remains retained by State and is joined on Stop.
+pub(super) async fn fresh_vod_authority(state: &Arc<Mutex<State>>) -> Result<(), &'static str> {
+    tokio::time::timeout(Duration::from_secs(20), authority_with_cache(state, false))
+        .await
+        .map_err(|_| "account-proxy-timeout")?
+}
+
+async fn authority_with_cache(
+    state: &Arc<Mutex<State>>,
+    allow_cached: bool,
+) -> Result<(), &'static str> {
+    let (received, mode) = {
         let mut s = state.lock().map_err(|_| "account-proxy-state")?;
+        if !allow_cached && !s.vod {
+            return Err("account-proxy-state");
+        }
         if !s.active() {
             return Err("account-proxy-expired");
         }
-        if s.verified
-            .is_some_and(|at| at.elapsed() < AUTHORITY_INTERVAL)
+        if allow_cached
+            && s.verified
+                .is_some_and(|at| at.elapsed() < AUTHORITY_INTERVAL)
         {
             s.renewed = Instant::now();
             return Ok(());
@@ -40,15 +62,26 @@ pub(super) async fn authority(state: &Arc<Mutex<State>>) -> Result<(), &'static 
             return Err("account-proxy-authority-limit");
         }
         let callback = s.authority.clone();
+        let mode = if s.generation == 0 {
+            AuthorityMode::Free
+        } else {
+            AuthorityMode::Paid
+        };
         let (sent, received) = tokio::sync::oneshot::channel();
         s.authorities.push(tokio::spawn(async move {
-            let result = callback().await.map_err(|_| "account-proxy-revoked");
+            let result = callback().await.map_err(|error| {
+                native_authority_failure(mode, AuthorityPhase::Callback, &error);
+                "account-proxy-revoked"
+            });
             let _ = sent.send(result);
         }));
-        received
+        (received, mode)
     };
-    received.await.map_err(|_| "account-proxy-revoked")??;
+    receive_authority_result(received, mode).await?;
     let mut s = state.lock().map_err(|_| "account-proxy-state")?;
+    if !allow_cached && !s.vod {
+        return Err("account-proxy-state");
+    }
     if !s.active() {
         return Err("account-proxy-expired");
     }
@@ -57,6 +90,16 @@ pub(super) async fn authority(state: &Arc<Mutex<State>>) -> Result<(), &'static 
     s.renewed = Instant::now();
     s.verified = Some(Instant::now());
     Ok(())
+}
+
+async fn receive_authority_result(
+    received: tokio::sync::oneshot::Receiver<Result<(), &'static str>>,
+    mode: AuthorityMode,
+) -> Result<(), &'static str> {
+    received.await.map_err(|_| {
+        native_authority_failure(mode, AuthorityPhase::Task, "account-authority-task-lost");
+        "account-proxy-revoked"
+    })?
 }
 
 /// One request to the provider, waiting out "busy". Providers with a
@@ -200,10 +243,12 @@ pub(super) async fn open_chain(
             .redirect(Policy::none())
             .resolve_to_addrs(host, &addresses)
             .connect_timeout(remaining.min(Duration::from_secs(5)))
-            .read_timeout(Duration::from_secs(5))
             .user_agent("TMG-TV/0.1")
             .build()
             .map_err(|_| "account-proxy-network-failed")?;
+        // Header waits are bounded below/by open_waiting. Body reads have
+        // explicit deadlines in responses.rs; a client-wide read timeout must
+        // not override the live progress budget.
         // No whole-body timeout for an explicitly recognized continuous TS
         // stream. Startup, finite resources, each read, and writes stay bounded.
         let mut request = client.get(url.clone());
@@ -259,6 +304,7 @@ pub(super) async fn open_chain(
             continue;
         }
         if !matches!(response.status().as_u16(), 200 | 206) {
+            crate::platform::playback_trace::native_upstream_refusal(response.status().as_u16());
             // Fixed codes per common status keep provider refusals diagnosable.
             return Err(match response.status().as_u16() {
                 401 => "account-proxy-upstream-401",
@@ -278,4 +324,80 @@ pub(super) async fn open_chain(
         return Ok(response);
     }
     Err("account-proxy-redirect-refused")
+}
+
+#[cfg(test)]
+mod authority_diagnostic_tests {
+    use super::*;
+    #[tokio::test]
+    async fn uncommon_provider_status_is_observed_without_exposing_its_reply() {
+        for status in [451, 456] {
+            let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let port = listener.local_addr().unwrap().port();
+            FIXTURE_PORTS.lock().unwrap().push(port);
+            let provider = tokio::spawn(async move {
+                let (mut socket, _) = listener.accept().await.unwrap();
+                let mut head = Vec::new();
+                let mut byte = [0];
+                while !head.ends_with(b"\r\n\r\n") && head.len() < 8192 {
+                    if socket.read(&mut byte).await.unwrap() == 0 {
+                        break;
+                    }
+                    head.push(byte[0]);
+                }
+                let body = b"https://private.invalid/user/password?token=fixture";
+                let reply = format!(
+                    "HTTP/1.1 {status} Fixture\r\nX-Private-Header: credential-fixture\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                    body.len()
+                );
+                socket.write_all(reply.as_bytes()).await.unwrap();
+                socket.write_all(body).await.unwrap();
+            });
+            let origin = format!("http://127.0.0.1:{port}");
+            let target = Url::parse(&format!(
+                "{origin}/private-user/private-password?token=fixture"
+            ))
+            .unwrap();
+            let result = open_chain(
+                target,
+                None,
+                &[origin],
+                Instant::now() + Duration::from_secs(5),
+                None,
+                false,
+            )
+            .await;
+            provider.await.unwrap();
+            FIXTURE_PORTS
+                .lock()
+                .unwrap()
+                .retain(|allowed| *allowed != port);
+            match result {
+                Err(code) => assert_eq!(code, "account-proxy-upstream-refused"),
+                Ok(_) => panic!("an uncommon refusal must not open media"),
+            }
+        }
+    }
+    #[tokio::test]
+    async fn a_lost_callback_task_remains_a_refusal() {
+        let (sent, received) = tokio::sync::oneshot::channel::<Result<(), &'static str>>();
+        drop(sent);
+        assert_eq!(
+            receive_authority_result(received, AuthorityMode::Paid)
+                .await
+                .unwrap_err(),
+            "account-proxy-revoked"
+        );
+    }
+    #[tokio::test]
+    async fn receiving_diagnostics_does_not_change_success_or_refusal() {
+        for expected in [Ok(()), Err("account-proxy-revoked")] {
+            let (sent, received) = tokio::sync::oneshot::channel();
+            sent.send(expected).unwrap();
+            assert_eq!(
+                receive_authority_result(received, AuthorityMode::Paid).await,
+                expected
+            );
+        }
+    }
 }

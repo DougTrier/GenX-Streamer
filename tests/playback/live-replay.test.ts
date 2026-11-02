@@ -271,7 +271,12 @@ describe('Android player replay (Media3, including Trier MPEG Video)', () => {
         requests.filter((request) => request.action === action),
     };
   }
-  const channel = { id: 'acc', name: 'ACC Network', url: 'http://203.0.113.4/acc/index.m3u8' };
+  const channel = {
+    id: 'acc',
+    name: 'ACC Network',
+    url: 'http://203.0.113.4/acc/index.m3u8',
+    mediaKind: 'hls' as const,
+  }; // Replay fixture supplies its known format; unknown-source inspection is tested separately.
 
   it('measures its window in stream positions from where this session began', async () => {
     const f = fixture();

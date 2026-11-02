@@ -42,10 +42,13 @@ export interface NativeMediaRequest {
   allowHttp: boolean;
   requestId: string;
   range?: string;
+  sessionId?: string;
 }
 export interface NativeMediaTransport {
   load(request: NativeMediaRequest): Promise<NativeMediaPayload>;
   cancel(requestId: string): Promise<void>;
+  openSession?(sessionId: string): Promise<void>;
+  closeSession?(sessionId: string): Promise<void>;
 }
 export interface NativeLoaderOptions {
   allowHttp: (url: string) => boolean;
@@ -55,6 +58,14 @@ export interface NativeLoaderOptions {
   owners?: ResourceOwners;
   /** Reads each media segment before the HLS library parses it. */
   inspectFragment?: (bytes: Uint8Array) => void;
+  /** Read-only timing facts for media fragments, without source addresses or data. */
+  observeDelivery?: (facts: {
+    bytes: number;
+    elapsedMs: number;
+    nativeElapsedMs: number | null;
+    deliveryOverheadMs: number | null;
+    firstByteMs: number | null;
+  }) => void;
 }
 /**
  * Reads fetch_media_bytes' binary message: a 4-byte little-endian length, that
@@ -88,6 +99,8 @@ const transport: NativeMediaTransport = {
   load: async (request) =>
     decodeMediaFrame(await invoke<ArrayBuffer>('fetch_media_bytes', { ...request })),
   cancel: (requestId) => invoke('cancel_playlist', { requestId }),
+  openSession: (sessionId) => invoke('open_media_session', { sessionId }),
+  closeSession: (sessionId) => invoke('close_media_session', { sessionId }),
 };
 function stats(): LoaderStats {
   return {
@@ -105,7 +118,13 @@ function stats(): LoaderStats {
 
 /** Bounded native transport; no hidden retries, credentials, suffix checks, or response logs. */
 export function createNativeHlsLoader(options: NativeLoaderOptions) {
-  return createNativeHlsSession(options).Loader;
+  // A bare Loader class has no session-close handle. Keep its requests
+  // standalone; production playback owns createNativeHlsSession instead.
+  const network = options.transport ?? transport;
+  return createNativeHlsSession({
+    ...options,
+    transport: { load: (request) => network.load(request), cancel: (id) => network.cancel(id) },
+  }).Loader;
 }
 export function createNativeHlsSession(options: NativeLoaderOptions) {
   const network = options.transport ?? transport;
@@ -114,9 +133,19 @@ export function createNativeHlsSession(options: NativeLoaderOptions) {
   const work = createOwnedWork(owners);
   const loaders = new Set<NativeHlsLoader>();
   let closing = false;
+  if (Boolean(network.openSession) !== Boolean(network.closeSession))
+    throw new Error('Playback session lifecycle is incomplete.');
+  const sessionId = network.openSession ? crypto.randomUUID() : undefined;
+  const ready = sessionId
+    ? work.run('nativeLoads', () => network.openSession!(sessionId))
+    : undefined;
+  // A session can close before its first load. Its failure still belongs to
+  // load/settled, but must not become an unhandled promise rejection.
+  void ready?.catch(() => undefined);
+  let cleanupFailure: unknown;
   class NativeHlsLoader implements Loader<LoaderContext> {
     context: LoaderContext | null = null;
-    stats: LoaderStats = stats();
+    readonly stats: LoaderStats = stats();
     private requestId: string | null = null;
     private generation = 0;
     private timer: ReturnType<typeof setTimeout> | undefined;
@@ -204,7 +233,18 @@ export function createNativeHlsSession(options: NativeLoaderOptions) {
       };
       this.context = context;
       this.callbacks = callbacks;
-      this.stats = stats();
+      // FragmentLoader retains loader.stats before calling load. Replacing it
+      // leaves HLS with zero bytes/timing and breaks its delivery/ABR decisions.
+      // Reset in place, preserving library-owned retry count and timing references.
+      const fresh = stats();
+      for (const key of ['loading', 'parsing', 'buffering'] as const)
+        Object.assign(this.stats[key], fresh[key]);
+      Object.assign(this.stats, fresh, {
+        retry: this.stats.retry,
+        loading: this.stats.loading,
+        parsing: this.stats.parsing,
+        buffering: this.stats.buffering,
+      });
       this.headers = new Headers();
       const generation = ++this.generation;
       let range: string | undefined;
@@ -262,9 +302,20 @@ export function createNativeHlsSession(options: NativeLoaderOptions) {
         Math.min(20_000, Number.isFinite(budget) && budget > 0 ? budget : 20_000),
       );
       void work
-        .run('nativeLoads', () =>
-          network.load({ url: context.url, allowHttp, requestId, ...(range ? { range } : {}) }),
-        )
+        .run('nativeLoads', () => {
+          const load = () => {
+            if (closing || this.disposed || this.requestId !== requestId)
+              return Promise.reject(new Error('canceled'));
+            return network.load({
+              url: context.url,
+              allowHttp,
+              requestId,
+              ...(range ? { range } : {}),
+              ...(sessionId ? { sessionId } : {}),
+            });
+          };
+          return ready ? ready.then(load) : load();
+        })
         .then((payload) => {
           if (generation !== this.generation || this.disposed || this.requestId !== requestId)
             return;
@@ -308,7 +359,18 @@ export function createNativeHlsSession(options: NativeLoaderOptions) {
           }
           const data =
             payload.data instanceof Uint8Array ? payload.data : new Uint8Array(payload.data);
-          if ('frag' in context) options.inspectFragment?.(data);
+          if ('frag' in context) {
+            options.inspectFragment?.(data);
+            options.observeDelivery?.({
+              bytes: data.byteLength,
+              elapsedMs: deliveredMs,
+              nativeElapsedMs: validTiming ? timing!.completeMs : null,
+              deliveryOverheadMs: validTiming
+                ? Math.max(0, deliveredMs - timing!.completeMs)
+                : null,
+              firstByteMs: validTiming ? timing!.firstByteMs : null,
+            });
+          }
           if (generation !== this.generation || this.disposed || closing) return;
           this.stats.loaded = this.stats.total = data.byteLength;
           this.stats.chunkCount = 1;
@@ -372,6 +434,7 @@ export function createNativeHlsSession(options: NativeLoaderOptions) {
     Loader: NativeHlsLoader,
     pending: work.pending,
     close(): void {
+      if (closing) return;
       closing = true;
       const failures: Error[] = [];
       for (const loader of [...loaders]) {
@@ -381,12 +444,27 @@ export function createNativeHlsSession(options: NativeLoaderOptions) {
           failures.push(new Error('Playback loader cleanup failed.'));
         }
       }
+      if (sessionId)
+        void work
+          .run('nativeCancels', async () => {
+            // Opening may be in flight. Close after it finishes so a late open
+            // cannot resurrect the idle connection pool after Stop.
+            try {
+              await ready;
+              await network.closeSession!(sessionId);
+            } catch (error) {
+              cleanupFailure = error;
+            }
+          })
+          .catch(() => undefined);
       if (failures.length)
         throw new AggregateError(failures, 'Playback loader cleanup did not finish.');
     },
     settled(timeoutMs = 5000): Promise<void> {
       return closing
-        ? work.settled(timeoutMs)
+        ? work.settled(timeoutMs).then(() => {
+            if (cleanupFailure) throw new Error('Playback session cleanup failed.');
+          })
         : Promise.reject(new Error('Playback transport is still active.'));
     },
   };

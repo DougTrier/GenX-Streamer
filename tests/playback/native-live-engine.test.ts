@@ -25,7 +25,12 @@ import type { NativeVideoRequest, NativeVideoStatus } from '../../src/platform/n
 import type { EngineEvent, PlaybackEngine } from '../../src/playback/controller';
 
 const LIVE = `http://127.0.0.1:41000/media/${'c'.repeat(64)}`;
-const channel = { id: 'acc', name: 'ACC Network', url: 'http://23.239.31.26:8989/acc/index.m3u8' };
+const channel = {
+  mediaKind: 'hls' as const,
+  id: 'acc',
+  name: 'ACC Network',
+  url: 'http://23.239.31.26:8989/acc/index.m3u8',
+};
 
 function relayFixture() {
   const calls: string[] = [];
@@ -69,6 +74,48 @@ function host(requests: NativeVideoRequest[], timers: Map<number, () => void>) {
 }
 
 describe('native live engine', () => {
+  it('streams progressive public TV without labelling it HLS, and closes its relay', async () => {
+    const { relay } = relayFixture();
+    let progressive: boolean | undefined;
+    const original = relay.open;
+    relay.open = async (url, allowed, value) => {
+      progressive = value;
+      return original(url, allowed);
+    };
+    const requests: NativeVideoRequest[] = [];
+    const events: EngineEvent[] = [];
+    const engine = createNativeLiveEngine(
+      (e) => events.push(e),
+      host(requests, new Map()),
+      relay,
+      () => false,
+    );
+    await engine.start({ ...channel, mediaKind: 'media' }, new AbortController().signal);
+    expect(progressive).toBe(true);
+    expect(requests[0]).toMatchObject({ publicLive: true, hls: false });
+    expect(events).toContainEqual({ type: 'capability', mediaKind: 'media' });
+    await engine.dispose();
+  });
+  it('checks an unknown public format once before opening the relay', async () => {
+    const { relay } = relayFixture();
+    let inspected = 0;
+    const engine = createNativeLiveEngine(
+      () => undefined,
+      host([], new Map()),
+      relay,
+      () => false,
+      undefined,
+      undefined,
+      async () => {
+        inspected++;
+        return { kind: 'hls' };
+      },
+    );
+    await engine.start({ ...channel, mediaKind: undefined }, new AbortController().signal);
+    expect(inspected).toBe(1);
+    await engine.dispose();
+  });
+
   it('plays the channel through GenX’s loopback relay as HLS and keeps the relay leased', async () => {
     const { relay, calls } = relayFixture();
     const requests: NativeVideoRequest[] = [];
@@ -163,6 +210,19 @@ describe('MPEG-2 handover', () => {
     };
   }
 
+  it('can route public TV straight to native on Fire OS without starting the web decoder', async () => {
+    const e = engines();
+    const routed = createRoutingEngineFactory(
+      e.web,
+      null,
+      () => false,
+      e.live,
+      () => true,
+    )(() => undefined);
+    await routed.start(channel, new AbortController().signal);
+    expect(e.log).toEqual(['live muted false', 'live start']);
+    await routed.dispose();
+  });
   it('a live MPEG-2 channel moves to the device’s player without an error', async () => {
     const e = engines();
     const events: EngineEvent[] = [];

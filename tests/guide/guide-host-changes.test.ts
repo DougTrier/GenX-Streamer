@@ -25,9 +25,12 @@ const calls = vi.hoisted(() => ({
   discard: vi.fn(),
   summary: vi.fn(),
   channelCoverage: vi.fn(),
+  programs: vi.fn(),
+  listed: vi.fn(),
 }));
 const cancel = vi.hoisted(() => vi.fn());
 vi.mock('@tauri-apps/api/core', () => ({ invoke: cancel }));
+vi.mock('../../src/guide/listed-channels', () => ({ readListedGuideChannels: calls.listed }));
 vi.mock('../../src/guide/native', () => ({
   nativeGuide: { ...calls },
   previewNativeGuide: calls.preview,
@@ -35,6 +38,41 @@ vi.mock('../../src/guide/native', () => ({
   readChannelGuideCoverage: calls.channelCoverage,
 }));
 import { createGuideHost } from '../../src/application/guide/guide-host';
+import type { GeographyFilter } from '../../src/catalog/geography';
+it('inherits the live location in both timeline inventory and global program search', async () => {
+  let geography: GeographyFilter = { country: 'US', state: 'US-IL' };
+  const host = createGuideHost({
+    geography: () => geography,
+    channels: () => [],
+    selectedChannel: () => null,
+    watch: async () => {},
+  });
+  const signal = new AbortController().signal;
+  const original = host.locationScopeKey!();
+  const query = {
+    guideSourceId: '',
+    appChannelIds: [],
+    windowStartMs: 1000,
+    windowEndMs: 2000,
+    search: 'Football',
+    pageSize: 50,
+    cursor: null,
+  };
+  await host.query(query, signal);
+  await host.listedChannels!(1000, 2000, signal, 'Football');
+  expect(calls.programs).toHaveBeenLastCalledWith({ ...query, geography });
+  expect(calls.listed).toHaveBeenLastCalledWith(1000, 2000, signal, 'Football', geography);
+  await host.query({ ...query, appChannelIds: ['representative'] }, signal);
+  expect(calls.programs).toHaveBeenLastCalledWith({
+    ...query,
+    appChannelIds: ['representative'],
+    geography: {},
+  });
+  geography = { country: null };
+  expect(host.locationScopeKey!()).not.toBe(original);
+  await host.query(query, signal);
+  expect(calls.programs).toHaveBeenLastCalledWith({ ...query, geography: { country: null } });
+});
 const source = {
   id: 'g',
   name: 'Guide',

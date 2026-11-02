@@ -343,7 +343,9 @@ fn process_kill_during_partial_copy_does_not_promote_incomplete_backup() {
         let store = PairStore {
             root: root.clone(),
             require_database: true,
+            cleanup_runtime: Default::default(),
             page_cache: Default::default(),
+            guide_listed_cache: Default::default(),
         };
         let source = connect(&root.join(DB), true).unwrap();
         store

@@ -42,6 +42,7 @@ import { readPackSuggestions } from '../../guide/pack-suggestions';
 import { prioritizeGuideProviders } from '../../guide/provider-order';
 import { createGuideAcquisitionAllowed, createGuideCacheReady } from './guide-cache';
 import { createGuideMaintenance } from './guide-maintenance';
+import { joinGuideWork } from './join-guide-work';
 import { type mountGuide } from '../../ui/guide/guide';
 import { type createSharingHost } from '../sharing/sharing-host';
 import { type createDiagnostics } from '../../diagnostics/native';
@@ -49,9 +50,16 @@ import { type createRendererRecoveryPolicy } from '../shell/renderer-recovery-po
 import { type createScanController } from '../discovery/scan-controller';
 import { type createVisibleGuideOwner } from './visible-guide';
 import { type PlaybackController } from '../../playback/controller';
+import { type ChannelBrowser } from '../../ui/channels/channel-browser';
+import type { createAccountBrowser } from '../accounts/account-browser';
+import type { ContentLibrary } from '../genxtra/content-library';
+import { viewingSettings } from '../../platform/viewing-settings';
 
 /** What this area reads from, and writes back to, the rest of the application. */
 export interface GuideEnvironment {
+  readonly accountBrowser: ReturnType<typeof createAccountBrowser>;
+  readonly contentLibrary: ContentLibrary;
+  readonly browser: ChannelBrowser;
   readonly settings: Preferences;
   readonly catalog: CatalogRecord;
   readonly visibleGuide: ReturnType<typeof createVisibleGuideOwner> | null;
@@ -69,6 +77,7 @@ export interface GuideEnvironment {
   readonly nativeViewingForeground: boolean;
   readonly scanController: ReturnType<typeof createScanController>;
   readonly sourceScan: ReturnType<typeof createScanController>['sourceScan'];
+  readonly scanPlaybackBusy: () => boolean;
 }
 
 export function createGuideController(env: GuideEnvironment) {
@@ -98,11 +107,30 @@ export function createGuideController(env: GuideEnvironment) {
     retryAtMs: number;
   } | null = null;
   function guideChanged(): void {
+    if (env.contentLibrary === 'live' && !env.accountBrowser.selectedAccount)
+      env.browser.refreshProgrammeMembership();
     void env.visibleGuide?.refresh().catch(() => undefined);
     env.guide.catalogChanged(true);
     queueMicrotask(env.wakeDailyRefresh);
   }
   const guideHost = createGuideHost({
+    browseScope: () => {
+      const state = env.browser.getBrowseState();
+      return {
+        filter: state.filter,
+        query: state.query,
+        sports: env.browser.getSportsScope(),
+        ...(state.filter === 'watched'
+          ? {
+              history: {
+                ids: env.browser.getWatchedIds(),
+                hideAdult: viewingSettings.current.hideAdult,
+              },
+            }
+          : {}),
+      };
+    },
+    geography: () => env.browser.getGeographyFilter(),
     enableTimeline: isTauri(),
     discover: (signal) =>
       discoverPlaylistGuides(
@@ -124,6 +152,7 @@ export function createGuideController(env: GuideEnvironment) {
         .filter((channel) => !removed.has(channel.id))
         .map((channel) => ({
           ...channel,
+          originalCategory: channel.category,
           category: category(channel),
           favorite: favorites.has(channel.id),
         }));
@@ -283,16 +312,55 @@ export function createGuideController(env: GuideEnvironment) {
         lastCachedGuideConnection = { key: boundedScopeKey, receipt: completedResult };
     }
   }
-  const automaticGuides = createAutomaticGuideBuilder({
+  const canRunGuideWork = () =>
+    isTauri() &&
+    !env.applicationClosing &&
+    !document.hidden &&
+    env.nativeViewingForeground &&
+    env.element('app').dataset.ready === 'true';
+  const guideWorkBusy = () =>
+    env.scanPlaybackBusy() ||
+    env.scanController.automaticScanActive ||
+    env.sourceScan.snapshot().busy ||
+    !!document.querySelector('dialog[open]');
+  const maintenance = createGuideMaintenance({
+    scanning: () => env.scanController.automaticScanActive || env.sourceScan.snapshot().busy,
+    playbackBusy: guideWorkBusy,
+    canRun: () => canRunGuideWork() && !automaticGuideControlPending,
+    scopeCurrent: automaticGuideScopeCurrent,
+    changed: guideChanged,
+    failed: () => {
+      env.element('source-refresh-status').textContent =
+        'Program guide storage maintenance could not finish. Previous schedules remain available.';
+    },
+  });
+  const builder = createAutomaticGuideBuilder({
     canRequest: () =>
       env.rendererRecoveryPolicy.allowAutomaticWork() &&
       env.settings.automaticGuideUpdates !== false &&
       !automaticGuideControlPending,
-    canRun: () =>
-      isTauri() &&
-      !env.applicationClosing &&
-      env.nativeViewingForeground &&
-      env.element('app').dataset.ready === 'true',
+    canRun: canRunGuideWork,
+    canRunFull: () => !guideWorkBusy(),
+    onDeferred: () => {
+      env.element('source-refresh-status').textContent =
+        'Guide update queued until playback and browsing stop. Previous schedules remain available.';
+      env.guide.presentAutomaticProgress({
+        connected: 0,
+        unmatched: 0,
+        checked: 0,
+        failed: 0,
+        skipped: 0,
+        total: 0,
+        attempted: 0,
+        phase: 'capturing',
+        deferred: true,
+      });
+    },
+    onDeferredError: () => {
+      env.element('source-refresh-status').textContent =
+        'Program guide work could not finish. Previous schedules remain available.';
+      env.guide.presentAutomaticFailure();
+    },
     isCurrent: (revision) =>
       revision === env.persistedCatalogRevision &&
       automaticGuidePreferenceSnapshot === automaticGuidePreferenceKey(env.settings) &&
@@ -419,11 +487,7 @@ export function createGuideController(env: GuideEnvironment) {
     },
     connectScopeLatest: (signal) => connectSavedGuideCaches(signal, false),
     connectCacheOnly: (signal) => connectSavedGuideCaches(signal, true),
-    maintain: createGuideMaintenance({
-      scanning: () => env.scanController.automaticScanActive || env.sourceScan.snapshot().busy,
-      scopeCurrent: automaticGuideScopeCurrent,
-      changed: guideChanged,
-    }),
+    maintain: maintenance,
     commitMatched: async (preview, revision, signal, provider) => {
       signal.throwIfAborted();
       const result = await guideHost.commitMatchedPreview(
@@ -457,6 +521,17 @@ export function createGuideController(env: GuideEnvironment) {
         `Program guides: ${progress.attempted} of ${progress.total} sources checked · ${progress.failed} unavailable${review}`;
     },
   });
+  const automaticGuides = {
+    ...builder,
+    preparePlayback: () =>
+      joinGuideWork([
+        { suspend: builder.preparePlayback },
+        { suspend: maintenance.preparePlayback },
+      ]),
+    wake: () => joinGuideWork([{ suspend: builder.wake }, { suspend: maintenance.wake }]),
+    suspend: () => joinGuideWork([builder, maintenance]),
+    dispose: () => joinGuideWork([{ suspend: builder.dispose }, { suspend: maintenance.dispose }]),
+  };
   return {
     automaticGuides,
     guideHost,

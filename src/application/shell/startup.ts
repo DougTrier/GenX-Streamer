@@ -223,12 +223,16 @@ export function createStartup(env: StartupEnvironment) {
     if (isTauri()) {
       try {
         const capabilities = await attempt.run('capabilities', () =>
-          invoke<{ isTelevision: boolean }>('device_capabilities'),
+          invoke<{ isTelevision: boolean; nativeEmbeddedPlayback?: boolean }>(
+            'device_capabilities',
+          ),
         );
         signal.throwIfAborted();
         if (typeof capabilities?.isTelevision !== 'boolean')
           throw new Error('Device capabilities are unavailable.');
         env.castingAvailable = !capabilities.isTelevision;
+        env.element('app').dataset.nativeEmbeddedPlayback =
+          capabilities.nativeEmbeddedPlayback === true ? 'true' : 'false';
         env.element('app').dataset.deviceKind = capabilities.isTelevision ? 'tv' : 'personal';
         try {
           localStorage.setItem(env.DEVICE_KIND_KEY, env.element('app').dataset.deviceKind!);
@@ -244,6 +248,7 @@ export function createStartup(env: StartupEnvironment) {
         env.castingAvailable = false;
         // Unconfirmed: no remembered layout stays applied.
         delete env.element('app').dataset.deviceKind;
+        delete env.element('app').dataset.nativeEmbeddedPlayback;
       }
       env.castButton.hidden = !env.castingAvailable;
       env.castButton.disabled = !env.castingAvailable;

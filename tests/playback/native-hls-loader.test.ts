@@ -58,6 +58,148 @@ afterEach(() => {
   vi.useRealTimers();
 });
 describe('native HLS loader ownership', () => {
+  it('shares one session across fragment loaders and joins its close', async () => {
+    const openSession = vi.fn(async (_id: string) => {});
+    let finishClose!: () => void;
+    const closeSession = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          finishClose = resolve;
+        }),
+    );
+    const load = vi.fn(async (_request: NativeMediaRequest) => ({
+      status: 200,
+      headers: {},
+      data: [1],
+    }));
+    const session = createNativeHlsSession({
+      allowHttp: () => false,
+      transport: { openSession, closeSession, load, cancel: vi.fn(async () => {}) },
+    });
+    for (let i = 0; i < 2; i++) new session.Loader().load(context(), configuration, callbacks());
+    await flush();
+    expect(openSession).toHaveBeenCalledOnce();
+    expect(load).toHaveBeenCalledTimes(2);
+    const id = openSession.mock.calls[0]![0];
+    expect(load.mock.calls.map(([request]) => request.sessionId)).toEqual([id, id]);
+    session.close();
+    session.close();
+    await flush();
+    let settled = false;
+    const joined = session.settled().then(() => {
+      settled = true;
+    });
+    await flush();
+    expect(settled).toBe(false);
+    expect(closeSession).toHaveBeenCalledExactlyOnceWith(id);
+    finishClose();
+    await joined;
+  });
+  it('closes a late open without dispatching an aborted load or hiding close failure', async () => {
+    let finishOpen!: () => void;
+    const openSession = vi.fn(
+      (_id: string) =>
+        new Promise<void>((resolve) => {
+          finishOpen = resolve;
+        }),
+    );
+    const closeSession = vi.fn(async () => {
+      throw new Error('native-close-failed');
+    });
+    const load = vi.fn(async () => ({ status: 200, headers: {}, data: [1] }));
+    const events = callbacks();
+    const session = createNativeHlsSession({
+      allowHttp: () => false,
+      transport: { openSession, closeSession, load, cancel: vi.fn(async () => {}) },
+    });
+    new session.Loader().load(context(), configuration, events);
+    session.close();
+    expect(closeSession).not.toHaveBeenCalled();
+    finishOpen();
+    await expect(session.settled()).rejects.toThrow('session cleanup failed');
+    expect(load).not.toHaveBeenCalled();
+    expect(events.onSuccess).not.toHaveBeenCalled();
+    expect(closeSession).toHaveBeenCalledOnce();
+  });
+  it.each([
+    [80, 80, 20],
+    [500, null, null],
+  ])(
+    'separates native download and app delivery time without inventing invalid native timings',
+    async (complete, nativeMs, overhead) => {
+      vi.spyOn(performance, 'now').mockReturnValueOnce(100).mockReturnValue(200);
+      const observe = vi.fn();
+      const session = createNativeHlsSession({
+        allowHttp: () => false,
+        observeDelivery: observe,
+        transport: {
+          load: async () => ({
+            status: 200,
+            headers: {},
+            data: new Uint8Array(1200),
+            timing: { version: 1, firstByteMs: 20, completeMs: complete },
+          }),
+          cancel: vi.fn(async () => {}),
+        },
+      });
+      const loader = new session.Loader();
+      loader.load(
+        Object.assign(context('https://source.test/private-token'), { frag: {} }),
+        configuration,
+        callbacks(),
+      );
+      await flush();
+      expect(observe).toHaveBeenCalledOnce();
+      expect(observe.mock.calls[0]![0]).toMatchObject({
+        bytes: 1200,
+        elapsedMs: 100,
+        nativeElapsedMs: nativeMs,
+        deliveryOverheadMs: overhead,
+      });
+      expect(JSON.stringify(observe.mock.calls)).not.toContain('private-token');
+      loader.destroy();
+      session.close();
+      await session.settled();
+    },
+  );
+
+  it('updates the statistics object HLS retains before load, including nested timing and retry state', async () => {
+    vi.spyOn(performance, 'now').mockReturnValueOnce(100).mockReturnValue(200);
+    const session = createNativeHlsSession({
+      allowHttp: () => false,
+      transport: {
+        load: async () => ({
+          status: 200,
+          headers: {},
+          data: new Uint8Array(1200),
+          timing: { version: 1, firstByteMs: 20, completeMs: 80 },
+        }),
+        cancel: vi.fn(async () => {}),
+      },
+    });
+    const loader = new session.Loader();
+    // hls.js FragmentLoader assigns frag.stats = loader.stats BEFORE invoking load.
+    const retained = loader.stats,
+      loading = retained.loading;
+    retained.retry = 2;
+    const events = callbacks();
+    loader.load(context(), configuration, events);
+    await flush();
+    expect(loader.stats).toBe(retained);
+    expect(retained.loading).toBe(loading);
+    expect(retained).toMatchObject({
+      loaded: 1200,
+      total: 1200,
+      retry: 2,
+      loading: { start: 100, first: 120, end: 200 },
+    });
+    expect(events.onSuccess).toHaveBeenCalledOnce();
+    expect(vi.mocked(events.onSuccess).mock.calls[0]![1]).toBe(retained);
+    loader.destroy();
+    session.close();
+    await session.settled();
+  });
+
   it.each([
     [{ version: 1, firstByteMs: 20, completeMs: 80 }, 120],
     [undefined, 100],

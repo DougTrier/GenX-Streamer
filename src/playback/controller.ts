@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { sourcePerformanceKey } from './source-quality';
 import { startTiming } from './start-timing';
 import { createOwnedAbortSignals } from '../platform/abort';
 import {
@@ -34,6 +35,8 @@ export * from './controller-model';
 /** Owns every engine and recovery timer. Initializers may settle late, never publish late. */
 export class PlaybackController extends PlaybackControllerCore {
   private async release(): Promise<void> {
+    this.sourceAttempt?.stop();
+    this.sourceAttempt = null;
     this.vodCheckpoint = null;
     const old = this.engine;
     // Retain ownership on a failed disposal. A later selection must retry cleanup,
@@ -90,6 +93,7 @@ export class PlaybackController extends PlaybackControllerCore {
     this.releaseDeadlineOwner = this.resources.acquire('controllerTimers');
   }
   private fail(message: string, failure: PlaybackFailure | null = null): void {
+    this.sourceAttempt?.failure();
     this.observeVODRelease('failed');
     this.current = { ...this.current, audioTracks: null };
     this.decodedAttempt = null;
@@ -120,6 +124,15 @@ export class PlaybackController extends PlaybackControllerCore {
         recovery.urls.some((url) => typeof url !== 'string' || !url))
     )
       throw new Error('The channel recovery sources are invalid.');
+    if (recovery && selection.playMode !== 'on-demand') {
+      const ranked = this.rankSources(recovery.urls.map((url) => ({ ...selection, url })));
+      if (ranked[0].url !== selection.url) {
+        selection = { ...selection, url: ranked[0].url };
+        delete selection.mediaKind;
+        delete selection.mediaMime;
+      }
+      recovery = { ...recovery, urls: ranked.map((candidate) => candidate.url) };
+    }
     this.observeVODRelease('replaced');
     startTiming.enterPlayer();
     const generation = ++this.generation;
@@ -146,7 +159,7 @@ export class PlaybackController extends PlaybackControllerCore {
     recovering = false,
     endpointChanged = false,
   ): Promise<void> {
-    const selection = this.current.selection;
+    let selection = this.current.selection;
     if (!selection || generation !== this.generation) return;
     this.decodedAttempt = Object.freeze({});
     if (recovering) startTiming.count('retries');
@@ -182,7 +195,21 @@ export class PlaybackController extends PlaybackControllerCore {
       this.time.now() >= this.episodeEnds
     )
       return;
+    if (this.options.liveBufferPreference || selection.liveBuffer) {
+      const liveBuffer = await this.liveBufferPreferenceForStart(selection, abort.signal);
+      if (
+        generation !== this.generation ||
+        abort.signal.aborted ||
+        this.time.now() >= this.episodeEnds
+      )
+        return;
+      selection = { ...selection, liveBuffer };
+      this.current.selection = selection;
+    }
     let owner: PlaybackEngine;
+    this.sourceSuppressed = false;
+    if (selection.playMode !== 'on-demand')
+      this.sourceAttempt = this.sourceQuality.open(sourcePerformanceKey(selection));
     try {
       owner = this.factory((event) => {
         if (generation === this.generation && this.engine === owner && !abort.signal.aborted)
@@ -249,6 +276,10 @@ export class PlaybackController extends PlaybackControllerCore {
     }
   }
   private onEvent(event: EngineEvent, generation: number): void {
+    if (event.type === 'source-recovery') {
+      this.sourceAttempt?.failure();
+      return;
+    }
     if (event.type === 'ended') {
       // A live stream has no end: the source closed it (providers drop long
       // sessions). Reconnect through the same bounded path as a dropped
@@ -290,6 +321,13 @@ export class PlaybackController extends PlaybackControllerCore {
         this.current.state === 'playing' &&
         validDecodedProgress(event.evidence)
       ) {
+        this.sourceAttempt?.decoded(
+          event.evidence.elapsedMilliseconds,
+          event.evidence.after.width,
+          event.evidence.after.height,
+          event.evidence.after.decodedFrames - event.evidence.before.decodedFrames,
+          event.evidence.after.audioObserved === true,
+        );
         const attempt = this.decodedAttempt;
         const selection = { ...this.current.selection };
         for (const listener of this.decodedListeners) {
@@ -327,6 +365,14 @@ export class PlaybackController extends PlaybackControllerCore {
     }
     if (this.current.state === 'paused') return;
     if (event.type === 'progress') {
+      if (
+        !this.sourceSuppressed &&
+        !this.sourceAttempt &&
+        this.current.selection?.playMode !== 'on-demand' &&
+        this.current.selection
+      )
+        this.sourceAttempt = this.sourceQuality.open(sourcePerformanceKey(this.current.selection));
+      this.sourceAttempt?.progress();
       this.clearTimers();
       this.episodeEnds = 0;
       startTiming.mark('playback-start');
@@ -334,6 +380,7 @@ export class PlaybackController extends PlaybackControllerCore {
       return;
     }
     if (event.type === 'buffering') {
+      this.sourceAttempt?.buffering();
       if (!this.episodeEnds) {
         this.beginEpisode(generation, 'buffering-progress');
         if (this.engine && this.abort) this.armSlice(generation, this.engine, this.abort);
@@ -341,6 +388,7 @@ export class PlaybackController extends PlaybackControllerCore {
       this.publish('buffering');
       return;
     }
+    this.sourceAttempt?.failure();
     // A reconnect gets the same budget as the first start: a one-connection
     // provider still counting the old stream keeps the relay waiting (SC-001).
     if (!this.episodeEnds)
@@ -421,6 +469,9 @@ export class PlaybackController extends PlaybackControllerCore {
     this.releaseRetryOwner = this.resources.acquire('controllerTimers');
   }
   pause(): void {
+    this.sourceSuppressed = true;
+    this.sourceAttempt?.stop();
+    this.sourceAttempt = null;
     if (
       this.current.selection &&
       !['disposed', 'failed', 'idle', 'paused'].includes(this.current.state) &&
@@ -492,6 +543,7 @@ export class PlaybackController extends PlaybackControllerCore {
     return settled;
   }
   async resume(): Promise<void> {
+    this.sourceSuppressed = false;
     if (this.current.state !== 'paused') return;
     if ((!this.engine || this.abort?.signal.aborted) && this.current.selection) {
       await this.select(

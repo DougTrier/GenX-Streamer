@@ -107,7 +107,7 @@ export function createCatalogView(env: CatalogViewEnvironment) {
           .map((channel) =>
             category(channel) === channel.category
               ? channel
-              : { ...channel, category: category(channel) },
+              : { ...channel, originalCategory: channel.category, category: category(channel) },
           ),
         env.settings.favorites,
         env.player.snapshot.selection?.id ?? null,
