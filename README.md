@@ -7,12 +7,12 @@
   Android TV, Google TV and Amazon Fire TV, plus Android phones and handhelds.
   Pass it along to a friend with no app store.
 
-  [![Version](https://img.shields.io/badge/Version-0.1.25-brightgreen?style=for-the-badge)](https://github.com/DougTrier/GenX-Streamer/releases)
+  [![Public release](https://img.shields.io/badge/Public_release-0.1.3-brightgreen?style=for-the-badge)](https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.3)
   [![Tauri](https://img.shields.io/badge/Tauri-2-24C8DB?style=for-the-badge&logo=tauri&logoColor=white)](https://tauri.app/)
   [![Rust](https://img.shields.io/badge/Rust-native%20layer-B7410E?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
   [![Android](https://img.shields.io/badge/Android-TV%20%7C%20phone-3DDC84?style=for-the-badge&logo=android&logoColor=white)](docs/user-guide.md)
   [![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?style=for-the-badge&logo=windows&logoColor=white)](docs/user-guide.md)
-  [![Last verified](https://img.shields.io/badge/Local_verified-0.1.25%20PASS-45ba4b?style=for-the-badge)](#-current-verified-state)
+  [![Release status](https://img.shields.io/badge/0.1.25-withdrawn-orange?style=for-the-badge)](#release-status)
   [![License](https://img.shields.io/badge/License-Apache%202.0-blue?style=for-the-badge)](LICENSE)
 
   [Website](https://dougtrier.github.io/GenX-Streamer/) •
@@ -32,7 +32,15 @@
 
 ---
 
-## ✅ Current Verified State
+## Release status
+
+**0.1.25 / build 1025 has been withdrawn** after reports of unusable phone and handheld layouts and incorrect Football/NFL search results. Its public release and downloads are unavailable while fixes are developed and verified.
+
+The previous public release is [0.1.3 / build 1003](https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.3). GitHub's latest-release endpoint and the download page now select it. Existing 0.1.25 installations are not changed by this withdrawal; Android will not install an older build over a newer one as a normal update.
+
+The source below contains the withdrawn version's features. Its recorded checks did not establish usable phone and handheld layouts across the reported browsing states.
+
+### Historical 0.1.25 checks — release withdrawn
 
 **0.1.25 / build 1025** adds a live buffer meter with saved per-stream adjustments, History for Free and Paid TV, and focused Sports/Guide browsing.
 
@@ -53,7 +61,7 @@
 
 New-version Fire TV Stick and Flip 2 follow-up testing is pending. No new local Paid-provider playback is claimed. Historical 0.1.23 development/Windows and internal 0.1.24 PPV checks remain version-specific; see [technical evidence and limits](docs/native-vod-player.md#0125-sports-search-and-release-evidence). Historical physical Fire TV verification applies to 0.1.3 on AFTKA, not every Amazon model or this new version.
 
-[Official 0.1.25 release](https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.25) · [Universal Android APK](https://github.com/DougTrier/GenX-Streamer/releases/download/v0.1.25/GenX-Streamer-0.1.25-Android.apk) · [SHA256SUMS](https://github.com/DougTrier/GenX-Streamer/releases/download/v0.1.25/SHA256SUMS) · [Verify a download](docs/verify-a-download.md)
+[Available 0.1.3 release](https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.3) · [Verify a download](docs/verify-a-download.md)
 
 ---
 
