@@ -390,3 +390,13 @@ while video continued. Listings loaded for 2,179 channels. Back restored
 focus to Guide and the full player showed 18.2 seconds buffered. These
 are targeted checks for the final status-only change. The earlier
 device results above cover the unchanged playback and layout paths.
+
+The public 0.1.27 / build 1027 Android package
+`F918F9290965BDF42A45F956D8C55CFFA7C54A302B3DCE69804A27C7786290A7`
+installed on both devices. The S25 played U.S. ESPN at 720p with 27
+seconds buffered over Wi-Fi and cellular data off, then exited normally.
+The Streamer remote loaded Guide with 2,179 channels, tuned 3sat, and
+returned to the full player with 15.3 seconds buffered. The resumed scan
+paused at 20% with 2,892 channels saved. Exit returned to Google TV Home.
+The 1+1 Ukraina feed returned a format error before the successful 3sat
+tune. The exact-build smoke tests used Free TV.

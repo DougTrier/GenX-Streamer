@@ -1,6 +1,6 @@
 # Signing Android releases
 
-**Release status:** 0.1.25 / build 1025 has been withdrawn because of phone/handheld layout and Football/NFL search issues. Public downloads currently provide [0.1.3 / build 1003](https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.3). See the [candidate status](../README.md#release-status) and [physical device audit](device-playability-audit.md) for the current development build. Results in this document apply to the builds named alongside them.
+**Release status:** 0.1.25 / build 1025 has been withdrawn because of phone/handheld layout and Football/NFL search issues. Public downloads provide [0.1.27 / build 1027](https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.27). See the [candidate status](../README.md#release-status) and [physical device audit](device-playability-audit.md) for the current development build. Results in this document apply to the builds named alongside them.
 
 An Android app's signing key is its identity. Every update must be signed with
 the same key, or Android refuses to install it over the copy people have. GenX
@@ -112,7 +112,10 @@ passed 4,121 tests across 364 files. The targeted Playwright TV surface
 and About suites passed all 15 checks. The short scan review now scrolls
 when enlarged controls would crowd the results. Browser fixtures cover
 the setup state, the active About tab, and the native bulk-removal read.
-Physical retesting of this exact rebuilt APK is pending.
+The exact rebuilt APK passed the targeted S25 and Streamer checks in the
+[device audit](device-playability-audit.md). The Windows x64 executable
+passed the isolated native playback and normal-exit smoke test. The
+release manifest and SHA256SUMS identify the three downloadable packages.
 
 ## Recovering from a broken Android release
 

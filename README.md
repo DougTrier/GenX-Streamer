@@ -7,7 +7,7 @@
   Android TV, Google TV and Amazon Fire TV, plus Android phones and handhelds.
   Pass it along to a friend with no app store.
 
-  [![Public release](https://img.shields.io/badge/Public_release-0.1.3-brightgreen?style=for-the-badge)](https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.3)
+  [![Public release](https://img.shields.io/badge/Public_release-0.1.27-brightgreen?style=for-the-badge)](https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.27)
   [![Candidate version](https://img.shields.io/badge/Version-0.1.27-blue?style=for-the-badge)](#release-status)
   [![Tauri](https://img.shields.io/badge/Tauri-2-24C8DB?style=for-the-badge&logo=tauri&logoColor=white)](https://tauri.app/)
   [![Rust](https://img.shields.io/badge/Rust-native%20layer-B7410E?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
@@ -37,14 +37,14 @@
 
 **0.1.25 / build 1025 has been withdrawn** after reports of unusable phone and handheld layouts and incorrect Football/NFL search results. Its public release and downloads are unavailable while fixes are developed and verified.
 
-The previous public release is [0.1.3 / build 1003](https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.3). GitHub's latest-release endpoint and the download page now select it. Existing 0.1.25 installations are not changed by this withdrawal; Android will not install an older build over a newer one as a normal update.
+The current public release is [0.1.27 / build 1027](https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.27). It provides the signed Android APK and Windows x64 downloads. The earlier [0.1.3 / build 1003](https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.3) remains available in release history.
 
 | Development candidate | Value |
 | --- | --- |
 | **Candidate version** | 0.1.27 |
 | **Android build** | 1027 |
 
-The signed 0.1.26 / build 1026 audit covered the physical Samsung S25 and Google TV Streamer, including phone touch and fullscreen controls, remote navigation, saved scans, Free and Paid TV, Guide, and casting. The new candidate advances the build number. [Device audit](docs/device-playability-audit.md) · [Search and Guide verification](docs/search-guide-verification.md)
+The signed 0.1.26 / build 1026 audit covered the physical Samsung S25 and Google TV Streamer, including phone touch and fullscreen controls, remote navigation, saved scans, Free and Paid TV, Guide, and casting. Build 1027 received targeted checks on both devices. [Device audit](docs/device-playability-audit.md) · [Search and Guide verification](docs/search-guide-verification.md)
 
 The signed universal APK’s version, build number, SHA-256 and test results are in the [candidate record](docs/release-signing.md#candidate-verification).
 
@@ -71,7 +71,7 @@ The historical features and checks below belong to the withdrawn 0.1.25 release.
 
 New-version Fire TV Stick and Flip 2 follow-up testing is pending. No new local Paid-provider playback is claimed. Historical 0.1.23 development/Windows and internal 0.1.24 PPV checks remain version-specific; see [technical evidence and limits](docs/native-vod-player.md#0125-sports-search-and-release-evidence). Historical physical Fire TV verification applies to 0.1.3 on AFTKA, not every Amazon model or this new version.
 
-[Available 0.1.3 release](https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.3) · [Verify a download](docs/verify-a-download.md)
+[Archived 0.1.3 release](https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.3) · [Verify a download](docs/verify-a-download.md)
 
 ---
 

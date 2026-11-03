@@ -1,6 +1,6 @@
 # Independent search and Guide verification
 
-This QA record covers private 0.1.26 / Android build 1026 candidates. See the [current source candidate](../README.md#release-status) and [physical device audit](device-playability-audit.md) for subsequent build and device evidence. Version 0.1.3 remains the available public release after the withdrawal of 0.1.25.
+This QA record covers private 0.1.26 / Android build 1026 candidates. See the [release status](../README.md#release-status) and [physical device audit](device-playability-audit.md) for subsequent build and device evidence.
 
 C3 was rejected for native keyboard/focus behavior. Later C4/C5 checks verified targeted corrections, but C5 exposed blank handheld Watch controls and repeated application-amplified buffering. Reviewed C6 emulator checks cover native IME, controlled search and Back; the closed Thor packet verifies readable Watch/Expanded controls, remote routes and retained PBS recall. Its bounded 90-second playback observation improved, with brief interruptions still present.
 

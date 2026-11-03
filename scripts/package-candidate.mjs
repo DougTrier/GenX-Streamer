@@ -212,7 +212,7 @@ export async function packageCandidate(options) {
     !['arm64-v8a', 'armeabi-v7a'].every((abi) => apkInfo?.architectures?.includes(abi))
   )
     throw new Error('A release APK must carry both arm64-v8a and armeabi-v7a libraries.');
-  if (notices) await file(notices, 1024 * 1024);
+  if (notices) await file(notices, 8 * 1024 * 1024);
   const inputHashes = {
     windows: await sha256(windowsExe),
     ...(windowsOnly ? {} : { android: await sha256(androidApk) }),
