@@ -13,6 +13,7 @@ import {
   sportsFacts,
   SPORTS_VOCABULARY_VERSION,
   SPORTS_WINDOW_MS,
+  type SportsFacet,
   validateSportsScope,
 } from '../../src/search/sports';
 
@@ -29,9 +30,14 @@ for (const entry of queries.cases)
     const facts = program
       ? programmeSportsFacts(program, sportsFacts(channel))
       : sportsFacts(texts);
+    const facet = 'facet' in entry ? (entry.facet as SportsFacet) : {};
     expect(plan.specific).toBe(entry.specific);
-    expect(matchesSportsSearch(plan, texts, facts)).toBe(entry.normalMatch);
-    expect(matchesSportsSearch(plan, texts, facts, true)).toBe(entry.strictSemanticMatch);
+    expect(
+      matchesSportsFacet(facts, facet) && matchesSportsSearch(plan, texts, facts, false, facet),
+    ).toBe(entry.normalMatch);
+    expect(
+      matchesSportsFacet(facts, facet) && matchesSportsSearch(plan, texts, facts, true, facet),
+    ).toBe(entry.strictSemanticMatch);
   });
 
 for (const entry of corpus.cases)
@@ -118,10 +124,10 @@ it('keeps ambiguous football literal matches plus positive American-football exp
   expect(matchesSportsFacet(soccer, { sport: 'american-football' })).toBe(false);
   expect(captureSportsScope('football')?.includePpv).toBe(false);
 });
-it('does not use a literal substring to promote unrelated PPV', () => {
+it('does not use a literal substring as evidence for an explicit sports query', () => {
   const plan = planSportsSearch('NFL');
   expect(matchesSportsSearch(plan, ['NFLive cinema PPV'], sportsFacts(['NFLive cinema PPV']))).toBe(
-    true,
+    false,
   );
   expect(
     matchesSportsSearch(plan, ['NFLive cinema PPV'], sportsFacts(['NFLive cinema PPV']), true),

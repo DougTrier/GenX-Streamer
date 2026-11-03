@@ -601,12 +601,26 @@ async fn media_keeps_http_status_retry_hint_ranges_and_binary_bytes() {
     assert!(!payload.headers.contains_key("set-cookie"));
     thread.join().unwrap();
     let (url, thread) =
-        fixture(b"HTTP/1.1 200 OK\r\nContent-Length: 8388609\r\nConnection: close\r\n\r\n");
+        fixture(b"HTTP/1.1 200 OK\r\nContent-Length: 16777217\r\nConnection: close\r\n\r\n");
     let error = media(&url, true, None).await.err().unwrap();
     assert_eq!(
         serde_json::from_str::<serde_json::Value>(&error).unwrap(),
         serde_json::json!({"category":"media-too-large","phase":"headers"})
     );
+    thread.join().unwrap();
+}
+
+#[tokio::test(flavor = "current_thread")]
+async fn media_accepts_a_segment_above_the_old_eight_mib_limit() {
+    let size = 9 * 1024 * 1024;
+    let mut reply = format!(
+        "HTTP/1.1 200 OK\r\nContent-Length: {size}\r\nContent-Type: video/mp2t\r\nConnection: close\r\n\r\n"
+    )
+    .into_bytes();
+    reply.resize(reply.len() + size, 0x47);
+    let (url, thread) = fixture(Box::leak(reply.into_boxed_slice()));
+    let payload = media(&url, true, None).await.unwrap();
+    assert_eq!(payload.data.len(), size);
     thread.join().unwrap();
 }
 

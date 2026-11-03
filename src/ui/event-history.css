@@ -42,7 +42,7 @@
 }
 .gx-event-history h2 {
   margin: 0;
-  flex: 1;
+  flex: 1 0 max-content;
   font-size: 1.2rem;
 }
 .gx-event-history button {

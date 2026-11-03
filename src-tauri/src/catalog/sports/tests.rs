@@ -199,7 +199,10 @@ fn unicode_boundaries_match_registry_policy() {
     assert!(p.channel("ＮＦＬ games"));
     assert!(p.channel("NFL\u{0345}"));
     assert!(!p.channel("N\u{0345}FL"));
-    assert!(p.channel("conflict NFLive"), "ordinary literal hits remain");
+    assert!(
+        !p.channel("conflict NFLive"),
+        "explicit NFL intent requires independent evidence"
+    );
     assert!(
         !p.channel_fields(&["conflict NFLive".into()], true),
         "PPV promotion requires evidence"
@@ -263,10 +266,15 @@ fn shared_query_parity_corpus() {
             .collect::<Vec<_>>()
     };
     for case in corpus["cases"].as_array().unwrap() {
-        let p = Plan::new(&scope(), case["query"].as_str().unwrap()).unwrap();
+        let mut selected = scope();
+        selected.sport = case["facet"]["sport"].as_str().map(str::to_owned);
+        selected.league = case["facet"]["league"].as_str().map(str::to_owned);
+        let p = Plan::new(&selected, case["query"].as_str().unwrap()).unwrap();
         assert_eq!(
             p.specific,
-            case["specific"].as_bool().unwrap(),
+            case["specific"].as_bool().unwrap()
+                || selected.sport.is_some()
+                || selected.league.is_some(),
             "{}",
             case["id"]
         );
@@ -314,4 +322,28 @@ fn literal_extras_supply_residual_terms_but_never_sport_evidence() {
         &["Canada".into()],
         false
     ));
+}
+
+#[test]
+fn collegiate_context_markers_preserve_prefilter_and_never_classify_carrier_alone() {
+    for text in [
+        "ACC Digital Network",
+        "Atlantic Coast Conference",
+        "Football",
+        "東京 ＡＣＣ Digital Network",
+        "Ｆｏｏｔｂａｌｌ",
+    ] {
+        let fields = vec![text.into()];
+        assert!(possible_evidence(&fields));
+        assert_eq!(facts_fields(&fields), compute_facts(&fields));
+        assert!(facts_fields(&fields).sports.is_empty());
+    }
+    let mut s = scope();
+    s.sport = Some("american-football".into());
+    let p = Plan::new(&s, "Football").unwrap();
+    assert!(!p.channel("ACC Digital Network Football"));
+    assert!(!p.program("ACC Digital Network Football", "Conference highlights"));
+    assert!(p.program("Atlantic Coast Conference", "Football replay"));
+    assert!(!p.program("Atlantic Coast Conference", "Football Soccer replay"));
+    assert!(!p.program("Atlantic Coast Conference", "Football Basketball replay"));
 }

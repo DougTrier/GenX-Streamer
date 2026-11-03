@@ -23,6 +23,7 @@ import {
   readDailyGuidePlan,
   refreshDailyGuide,
 } from '../../src/guide/native';
+import { isAutomaticGuidePermissionRefusal } from '../../src/guide/automatic-permissions';
 const preview = {
   ticket: 'ticket',
   sourceId: 'source',
@@ -39,6 +40,34 @@ beforeEach(() => {
     Promise.resolve(command === 'runtime_info' ? { platform: 'windows' } : preview),
   );
   api.native = true;
+});
+
+it.each([
+  ['catalog-revision-stale', true],
+  ['guide-stale-revision', true],
+  ['guide-cache-unavailable', true],
+  ['guide-refresh-disabled', true],
+  ['sqlite-busy', false],
+  [new Error('guide-stale-revision'), false],
+])('classifies only exact cached-connection noncommit refusals: %s', async (error, known) => {
+  api.invoke.mockRejectedValueOnce(error);
+  const result = await nativeGuide
+    .connectCached('7', [], [], 'fixture')
+    .catch((cause: unknown) => cause);
+  expect(isAutomaticGuidePermissionRefusal(result)).toBe(known);
+  if (!known) expect(result).toBe(error);
+});
+
+it('acknowledges a settled plan read when it fails after cancellation', async () => {
+  const controller = new AbortController();
+  api.invoke.mockImplementationOnce(async () => {
+    controller.abort();
+    throw new Error('fixture read failure');
+  });
+  await expect(readDailyGuidePlan(controller.signal)).rejects.toMatchObject({
+    name: 'AbortError',
+  });
+  expect(api.invoke.mock.calls).toEqual([['guide_refresh_plan', undefined]]);
 });
 
 it('daily guide plan rejects malformed and over-limit native schedules', async () => {

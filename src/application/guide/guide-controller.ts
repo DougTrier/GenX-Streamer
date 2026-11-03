@@ -21,6 +21,7 @@
  */
 import { type CatalogRecord, type Source } from '../../catalog';
 import {
+  automaticGuideConfigurationChanged,
   createAutomaticGuidePermissions,
   previewPermittedAutomaticGuide,
   type AutomaticGuidePermission,
@@ -200,7 +201,7 @@ export function createGuideController(env: GuideEnvironment) {
         (fresh.preferenceKey !== automaticGuidePreferenceSnapshot ||
           automaticGuideSourceKey(fresh.sources) !== automaticGuideSourceSnapshot))
     )
-      throw new DOMException('Guide configuration changed.', 'AbortError');
+      throw automaticGuideConfigurationChanged();
     const sources = await nativeGuide.sources();
     const freshDiscoveryKey = JSON.stringify([
       fresh.preferenceKey,
@@ -242,7 +243,7 @@ export function createGuideController(env: GuideEnvironment) {
         });
     }
     signal.throwIfAborted();
-    if (!scopeCurrent()) throw new DOMException('Guide configuration changed.', 'AbortError');
+    if (!scopeCurrent()) throw automaticGuideConfigurationChanged();
     const scopeKey = JSON.stringify([
       fresh.catalogRevision,
       fresh.preferenceKey,
@@ -271,7 +272,7 @@ export function createGuideController(env: GuideEnvironment) {
     try {
       signal.throwIfAborted();
       if (!scopeCurrent() || (!cacheOnly && !automaticGuideScopeCurrent()))
-        throw new DOMException('Guide configuration changed.', 'AbortError');
+        throw automaticGuideConfigurationChanged();
       const result = await nativeGuide.connectCached(
         fresh.catalogRevision,
         caches,
@@ -517,16 +518,41 @@ export function createGuideController(env: GuideEnvironment) {
         progress.preservedMappingConflicts > 0
           ? ` · ${progress.preservedMappingConflicts} channels have multiple matching guides; your current choices were kept`
           : '';
-      env.element('source-refresh-status').textContent =
-        `Program guides: ${progress.attempted} of ${progress.total} sources checked · ${progress.failed} unavailable${review}`;
+      env.element('source-refresh-status').textContent = progress.cacheOnly
+        ? `Saved guide listings checked${review}.`
+        : `Program guides: ${progress.attempted} of ${progress.total} sources checked · ${progress.failed} unavailable${review}`;
     },
   });
+  const reportCleanupFailure = (reason: string) => {
+    void env.diagnostics.emit({
+      operation: 'guide',
+      level: 'warning',
+      code: 'guide-failed',
+      reason,
+    });
+  };
   const automaticGuides = {
     ...builder,
     preparePlayback: () =>
       joinGuideWork([
-        { suspend: builder.preparePlayback },
-        { suspend: maintenance.preparePlayback },
+        {
+          suspend: () =>
+            builder.preparePlayback().catch((error: unknown) => {
+              const reason =
+                error === 'sqlite-busy'
+                  ? 'builder-storage-busy'
+                  : error instanceof Error &&
+                      error.message === 'Program guide cancellation could not be confirmed.'
+                    ? 'builder-cancel-unconfirmed'
+                    : 'builder-cleanup';
+              reportCleanupFailure(reason);
+              throw error;
+            }),
+        },
+        {
+          suspend: maintenance.preparePlayback,
+          reportFailure: () => reportCleanupFailure('maintenance-cleanup'),
+        },
       ]),
     wake: () => joinGuideWork([{ suspend: builder.wake }, { suspend: maintenance.wake }]),
     suspend: () => joinGuideWork([builder, maintenance]),

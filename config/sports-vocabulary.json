@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "vocabularyVersion": "2026-11-01.2",
+  "vocabularyVersion": "2026-11-02.1",
   "policyVersion": "explicit-sports-v1",
   "normalization": "nfkc-lowercase-ln-tokens",
   "sports": [
@@ -75,7 +75,9 @@
       "label": "NFL",
       "evidenceAliases": [
         "nfl",
-        "national football league"
+        "national football league",
+        "nflnetwork",
+        "nflredzone"
       ],
       "queryAliases": [
         "nfl",
@@ -99,6 +101,13 @@
         "naia football",
         "ncaaf",
         "ncaa fb"
+      ],
+      "programmeContextAliases": [
+        "acc digital network",
+        "atlantic coast conference"
+      ],
+      "programmeRequiredAliases": [
+        "football"
       ]
     },
     {
@@ -664,6 +673,16 @@
   ],
   "sources": [
     {
+      "id": "nfl-network",
+      "url": "https://www.nfl.com/network/",
+      "checkedDate": "2026-11-01"
+    },
+    {
+      "id": "nfl-redzone",
+      "url": "https://www.nfl.com/redzone",
+      "checkedDate": "2026-11-01"
+    },
+    {
       "id": "nfl",
       "url": "https://www.nfl.com/teams/",
       "checkedDate": "2026-11-01"
@@ -712,6 +731,11 @@
       "id": "uefa-champions-league",
       "url": "https://www.uefa.com/uefachampionsleague/",
       "checkedDate": "2026-11-01"
+    },
+    {
+      "id": "college-football",
+      "url": "https://theaccdn.com/",
+      "checkedDate": "2026-11-02"
     }
   ]
 }

@@ -514,6 +514,66 @@ it('releases only the settled empty card reserve and ignores an earlier long-row
   }
 });
 
+it('requires NFL evidence in generic search and while switching the selected sport', async () => {
+  const page = await mount();
+  try {
+    await page.evaluate(() => {
+      const f = Reflect.get(window, 'fixture');
+      f.browser.update(
+        [
+          { id: 'conflict', name: 'Conflict Channel', category: 'American Football' },
+          { id: 'nflive', name: 'NFLive', category: 'American Football' },
+          { id: 'nfl', name: 'NFL Network', category: 'Sports' },
+          { id: 'ppv', name: 'Chicago Bears PPV', category: 'PPV' },
+          { id: 'false-ppv', name: 'NFLive PPV', category: 'American Football | PPV' },
+          {
+            id: 'affiliate',
+            name: 'FOX Affiliate',
+            category: 'General',
+            cachedPrograms: [
+              {
+                title: 'Chicago Bears at Green Bay Packers',
+                startMs: Date.now() + 3600000,
+                stopMs: Date.now() + 7200000,
+              },
+            ],
+          },
+          { id: 'sailing', name: 'SailGP', category: 'Sports' },
+          { id: 'children', name: 'Happy Kids', category: 'Children' },
+        ],
+        [],
+        null,
+      );
+    });
+    await page.locator('#search').fill('NFL');
+    await browserExpect(page.locator('.channel')).toHaveCount(3);
+    await page.evaluate(() => {
+      const f = Reflect.get(window, 'fixture');
+      f.chooseCategory('sports');
+      f.browser.setSportsFacet({ sport: 'american-football' });
+    });
+    await browserExpect(page.locator('.channel')).toHaveCount(3);
+    expect(
+      await page
+        .locator('.channel')
+        .evaluateAll((rows) => rows.map((row) => (row as HTMLElement).dataset.channel)),
+    ).toEqual(['nfl', 'ppv', 'affiliate']);
+    await browserExpect(page.locator('.channel .ppv-badge')).toHaveCount(1);
+    await page.evaluate(() => Reflect.get(window, 'fixture').browser.setSportsFacet({}));
+    await browserExpect(page.locator('.channel')).toHaveCount(3);
+    await page.evaluate(() =>
+      Reflect.get(window, 'fixture').browser.setSportsFacet({ sport: 'american-football' }),
+    );
+    await browserExpect(page.locator('.channel')).toHaveCount(3);
+    await page.locator('#search').fill('Football');
+    await browserExpect(page.locator('.channel')).toHaveCount(6);
+    await page.locator('#search').fill('NFLive');
+    await browserExpect(page.locator('.channel')).toHaveCount(2);
+  } finally {
+    await close(page);
+  }
+});
+
 it.each([
   { width: 960, height: 540, kind: 'tv' },
   { width: 1280, height: 720, kind: 'desktop' },
@@ -1551,6 +1611,81 @@ it('invalidates cached matchup text when programme or in-place channel league ev
     await browserExpect(title).toHaveText('Bears vs Packers');
     await page.evaluate(() => Reflect.get(window, 'presentMatchup')('NFL', 'Bills at Jaguars'));
     await browserExpect(title).toHaveText('Buffalo Bills at Jacksonville Jaguars');
+  } finally {
+    await close(page);
+  }
+});
+
+it('admits the observed ACC football replay only with programme and collegiate context together', async () => {
+  const page = await mount();
+  try {
+    await page.evaluate(() => {
+      const f = Reflect.get(window, 'fixture');
+      const program = {
+        title: 'Miami vs. Duke (11.30.19) Football Replay',
+        description:
+          "Duke takes down Miami in future Blue Devils head coach Manny Diaz's first year with the Hurricanes.",
+        categories: [],
+        startMs: Date.now() - 1000,
+        stopMs: Date.now() + 3600000,
+      };
+      f.browser.update(
+        [
+          {
+            id: 'observed-acc',
+            sourceId: 'college',
+            name: 'ACC Digital Network (1080p)',
+            category: 'Sports',
+            cachedPrograms: [program],
+          },
+          {
+            id: 'basketball',
+            sourceId: 'college',
+            name: 'ACC Digital Network basketball',
+            category: 'Sports',
+            cachedPrograms: [{ ...program, categories: [{ text: 'Basketball' }] }],
+          },
+          {
+            id: 'soccer',
+            sourceId: 'college',
+            name: 'Atlantic Coast Conference soccer',
+            category: 'Sports',
+            cachedPrograms: [{ ...program, categories: [{ text: 'Soccer' }] }],
+          },
+          { id: 'carrier', sourceId: 'college', name: 'ACC Digital Network', category: 'Sports' },
+          {
+            id: 'uk',
+            sourceId: 'college',
+            name: 'UK Football Channel',
+            category: 'Sports',
+            cachedPrograms: [program],
+          },
+          {
+            id: 'kids',
+            sourceId: 'college',
+            name: 'Football friends',
+            category: 'Children',
+            cachedPrograms: [program],
+          },
+        ],
+        [],
+        null,
+      );
+      f.chooseCategory('sports');
+      f.browser.setSportsFacet({ sport: 'american-football' });
+      f.browser.search('Football');
+    });
+    await browserExpect(page.locator('[data-channel]')).toHaveCount(1);
+    await browserExpect(page.locator('[data-channel="observed-acc"]')).toBeVisible();
+    await page.evaluate(() =>
+      Reflect.get(window, 'fixture').browser.setSportsFacet({
+        sport: 'american-football',
+        league: 'college-football',
+      }),
+    );
+    await browserExpect(page.locator('[data-channel="observed-acc"]')).toBeVisible();
+    await page.evaluate(() => Reflect.get(window, 'fixture').browser.search('NFL'));
+    await browserExpect(page.locator('[data-channel]')).toHaveCount(0);
   } finally {
     await close(page);
   }

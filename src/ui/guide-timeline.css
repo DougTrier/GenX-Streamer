@@ -738,6 +738,10 @@
   line-height: 1.2;
 }
 
+.guide-compact-page .gx-timeline[data-layout='agenda'] > .guide-feedback {
+  max-height: 5em;
+}
+
 /* The same artwork/name vocabulary as Live TV, within the existing row target. */
 .gx-timeline .gx-timeline-channel,
 .gx-timeline[data-layout='agenda'] .gx-agenda-header .gx-agenda-channel {

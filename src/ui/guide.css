@@ -314,6 +314,13 @@
 .source-scan-dialog[data-scan-state='start'] .scan-setup:not([hidden]) {
   max-height: none;
 }
+.source-scan-dialog[data-scan-state='setup'] .scan-setup:not([hidden]),
+.source-scan-dialog[data-scan-state='setup'] .scan-options {
+  max-height: none;
+}
+.source-scan-dialog[data-scan-state='setup'] .scan-options {
+  overflow: visible;
+}
 .scan-introduction {
   margin: 0 0 12px;
   line-height: 1.5;
@@ -682,7 +689,7 @@
   padding: 4px;
 }
 .source-scan-dialog .scan-feedback {
-  max-height: 40px;
+  max-height: min(30dvh, 160px);
 }
 
 /* The guide shares the approved static theme; text remains on opaque surfaces. */

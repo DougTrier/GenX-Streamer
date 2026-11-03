@@ -781,6 +781,8 @@ export function mountLocalStreams(
       if (!currentOpening()) return;
       await host.stopPlayback();
       if (!currentOpening()) return;
+      if (app?.dataset.phoneView === 'browse')
+        app.querySelector<HTMLButtonElement>('#phone-watch-button')?.click();
       showNote(`Opening ${label}…`);
       await queuePage(async () => {
         if (!currentOpening()) return;
@@ -950,6 +952,8 @@ export function mountLocalStreams(
     host.run(
       host.showLive().then(() => {
         open(true);
+        if (app?.dataset.phoneView === 'watch')
+          app.querySelector<HTMLButtonElement>('#phone-browse-button')?.click();
         (found ? results.querySelector<HTMLButtonElement>('.local-item') : area)?.focus();
       }),
     );

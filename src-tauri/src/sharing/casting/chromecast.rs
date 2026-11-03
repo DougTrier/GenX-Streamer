@@ -376,14 +376,26 @@ impl Session {
         self.owned_url = Some(selection.url.clone());
         self.send(&destination,protocol::MEDIA,json!({"type":"LOAD","autoplay":true,"media":{"contentId":selection.url,"contentType":selection.content_type,"streamType":"LIVE","metadata":{"metadataType":0,"title":selection.name}}})).await?;
         self.idle_reason = None;
+        let poll_interval = Duration::from_secs(2);
+        let mut next_poll = tokio::time::Instant::now() + poll_interval;
         loop {
-            match self.next_state().await? {
+            let state = match tokio::time::timeout_at(next_poll, self.next_state()).await {
+                Ok(state) => state?,
+                Err(_) => {
+                    // Some receivers only return the full media identity on request.
+                    self.send(&destination, protocol::MEDIA, json!({"type":"GET_STATUS"}))
+                        .await?;
+                    next_poll = tokio::time::Instant::now() + poll_interval;
+                    continue;
+                }
+            };
+            match state {
                 ReceiverState::Playing(_) => return Ok(()),
                 // The receiver reports an empty or idle status right after LOAD,
                 // before its player starts (Google TV, October 19, 2026). A
                 // refused stream arrives as LOAD_FAILED or idle with a reason;
                 // the start deadline bounds the wait otherwise.
-                ReceiverState::Ended if self.idle_reason.is_some() => {
+                ReceiverState::Ended if self.app_closed || self.idle_reason.is_some() => {
                     return Err("cast-load-failed")
                 }
                 _ => {}

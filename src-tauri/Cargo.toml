@@ -1,6 +1,6 @@
 [package]
 name = "tmg-tv"
-version = "0.1.25"
+version = "0.1.27"
 description = "GenX Streamer portable IPTV player"
 edition = "2021"
 rust-version = "1.88"
@@ -38,6 +38,7 @@ socket2 = { version = "0.6", features = ["all"] }
 if-addrs = "0.15"
 quick-xml = "0.41"
 chrono = { version = "=0.4.44", default-features = false, features = ["std"] }
+chrono-tz = { version = "=0.10.4", default-features = false, features = ["std"] }
 flate2 = "=1.1.9"
 unicode-normalization = "=0.1.25"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }

@@ -62,7 +62,7 @@ pub(super) fn validate_header_scope<'a>(
     text(v, "platform", 256, false)?;
     text(v, "observerProfile", 256, false)?;
     let created = number(v, "createdAtMs", 8_640_000_000_000_000)?;
-    if created > now || (authority.is_some() && now - created > DAY) {
+    if created > now || (authority.is_some() && now - created >= RESUME_MAX_AGE_MS) {
         return Err("scan-checkpoint-expired".into());
     }
     if !matches!(v["budgetMs"].as_u64(), Some(20_000 | 45_000 | 60_000)) {

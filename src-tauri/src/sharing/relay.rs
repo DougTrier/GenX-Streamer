@@ -386,6 +386,7 @@ async fn request_public(
     }
     let client = reqwest::Client::builder()
         .no_proxy()
+        .user_agent("TMG-TV/0.1")
         .redirect(Policy::none())
         .resolve_to_addrs(host, &addresses)
         .connect_timeout(Duration::from_secs(5).min(remaining))

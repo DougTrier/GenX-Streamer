@@ -288,7 +288,7 @@ fn advance_refuses_policy_shift_expired_checkpoint_and_unsettled_evidence() {
         &RecordPair::default(),
         None,
         (Some(1), None),
-        Some((&mutation, 1, scan_now() + 86_400_001)),
+        Some((&mutation, 1, scan_now() + 7 * 86_400_000)),
         |_| Ok(())
     )
     .is_err());

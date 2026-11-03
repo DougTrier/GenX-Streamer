@@ -212,3 +212,39 @@ fn sports_programme_cursor_binds_literal_punctuation_and_spacing() {
     q.search = "foo  bar".into();
     assert_eq!(query_programs(c, &q).unwrap_err(), "guide-stale-cursor");
 }
+
+#[test]
+fn sports_collegiate_programme_context_admits_observed_acc_programme_query() {
+    let mut f = fixture();
+    let c = &mut f.c;
+    c.execute_batch(
+        "UPDATE channel SET name='ACC Digital Network (1080p)',category='Sports' WHERE id='app-a'",
+    )
+    .unwrap();
+    let mut data = feed("Miami vs. Duke (11.30.19) Football Replay");
+    data.programs[0].description = Some("Duke takes down Miami in future Blue Devils head coach Manny Diaz's first year with the Hurricanes.".into());
+    save_source(c, &source("college"), 0).unwrap();
+    replace_guide(c, "college", 1, &data, 3000, &AtomicBool::new(false)).unwrap();
+    save_mapping(c, &mapping("college", "app-a", "catalog-a")).unwrap();
+    let mut q = query("college", &["app-a"]);
+    q.search = "Football".into();
+    q.sports = Some(crate::catalog::sports::Scope {
+        sport: Some("american-football".into()),
+        league: None,
+        include_ppv: true,
+        window_start_ms: 0,
+        window_end_ms: 10_000,
+        vocabulary_version: serde_json::from_str::<serde_json::Value>(
+            crate::catalog::sports::VOCABULARY,
+        )
+        .unwrap()["vocabularyVersion"]
+            .as_str()
+            .unwrap()
+            .into(),
+    });
+    let page = query_programs(c, &q).unwrap();
+    assert_eq!(page.programs.len(), 1);
+    assert_eq!(page.programs[0].title, data.programs[0].title);
+    q.search = "NFL".into();
+    assert!(query_programs(c, &q).unwrap().programs.is_empty());
+}

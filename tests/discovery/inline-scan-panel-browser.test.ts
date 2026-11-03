@@ -92,9 +92,7 @@ const unfinished = {
   status: 'Saved scan | 7074 of 18091 checked | 3678 saved.',
 };
 const running = { ...unfinished, phase: 'checking', busy: true, savedSummary: undefined };
-async function fixture(): Promise<Page> {
-  const page = await browser.newPage();
-  await page.setContent(markup);
+async function mountPanel(page: Page) {
   await page.addScriptTag({ content: bundle });
   await page.evaluate(() => {
     Reflect.set(
@@ -103,6 +101,11 @@ async function fixture(): Promise<Page> {
       Reflect.get(window, 'Panel').mountInlineScanPanel(document, () => false),
     );
   });
+}
+async function fixture(): Promise<Page> {
+  const page = await browser.newPage();
+  await page.setContent(markup);
+  await mountPanel(page);
   return page;
 }
 const state = (page: Page) =>
@@ -123,6 +126,31 @@ const state = (page: Page) =>
   });
 const render = (page: Page, progress: object) =>
   page.evaluate((p) => Reflect.get(window, 'panel').render(p), progress);
+
+it('remembers Close across reloads and still allows an explicit scan', async () => {
+  const page = await browser.newPage();
+  try {
+    await page.route('https://scan.fixture.invalid/', (route) =>
+      route.fulfill({ contentType: 'text/html', body: markup }),
+    );
+    await page.goto('https://scan.fixture.invalid/');
+    await mountPanel(page);
+    await render(page, unfinished);
+    await page.locator('#inline-scan-close').click();
+    await page.reload();
+    await mountPanel(page);
+    await render(page, unfinished);
+    expect((await state(page)).panel).toBe(false);
+    expect(await page.evaluate(() => Reflect.get(window, 'panel').reopen())).toBe(true);
+    await page.locator('#inline-scan-close').click();
+    await render(page, running);
+    expect((await state(page)).panel).toBe(true);
+    await render(page, unfinished);
+    expect((await state(page)).panel).toBe(false);
+  } finally {
+    await page.close();
+  }
+});
 
 it('a delayed Finish scan handoff keeps Stop focused while active and Rescan focused after refusal', async () => {
   const page = await fixture();
@@ -152,7 +180,7 @@ it('a delayed Finish scan handoff keeps Stop focused while active and Rescan foc
           canContinue: false,
           resumeRefusal: 'unavailable',
           error:
-            'This saved scan is outside its 24-hour resume window. Choose Rescan; saved channels are kept.',
+            'This saved scan is outside its 7-day resume window. Choose Rescan; saved channels are kept.',
         },
       },
     );
@@ -161,7 +189,7 @@ it('a delayed Finish scan handoff keeps Stop focused while active and Rescan foc
     await browserExpect(page.locator('#inline-scan-stop')).toBeFocused();
     await page.evaluate(() => Reflect.get(window, 'resolveFinish')());
     await browserExpect(page.locator('#inline-scan-rescan')).toBeFocused();
-    await browserExpect(page.locator('#inline-scan-error')).toContainText('24-hour resume window');
+    await browserExpect(page.locator('#inline-scan-error')).toContainText('7-day resume window');
     await browserExpect(page.locator('#inline-scan-continue')).toBeHidden();
   } finally {
     await page.close();

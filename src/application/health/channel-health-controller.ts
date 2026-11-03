@@ -136,6 +136,7 @@ export function createChannelHealthController(env: ChannelHealthEnvironment) {
         .map((channel) => ({
           id: channel.id,
           url: channel.urls[0],
+          alternateUrls: channel.urls.slice(1),
           allowHttp: allowHttp.get(channel.sourceId) ?? false,
         }));
     },
@@ -256,7 +257,7 @@ export function createChannelHealthController(env: ChannelHealthEnvironment) {
     env.element('dead-channels').hidden = !(offered && chosen);
     if (!removingDeadChannels) {
       env.element('dead-channels-text').textContent =
-        `${ids.size.toLocaleString()} saved ${ids.size === 1 ? 'channel' : 'channels'} failed checks on two different days.`;
+        `${ids.size.toLocaleString()} across Free TV failed checks on two different days, including channels outside this view.`;
       env.element('remove-dead-channels').textContent =
         ids.size === 1 ? 'Remove it' : `Remove all ${ids.size.toLocaleString()}`;
     }
@@ -271,20 +272,23 @@ export function createChannelHealthController(env: ChannelHealthEnvironment) {
    * is the ordinary one, restorable in Settings.
    */
   async function removeDeadChannels(options: { keepFavorites?: boolean } = {}): Promise<number> {
-    if (removingDeadChannels) return 0;
-    const removed = new Set(env.settings.removedChannels);
-    const favorites = new Set(options.keepFavorites ? env.settings.favorites : []);
-    const ids = [...env.channelCheckMarks.values()]
-      .filter(
-        (check) =>
-          check.notResponding && !removed.has(check.channelId) && !favorites.has(check.channelId),
-      )
-      .map((check) => check.channelId);
-    if (!ids.length) return 0;
+    if (removingDeadChannels || env.applicationClosing) return 0;
     removingDeadChannels = true;
     const button = env.element<HTMLButtonElement>('remove-dead-channels');
     button.disabled = true;
     try {
+      const { checks } = await channelCheckStore.read(new AbortController().signal);
+      env.channelCheckMarks = new Map(checks.map((check) => [check.channelId, check]));
+      if (env.applicationClosing) return 0;
+      const removed = new Set(env.settings.removedChannels);
+      const favorites = new Set(options.keepFavorites ? env.settings.favorites : []);
+      const ids = checks
+        .filter(
+          (check) =>
+            check.notResponding && !removed.has(check.channelId) && !favorites.has(check.channelId),
+        )
+        .map((check) => check.channelId);
+      if (!ids.length) return 0;
       // One native write and one list refresh per 5,001 channels (owner design,
       // October 21, 2026); each removal takes the channel's duplicates with it.
       for (let start = 0; start < ids.length; start += CATALOG_GROUP_BATCH_LIMIT + 1) {
@@ -300,12 +304,12 @@ export function createChannelHealthController(env: ChannelHealthEnvironment) {
       env.notice(
         `${ids.length.toLocaleString()} not responding ${ids.length === 1 ? 'channel' : 'channels'} removed. You can restore removed channels in Settings.`,
       );
+      return ids.length;
     } finally {
       removingDeadChannels = false;
       button.disabled = false;
       presentNotResponding();
     }
-    return ids.length;
   }
   /**
    * Refresh sources before considering automatic cleanup. A generic daily

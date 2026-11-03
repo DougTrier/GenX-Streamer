@@ -724,7 +724,18 @@ it('boot waits for durable data before admitting the first indexed query', async
   try {
     await page.evaluate(() => {
       Reflect.get(window, 'cb').search('');
-      Reflect.get(window, 'cb').update([], [], null);
+      Reflect.get(window, 'cb').update(
+        [
+          {
+            get name() {
+              throw new Error('Native startup must not build fallback search metadata');
+            },
+            category: 'Sports',
+          },
+        ],
+        [],
+        null,
+      );
     });
     expect(await page.evaluate(() => Reflect.get(window, 'calls'))).toEqual([]);
     await page.evaluate(() => {

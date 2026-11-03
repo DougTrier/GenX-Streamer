@@ -36,7 +36,6 @@ const files = [
   'src-tauri/Cargo.lock',
   'src-tauri/tauri.conf.json',
   'README.md',
-  'site/index.html',
 ];
 
 /** A scratch copy of the repository's own version files. */
@@ -92,7 +91,10 @@ test('a bump changes every place and nothing else', () => {
       const changed = old.filter((line, i) => line !== now[i]);
       assert.ok(changed.length >= 1, file);
       old.forEach((line, i) => {
-        if (line !== now[i]) assert.equal(now[i], line.replace(current, result.to), file);
+        const expected = line.startsWith('| **Android build** |')
+          ? line.replace(String(versionCode(current)), String(result.versionCode))
+          : line.replace(current, result.to);
+        assert.equal(now[i], expected, file);
       });
     }
     // Dependencies stay identical even when one already has the next app version.

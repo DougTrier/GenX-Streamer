@@ -297,6 +297,17 @@ export function mountAbout(root: HTMLElement, opener: HTMLButtonElement): () => 
   }
   listen(dialog.querySelector<HTMLButtonElement>('.about-author-link')!, () => open(authorLink));
   for (const tab of tabs) listen(tab, () => select(tab));
+  const closeButton = dialog.querySelector<HTMLButtonElement>('[aria-label="Close about"]')!;
+  const activeTab = () => tabs.find((tab) => tab.getAttribute('aria-selected') === 'true')!;
+  dialog.addEventListener('keydown', (event) => {
+    if (event.target === closeButton && (event.key === 'ArrowDown' || event.key === 'ArrowLeft')) {
+      event.preventDefault();
+      activeTab().focus();
+    } else if (event.key === 'ArrowUp' && tabs.some((tab) => tab === event.target)) {
+      event.preventDefault();
+      closeButton.focus();
+    }
+  });
   const show = () => {
     status.textContent = '';
     if (disposed || dialog.open) return;
@@ -306,7 +317,7 @@ export function mountAbout(root: HTMLElement, opener: HTMLButtonElement): () => 
   };
   const close = () => dialog.close();
   listen(opener, show);
-  listen(dialog.querySelector<HTMLButtonElement>('[aria-label="Close about"]')!, close);
+  listen(closeButton, close);
   return () => {
     if (disposed) return;
     disposed = true;

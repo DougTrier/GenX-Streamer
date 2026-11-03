@@ -122,7 +122,8 @@ export function createGuidePresentation(env: GuidePresentationEnvironment) {
     };
     if (!phases[progress.phase]) return;
     if (progress.phase === 'completed') {
-      automaticResult(progress);
+      if (progress.cacheOnly) automaticMessage('Saved guide listings checked.');
+      else automaticResult(progress);
       return;
     }
     automaticMessage(

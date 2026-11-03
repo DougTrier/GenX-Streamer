@@ -57,7 +57,7 @@ async function fixture(): Promise<Page> {
     const notify=()=>{for(const fn of listeners)fn(state)};
     window.finishBounded=(patch={})=>{state={...state,...patch};notify();window.resolveStart?.();};
     const service={
-      prepare:async()=>{window.calls.prepare++;if(window.mode==='held')await new Promise(resolve=>window.resolvePrepare=resolve);if(window.mode==='native-expired')throw new ScanUI.ScanCheckpointExpired();return window.plan;},
+      prepare:async()=>{window.calls.prepare++;if(window.mode==='held')await new Promise(resolve=>window.resolvePrepare=resolve);if(window.mode==='held-refusal')await new Promise((_, reject)=>window.rejectPrepare=()=>reject(new Error('Native admission refused')));if(window.mode==='native-expired')throw new ScanUI.ScanCheckpointExpired();return window.plan;},
       snapshot:()=>state,
       subscribe:fn=>{listeners.add(fn);return()=>listeners.delete(fn)},
       start:async()=>{window.calls.start++;state={...state,phase:'checking'};notify();await new Promise(resolve=>window.resolveStart=resolve);if(window.startFailure)throw new Error('Commit not confirmed')},
@@ -252,7 +252,7 @@ it('a scan whose sources were updated while paused says so and keeps its saved c
     await page.close();
   }
 });
-it('a joined native expiry explains the24-hour resume window and offers Rescan without losing saved progress', async () => {
+it('a joined native expiry explains the 7-day resume window and offers Rescan without losing saved progress', async () => {
   const page = await fixture();
   try {
     await page.evaluate(() => {
@@ -267,7 +267,7 @@ it('a joined native expiry explains the24-hour resume window and offers Rescan w
     });
     const shown = await page.evaluate(() => Reflect.get(window, 'progressUpdates').at(-1));
     expect(shown.error).toBe(
-      'This saved scan is outside its 24-hour resume window. Choose Rescan; saved channels are kept.',
+      'This saved scan is outside its 7-day resume window. Choose Rescan; saved channels are kept.',
     );
     expect(shown.canContinue).toBe(false);
     expect(shown.status).toContain('Select Rescan');
@@ -485,6 +485,64 @@ it('background suspension joins the bounded episode and Resume opens Continue wi
     await page.close();
   }
 });
+it('Finish saved scan reopens the dialog for a resume still in progress', async () => {
+  const page = await fixture();
+  const dialog = page.locator('dialog[aria-label="Review source scan"]');
+  try {
+    await page.evaluate(() => {
+      const scan = Reflect.get(window, 'scan');
+      Reflect.set(window, 'running', scan.continueAutomatic({ presentation: 'dialog' }));
+    });
+    await expect.poll(async () => (await calls(page)).prepare).toBe(1);
+    expect(await dialog.isVisible()).toBe(true);
+    await dialog.getByRole('button', { name: 'Close scan review' }).click();
+    await expect.poll(() => dialog.isVisible()).toBe(false);
+    expect(await page.evaluate(() => {
+      const scan = Reflect.get(window, 'scan');
+      return scan.continueAutomatic({ presentation: 'dialog' }) === Reflect.get(window, 'running');
+    })).toBe(true);
+    expect(await dialog.isVisible()).toBe(true);
+    expect(await calls(page)).toMatchObject({ factory: 1, prepare: 1 });
+  } finally {
+    await page.evaluate(async () => {
+      const scan = Reflect.get(window, 'scan');
+      const closing = scan.dispose();
+      Reflect.get(window, 'resolvePrepare')?.();
+      await closing;
+    });
+    await page.close();
+  }
+});
+
+it('Stop during native admission keeps the saved scan available to resume', async () => {
+  const page = await fixture();
+  try {
+    await page.evaluate(() => {
+      Reflect.set(window, 'mode', 'held-refusal');
+      Reflect.set(window, 'running', Reflect.get(window, 'continueOwned')());
+    });
+    await expect.poll(async () => (await calls(page)).prepare).toBe(1);
+    await page.evaluate(() => {
+      Reflect.set(window, 'stopping', Reflect.get(window, 'scan').stopAutomatic());
+    });
+    await expect.poll(async () => (await calls(page)).suspend).toBe(1);
+    await page.evaluate(() => Reflect.get(window, 'rejectPrepare')());
+    await page.evaluate(() => Reflect.get(window, 'stopping'));
+    expect(await snapshot(page)).toMatchObject({ phase: 'paused', checked: 100, published: 70 });
+    expect(await calls(page)).toMatchObject({ start: 0, dispose: 1 });
+    await page.evaluate(() => {
+      Reflect.set(window, 'mode', 'ready');
+      Reflect.set(window, 'running', Reflect.get(window, 'continueOwned')());
+    });
+    await expect.poll(async () => (await calls(page)).start).toBe(1);
+    await page.evaluate(() => Reflect.get(window, 'finishBounded')({ phase: 'paused' }));
+    await page.evaluate(() => Reflect.get(window, 'running'));
+  } finally {
+    await page.evaluate(() => Reflect.get(window, 'scan').dispose());
+    await page.close();
+  }
+});
+
 it('Dispose joins late factory ownership and never starts an obsolete plan', async () => {
   const page = await fixture();
   try {

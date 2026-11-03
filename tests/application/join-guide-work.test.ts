@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { joinGuideWork } from '../../src/application/guide/join-guide-work';
 
 it('retains the second suspension after the first fails, and redacts its failure', async () => {
@@ -23,13 +23,16 @@ it('retains the second suspension after the first fails, and redacts its failure
     release = resolve;
   });
   let settled = false;
+  const reportFailed = vi.fn();
+  const reportSuccessful = vi.fn();
   const work = joinGuideWork([
     {
       suspend: async () => {
         throw new Error('private-source-address');
       },
+      reportFailure: reportFailed,
     },
-    { suspend: () => held },
+    { suspend: () => held, reportFailure: reportSuccessful },
   ]);
   const result = work.catch((error: Error) => {
     settled = true;
@@ -39,8 +42,11 @@ it('retains the second suspension after the first fails, and redacts its failure
   await Promise.resolve();
   await Promise.resolve();
   expect(settled).toBe(false);
+  expect(reportFailed).not.toHaveBeenCalled();
   release();
   expect(await result).toBe('Automatic guide cleanup could not be confirmed.');
+  expect(reportFailed).toHaveBeenCalledExactlyOnceWith();
+  expect(reportSuccessful).not.toHaveBeenCalled();
 });
 
 it('starts and joins every owner even when one throws synchronously', async () => {

@@ -151,10 +151,17 @@ export function createLibraryController(env: LibraryEnvironment) {
       await env.archivePlayer!.selectSaved(entry, revision, signal);
     },
     detailsContainer: env.element('archive-details'),
-    playbackActive: () =>
-      env.player.snapshot.selection !== null &&
-      env.player.snapshot.state !== 'idle' &&
-      env.player.snapshot.state !== 'disposed',
+    playbackActive: () => {
+      if (env.library.contentLibrary !== 'genxtra') return false;
+      const archive = env.archivePlayer?.selection;
+      const playback = env.player.snapshot;
+      return (
+        archive != null &&
+        playback.selection?.id === `archive-${archive.fileRef}` &&
+        playback.state !== 'idle' &&
+        playback.state !== 'disposed'
+      );
+    },
     onTitleSelected: () => {
       if (env.element('app').classList.contains('compact-content')) {
         env.element<HTMLSelectElement>('compact-view').value = 'watch';

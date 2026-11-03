@@ -13,6 +13,8 @@ interface Sport extends VocabularyEntry {
 }
 interface League extends VocabularyEntry {
   sportId: string;
+  programmeContextAliases?: readonly string[];
+  programmeRequiredAliases?: readonly string[];
 }
 interface Team extends VocabularyEntry {
   leagueId: string;
@@ -46,6 +48,9 @@ export interface SportsFacts {
   sports: Set<string>;
   leagues: Set<string>;
   teams: Set<string>;
+  /** Neutral context and programme terms never establish sport membership alone. */
+  programmeContexts?: Set<string>;
+  programmeEvidence?: Set<string>;
 }
 export interface SportsProgram {
   title: string;
@@ -89,6 +94,24 @@ const contextual = index(
     entry.contextualAliases.map((value) => ({
       words: sportsWords(value),
       kind: 'team' as const,
+      id: entry.id,
+    })),
+  ),
+);
+const programmeContexts = index(
+  leagues.flatMap((entry) =>
+    (entry.programmeContextAliases ?? []).map((value) => ({
+      words: sportsWords(value),
+      kind: 'league' as const,
+      id: entry.id,
+    })),
+  ),
+);
+const programmeEvidence = index(
+  leagues.flatMap((entry) =>
+    (entry.programmeRequiredAliases ?? []).map((value) => ({
+      words: sportsWords(value),
+      kind: 'league' as const,
       id: entry.id,
     })),
   ),
@@ -164,6 +187,8 @@ function merge(target: SportsFacts, source: SportsFacts) {
   for (const id of source.sports) target.sports.add(id);
   for (const id of source.leagues) target.leagues.add(id);
   for (const id of source.teams) target.teams.add(id);
+  for (const id of source.programmeContexts ?? []) (target.programmeContexts ??= new Set()).add(id);
+  for (const id of source.programmeEvidence ?? []) (target.programmeEvidence ??= new Set()).add(id);
 }
 /** A query is never supplied as evidence. Field boundaries cannot invent a franchise phrase. */
 export function sportsFacts(texts: readonly string[], context?: SportsFacts): SportsFacts {
@@ -173,6 +198,10 @@ export function sportsFacts(texts: readonly string[], context?: SportsFacts): Sp
     words.forEach((word, at) => {
       for (const alias of evidence.get(word) ?? [])
         if (fits(alias, words, at)) add(result, alias.kind, alias.id);
+      for (const alias of programmeContexts.get(word) ?? [])
+        if (fits(alias, words, at)) (result.programmeContexts ??= new Set()).add(alias.id);
+      for (const alias of programmeEvidence.get(word) ?? [])
+        if (fits(alias, words, at)) (result.programmeEvidence ??= new Set()).add(alias.id);
     });
   if (context) merge(result, context);
   for (const words of fields)
@@ -183,6 +212,20 @@ export function sportsFacts(texts: readonly string[], context?: SportsFacts): Sp
     });
   return result;
 }
+/** A real programme term plus reviewed carrier context can resolve an ambiguous sport. */
+function directProgrammeFacts(texts: readonly string[], channel: SportsFacts): SportsFacts {
+  const direct = sportsFacts(texts);
+  for (const league of leagues) {
+    if (
+      direct.programmeEvidence?.has(league.id) &&
+      (direct.programmeContexts?.has(league.id) || channel.programmeContexts?.has(league.id)) &&
+      [...direct.sports].every((sport) => sport === league.sportId) &&
+      [...direct.leagues].every((id) => id === league.id)
+    )
+      add(direct, 'league', league.id);
+  }
+  return direct;
+}
 export function programmeSportsFacts(
   program: Pick<SportsProgram, 'title' | 'description' | 'categories'>,
   channel: SportsFacts,
@@ -192,8 +235,9 @@ export function programmeSportsFacts(
     program.description ?? '',
     ...(program.categories ?? []).map((entry) => entry.text),
   ];
-  const direct = sportsFacts(texts);
+  const direct = directProgrammeFacts(texts, channel);
   const inherited = emptyFacts();
+  merge(inherited, direct);
   for (const id of channel.leagues) {
     const sport = leagueById.get(id)!.sportId;
     if (
@@ -218,7 +262,7 @@ export function programmeSportsTexts(
     program.description ?? '',
     ...(program.categories ?? []).map((entry) => entry.text),
   ];
-  const direct = sportsFacts(texts);
+  const direct = directProgrammeFacts(texts, channel);
   const conflict =
     (direct.leagues.size > 0 &&
       channel.leagues.size > 0 &&
@@ -266,10 +310,16 @@ export function matchesSportsSearch(
   texts: readonly string[],
   facts: SportsFacts,
   semanticOnly = false,
+  facet: SportsFacet = {},
 ): boolean {
   if (!plan.literal) return true;
+  const selectedFacet = !!(facet.sport || facet.league);
+  // Explicit query intent requires independent row evidence. Literal
+  // substrings such as "conflict" cannot stand in for NFL facts.
+  // Generic text and bare "football" keep their existing literal behavior.
+  const requireEvidence = plan.specific || (semanticOnly && !selectedFacet);
   const fields = texts.map(normalized);
-  if (!semanticOnly && fields.some((text) => text.includes(plan.literal))) return true;
+  if (!requireEvidence && fields.some((text) => text.includes(plan.literal))) return true;
   if (!plan.semantic.length) return false;
   const words = texts.flatMap(sportsWords);
   return (

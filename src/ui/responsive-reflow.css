@@ -105,6 +105,15 @@ body {
   padding: 4px 8px;
   font-size: 13px;
 }
+@media (max-height: 600px) {
+  #app[data-device-kind='tv'] .inline-source-scan {
+    margin-inline: 0;
+    padding-block: 5px;
+  }
+  #app[data-device-kind='tv'] #inline-scan-status {
+    flex-basis: 7em;
+  }
+}
 .channel-transfer-controls {
   display: flex;
   flex-wrap: wrap;

@@ -53,6 +53,7 @@ export type AutomaticGuideBuildPhase =
   | 'optimizing'
   | 'completed';
 export interface AutomaticGuideBuildProgress extends AutomaticGuideBuildResult {
+  cacheOnly?: true;
   total: number;
   /** Unique settled provider operations, including failure and permission/cooldown skips. */
   attempted: number;
@@ -192,7 +193,10 @@ export function createAutomaticGuideBuilder(
     return error;
   };
   const joinedCancellation = (error: unknown, owned: AbortController): never => {
-    if (isAbort(error) && owned.signal.aborted) joinedAborts.add(error);
+    if (owned.signal.aborted) {
+      if (error === 'canceled') throw abort();
+      if (isAbort(error)) joinedAborts.add(error);
+    }
     throw error;
   };
   const fullIdle = () => host.canRunFull?.() !== false;
@@ -774,6 +778,7 @@ export function createAutomaticGuideBuilder(
         notifyDeferred();
         throw abort();
       }
+      deferredNotified = false;
       const connected = await host.connectCacheOnly!(owned.signal);
       if (
         !/^(0|[1-9][0-9]{0,18})$/.test(connected.catalogRevision) ||
@@ -782,7 +787,7 @@ export function createAutomaticGuideBuilder(
         )
       )
         throw new Error('The cached guide connection receipt is invalid.');
-      return Object.freeze({
+      const result = Object.freeze({
         connected: connected.matched,
         unmatched: connected.unmatched,
         checked: 0,
@@ -792,6 +797,8 @@ export function createAutomaticGuideBuilder(
         mappingConflictAssessment: connected.mappingConflictAssessment ?? 'not-assessed',
         preservedMappingConflicts: connected.preservedMappingConflicts ?? null,
       });
+      emitProgress({ ...result, total: 0, attempted: 0, phase: 'completed', cacheOnly: true });
+      return result;
     })();
     const settled = task
       .catch((error: unknown) => joinedCancellation(error, owned))
@@ -1031,7 +1038,11 @@ export function createAutomaticGuideBuilder(
       (!explicitRequested && host.canRequest?.() === false)
     )
       return Promise.resolve();
-    return drainRequested();
+    return drainRequested().catch((error: unknown) => {
+      // The drain reports a preflight refusal after joining owned cleanup.
+      // Only an unresolved owner failure should block the next playback intent.
+      if (currentDeferredFailure() || !isAutomaticGuidePermissionRefusal(error)) throw error;
+    });
   }
   function dispose(): Promise<void> {
     if (closing) return closing;

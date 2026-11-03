@@ -280,7 +280,7 @@ impl Plan {
         let expires_at = header["createdAtMs"]
             .as_u64()
             .ok_or(ERR)?
-            .checked_add(super::DAY)
+            .checked_add(super::RESUME_MAX_AGE_MS)
             .ok_or(ERR)?;
         check()?;
         Ok(Self {
@@ -310,7 +310,7 @@ impl Plan {
         if !self.fence.admits_health_progress(current) {
             return Err("scan-resume-plan-stale".into());
         }
-        if now > self.expires_at || now < self.header["createdAtMs"].as_u64().ok_or(ERR)? {
+        if now >= self.expires_at || now < self.header["createdAtMs"].as_u64().ok_or(ERR)? {
             return Err("scan-checkpoint-expired".into());
         }
         Ok(())

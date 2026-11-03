@@ -38,11 +38,12 @@ import {
   recordPlaybackTrace,
   traceEnabled,
 } from '../diagnostics/playback-trace';
-import Hls from 'hls.js';
+import Hls, { type ErrorData } from 'hls.js';
 import { isTauri } from '@tauri-apps/api/core';
 import { createNativeHlsSession } from './native-hls-loader';
 import Mpegts from 'mpegts.js';
 import { normalizeLiveBufferPreference } from '../playback/live-buffer';
+import { createHlsLiveWindowRecovery } from './hls-live-window-recovery';
 import { type createBrowserAudioHealth } from './browser-audio-health';
 import { type createBrowserAudioTracks } from './browser-audio-tracks';
 import { type ResourceOwners, type createOwnedWork } from '../playback/resource-owners';
@@ -429,7 +430,8 @@ export function createBrowserEngineStart(env: BrowserEngineStartEnvironment) {
         env.unsupported();
         return;
       }
-      // All retries belong to the controller's one bounded episode, never hidden library loops.
+      // Connection retries belong to the controller. HLS has no hidden request
+      // loops; the live-window resync below has one separate per-engine budget.
       const noRetry = {
         maxTimeToFirstByteMs: 8000,
         maxLoadTimeMs: 15000,
@@ -548,6 +550,60 @@ export function createBrowserEngineStart(env: BrowserEngineStartEnvironment) {
       );
       env.hlsListeners.push(...[1, 2, 3].map(() => env.owners.acquire('hlsListeners')));
       const warningTrace = createEngineWarningTrace();
+      const hls = env.hls;
+      const attemptSignal = env.signal!;
+      const reportHttpFailure = (data: ErrorData) => {
+        const status = data.response?.code ?? 0;
+        const details = data.networkDetails as unknown;
+        const transportError =
+          details && typeof details === 'object' && 'playbackTransportError' in details
+            ? details.playbackTransportError
+            : data.response?.text;
+        const failure: PlaybackFailure = status
+          ? classifyHttpFailure(status, readRetryAfter(details))
+          : /timeout/i.test(data.details) && !transportError
+            ? { ...classifyTransportFailure('timeout'), evidence: 'opaque', phase: 'unknown' }
+            : classifyTransportFailure(transportError);
+        const fragmentLevel = data.frag?.level;
+        const missingLiveFragment =
+          !env.finiteMode &&
+          data.details === 'fragLoadError' &&
+          data.frag?.type === 'main' &&
+          typeof fragmentLevel === 'number' &&
+          hls.levels[fragmentLevel]?.details?.live === true &&
+          [404, 410].includes(status);
+        env.report({
+          type: 'error',
+          failure: missingLiveFragment
+            ? {
+                ...failure,
+                message:
+                  'A media segment for this live stream was unavailable. Retry or choose another channel.',
+              }
+            : failure,
+        });
+      };
+      const recoverLiveWindow = createHlsLiveWindowRecovery({
+        hls,
+        events: Library.Events,
+        video: env.video,
+        signal: attemptSignal,
+        owners: env.owners,
+        current: () =>
+          !env.disposed &&
+          !env.finiteMode &&
+          !env.desiredPaused &&
+          env.signal === attemptSignal &&
+          env.hls === hls &&
+          qualityReaders.get(env.video) === env.qualityReader,
+        fail: reportHttpFailure,
+        observe: (data) =>
+          recordPlaybackTrace(playbackTraceMode({ selection }), 'recovery', {
+            ...engineFailureFacts('hls', data.details, { code: data.response?.code }),
+            evidence: 'http',
+            liveWindowRecoveries: 1,
+          }),
+      });
       env.hls.on(Library.Events.ERROR, (_event, data) => {
         env.audioHealth.fault(data);
         if (!data.fatal) {
@@ -555,6 +611,7 @@ export function createBrowserEngineStart(env: BrowserEngineStartEnvironment) {
           if (warning) recordPlaybackTrace(playbackTraceMode({ selection }), 'warning', warning);
           return;
         }
+        if (recoverLiveWindow(data)) return;
         recordPlaybackTrace(
           playbackTraceMode({ selection }),
           'error',
@@ -567,18 +624,7 @@ export function createBrowserEngineStart(env: BrowserEngineStartEnvironment) {
           env.unsupported();
         else if (data.type === Library.ErrorTypes.MEDIA_ERROR) env.decodeFailure();
         else {
-          const status = data.response?.code ?? 0;
-          const details = data.networkDetails as unknown;
-          const transportError =
-            details && typeof details === 'object' && 'playbackTransportError' in details
-              ? details.playbackTransportError
-              : data.response?.text;
-          const failure: PlaybackFailure = status
-            ? classifyHttpFailure(status, readRetryAfter(details))
-            : /timeout/i.test(data.details) && !transportError
-              ? { ...classifyTransportFailure('timeout'), evidence: 'opaque', phase: 'unknown' }
-              : classifyTransportFailure(transportError);
-          env.report({ type: 'error', failure });
+          reportHttpFailure(data);
         }
       });
       env.hlsListeners.push(env.owners.acquire('hlsListeners'));

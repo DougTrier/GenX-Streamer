@@ -269,3 +269,55 @@ it('sends CSS bounds at DPR 2 and refreshes them across fullscreen and viewport 
     await page.close();
   }
 });
+
+it('refreshes native bounds when phone pane modes move an unchanged-size picture', async () => {
+  const page = await shell({ width: 1280, height: 720, tv: false });
+  try {
+    await page.addStyleTag({
+      content: `
+      #app[data-phone-portrait='true'] #screen { transform: translateX(13px); }
+      #app[data-phone-portrait='true'][data-phone-view='watch'] #screen { transform: translate(13px, 17px); }
+    `,
+    });
+    await page.evaluate(async () => {
+      const app = document.getElementById('app')!;
+      const screen = document.getElementById('screen')!;
+      const requests: unknown[] = [];
+      const host = Reflect.get(window, 'Fixture').createNativePictureHost(
+        async (request: unknown) => {
+          requests.push(request);
+          return {};
+        },
+        { app, screen, video: document.getElementById('video')! },
+      );
+      const place = () => host.bridge({ action: 'place', session: 1, rect: host.rect() });
+      Reflect.set(window, 'phonePictureRequests', requests);
+      Reflect.set(window, 'stopPhonePictureWatch', host.watchRect(place));
+      await place();
+      await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    });
+    for (const [key, value] of [
+      ['phonePortrait', 'true'],
+      ['phoneView', 'watch'],
+    ]) {
+      const expected = await page.evaluate(
+        ([key, value]) => {
+          document.getElementById('app')!.dataset[key!] = value;
+          const box = document.getElementById('screen')!.getBoundingClientRect();
+          return [box.left, box.top, box.width, box.height];
+        },
+        [key, value],
+      );
+      await page.waitForFunction(
+        (expected) =>
+          Reflect.get(window, 'phonePictureRequests').at(-1)?.rect?.join(',') ===
+          expected.join(','),
+        expected,
+        { timeout: 2000 },
+      );
+    }
+    await page.evaluate(() => Reflect.get(window, 'stopPhonePictureWatch')());
+  } finally {
+    await page.close();
+  }
+});

@@ -162,7 +162,13 @@ pub(crate) async fn guide_refresh_due(
             })
             .await?;
         let fetched = network_owned(
-            input::fetch_conditional(&source.location, source.allow_http, cached.as_ref(), &flag),
+            input::fetch_conditional_for_source(
+                &source.location,
+                source.allow_http,
+                cached.as_ref(),
+                &flag,
+                now,
+            ),
             &context,
             &flag,
         )
@@ -204,8 +210,9 @@ pub(crate) async fn guide_refresh_due(
             }
         };
         let canceled = flag.clone();
+        let input_location = source.location.clone();
         let mut worker = tauri::async_runtime::spawn_blocking(move || {
-            let expanded = input::expand(bytes, &canceled)?;
+            let expanded = input::expand_for_source(bytes, &input_location, now, &canceled)?;
             parser::parse_guide_cancelable(&expanded, &canceled)
         });
         let parsed = loop {

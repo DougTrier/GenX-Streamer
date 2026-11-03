@@ -98,7 +98,7 @@ export function mountEventHistory(container: HTMLElement, host: EventHistoryHost
   }
   function render(page: DiagnosticPage) {
     const fragment = doc.createDocumentFragment();
-    for (const event of page.events) {
+    for (const event of [...page.events].reverse()) {
       const row = doc.createElement('li');
       row.dataset.level = event.level;
       const time = doc.createElement('time');
@@ -169,6 +169,7 @@ export function mountEventHistory(container: HTMLElement, host: EventHistoryHost
       if (!dialog.open) {
         opener = doc.activeElement instanceof HTMLElement ? doc.activeElement : null;
         dialog.showModal();
+        list.scrollTop = 0;
       }
       foreground = true;
       start(false);

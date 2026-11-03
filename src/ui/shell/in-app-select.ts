@@ -297,8 +297,7 @@ export function installInAppSelects(root: HTMLElement): { refresh(): void; dispo
           (record.type === 'attributes' &&
             (record.target instanceof HTMLSelectElement ||
               record.target instanceof HTMLOptionElement ||
-              record.target instanceof HTMLOptGroupElement ||
-              ['hidden', 'open', 'inert'].includes(record.attributeName ?? ''))) ||
+              record.target instanceof HTMLOptGroupElement)) ||
           (record.type === 'childList' &&
             (record.target instanceof HTMLSelectElement ||
               record.target instanceof HTMLOptionElement ||
@@ -312,6 +311,7 @@ export function installInAppSelects(root: HTMLElement): { refresh(): void; dispo
       )
     )
       refresh();
+    else if (opened && !admitted(opened)) close();
   });
   observer.observe(root, {
     subtree: true,

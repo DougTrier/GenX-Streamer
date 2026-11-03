@@ -347,7 +347,7 @@ export function createNativeHlsSession(options: NativeLoaderOptions) {
             );
             return;
           }
-          if (payload.data.length > 8 * 1024 * 1024) {
+          if (payload.data.length > 16 * 1024 * 1024) {
             callbacks.onError({ code: 0, text: 'media-too-large' }, context, details, this.stats);
             return;
           }

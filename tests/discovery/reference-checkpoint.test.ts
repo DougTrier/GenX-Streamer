@@ -116,7 +116,12 @@ it('keeps v1 reads compatible, refuses account sources and preserves age/policy/
   const input = await fixture(),
     ref = await reference(input);
   expect(canResumeScanCheckpoint(ref, 1001, '0', ref.policyFingerprint)).toBe(true);
-  expect(canResumeScanCheckpoint(ref, 86401000, '0', ref.policyFingerprint)).toBe(false);
+  expect(canResumeScanCheckpoint(ref, 1000 + 24 * 60 * 60 * 1000, '0', ref.policyFingerprint)).toBe(
+    true,
+  );
+  expect(
+    canResumeScanCheckpoint(ref, 1000 + 7 * 24 * 60 * 60 * 1000, '0', ref.policyFingerprint),
+  ).toBe(false);
   expect(canResumeScanCheckpoint(ref, 1001, '1', ref.policyFingerprint)).toBe(false);
   expect(canResumeScanCheckpoint(ref, 1001, '0', 'f'.repeat(64))).toBe(false);
   await expect(validateCheckpointSourceAdmission(ref, [], [])).rejects.toThrow();

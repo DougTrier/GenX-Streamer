@@ -35,6 +35,64 @@ pub async fn fetch(url: &str, allow_http: bool, canceled: &AtomicBool) -> Result
     let response = crate::network::response(url, allow_http, None).await?;
     read_body(response, canceled).await
 }
+
+/// Source-aware acquisition shares the same lifecycle owner and request anchor.
+/// Only exact reviewed publisher descriptors dispatch their fixed APIs.
+pub(crate) async fn fetch_for_source(
+    url: &str,
+    allow_http: bool,
+    canceled: &AtomicBool,
+    now: i64,
+) -> Result<Vec<u8>, String> {
+    if super::official_comet::handles(url) {
+        super::official_comet::fetch(now, canceled).await
+    } else if super::official_pbs_kids::handles(url) {
+        super::official_pbs_kids::fetch(now, canceled).await
+    } else {
+        fetch(url, allow_http, canceled).await
+    }
+}
+
+pub(crate) async fn fetch_conditional_for_source(
+    url: &str,
+    allow_http: bool,
+    cached: Option<&super::conditional::CachedValidators>,
+    canceled: &AtomicBool,
+    now: i64,
+) -> Result<ConditionalFetch, String> {
+    if super::official_comet::handles(url) {
+        // The public API supplies no validators. Its requested dates roll daily;
+        // never forward validators captured for a different request window.
+        Ok(ConditionalFetch::Body(
+            super::official_comet::fetch(now, canceled).await?,
+            super::conditional::Validators::default(),
+        ))
+    } else if super::official_pbs_kids::handles(url) {
+        // A fixed date-batched POST has no transferable XMLTV URL validators.
+        Ok(ConditionalFetch::Body(
+            super::official_pbs_kids::fetch(now, canceled).await?,
+            super::conditional::Validators::default(),
+        ))
+    } else {
+        fetch_conditional(url, allow_http, cached, canceled).await
+    }
+}
+
+/// Run on the existing blocking parse worker, before ordinary XMLTV admission.
+pub(crate) fn expand_for_source(
+    bytes: Vec<u8>,
+    url: &str,
+    now: i64,
+    canceled: &AtomicBool,
+) -> Result<Vec<u8>, String> {
+    if super::official_comet::handles(url) {
+        super::official_comet::normalize(&bytes, now, canceled)
+    } else if super::official_pbs_kids::handles(url) {
+        super::official_pbs_kids::normalize(&bytes, now, canceled)
+    } else {
+        expand(bytes, canceled)
+    }
+}
 pub enum ConditionalFetch {
     Body(Vec<u8>, super::conditional::Validators),
     NotModified(super::conditional::Validators),

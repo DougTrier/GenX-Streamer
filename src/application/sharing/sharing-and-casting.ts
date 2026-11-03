@@ -204,7 +204,11 @@ export function createSharingAndCasting(env: SharingAndCastingEnvironment) {
     },
   });
   const playbackAction = (work: Promise<unknown>): void => {
-    void work.catch((error: unknown) => env.notice(env.friendlyError(error)));
+    void work.catch((error: unknown) => {
+      if (env.applicationClosing || (error instanceof DOMException && error.name === 'AbortError'))
+        return;
+      env.notice(env.friendlyError(error));
+    });
   };
   let castingAvailable = !isTauri();
   let televisionSelects: ReturnType<typeof installInAppSelects> | undefined;

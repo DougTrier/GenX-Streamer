@@ -447,6 +447,8 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
           planSportsSearch(search),
           [channel.name, channel.category ?? '', channel.originalCategory ?? ''],
           sportsFacts([channel.name, channel.category ?? '', channel.originalCategory ?? '']),
+          false,
+          filter === 'sports' ? sportsFacet : {},
         )
       : guideSearchMatches(
           search,
@@ -476,6 +478,8 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
         planSportsSearch(search),
         programmeSportsTexts(program, texts),
         programmeSportsFacts(program, sportsFacts(texts)),
+        false,
+        filter === 'sports' ? sportsFacet : {},
       );
     }
     return guideSearchMatches(
@@ -504,7 +508,7 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
       const facts = sportsFacts(texts);
       return (
         matchesSportsFacet(facts, sportsFacet) &&
-        matchesSportsSearch(planSportsSearch(search), texts, facts, marked)
+        matchesSportsSearch(planSportsSearch(search), texts, facts, marked, sportsFacet)
       );
     }
     if (!listedCache?.grouped)

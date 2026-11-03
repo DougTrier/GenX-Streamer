@@ -24,6 +24,7 @@ import type {
 import type { ScanReview } from '../../discovery/scan';
 import {
   MAX_SCAN_CHECKPOINT_BYTES,
+  SCAN_CHECKPOINT_MAX_AGE_MS,
   isScanReconstructionFailureCode,
   ScanReconstructionError,
 } from '../../discovery/scan-checkpoint';
@@ -349,7 +350,7 @@ export function createScanCheckpointProgressCapture(options: ScanCheckpointProgr
             candidate.fingerprint !== observation.fingerprint ||
             observation.platform !== input.platform ||
             observation.observedAt < input.createdAtMs ||
-            observation.observedAt - input.createdAtMs >= 86400000
+            observation.observedAt - input.createdAtMs >= SCAN_CHECKPOINT_MAX_AGE_MS
           )
             throw refuse();
           newObservations.push(observation);

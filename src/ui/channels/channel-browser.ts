@@ -691,6 +691,13 @@ export class ChannelBrowser {
   ): void {
     this.all = channels;
     if (emptyReason !== undefined) this.emptyReason = emptyReason;
+    if (this.indexedHost?.ready?.() === false) {
+      // A suspended native catalog will render again when its owner admits browsing.
+      // Do not index the entire retained library on the UI thread while waiting.
+      this.favorites = new Set(favorites);
+      this.selected = selected;
+      return;
+    }
     if (this.useIndexed()) {
       this.favorites = new Set(favorites);
       this.selected = selected;
@@ -940,7 +947,9 @@ export class ChannelBrowser {
           )
             return false;
         }
-        return cached?.normal ?? (literal || matchesSportsSearch(plan, texts, facts));
+        if (plan.specific)
+          return cached?.semantic ?? matchesSportsSearch(plan, texts, facts, false, facet);
+        return cached?.normal ?? (literal || matchesSportsSearch(plan, texts, facts, false, facet));
       };
       const texts = [
         ...metadata.sportsTexts,
@@ -957,7 +966,6 @@ export class ChannelBrowser {
           query: this.query,
           normal: literal || matchesSportsSearch(plan, texts, metadata.sportsFacts),
           semantic:
-            metadata.ppv &&
             plan.semantic.length > 0 &&
             matchesSportsSearch(plan, texts, metadata.sportsFacts, true),
         };
@@ -1120,15 +1128,17 @@ export class ChannelBrowser {
                 ? 'Channels could not be loaded. Try another filter or refresh.'
                 : this.filter === 'watched'
                   ? 'No watched channels here. Play a channel, or change the search or location filter.'
-                  : this.all.length
-                    ? 'No channels here. Try another filter or search.'
-                    : {
-                        'no-sources': 'Select the search icon to find channels.',
-                        'empty-sources':
-                          'Your saved sources contain no channels. Update or replace a source in Settings.',
-                        'removed-channels':
-                          'All saved channels are removed. Restore removed channels in Settings.',
-                      }[this.emptyReason];
+                  : this.query
+                    ? 'No matching channels or saved guide listings. Programme matches need a connected guide.'
+                    : this.all.length
+                      ? 'No channels here. Try another filter or search.'
+                      : {
+                          'no-sources': 'Select the search icon to find channels.',
+                          'empty-sources':
+                            'Your saved sources contain no channels. Update or replace a source in Settings.',
+                          'removed-channels':
+                            'All saved channels are removed. Restore removed channels in Settings.',
+                        }[this.emptyReason];
     if (empty.textContent !== emptyText) empty.textContent = emptyText;
   }
   setGuideRows(rows: readonly ChannelGuideRow[]): void {

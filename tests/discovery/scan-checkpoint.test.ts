@@ -104,11 +104,13 @@ it.each([
   if (kind === 'raw-error') Reflect.set(c.review.sources[0], 'error', 'sentinel');
   await expect(validateScanCheckpoint(c)).rejects.toThrow();
 });
-it('requires fresh exact revision and configuration to resume, with a 24-hour expiry', async () => {
+it('requires fresh exact revision and configuration to resume, with a seven-day expiry', async () => {
   const c = await checkpointFixture();
   expect(canResumeScanCheckpoint(c, 1000, '0', c.policyFingerprint)).toBe(true);
   expect(canResumeScanCheckpoint(c, 999, '0', c.policyFingerprint)).toBe(false);
-  expect(canResumeScanCheckpoint(c, 1000 + 86400000, '0', c.policyFingerprint)).toBe(false);
+  const week = 7 * 24 * 60 * 60 * 1000;
+  expect(canResumeScanCheckpoint(c, 1000 + week - 1, '0', c.policyFingerprint)).toBe(true);
+  expect(canResumeScanCheckpoint(c, 1000 + week, '0', c.policyFingerprint)).toBe(false);
   expect(canResumeScanCheckpoint(c, 1000, '1', c.policyFingerprint)).toBe(false);
   expect(canResumeScanCheckpoint(c, 1000, '0', 'other')).toBe(false);
   expect(

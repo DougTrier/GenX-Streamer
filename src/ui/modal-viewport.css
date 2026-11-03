@@ -92,3 +92,33 @@ html.viewport-keyboard-open
 html.viewport-keyboard-open dialog[open][data-scan-state='start'] .scan-body {
   flex: 0 1 auto;
 }
+
+/* Advanced Guide setup can have more fixed controls than the IME leaves room
+   for. Let the complete form scroll, instead of collapsing its body beneath
+   the header and feedback. The primary programme grid keeps its own layout. */
+html.viewport-keyboard-open .guide-dialog[data-guide-owner='app'][open]:not([data-primary-page]) {
+  display: block;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-padding-block: 12px;
+}
+html.viewport-keyboard-open
+  .guide-dialog[data-guide-owner='app'][open]:not([data-primary-page])
+  .guide-body {
+  display: block;
+  height: auto;
+  flex: none;
+  overflow: visible;
+}
+html.viewport-keyboard-open
+  .guide-dialog[data-guide-owner='app'][open]:not([data-primary-page])
+  .guide-body
+  > .guide-panel {
+  overflow: visible;
+}
+html.viewport-keyboard-open
+  .guide-dialog[data-guide-owner='app'][open]:not([data-primary-page])
+  .guide-feedback {
+  max-height: none;
+  overflow: visible;
+}

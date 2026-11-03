@@ -353,7 +353,7 @@ export class ScanSourcesChanged extends Error {
 export class ScanCheckpointExpired extends Error {
   constructor() {
     super(
-      'This saved scan is outside its 24-hour resume window. Choose Rescan; saved channels are kept.',
+      'This saved scan is outside its 7-day resume window. Choose Rescan; saved channels are kept.',
     );
   }
 }

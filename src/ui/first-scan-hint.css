@@ -15,7 +15,8 @@
  */
 
 /* First Free TV scan: the magnifier glows and a callout says where to start. */
-#search-programs.first-scan {
+#search-programs.first-scan,
+#phone-filter-button.first-scan {
   border-color: var(--gx-magenta, #f563c1);
   box-shadow:
     0 0 0 2px #ff36b4,
@@ -35,7 +36,8 @@
   }
 }
 @media (prefers-reduced-motion: reduce) {
-  #search-programs.first-scan {
+  #search-programs.first-scan,
+  #phone-filter-button.first-scan {
     animation: none;
   }
 }
@@ -66,6 +68,9 @@
   border-left: 1px solid #ff36b4;
   border-top: 1px solid #ff36b4;
   transform: rotate(45deg);
+}
+.first-scan-callout-phone::before {
+  display: none;
 }
 .first-scan-callout strong {
   color: #fff0fc;

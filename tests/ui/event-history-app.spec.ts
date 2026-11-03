@@ -35,6 +35,8 @@ for (const viewport of [
     const history = page.getByRole('dialog', { name: 'Event history', exact: true });
     const status = history.getByRole('status');
     await expect(history).toBeVisible();
+    const title = history.getByRole('heading', { name: 'Event history', exact: true });
+    expect(await title.evaluate((node) => node.scrollWidth <= node.clientWidth)).toBe(true);
     await expect(status).toHaveText('Event history could not be read. Retry Refresh.');
     await expect(history.getByRole('list', { name: 'Recent events' }).locator('li')).toHaveCount(0);
     await expect(history).not.toContainText(/https?:\/\/|plugin:|invoke|undefined|TypeError/);

@@ -1,0 +1,863 @@
+/* Copyright 2026 Doug Trier. SPDX-License-Identifier: Apache-2.0 */
+.phone-browse-bar,
+.phone-watch-row {
+  display: none;
+}
+
+/* A phone is a browsing surface first. Watch is an explicit, reversible pane;
+   filters have their own bounded sheet instead of displacing the channel list. */
+@media (max-width: 650px), (min-width: 500px) and (max-width: 1100px) and (max-height: 540px) {
+  #app[data-phone-portrait='true']:not(.viewing-fullscreen) .topbar {
+    display: flex;
+    flex: 0 0 auto;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    height: auto;
+    min-height: 0;
+    padding: 4px 6px;
+  }
+  #app[data-phone-portrait='true']:not(.viewing-fullscreen) .brand {
+    display: flex;
+    height: 24px;
+    min-height: 24px;
+    justify-content: center;
+  }
+  #app[data-phone-portrait='true'] .brand > img,
+  #app[data-phone-portrait='true'] .brand-copy,
+  #app[data-phone-portrait='true'] .header-callout,
+  #app[data-phone-portrait='true'] #compact-view {
+    display: none;
+  }
+  #app[data-phone-portrait='true'] .brand-lockup,
+  #app[data-phone-portrait='true'] .brand-wordmark {
+    display: block;
+    width: auto;
+    height: 24px;
+    max-width: 150px;
+    object-fit: contain;
+  }
+  #app[data-phone-portrait='true']:not(.viewing-fullscreen) .top-actions {
+    display: flex;
+    flex-wrap: nowrap;
+    width: 100%;
+    gap: 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  #app[data-phone-portrait='true']:not(.viewing-fullscreen)
+    .top-actions
+    > :is(
+      #live-tv-button,
+      #paid-tv-button,
+      #genxtra-button,
+      #local-button,
+      #cast-button,
+      #settings-button
+    ) {
+    flex: 1 1 0 !important;
+    width: auto !important;
+    height: 44px !important;
+    min-height: 44px !important;
+    min-width: 44px !important;
+    padding: 4px !important;
+    background: var(--gx-glass-fill, #152036) !important;
+    border: 1px solid var(--line, #536779) !important;
+    border-radius: 8px !important;
+    color: var(--text, #eef6ff) !important;
+    font:
+      600 14px 'GenX UI',
+      sans-serif !important;
+    white-space: nowrap;
+    text-indent: 0;
+    aspect-ratio: auto;
+  }
+  #app[data-phone-portrait='true'] #genxtra-button .genxtra-badge {
+    display: none;
+  }
+  #app[data-phone-portrait='true'] #genxtra-button .genxtra-label {
+    display: inline;
+    position: static;
+    width: auto;
+    height: auto;
+    clip-path: none;
+    overflow: visible;
+  }
+  #app[data-phone-portrait='true'] #local-button::after {
+    content: 'Web';
+  }
+  #app[data-phone-portrait='true']:not(.viewing-fullscreen):not(.expanded) .workspace {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+  #app[data-phone-portrait='true'] #divider {
+    display: none;
+  }
+  #app[data-phone-portrait='true']:not(.viewing-fullscreen):not(.expanded) .browser {
+    display: flex;
+    flex: 1 1 0;
+    height: auto;
+    min-height: 0;
+    padding: 6px;
+    gap: 6px;
+    overflow: hidden;
+  }
+  #app[data-phone-portrait='true'] .workspace > .browser > .browse-options,
+  #app[data-phone-portrait='true'] .workspace > .browser > .search-controls,
+  #app[data-phone-portrait='true'] .workspace > .browser > .sidefoot,
+  #app[data-phone-portrait='true'] .workspace > .browser > #genxtra-browse-filters {
+    display: none;
+  }
+  #app[data-phone-portrait='true'] .search-controls {
+    flex: 0 0 auto;
+    margin: 0;
+  }
+  #app[data-phone-portrait='true'] .search-controls #search {
+    min-height: 44px;
+    font-size: 16px;
+  }
+  #app[data-phone-portrait='true'] .phone-browse-bar {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+    gap: 6px;
+    min-width: 0;
+  }
+  #app[data-phone-portrait='true'] .phone-browse-bar > button {
+    flex: 0 0 auto;
+    min-width: 56px;
+    min-height: 44px;
+    padding: 4px 8px;
+    font-size: 15px;
+  }
+  #app[data-phone-portrait='true'] #phone-filter-summary {
+    flex: 1 1 0;
+    min-width: 0;
+    font-size: 13px;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
+    text-align: left;
+  }
+  #app[data-phone-portrait='true'] .phone-browse-bar > #phone-filter-button {
+    flex: 1 1 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
+  }
+  #app[data-phone-portrait='true'] #phone-filter-button > span:first-child {
+    flex: 0 0 84px;
+    white-space: normal;
+    text-align: left;
+  }
+  #app[data-phone-portrait='true'] .browser > .channel-list {
+    flex: 1 1 0;
+    height: auto;
+    min-height: min(260px, max(160px, 2 * var(--channel-row-height, 80px)));
+    overflow: auto;
+  }
+  #app[data-phone-portrait='true']
+    .browser:has(> #inline-source-scan:not([hidden]))
+    > .channel-list {
+    min-height: 0;
+  }
+  #app[data-phone-portrait='true']:not(.viewing-fullscreen):not(.expanded) .view {
+    position: relative;
+    display: block;
+    flex: 0 0 60px;
+    height: 60px;
+    min-height: 0;
+    padding: 0 6px;
+    overflow: hidden;
+  }
+  #app[data-phone-portrait='true'] .phone-watch-row {
+    display: flex;
+    height: 60px;
+    align-items: center;
+    gap: 4px;
+    padding-left: 102px;
+  }
+  #app[data-phone-portrait='true'] .phone-watch-row > button {
+    flex: 1 1 auto;
+    min-width: 44px;
+    min-height: 44px;
+    padding: 4px 6px;
+    font-size: 15px;
+  }
+  #app[data-phone-portrait='true'][data-phone-view='browse']:not(.viewing-fullscreen):not(.expanded)
+    #phone-browse-button,
+  #app[data-phone-portrait='true'][data-phone-view='watch'] #phone-watch-button {
+    display: none;
+  }
+  #app[data-phone-portrait='true'][data-phone-view='browse']:not(.viewing-fullscreen):not(.expanded)
+    .watch-card {
+    position: absolute;
+    left: 6px;
+    top: 3px;
+    display: block;
+    width: 96px;
+    height: 54px;
+    min-height: 0;
+    padding: 0;
+  }
+  #app[data-phone-portrait='true'][data-phone-view='browse']:not(.viewing-fullscreen):not(.expanded)
+    .watch-card
+    .screen {
+    width: 96px;
+    height: 54px !important;
+    min-height: 0;
+    aspect-ratio: 16 / 9;
+  }
+  #app[data-phone-portrait='true'][data-phone-view='browse']:not(.viewing-fullscreen):not(.expanded)
+    .watch-card
+    > :not(.screen),
+  #app[data-phone-portrait='true'][data-phone-view='browse']:not(.viewing-fullscreen):not(.expanded)
+    .picture-note {
+    display: none;
+  }
+  /* The short-screen live layout gives this dock a stronger display rule.
+     Browse owns only its preview and proxy controls, so the original dock
+     must not paint over or intercept Watch/Pause below the preview. */
+  #app[data-phone-portrait='true'][data-phone-view='browse']:not([data-guide-panel='open']):not(
+      .viewing-fullscreen
+    ):not(.expanded)
+    .workspace
+    > .view
+    > .watch-card
+    > .dock {
+    display: none;
+  }
+  /* The artwork scales Retry down with the 96px thumbnail. Watch owns the
+     full error picture and its usable Retry; Browse exposes only Watch. */
+  #app[data-phone-portrait='true'][data-phone-view='browse']:not([data-guide-panel='open']):not(
+      .viewing-fullscreen
+    ):not(.expanded)
+    #retry-button {
+    display: none;
+  }
+  #app[data-phone-portrait='true'][data-phone-view='watch']:not([data-guide-panel='open']):not(
+      .viewing-fullscreen
+    ):not(.expanded)
+    #player-overlay[data-art='failed']
+    #retry-button {
+    min-width: 44px !important;
+    min-height: 44px !important;
+    z-index: 2;
+    /* Keep the enlarged hit target centered on the artwork's Retry label. */
+    top: 82.9%;
+    translate: 0 -50%;
+  }
+  #app[data-phone-portrait='true'][data-player-idle='true'][data-phone-view='browse']:not(
+      .viewing-fullscreen
+    ):not(.expanded)
+    .view {
+    flex-basis: 44px;
+    height: 44px;
+  }
+  #app[data-phone-portrait='true'][data-player-idle='true'][data-phone-view='browse']:not(
+      .viewing-fullscreen
+    ):not(.expanded)
+    .watch-card,
+  #app[data-phone-portrait='true'][data-player-idle='true']
+    :is(#phone-pause-button, #phone-stop-button) {
+    display: none;
+  }
+  #app[data-phone-portrait='true'][data-player-idle='true'] .phone-watch-row {
+    height: 44px;
+    padding-left: 0;
+  }
+  #app[data-phone-portrait='true'][data-phone-view='watch']:not(.viewing-fullscreen) .browser {
+    display: none;
+  }
+  #app[data-phone-portrait='true'][data-phone-view='watch']:not(.viewing-fullscreen) .view {
+    display: flex;
+    flex: 1 1 0;
+    height: auto;
+    flex-direction: column;
+  }
+  #app[data-phone-portrait='true'][data-phone-view='watch'] .phone-watch-row {
+    flex: 0 0 44px;
+    height: 44px;
+    padding: 0;
+  }
+  #app[data-phone-portrait='true'][data-phone-view='watch']
+    :is(#phone-pause-button, #phone-stop-button) {
+    display: none;
+  }
+  #app[data-phone-portrait='true'][data-phone-view='watch'] .watch-card {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    min-height: 0;
+  }
+  #app[data-phone-portrait='true'][data-phone-view='watch'] .watchhead {
+    display: none;
+  }
+  #app[data-phone-portrait='true'][data-phone-view='watch'] .watch-card .screen {
+    flex: 1 1 0;
+    height: auto;
+    min-height: 0;
+  }
+  #app[data-phone-portrait='true'][data-phone-view='watch']:not(.viewing-fullscreen) .dock {
+    flex: 0 0 auto;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    max-width: 100%;
+    padding: 4px 0;
+    gap: 2px;
+    overflow-x: auto;
+  }
+  #app[data-phone-portrait='true'][data-phone-view='watch']:not(.viewing-fullscreen)
+    .dock
+    :is(.controls, .secondary-controls) {
+    display: contents;
+  }
+  #app[data-phone-portrait='true'][data-phone-view='watch']:not(.viewing-fullscreen) .dock button {
+    flex: 0 0 auto;
+    min-width: 44px;
+    min-height: 44px;
+  }
+  #app[data-phone-portrait='true'][data-phone-view='watch']:not(.viewing-fullscreen)
+    .dock
+    :is(#video-quality, #audio-tracks) {
+    flex: 0 0 auto;
+  }
+  #app[data-phone-portrait='true'][data-phone-view='watch']:not(.viewing-fullscreen)
+    .dock
+    .video-quality-button {
+    width: auto;
+    padding-inline: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+  }
+  #app[data-phone-portrait='true'][data-phone-view='watch']:not(.viewing-fullscreen)
+    .workspace
+    > .view
+    > .watch-card
+    > .dock
+    > .controls
+    > button {
+    font-size: 0;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  #app[data-phone-portrait='true'][data-phone-view='watch']:not(.viewing-fullscreen)
+    .workspace
+    > .view
+    > .watch-card
+    > .dock
+    > .controls
+    > #vod-stop {
+    font-size: 12px;
+  }
+  #app[data-phone-portrait='true'][data-phone-view='watch']:not(.viewing-fullscreen)
+    :is(#playback-status, .volume-label, .channel-actions) {
+    display: none;
+  }
+  #app[data-phone-portrait='true']:not(.viewing-fullscreen) .app-signoff.stream-buffer-footer {
+    padding: 0 6px;
+    min-height: 26px;
+  }
+  #app[data-phone-portrait='true'] .stream-buffer-footer .stream-buffer-controls button {
+    min-width: 44px;
+    min-height: 44px;
+    padding-block: 0;
+  }
+  #app[data-phone-portrait='true'] .stream-buffer-meter {
+    min-width: 0;
+  }
+  #app[data-phone-portrait='true']
+    :is(.stream-buffer-footer, .stream-buffer-fullscreen)
+    .stream-buffer-meter {
+    padding: 1px 4px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  #app[data-phone-portrait='true']
+    :is(.stream-buffer-footer, .stream-buffer-fullscreen)
+    .stream-buffer-readout {
+    font-size: 11px;
+    white-space: inherit;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #app[data-phone-portrait='true'].viewing-fullscreen .workspace > .view .dock {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(64px, 1fr));
+    align-items: stretch;
+    gap: 4px;
+    padding: 6px;
+    max-height: 50%;
+  }
+  #app[data-phone-portrait='true'].viewing-fullscreen
+    .dock
+    :is(.controls, .secondary-controls, .channel-actions) {
+    display: contents;
+  }
+  #app[data-phone-portrait='true'].viewing-fullscreen .dock .volume-label {
+    display: none;
+  }
+  #app[data-phone-portrait='true'].viewing-fullscreen
+    .workspace
+    > .view
+    .dock
+    :is(.controls, .secondary-controls, .channel-actions)
+    button {
+    width: 100%;
+    min-width: 0;
+    min-height: 44px;
+    height: 100%;
+    padding: 3px;
+    font-size: 12px !important;
+    line-height: 1.15;
+    white-space: normal;
+  }
+  #app[data-phone-portrait='true'].viewing-fullscreen .dock :is(#audio-tracks, #video-quality) {
+    width: auto;
+    min-width: 0;
+  }
+  #app[data-phone-portrait='true'].viewing-fullscreen
+    .workspace
+    > .view
+    .dock
+    .controls
+    > #replay-button::before {
+    display: none;
+  }
+  #app[data-phone-portrait='true'].viewing-fullscreen .dock > .vod-transport {
+    grid-column: 1 / -1;
+  }
+  #app[data-phone-portrait='true'].viewing-fullscreen
+    .workspace
+    > .view
+    .dock
+    .stream-buffer-fullscreen {
+    grid-column: 1 / -1;
+    width: 100%;
+    margin: 0;
+  }
+  #app[data-phone-portrait='true'].viewing-fullscreen
+    .stream-buffer-fullscreen
+    .stream-buffer-meter {
+    min-height: 24px;
+  }
+  #app[data-phone-portrait='true'].viewing-fullscreen
+    .workspace
+    > .view
+    .dock
+    .stream-buffer-fullscreen
+    button {
+    min-height: 44px;
+    height: auto;
+    padding-block: 0;
+  }
+  #app[data-phone-portrait='true'] #phone-filter-dialog {
+    width: calc(100% - 20px);
+    max-width: 520px;
+    max-height: calc(var(--modal-visible-viewport-height, 100dvh) - 24px);
+    padding: 12px;
+    overflow: hidden;
+  }
+  #app[data-phone-portrait='true'] #phone-filter-dialog[open] {
+    display: flex;
+    flex-direction: column;
+  }
+  #app[data-phone-portrait='true'] .phone-filter-body {
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+  #app[data-phone-portrait='true'] .phone-search-help {
+    margin: 0 0 12px;
+    font-size: 14px;
+    line-height: 1.35;
+    color: var(--muted);
+  }
+  #app[data-phone-portrait='true'] #phone-filter-dialog .browse-options {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    margin: 0;
+  }
+  #app[data-phone-portrait='true'] #phone-filter-dialog .search-controls {
+    display: flex;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+    gap: 6px;
+  }
+  #app[data-phone-portrait='true'] #phone-filter-dialog #search {
+    min-width: 0;
+    min-height: 44px;
+    flex: 1 1 180px;
+  }
+  #app[data-phone-portrait='true'][data-content-library='genxtra']
+    #phone-filter-dialog
+    .browse-options {
+    display: none;
+  }
+  #app[data-phone-portrait='true'] #phone-filter-dialog #genxtra-browse-filters:not([hidden]) {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  #app[data-phone-portrait='true']
+    #phone-filter-dialog
+    :is(.filters, #category-button, #channel-count) {
+    display: none;
+  }
+  #app[data-phone-portrait='true'] #phone-filter-dialog #compact-filter {
+    display: block;
+    width: 100%;
+    min-height: 44px;
+    font: inherit;
+    color: inherit;
+    background: var(--panel);
+  }
+  #app[data-phone-portrait='true'] #phone-filter-dialog .sidehead {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin: 0;
+  }
+  #app[data-phone-portrait='true'] #phone-filter-dialog :is(button, summary, select) {
+    min-height: 44px;
+    min-width: 44px;
+    font-size: 16px;
+  }
+  #app[data-phone-portrait='true'] #phone-filter-dialog #search-programs {
+    font-size: 0;
+    overflow: hidden;
+  }
+  #app[data-phone-portrait='true'] #phone-filter-dialog .sidefoot {
+    display: flex;
+    flex-wrap: wrap;
+    margin-top: 12px;
+  }
+  #app[data-phone-portrait='true'][data-guide-panel='open']
+    :is(.phone-watch-row, .phone-browse-bar) {
+    display: none;
+  }
+  #app[data-phone-portrait='true'][data-guide-panel='open'] .browser,
+  #app[data-phone-portrait='true'][data-guide-panel='open'] .watch-card {
+    display: none;
+  }
+  #app[data-phone-portrait='true'][data-guide-panel='open'] .view {
+    display: flex;
+    flex: 1 1 0;
+    height: auto;
+    min-height: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+  #app[data-phone-portrait='true'].keyboard-open .phone-browse-bar,
+  #app[data-phone-portrait='true'].viewing-fullscreen .phone-watch-row {
+    display: none;
+  }
+  #app[data-phone-portrait='true'].keyboard-open:not(.viewing-fullscreen) .view {
+    display: none;
+  }
+  #app[data-phone-portrait='true'].keyboard-open:not(.viewing-fullscreen) .browser {
+    display: flex;
+  }
+  #app[data-phone-portrait='true'].keyboard-open .browser > .channel-list {
+    min-height: 0;
+  }
+  #app[data-phone-portrait='true'].keyboard-open:not(.viewing-fullscreen) .workspace {
+    display: flex;
+    flex-direction: column;
+  }
+  #app[data-phone-portrait='true'][data-content-library='genxtra']:not(.viewing-fullscreen)
+    .view:has(#archive-details:not([hidden])[data-playback-active='false']) {
+    flex: 0 1 auto;
+    height: auto;
+    max-height: 42dvh;
+    overflow: auto;
+  }
+  #app[data-phone-portrait='true'][data-content-library='genxtra'][data-player-idle='true']
+    .view:has(#archive-details:not([hidden]))
+    .phone-watch-row {
+    display: none;
+  }
+}
+
+/* The on-demand gallery occupies the viewing stage, not the tiny live preview. */
+@media (max-width: 650px), (min-width: 500px) and (max-width: 1100px) and (max-height: 540px) {
+  #app[data-phone-portrait='true'][data-vod='open'][data-vod-browsing='true']:not(
+      .viewing-fullscreen
+    )
+    .browser {
+    flex: 0 0 auto;
+    max-height: 164px;
+    overflow: auto;
+  }
+  #app[data-phone-portrait='true'][data-vod='open'] .account-vod {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-content: start;
+    gap: 6px;
+  }
+  #app[data-phone-portrait='true'][data-vod='open'] .vod-channels {
+    grid-column: 1;
+    grid-row: 1;
+    padding: 4px 8px;
+  }
+  #app[data-phone-portrait='true'][data-vod='open'] .vod-sections {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  #app[data-phone-portrait='true'][data-vod='open'] #vod-filter {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  #app[data-phone-portrait='true'][data-vod='open'] :is(.vod-categories, .vod-state, .vod-reopen) {
+    grid-column: 1 / -1;
+  }
+  #app[data-phone-portrait='true'][data-vod='open'] .vod-categories {
+    flex-direction: row;
+    flex: 0 0 auto;
+    overflow-x: auto;
+    padding: 0;
+  }
+  #app[data-phone-portrait='true'][data-vod='open'] .account-vod :is(button, input) {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  #app[data-phone-portrait='true'][data-vod='open'][data-vod-browsing='true']:not(
+      .viewing-fullscreen
+    ):not(.expanded)
+    .view {
+    display: flex;
+    flex: 1 1 0;
+    height: auto;
+  }
+  #app[data-phone-portrait='true'][data-vod-browsing='true'] .phone-watch-row {
+    display: none;
+  }
+  #app[data-phone-portrait='true'][data-vod='open'][data-vod-browsing='true']:not(
+      .viewing-fullscreen
+    ):not(.expanded)
+    .view
+    .watch-card {
+    position: relative;
+    display: flex;
+    left: auto;
+    top: auto;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    flex: 1 1 0;
+  }
+  #app[data-phone-portrait='true'][data-vod='open'][data-vod-browsing='true']:not(
+      .viewing-fullscreen
+    ):not(.expanded)
+    .view
+    .screen {
+    width: 100%;
+    height: 100% !important;
+    aspect-ratio: auto;
+  }
+  #app[data-phone-portrait='true'] .vod-gallery {
+    padding: 8px;
+  }
+  #app[data-phone-portrait='true'] .vod-banner {
+    max-height: 44%;
+    overflow: auto;
+    padding: 6px;
+  }
+  #app[data-phone-portrait='true'] .vod-banner-art {
+    width: 52px;
+  }
+  #app[data-phone-portrait='true'] .vod-banner :is(button, select) {
+    min-height: 44px;
+  }
+}
+
+/* Short handhelds use the width for channels, rather than stacking the same
+   controls above a viewport that only appears to contain two rows. */
+@media (min-width: 500px) and (max-width: 1100px) and (max-height: 540px) {
+  #app[data-phone-portrait='true']:not(.viewing-fullscreen) .topbar {
+    flex-direction: row;
+    align-items: center;
+    height: 44px;
+    min-height: 44px;
+    padding-block: 0;
+    border-block: 0;
+    gap: 8px;
+  }
+  #app[data-phone-portrait='true']:not(.viewing-fullscreen) .brand {
+    flex: 0 0 88px;
+  }
+  #app[data-phone-portrait='true'] :is(.brand-lockup, .brand-wordmark) {
+    max-width: 100%;
+  }
+  #app[data-phone-portrait='true']:not(.viewing-fullscreen) .top-actions {
+    flex: 1 1 0;
+    width: auto;
+  }
+  #app[data-phone-portrait='true'][data-phone-view='browse']:not(.viewing-fullscreen):not(.expanded)
+    .workspace {
+    display: grid;
+    grid-template-columns: 112px minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+  }
+  #app[data-phone-portrait='true'][data-phone-view='browse']:not(.viewing-fullscreen):not(.expanded)
+    .view {
+    grid-column: 1;
+    grid-row: 1;
+    height: 100%;
+    min-height: 0;
+    padding: 0 6px;
+  }
+  #app[data-phone-portrait='true'][data-phone-view='browse']:not(.viewing-fullscreen):not(.expanded)
+    .browser {
+    grid-column: 2;
+    grid-row: 1;
+    min-height: 0;
+    height: 100%;
+    display: grid;
+    grid-template-columns: minmax(150px, 1fr) minmax(180px, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    padding: 4px;
+    gap: 4px;
+  }
+  #app[data-phone-portrait='true'] .browser > .search-controls {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+  }
+  #app[data-phone-portrait='true'] .browser > .phone-browse-bar {
+    grid-column: 1 / -1;
+    grid-row: 1;
+  }
+  #app[data-phone-portrait='true'] .browser > .channel-list {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  #app[data-phone-portrait='true'][data-phone-view='browse']:not(.viewing-fullscreen):not(.expanded)
+    .browser:has(> #inline-source-scan:not([hidden])) {
+    grid-template-rows: auto auto minmax(0, 1fr);
+  }
+  #app[data-phone-portrait='true'] .browser > #inline-source-scan {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  #app[data-phone-portrait='true']
+    .browser:has(> #inline-source-scan:not([hidden]))
+    > .channel-list {
+    grid-row: 3;
+  }
+  #app[data-phone-portrait='true'][data-phone-view='browse'] .phone-watch-row {
+    height: auto;
+    padding: 64px 0 0;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  #app[data-phone-portrait='true'][data-player-idle='true'][data-phone-view='browse']
+    .phone-watch-row {
+    padding-top: 0;
+  }
+  #app[data-phone-portrait='true'][data-phone-view='browse'] .phone-watch-row > button {
+    flex: 0 0 44px;
+  }
+  #app[data-phone-portrait='true'][data-phone-view='watch'] .phone-watch-row {
+    height: 44px;
+    flex-direction: row;
+    padding: 0;
+  }
+  #app[data-phone-portrait='true'][data-vod='open'][data-vod-browsing='true']:not(
+      .viewing-fullscreen
+    )
+    .workspace {
+    display: grid;
+    grid-template-columns: 180px minmax(0, 1fr);
+  }
+  #app[data-phone-portrait='true'][data-vod='open'][data-vod-browsing='true']:not(
+      .viewing-fullscreen
+    )
+    .browser {
+    grid-column: 1;
+    display: flex;
+    max-height: none;
+    height: 100%;
+    overflow: auto;
+  }
+  #app[data-phone-portrait='true'][data-vod='open'][data-vod-browsing='true']:not(
+      .viewing-fullscreen
+    )
+    .view {
+    grid-column: 2;
+    height: 100%;
+  }
+  #app[data-phone-portrait='true'][data-vod='open'] .account-vod {
+    display: flex;
+  }
+  #app[data-phone-portrait='true'][data-vod='open'] .vod-categories {
+    flex-direction: column;
+  }
+}
+
+/* Very narrow landscape phones choose a useful pane, not a clipped split.
+   Watch retains the real player/meter; Back returns to the full-width results. */
+@media (min-width: 500px) and (max-width: 650px) and (max-height: 540px) {
+  #app[data-phone-portrait='true'][data-phone-view='browse']:not(.viewing-fullscreen):not(
+      .expanded
+    ):not([data-vod-browsing='true'])
+    .workspace {
+    display: flex;
+    flex-direction: column;
+  }
+  #app[data-phone-portrait='true'][data-phone-view='browse']:not(.viewing-fullscreen):not(
+      [data-vod-browsing='true']
+    )
+    .browser {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+  #app[data-phone-portrait='true'][data-phone-view='browse']:not(.viewing-fullscreen):not(
+      [data-vod-browsing='true']
+    ):not([data-guide-panel='open'])
+    .view:not(:has(#archive-details:not([hidden]))),
+  #app[data-phone-portrait='true'][data-phone-view='browse']:not(.viewing-fullscreen)
+    .app-signoff.stream-buffer-footer {
+    display: none !important;
+  }
+  #app[data-phone-portrait='true'][data-phone-view='browse']
+    .browser
+    > .phone-browse-bar
+    > .phone-watch-row {
+    display: contents;
+  }
+  #app[data-phone-portrait='true'][data-phone-view='browse']
+    .phone-watch-row
+    > :is(#phone-pause-button, #phone-stop-button) {
+    display: none;
+  }
+  #app[data-phone-portrait='true'][data-guide-panel='open']:not(.viewing-fullscreen) .view {
+    display: flex !important;
+    flex: 1 1 0 !important;
+    height: 100% !important;
+    width: 100%;
+  }
+}
+
+/* Short handheld Watch hides the legacy pseudo-icons. Retain real labels
+   there; narrower phones still paint their compact playback glyphs. */
+@media (min-width: 651px) and (max-width: 1100px) {
+  #app[data-phone-portrait='true'][data-phone-view='watch']:not([data-guide-panel='open']):not(
+      .viewing-fullscreen
+    )
+    .workspace
+    > .view
+    > .watch-card
+    > .dock
+    > .controls
+    > button {
+    font-size: 14px;
+    width: max-content;
+    padding-inline: 8px;
+  }
+}

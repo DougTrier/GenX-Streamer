@@ -41,7 +41,14 @@ export function createAdaptiveBuffer(
   const floor = FLOOR[profile] ?? FLOOR.balanced;
   let target = Math.min(ADAPTIVE_MAX_SECONDS, Math.max(floor, learned));
   let preference = normalizeLiveBufferPreference(initial) ?? { mode: 'auto' as const };
+  let revision = 0;
   const round = (value: number) => Math.round(value * 10) / 10;
+  const stalled = (): number => {
+    if (preference.mode === 'manual') return preference.targetSeconds;
+    target = round(Math.min(ADAPTIVE_MAX_SECONDS, Math.max(target * RAISE, target + 2)));
+    revision++;
+    return target;
+  };
   return {
     get target(): number {
       return preference.mode === 'manual' ? preference.targetSeconds : target;
@@ -53,14 +60,28 @@ export function createAdaptiveBuffer(
       const next = normalizeLiveBufferPreference(value);
       if (!next) return false;
       preference = next;
+      revision++;
       return true;
     },
     holdLimitMs: HOLD_LIMIT_MS,
     /** A stall: ask for more video from now on. */
-    stalled(): number {
-      if (preference.mode === 'manual') return preference.targetSeconds;
-      target = round(Math.min(ADAPTIVE_MAX_SECONDS, Math.max(target * RAISE, target + 2)));
-      return target;
+    stalled,
+    /** A wait later identified as a transport seek/hole was not starvation. */
+    beginStall() {
+      const previous = target;
+      const automatic = preference.mode === 'auto';
+      const goal = stalled();
+      const appliedRevision = revision;
+      return {
+        target: goal,
+        reclassifyAsTransition(): boolean {
+          if (!automatic || preference.mode !== 'auto' || revision !== appliedRevision)
+            return false;
+          target = previous;
+          revision++;
+          return true;
+        },
+      };
     },
     ready(aheadSeconds: number): boolean {
       return aheadSeconds >= (preference.mode === 'manual' ? preference.targetSeconds : target);

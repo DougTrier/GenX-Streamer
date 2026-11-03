@@ -27,6 +27,7 @@ import type { GeographyFilter } from '../catalog/geography';
 import { validateGuideCategories, type GuideCategory } from './categories';
 import { validateReviewedGuideAliases, type GuideCommitAliases } from './reviewed-aliases';
 import { previewProposedNativeGuide } from './proposed-preview';
+import { automaticGuideConfigurationChanged } from './automatic-permissions';
 export type { ProposedGuidePreview } from './proposed-preview';
 export type { GuideCategory } from './categories';
 export interface SelectedGuideQuery {
@@ -49,7 +50,11 @@ export interface DailyGuideRefreshResult {
 }
 export async function readDailyGuidePlan(signal: AbortSignal): Promise<DailyGuidePlan> {
   signal.throwIfAborted();
-  const plan = await call<DailyGuidePlan>('guide_refresh_plan');
+  const plan = await call<DailyGuidePlan>('guide_refresh_plan').catch((error: unknown) => {
+    // Planning only reads storage. Once it settles, an aborted read has no writer to drain.
+    signal.throwIfAborted();
+    throw error;
+  });
   signal.throwIfAborted();
   if (
     !plan ||
@@ -613,10 +618,23 @@ export const nativeGuide = {
       aliases: aliases.map(validateReviewedGuideAliases),
       requestId,
       cacheOnly,
-    }).then((receipt) => {
-      if (receipt.reviewedCrosswalk === undefined) return receipt;
-      return { ...receipt, reviewedCrosswalk: crosswalkOutcome(receipt.reviewedCrosswalk) };
-    }),
+    })
+      .catch((error: unknown) => {
+        // These exact errors are returned by scope checks before the native
+        // cached connection commits. A generic IPC or write failure has no such proof.
+        if (
+          error === 'catalog-revision-stale' ||
+          error === 'guide-stale-revision' ||
+          error === 'guide-cache-unavailable' ||
+          error === 'guide-refresh-disabled'
+        )
+          throw automaticGuideConfigurationChanged();
+        throw error;
+      })
+      .then((receipt) => {
+        if (receipt.reviewedCrosswalk === undefined) return receipt;
+        return { ...receipt, reviewedCrosswalk: crosswalkOutcome(receipt.reviewedCrosswalk) };
+      }),
   sources: () => call<GuideSource[]>('guide_sources'),
   saveSource: (source: GuideSource, expectedRevision: number) =>
     call<GuideSource>('guide_save_source', { source, expectedRevision }),

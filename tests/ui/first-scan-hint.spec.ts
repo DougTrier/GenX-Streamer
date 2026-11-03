@@ -15,9 +15,10 @@
  */
 
 import { expect, test, type Page } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
 
 /** Actual hint module over a fixture shell; the in-memory channel count is the test's own. */
-async function mount(page: Page): Promise<void> {
+async function mount(page: Page, phone = false): Promise<void> {
   await page.route('**/first-scan-fixture', (route) =>
     route.fulfill({
       contentType: 'text/html',
@@ -25,6 +26,25 @@ async function mount(page: Page): Promise<void> {
     }),
   );
   await page.goto('/first-scan-fixture');
+  if (phone) {
+    const main = await readFile('src/main.ts', 'utf8');
+    const styles = [...main.matchAll(/import\s+['"]\.\/(ui\/[^'"]+\.css)['"]/g)].map(
+      (match) => '/src/' + match[1],
+    );
+    await page.evaluate(async (styles) => {
+      for (const path of styles) await import(path);
+      const shellPath = '/src/ui/shell/shell.ts';
+      const layoutPath = '/src/ui/shell/phone-layout.ts';
+      const { createShell } = await import(shellPath);
+      const { installPhoneLayout } = await import(layoutPath);
+      const app = document.getElementById('app')!;
+      createShell(app);
+      app.dataset.deviceKind = 'personal';
+      app.dataset.playerIdle = 'true';
+      app.dataset.ready = 'true';
+      Reflect.set(window, 'phoneLayout', installPhoneLayout(app));
+    }, styles);
+  }
   await page.evaluate(async () => {
     const path = '/src/ui/scan/first-scan-hint.ts';
     const { mountFirstScanHint } = await import(path);
@@ -88,5 +108,66 @@ test('a paid account or another library never shows it', async ({ page }) => {
     document.getElementById('app')!.dataset.contentLibrary = 'genxtra';
   });
   await page.waitForTimeout(700);
+  await expect(callout(page)).toBeHidden();
+});
+
+test('an empty phone catalog points to visible Search & Filters and follows layout changes', async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await mount(page, true);
+  await page.evaluate(() => (document.getElementById('app')!.dataset.startup = 'completed'));
+  const opener = page.locator('#phone-filter-button');
+  await expect(opener).toBeVisible();
+  await expect(callout(page)).toBeVisible();
+  await expect(callout(page)).toContainText(
+    'Open Search & Filters, then choose Find channels online',
+  );
+  await expect(opener).toHaveClass(/first-scan/);
+  await expect(page.locator('#search-programs')).not.toHaveClass(/first-scan/);
+  expect(await callout(page).evaluate((node) => getComputedStyle(node, '::before').display)).toBe(
+    'none',
+  );
+  expect(
+    await callout(page).evaluate((node) =>
+      node.previousElementSibling?.classList.contains('phone-browse-bar'),
+    ),
+  ).toBe(true);
+  const geometry = await callout(page).evaluate((node) => {
+    const box = node.getBoundingClientRect();
+    const opener = document.getElementById('phone-filter-button')!.getBoundingClientRect();
+    return {
+      belowOpener: box.top >= opener.bottom,
+      inside: box.left >= 0 && box.right <= innerWidth && box.bottom <= innerHeight,
+    };
+  });
+  expect(geometry).toEqual({ belowOpener: true, inside: true });
+  await opener.click();
+  await expect(page.locator('#phone-filter-dialog')).toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Find channels online', exact: true }),
+  ).toBeVisible();
+  await expect(callout(page)).toBeHidden();
+  await page.getByRole('button', { name: 'Show channels', exact: true }).click();
+  await expect(callout(page)).toBeVisible();
+  // A layout transition changes the target even though the empty count and
+  // start state have not changed; wide/TV keep the established magnifier hint.
+  await page.setViewportSize({ width: 1280, height: 800 });
+  await page.evaluate(() => Reflect.get(window, 'phoneLayout').sync());
+  await expect(page.locator('#search-programs')).toHaveClass(/first-scan/);
+  await expect(opener).not.toHaveClass(/first-scan/);
+  await expect(callout(page)).toContainText('Press the magnifier');
+  expect(
+    await callout(page).evaluate((node) => getComputedStyle(node, '::before').display),
+  ).not.toBe('none');
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.evaluate(() => Reflect.get(window, 'phoneLayout').sync());
+  await expect(opener).toHaveClass(/first-scan/);
+  // Filtered zero is not an empty saved catalog: raw saved channels retire it.
+  await page.evaluate(() => {
+    Reflect.set(window, 'count', 9);
+    document.getElementById('channel-count')!.textContent = '0 channels';
+    document.getElementById('app')!.dataset.contentLibrary = 'live';
+  });
   await expect(callout(page)).toBeHidden();
 });

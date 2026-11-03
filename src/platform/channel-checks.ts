@@ -52,6 +52,7 @@ export interface ChannelChecks {
 export interface ChannelObservation {
   channelId: string;
   verdict: ChannelCheckVerdict;
+  checkedUrls?: readonly string[];
 }
 export const MAX_CHANNEL_CHECK_BATCH = 200;
 
@@ -188,9 +189,10 @@ export function createChannelCheckStore(runtime: OwnedNativeRuntime = { invoke }
         {
           request: {
             schemaVersion: 1,
-            observations: observations.map(({ channelId, verdict }) => ({
+            observations: observations.map(({ channelId, verdict, checkedUrls }) => ({
               channelId: id(channelId),
               verdict,
+              ...(checkedUrls === undefined ? {} : { checkedUrls }),
             })),
           },
         },

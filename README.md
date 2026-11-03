@@ -8,6 +8,7 @@
   Pass it along to a friend with no app store.
 
   [![Public release](https://img.shields.io/badge/Public_release-0.1.3-brightgreen?style=for-the-badge)](https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.3)
+  [![Candidate version](https://img.shields.io/badge/Version-0.1.27-blue?style=for-the-badge)](#release-status)
   [![Tauri](https://img.shields.io/badge/Tauri-2-24C8DB?style=for-the-badge&logo=tauri&logoColor=white)](https://tauri.app/)
   [![Rust](https://img.shields.io/badge/Rust-native%20layer-B7410E?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
   [![Android](https://img.shields.io/badge/Android-TV%20%7C%20phone-3DDC84?style=for-the-badge&logo=android&logoColor=white)](docs/user-guide.md)
@@ -38,7 +39,16 @@
 
 The previous public release is [0.1.3 / build 1003](https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.3). GitHub's latest-release endpoint and the download page now select it. Existing 0.1.25 installations are not changed by this withdrawal; Android will not install an older build over a newer one as a normal update.
 
-The source below contains the withdrawn version's features. Its recorded checks did not establish usable phone and handheld layouts across the reported browsing states.
+| Development candidate | Value |
+| --- | --- |
+| **Candidate version** | 0.1.27 |
+| **Android build** | 1027 |
+
+The signed 0.1.26 / build 1026 audit covered the physical Samsung S25 and Google TV Streamer, including phone touch and fullscreen controls, remote navigation, saved scans, Free and Paid TV, Guide, and casting. The new candidate advances the build number. [Device audit](docs/device-playability-audit.md) · [Search and Guide verification](docs/search-guide-verification.md)
+
+The signed universal candidate APK reports version 0.1.27 and build 1027. Its SHA-256 and verification results are in the [candidate record](docs/release-signing.md#0127-candidate-verification).
+
+The historical features and checks below belong to the withdrawn 0.1.25 release. Those checks did not establish usable phone and handheld layouts across the reported browsing states.
 
 ### Historical 0.1.25 checks — release withdrawn
 

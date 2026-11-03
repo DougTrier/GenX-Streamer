@@ -81,6 +81,7 @@ import { type ChannelCheck } from './platform/channel-checks';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 
 import { createShell } from './ui/shell/shell';
+import { clearActiveBrowseFilters } from './application/catalog/clear-browse-filters';
 
 import { type ChannelFilter } from './ui/channels/channel-browser';
 
@@ -97,6 +98,7 @@ import { mountLocalStreams } from './ui/scan/local-streams';
 // Last stylesheet: the shared pop-up look sits over every component sheet.
 import './ui/dialog-polish.css';
 import './ui/stream-buffer.css';
+import './ui/phone-portrait.css';
 import { createScanController } from './application/discovery/scan-controller';
 import { sourceCleanupPlaybackIdle } from './application/discovery/source-cleanup-episode';
 import type { ContentLibrary } from './application/genxtra/content-library';
@@ -147,8 +149,19 @@ import { joinGuideWork } from './application/guide/join-guide-work';
 
 const guidePlaybackIntents = createGuidePlaybackIntents({
   prepare: () => joinGuideWork([{ suspend: automaticGuides.preparePlayback }, dailyGuideRefresh]),
-  wake: () =>
-    joinGuideWork([{ suspend: automaticGuides.wake }, { suspend: dailyGuideRefresh.wake }]),
+  wake: async () => {
+    try {
+      await joinGuideWork([{ suspend: automaticGuides.wake }, { suspend: dailyGuideRefresh.wake }]);
+    } catch (error) {
+      void diagnostics.emit({
+        operation: 'guide',
+        level: 'warning',
+        code: 'guide-failed',
+        reason: 'background-wake',
+      });
+      throw error;
+    }
+  },
   wakeFailed: () =>
     notice('Guide update could not finish. Close and reopen GenX Streamer before retrying.'),
 });
@@ -212,6 +225,7 @@ const app = createSharedContext(
     channelCheckStore: () => channelCheckStore,
     channelLogos: () => channelLogos,
     chooseCategory: () => chooseCategory,
+    clearBrowseFilters: () => clearBrowseFilters,
     clearArchiveResume: () => clearArchiveResume,
     collectionAbort: () => collectionAbort,
     configuredImportEntry: () => configuredImportEntry,
@@ -893,6 +907,9 @@ const chooseCategory = (filter: ChannelFilter): void => {
   browser.setFilter(filter);
   presentNotResponding();
 };
+function clearBrowseFilters(): void {
+  clearActiveBrowseFilters(app);
+}
 for (const button of document.querySelectorAll<HTMLButtonElement>('[data-filter]'))
   button.addEventListener('click', () => chooseCategory(button.dataset.filter as ChannelFilter));
 categorySelector.addEventListener('change', () =>

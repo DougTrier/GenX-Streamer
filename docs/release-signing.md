@@ -1,6 +1,6 @@
 # Signing Android releases
 
-**Release status:** 0.1.25 / build 1025 has been withdrawn because of phone/handheld layout and Football/NFL search issues. Public downloads currently provide [0.1.3 / build 1003](https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.3). Features and checks below describe the withdrawn development version unless another version is stated; they do not establish acceptance of a replacement release.
+**Release status:** 0.1.25 / build 1025 has been withdrawn because of phone/handheld layout and Football/NFL search issues. Public downloads currently provide [0.1.3 / build 1003](https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.3). See the [candidate status](../README.md#release-status) and [physical device audit](device-playability-audit.md) for the current development build. Results in this document apply to the builds named alongside them.
 
 An Android app's signing key is its identity. Every update must be signed with
 the same key, or Android refuses to install it over the copy people have. GenX
@@ -95,6 +95,43 @@ Settings → **Full backup** (save the file somewhere
 you can reach), uninstall GenX Streamer, install the release APK, then import
 the backup. Uninstalling removes the app's saved channels, favorites and
 settings, so the backup comes first.
+
+## 0.1.27 candidate verification
+
+The signed universal Android package reports `com.tmg.tv`, version
+`0.1.27`, build `1027`, minimum API 24, target API 36, and both `arm64-v8a`
+and `armeabi-v7a`. APK SHA-256 is
+`C9767BB1A9831E965C105990CBEFE39B568740A31748ADE2A1001A7F6D4A5C1E`.
+The signing certificate SHA-256 is
+`464c42785a80bb27022527d7e5b703c4ecf2d62f433a0f9f6b162ee95b7872ff`.
+Physical S25 and Streamer observations are recorded against build 1026
+in the [device audit](device-playability-audit.md).
+
+Type checking and four version-tool tests passed. The full frontend run
+reported 4,113 passing tests and eight failures. Two failures expected the
+old 24-hour checkpoint cutoff. After updating those expectations, all 35
+tests in the two checkpoint suites passed. Six browser failures remain:
+four scan review geometry or interaction checks, one About checksum focus
+check, and one bulk-removal fixture missing `crypto.randomUUID`.
+
+## Recovering from a broken Android release
+
+Keep the last verified release source and its signed APK. Android blocks an
+in-place install when the APK has a lower version code. If a release breaks
+startup or playback, prepare a rescue update with the same application ID and
+signing certificate and a higher version code. Restore the known-good behavior
+while retaining support for any database migrations already applied by the
+broken release. Host the rescue download outside the app so users can reach it
+when startup fails.
+[Android app versioning](https://developer.android.com/studio/publish/versioning)
+
+Before offering a rescue build, install it over the affected build on the S25
+and Google TV Streamer with populated test libraries. Confirm that channels,
+favorites, settings, and saved scan progress survive and that playback starts.
+If the app still opens, export a Full backup before an install that requires
+uninstalling. Verify that the target version can import the backup before
+asking users to uninstall.
+[Android app updates](https://developer.android.com/google/play/app-updates)
 
 ## Size of the universal APK
 

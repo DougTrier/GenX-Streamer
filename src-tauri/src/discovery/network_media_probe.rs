@@ -318,9 +318,16 @@ fn parse(base: &Url, text: &str) -> Result<Manifest> {
         audio,
     })
 }
+fn transport_stream(bytes: &[u8]) -> bool {
+    bytes.len() >= 376 && bytes[0] == 0x47 && bytes[188] == 0x47
+}
 fn clear_media(bytes: &[u8]) -> bool {
-    if bytes.len() >= 376 && bytes[0] == 0x47 && bytes[188] == 0x47 {
-        return true;
+    if transport_stream(bytes) {
+        // Null PID packets are padding and can make a dead feed look responsive.
+        return bytes
+            .chunks_exact(188)
+            .take_while(|packet| packet[0] == 0x47)
+            .any(|packet| packet[1] & 0x1f != 0x1f || packet[2] != 0xff);
     }
     if bytes.len() >= 8
         && [b"ftyp", b"styp", b"moof", b"mdat"]
@@ -449,18 +456,17 @@ impl Probe {
             .await
             .map_err(|error| body_refusal(error, status))?
         {
-            if complete && chunk.len() > limit.saturating_sub(bytes.len()) {
-                if limit == MANIFEST && clear_media(&chunk[..chunk.len().min(SAMPLE)]) {
-                    bytes.extend_from_slice(&chunk[..chunk.len().min(SAMPLE)]);
-                    break;
-                }
-                return Err(Refusal("resource-too-large", Some(status)));
-            }
             let amount = chunk.len().min(limit.saturating_sub(bytes.len()));
             bytes.extend_from_slice(&chunk[..amount]);
-            if limit == MANIFEST && clear_media(&bytes) {
-                bytes.truncate(SAMPLE);
-                break;
+            if limit == MANIFEST {
+                let sample = &bytes[..bytes.len().min(SAMPLE)];
+                if clear_media(sample) || (sample.len() == SAMPLE && transport_stream(sample)) {
+                    bytes.truncate(SAMPLE);
+                    break;
+                }
+            }
+            if complete && amount < chunk.len() {
+                return Err(Refusal("resource-too-large", Some(status)));
             }
             if !complete && bytes.len() >= limit {
                 break;

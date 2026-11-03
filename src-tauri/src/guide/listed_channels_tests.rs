@@ -1086,3 +1086,40 @@ fn sports_listed_cursor_binds_literal_spacing_and_metadata_mask_uses_registry() 
     refresh_projection(&c);
     assert_eq!(read(&c, &q(None)).channels[0].filter_mask & 4, 4);
 }
+
+#[test]
+fn sports_collegiate_programme_context_admits_observed_acc_guide_membership() {
+    let c = fixture();
+    c.execute_batch("ALTER TABLE guide_program ADD COLUMN description TEXT;")
+        .unwrap();
+    for id in ["a", "b", "c", "d"] {
+        add(&c, id, 1200, Some(1800));
+    }
+    c.execute_batch(r#"UPDATE channel SET name='ACC Digital Network',category='Sports';UPDATE channel SET name='Unknown Football Channel' WHERE id='d';UPDATE guide_program SET title='Miami vs. Duke (11.30.19) Football Replay',description='Duke takes down Miami in future Blue Devils head coach Manny Diaz first year with the Hurricanes.';UPDATE guide_program SET categories_json='[{"text":"Basketball"}]' WHERE channel_id='b';UPDATE guide_program SET categories_json='[{"text":"Soccer"}]' WHERE channel_id='c';"#).unwrap();
+    refresh_projection(&c);
+    let mut query = q(None);
+    query.search = Some("Football".into());
+    query.sports = Some(crate::catalog::sports::Scope {
+        sport: Some("american-football".into()),
+        league: None,
+        include_ppv: true,
+        window_start_ms: 1000,
+        window_end_ms: 2000,
+        vocabulary_version: serde_json::from_str::<serde_json::Value>(
+            crate::catalog::sports::VOCABULARY,
+        )
+        .unwrap()["vocabularyVersion"]
+            .as_str()
+            .unwrap()
+            .into(),
+    });
+    let page = read(&c, &query);
+    assert_eq!(
+        page.channels
+            .iter()
+            .map(|c| c.app_channel_id.as_str())
+            .collect::<Vec<_>>(),
+        ["a"]
+    );
+    assert_eq!(page.channels[0].filter_mask & 8, 0);
+}

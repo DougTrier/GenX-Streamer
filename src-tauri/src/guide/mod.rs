@@ -19,6 +19,8 @@
 
 pub mod database;
 pub mod input;
+pub(crate) mod official_comet;
+pub(crate) mod official_pbs_kids;
 pub mod parser;
 
 pub mod conditional;

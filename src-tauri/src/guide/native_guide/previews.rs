@@ -124,15 +124,16 @@ pub(super) async fn preview_admitted(
         let bytes = match bytes {
             Some(bytes) => bytes,
             None => tokio::select! {
-                input = input::fetch(&source.location, source.allow_http, &canceled) => input?,
+                input = input::fetch_for_source(&source.location, source.allow_http, &canceled, captured_now) => input?,
                 _ = &mut cancel => { canceled.store(true, Ordering::SeqCst); return Err("canceled".into()); }
             },
         };
         let flag = canceled.clone();
+        let input_location = source.location.clone();
         let work = state.admit_work()?;
         let mut worker = tauri::async_runtime::spawn_blocking(move || {
             let _work = work;
-            let expanded = input::expand(bytes, &flag)?;
+            let expanded = input::expand_for_source(bytes, &input_location, captured_now, &flag)?;
             parser::parse_guide_cancelable(&expanded, &flag)
         });
         let parsed = tokio::select! {

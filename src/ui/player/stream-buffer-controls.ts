@@ -245,7 +245,7 @@ export function mountStreamBufferControls(root: HTMLElement, host: StreamBufferC
         ? current.external
           ? 'Buffer managed by the external player'
           : 'Choose a channel'
-        : `${formatStreamRate(value?.incomingBitsPerSecond ?? null)}\n${ahead === null ? 'Buffer unavailable' : `${ahead.toFixed(1)}s${value?.mode === 'manual' ? ` / Target ${value.targetSeconds}s` : ' buffered'}${trend}`}`;
+        : `${formatStreamRate(value?.incomingBitsPerSecond ?? null)} ${ahead === null ? 'Buffer unavailable' : `${ahead.toFixed(1)}s${value?.mode === 'manual' ? ` / Target ${value.targetSeconds}s` : ' buffered'}${trend}`}`;
       panel.querySelector<HTMLElement>('.stream-buffer-fill')!.style.width =
         `${ahead === null ? 0 : Math.min(100, (ahead / target) * 100)}%`;
       panel.querySelector<HTMLElement>('.stream-buffer-target')!.textContent =

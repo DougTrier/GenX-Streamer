@@ -301,7 +301,7 @@ fn packed_policy_ttl_and_cancellation_preserve_existing_checkpoint() {
             &prefs,
             &catalog,
             1,
-            scan_now() + 86_400_001
+            scan_now() + 7 * 86_400_000
         )
         .unwrap_err(),
         "scan-checkpoint-expired"

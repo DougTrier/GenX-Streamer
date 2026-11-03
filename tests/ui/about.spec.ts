@@ -53,7 +53,12 @@ test('About shows the version, the author tab and the quick guide tab; Escape re
   await expect(authorPanel).toContainText('Share GenX Streamer');
   await expect(authorPanel.getByRole('button', { name: 'Send app to a friend' })).toBeVisible();
   await expect(about.locator('.about-guide')).toBeHidden();
-  await guideTab.click();
+  await expect(about.getByRole('button', { name: 'Close about' })).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(authorTab).toBeFocused();
+  await page.keyboard.press('ArrowRight');
+  await expect(guideTab).toBeFocused();
+  await page.keyboard.press('Enter');
   await expect(guideTab).toHaveAttribute('aria-selected', 'true');
   await expect(authorTab).toHaveAttribute('aria-selected', 'false');
   await expect(authorPanel).toBeHidden();

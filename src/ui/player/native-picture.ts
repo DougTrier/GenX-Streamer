@@ -90,6 +90,8 @@ export function createNativePictureHost(
           'data-guide-panel',
           'data-vod-browsing',
           'data-compact-view',
+          'data-phone-portrait',
+          'data-phone-view',
           'data-content-library',
           'data-play-mode',
           'data-vod',

@@ -236,13 +236,21 @@ fn original_and_directory_require_exact_hash_order_and_primary_reference() {
 #[test]
 fn full_digest_ttl_profile_source_admission_not_summary() {
     let (mut raw, prefs, catalog, _, _, fence, now) = fixture(1);
+    assert!(admit(
+        &raw,
+        &prefs,
+        &catalog,
+        fence,
+        now + 6 * crate::scan_checkpoint::DAY
+    )
+    .is_ok());
     assert_eq!(
         admit(
             &raw,
             &prefs,
             &catalog,
             fence,
-            now + crate::scan_checkpoint::DAY + 1
+            now + crate::scan_checkpoint::RESUME_MAX_AGE_MS
         )
         .err()
         .unwrap(),

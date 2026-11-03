@@ -1,6 +1,6 @@
 # GenX Streamer user guide
 
-**Release status:** 0.1.25 / build 1025 has been withdrawn because of phone/handheld layout and Football/NFL search issues. Public downloads currently provide [0.1.3 / build 1003](https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.3). Features and checks below describe the withdrawn development version unless another version is stated; they do not establish acceptance of a replacement release.
+**Release status:** 0.1.25 / build 1025 has been withdrawn because of phone/handheld layout and Football/NFL search issues. Public downloads currently provide [0.1.3 / build 1003](https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.3). See the [candidate status](../README.md#release-status) and [physical device audit](device-playability-audit.md) for the current development build. Results in this document apply to the builds named alongside them.
 
 ## Supported devices
 
@@ -24,6 +24,8 @@ Choose **Add channels**. Enter your source URL and choose **Add source**, or sel
 **Review source** lets you choose channels before saving. For several configured URL sources, use **Settings → Find channels → Scan configured sources**, select the results you want, then **Save channels**. Optional **Check selected channels** uses the chosen check time. “Stream responded” means the stream responded to that check; it does not guarantee playback. **Saved checks** shows when and where earlier checks occurred. Imported history and different check settings are identified separately.
 
 To find sources, choose **Add channels → Find sources**, enter a website or GitHub page URL, then **Scan website**. Select a possible source and review its channels before saving. The same action is available under **Settings → Find channels → Find sources**. This examines that page's links without running its scripts or searching the whole web. Close or Back returns to the control that opened it.
+
+In the development candidate, use **Settings → Find channels → Finish saved scan** to resume an unfinished scan within seven days if the saved sources still match. **Cancel operation** pauses the scan and keeps saved channels. **Close** hides the progress dialog while the scan runs. Open **Finish saved scan** again to see its progress. For an expired checkpoint, choose **Rescan** to check the current sources and keep the existing channels.
 
 **Refresh** below the channel list updates configured sources and reuses recent working checks for unchanged streams. New addresses are checked once even when several lists contain them. File sources need their file selected again. Failures and cancellation retain saved channels; the progress dialog reports incomplete work.
 

@@ -21,6 +21,7 @@ use std::collections::{HashMap, HashSet};
 
 const LIMIT: usize = 20 * 1024 * 1024;
 const DAY: u64 = 86_400_000;
+pub(super) const RESUME_MAX_AGE_MS: u64 = 7 * DAY;
 const ERR: &str = "scan-checkpoint-invalid";
 #[cfg(test)]
 #[path = "scan_full_recheck_tests.rs"]

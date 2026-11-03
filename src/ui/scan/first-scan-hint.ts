@@ -37,7 +37,9 @@ export function mountFirstScanHint(indexed: () => boolean, inMemory: () => numbe
   const title = document.createElement('strong');
   const text = document.createElement('span');
   callout.append(title, text);
-  button.closest('.search-controls')?.after(callout);
+  const home = document.createComment('first scan hint');
+  button.closest('.search-controls')?.after(home);
+  home.after(callout);
 
   /** Saved Free TV channels, or null when unknown. */
   const total = (): Promise<number | null> =>
@@ -54,17 +56,27 @@ export function mountFirstScanHint(indexed: () => boolean, inMemory: () => numbe
   let retired = false;
   /** This session found Free TV empty, so an open scan panel is the first scan. */
   let sawEmpty = false;
-  let shown: 'start' | 'scanning' | null = null;
+  let shown: string | undefined;
   let checking = false;
   const show = (value: 'start' | 'scanning' | null) => {
-    if (value === shown) return;
-    shown = value;
-    callout.hidden = !value;
-    button.classList.toggle('first-scan', value === 'start');
+    const opener = document.querySelector<HTMLButtonElement>('#phone-filter-button');
+    const phone = app.dataset.phonePortrait === 'true' && !!opener;
+    const editing =
+      phone && document.querySelector<HTMLDialogElement>('#phone-filter-dialog')?.open;
+    const presentation = JSON.stringify([value, phone, editing === true]);
+    if (presentation === shown) return;
+    shown = presentation;
+    const anchor = phone ? opener.closest('.phone-browse-bar') : home;
+    anchor?.after(callout);
+    callout.classList.toggle('first-scan-callout-phone', phone);
+    callout.hidden = !value || editing === true;
+    button.classList.toggle('first-scan', value === 'start' && !phone);
+    opener?.classList.toggle('first-scan', value === 'start' && phone && !editing);
     if (value === 'start') {
       title.textContent = 'Start here';
-      text.textContent =
-        'Press the magnifier to find free TV channels. The first scan checks thousands of channels and can take a long time.';
+      text.textContent = phone
+        ? 'Open Search & Filters, then choose Find channels online. The first scan checks thousands of channels and can take a long time.'
+        : 'Press the magnifier to find free TV channels. The first scan checks thousands of channels and can take a long time.';
     } else if (value === 'scanning') {
       title.textContent = 'First scan';
       text.textContent =
@@ -109,7 +121,14 @@ export function mountFirstScanHint(indexed: () => boolean, inMemory: () => numbe
   }).observe(document.body, {
     subtree: true,
     attributes: true,
-    attributeFilter: ['data-startup', 'data-content-library', 'aria-pressed', 'hidden'],
+    attributeFilter: [
+      'data-startup',
+      'data-content-library',
+      'data-phone-portrait',
+      'aria-pressed',
+      'hidden',
+      'open',
+    ],
   });
   update();
 }

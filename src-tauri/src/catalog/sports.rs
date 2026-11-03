@@ -67,6 +67,10 @@ struct League {
     sport_id: String,
     evidence_aliases: Vec<String>,
     query_aliases: Vec<String>,
+    #[serde(default)]
+    programme_context_aliases: Vec<String>,
+    #[serde(default)]
+    programme_required_aliases: Vec<String>,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -119,6 +123,8 @@ struct Facts {
     leagues: BTreeSet<String>,
     teams: BTreeSet<String>,
     contextual_teams: BTreeSet<String>,
+    programme_contexts: BTreeSet<String>,
+    programme_evidence: BTreeSet<String>,
 }
 const FACT_MEMO_ENTRIES: usize = 16_384;
 const FACT_MEMO_BYTES: usize = 8 * 1024 * 1024;
@@ -141,6 +147,8 @@ impl FactMemo {
                     &facts.leagues,
                     &facts.teams,
                     &facts.contextual_teams,
+                    &facts.programme_contexts,
+                    &facts.programme_evidence,
                 ]
                 .into_iter()
                 .flatten()
@@ -172,6 +180,8 @@ struct Rules {
     evidence: std::collections::HashMap<String, Vec<Rule>>,
     contextual: std::collections::HashMap<String, Vec<Rule>>,
     query: Vec<(Vec<String>, Target, bool)>,
+    programme_contexts: std::collections::HashMap<String, Vec<Rule>>,
+    programme_evidence: std::collections::HashMap<String, Vec<Rule>>,
 }
 fn rules() -> &'static Rules {
     static RULES: OnceLock<Rules> = OnceLock::new();
@@ -180,6 +190,8 @@ fn rules() -> &'static Rules {
             evidence: Default::default(),
             contextual: Default::default(),
             query: Vec::new(),
+            programme_contexts: Default::default(),
+            programme_evidence: Default::default(),
         };
         let mut add = |aliases: &[String], target: Target, contextual: bool| {
             for alias in aliases {
@@ -241,6 +253,27 @@ fn rules() -> &'static Rules {
                     .push((tokens(alias), Target::Team(team.id.clone()), true));
             }
         }
+        for league in &r.leagues {
+            for (aliases, index) in [
+                (
+                    &league.programme_context_aliases,
+                    &mut out.programme_contexts,
+                ),
+                (
+                    &league.programme_required_aliases,
+                    &mut out.programme_evidence,
+                ),
+            ] {
+                for alias in aliases {
+                    let words = tokens(alias);
+                    assert!(!words.is_empty() && words.len() <= 16 && alias.len() <= 256);
+                    index
+                        .entry(words[0].clone())
+                        .or_default()
+                        .push((words, Target::League(league.id.clone())));
+                }
+            }
+        }
         out.query
             .sort_by_key(|(a, _, _)| std::cmp::Reverse(a.len()));
         out
@@ -296,7 +329,11 @@ fn possible_evidence(fields: &[String]) -> bool {
                 *out = byte.to_ascii_lowercase();
             }
             let word = std::str::from_utf8(&folded[..word.len()]).expect("ASCII lowercase token");
-            if rules.evidence.contains_key(word) || rules.contextual.contains_key(word) {
+            if rules.evidence.contains_key(word)
+                || rules.contextual.contains_key(word)
+                || rules.programme_contexts.contains_key(word)
+                || rules.programme_evidence.contains_key(word)
+            {
                 return true;
             }
         }
@@ -311,6 +348,8 @@ fn unicode_possible_evidence(text: &str) -> bool {
             .evidence
             .keys()
             .chain(r.contextual.keys())
+            .chain(r.programme_contexts.keys())
+            .chain(r.programme_evidence.keys())
             .map(String::as_str)
             .collect();
         let alternatives = words
@@ -361,6 +400,16 @@ fn compute_facts(fields: &[String]) -> Facts {
                 f.contextual_teams.insert(id.clone());
             }
         });
+        visit_rules(&words, &rules().programme_contexts, |target| {
+            if let Target::League(id) = target {
+                f.programme_contexts.insert(id.clone());
+            }
+        });
+        visit_rules(&words, &rules().programme_evidence, |target| {
+            if let Target::League(id) = target {
+                f.programme_evidence.insert(id.clone());
+            }
+        });
     }
     contextual(&mut f);
     f
@@ -404,6 +453,7 @@ pub(crate) struct Plan {
     leftover: Vec<String>,
     targets: Vec<Target>,
     pub specific: bool,
+    query_specific: bool,
     facts: Arc<Mutex<QueryFacts>>,
 }
 impl Plan {
@@ -434,6 +484,7 @@ impl Plan {
         let mut consumed = vec![false; words.len()];
         let mut targets = Vec::new();
         let mut specific = scope.sport.is_some() || scope.league.is_some();
+        let mut query_specific = false;
         for (a, target, explicit) in &rules().query {
             if a.is_empty() {
                 continue;
@@ -446,6 +497,7 @@ impl Plan {
                     consumed[start..start + a.len()].fill(true);
                     targets.push(target.clone());
                     specific |= *explicit;
+                    query_specific |= *explicit;
                 }
             }
         }
@@ -468,6 +520,7 @@ impl Plan {
             leftover,
             targets,
             specific,
+            query_specific,
             facts: Arc::new(Mutex::new(QueryFacts::default())),
         })
     }
@@ -539,6 +592,20 @@ impl Plan {
         }
         let mut f = (*self.facts(program, true)).clone();
         let inherited = (*self.facts(channel, false)).clone();
+        // Neutral collegiate context never establishes membership by itself.
+        // The whole programme term is required; direct conflicting sport or
+        // league evidence prevents the inference.
+        for league in &registry().leagues {
+            if f.programme_evidence.contains(&league.id)
+                && (f.programme_contexts.contains(&league.id)
+                    || inherited.programme_contexts.contains(&league.id))
+                && f.sports.iter().all(|sport| sport == &league.sport_id)
+                && f.leagues.iter().all(|id| id == &league.id)
+            {
+                f.leagues.insert(league.id.clone());
+                f.sports.insert(league.sport_id.clone());
+            }
+        }
         let conflict = (!f.sports.is_empty()
             && !inherited.sports.is_empty()
             && !inherited.sports.is_subset(&f.sports))
@@ -602,7 +669,11 @@ impl Plan {
         if self.literal.is_empty() {
             return true;
         }
-        let semantic_only = strict && self.scope.sport.is_none() && self.scope.league.is_none();
+        let selected_facet = self.scope.sport.is_some() || self.scope.league.is_some();
+        // Explicit query intent requires independent row evidence; a literal
+        // substring cannot substitute for the queried league facts.
+        // Bare football and other generic text retain their literal branch.
+        let semantic_only = self.query_specific || (strict && !selected_facet);
         if !semantic_only
             && fields.iter().any(|text| {
                 text.nfkc()

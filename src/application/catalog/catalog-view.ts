@@ -100,7 +100,9 @@ export function createCatalogView(env: CatalogViewEnvironment) {
     env.guide.catalogChanged();
     const removed = new Set(env.settings.removedChannels);
     const category = createChannelCategoryResolver(env.settings);
-    if (env.library.contentLibrary === 'live')
+    // Startup renders again after admitting indexed browsing. Building in-memory
+    // search metadata for the entire library here can stall low-powered devices.
+    if (env.library.contentLibrary === 'live' && env.element('app').dataset.ready === 'true')
       env.browser.update(
         env.catalog.channels
           .filter((channel) => !removed.has(channel.id))

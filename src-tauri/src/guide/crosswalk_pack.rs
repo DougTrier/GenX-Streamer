@@ -243,11 +243,19 @@ impl Pack {
 pub(crate) fn suggestions_from_catalog(
     c: &rusqlite::Connection,
 ) -> Result<Vec<FeedSuggestion>, String> {
-    let Some(pack) = loaded() else {
-        return Ok(Vec::new());
-    };
     let ids = catalog_provider_ids(c)?;
-    Ok(pack.suggestions(ids.iter().map(String::as_str)))
+    let mut suggestions = loaded().map_or_else(Vec::new, |pack| {
+        pack.suggestions(ids.iter().map(String::as_str))
+    });
+    if let Some(official) = super::official_comet::suggestion(ids.iter().map(String::as_str)) {
+        suggestions.insert(0, official);
+        suggestions.truncate(SUGGESTION_LIMIT);
+    }
+    if let Some(official) = super::official_pbs_kids::suggestion(ids.iter().map(String::as_str)) {
+        suggestions.insert(0, official);
+        suggestions.truncate(SUGGESTION_LIMIT);
+    }
+    Ok(suggestions)
 }
 /// Distinct provider IDs of saved, nonremoved channels (at most 100,000).
 pub(crate) fn catalog_provider_ids(c: &rusqlite::Connection) -> Result<Vec<String>, String> {

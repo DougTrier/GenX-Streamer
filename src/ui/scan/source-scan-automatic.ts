@@ -16,6 +16,7 @@
 
 import { type ScanReview, type ScanSource } from '../../discovery/scan';
 import { type HealthObservation } from '../../discovery/health';
+import { SCAN_CHECKPOINT_MAX_AGE_MS } from '../../discovery/scan-checkpoint';
 import {
   validateBoundedScanResumePlan,
   type BoundedScanResumePlan,
@@ -351,7 +352,7 @@ export function createAutomaticScanRuns(env: AutomaticScanRunsEnvironment) {
       saved.checkpointStatus !== 'valid' ||
       !parsed ||
       (env.host.now?.() ?? Date.now()) < parsed.createdAtMs ||
-      (env.host.now?.() ?? Date.now()) - parsed.createdAtMs >= 86400000 ||
+      (env.host.now?.() ?? Date.now()) - parsed.createdAtMs >= SCAN_CHECKPOINT_MAX_AGE_MS ||
       env.host.platform?.() !== parsed.platform ||
       env.host.observerProfile?.(parsed.budgetMs) !== parsed.observerProfile
     )
@@ -610,6 +611,10 @@ export function createAutomaticScanRuns(env: AutomaticScanRunsEnvironment) {
             : options.intent === 'full-recheck'
               ? 'rescan'
               : 'refresh';
+    if (continuing || indexedFresh) {
+      env.status.textContent = continuing ? 'Checking saved scan progress…' : 'Preparing channel scan…';
+      env.error.textContent = '';
+    }
     const task = env.begin(false, continuing && !env.checkpoint && !!env.host.createBoundedResume);
     env.work = (async () => {
       let fresh = false;
@@ -705,7 +710,7 @@ export function createAutomaticScanRuns(env: AutomaticScanRunsEnvironment) {
                   env.host.platform?.() !== plan.platform ||
                   env.host.observerProfile?.(plan.budgetMs) !== plan.observerProfile ||
                   (env.host.now?.() ?? Date.now()) < plan.createdAtMs ||
-                  (env.host.now?.() ?? Date.now()) - plan.createdAtMs >= 86400000
+                  (env.host.now?.() ?? Date.now()) - plan.createdAtMs >= SCAN_CHECKPOINT_MAX_AGE_MS
                 )
                   throw new ContinueRefusal('changed');
                 if (
@@ -870,7 +875,14 @@ export function createAutomaticScanRuns(env: AutomaticScanRunsEnvironment) {
           env.error.textContent = failure.message;
           return;
         }
-        if (continuing && !continuedAdmitted && !task.signal.aborted && !env.closed) {
+        if (continuing && !continuedAdmitted && task.signal.aborted && !env.closed) {
+          env.scanPhase = 'paused';
+          env.lastFailure = 'canceled';
+          env.status.textContent = 'Scan stopped. Added channels retained.';
+          env.error.textContent = '';
+          return;
+        }
+        if (continuing && !continuedAdmitted && !env.closed) {
           env.resumeRefusal = failure instanceof ContinueRefusal ? failure.reason : 'unavailable';
           env.checkpointRestoreRefused = true;
           env.checkpoint = priorCheckpoint;
@@ -911,15 +923,15 @@ export function createAutomaticScanRuns(env: AutomaticScanRunsEnvironment) {
   function continueAutomatic(
     options: Pick<AutomaticScanOptions, 'presentation'> = {},
   ): Promise<void> {
-    if (env.continueWork) return env.continueWork;
     if (env.closed || env.suspension) return Promise.resolve();
     if (env.stopWork) return env.stopWork;
     if (env.busy) {
       env.automaticPresentation = options.presentation ?? env.automaticPresentation;
       env.showAutomatic();
       env.notifyProgress();
-      return Promise.resolve();
+      return env.continueWork ?? Promise.resolve();
     }
+    if (env.continueWork) return env.continueWork;
     let resolve!: () => void, reject!: (error: unknown) => void;
     const pending = new Promise<void>((ok, fail) => {
       resolve = ok;

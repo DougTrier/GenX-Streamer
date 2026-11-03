@@ -90,3 +90,29 @@ it('a manual target stays exact through stalls and Auto restores profile plus le
   expect(buffer.setPreference({ mode: 'manual', targetSeconds: 99 })).toBe(false);
   expect(buffer.target).toBe(12.8);
 });
+
+it('reclassifies only the most recent provisional starvation raise as a transport transition', () => {
+  const buffer = createAdaptiveBuffer('balanced');
+  const first = buffer.beginStall();
+  expect(first.target).toBe(5);
+  expect(first.reclassifyAsTransition()).toBe(true);
+  expect(buffer.target).toBe(3);
+  expect(first.reclassifyAsTransition()).toBe(false);
+  const earlier = buffer.beginStall();
+  const later = buffer.beginStall();
+  expect(earlier.reclassifyAsTransition()).toBe(false);
+  expect(buffer.target).toBe(8);
+  expect(later.reclassifyAsTransition()).toBe(true);
+  expect(buffer.target).toBe(5);
+});
+it('never rolls back a manual target or a newer explicit manual/Auto choice', () => {
+  const manual = createAdaptiveBuffer('smooth', 8, { mode: 'manual', targetSeconds: 2 });
+  expect(manual.beginStall().reclassifyAsTransition()).toBe(false);
+  expect(manual.target).toBe(2);
+  const buffer = createAdaptiveBuffer('balanced');
+  const prior = buffer.beginStall();
+  buffer.setPreference({ mode: 'manual', targetSeconds: 12 });
+  buffer.setPreference({ mode: 'auto' });
+  expect(prior.reclassifyAsTransition()).toBe(false);
+  expect(buffer.target).toBe(5);
+});

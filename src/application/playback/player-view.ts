@@ -29,6 +29,7 @@ import { createChannelCategoryResolver, type Preferences } from '../../preferenc
 import { createPlaybackHealthCapture } from './playback-health';
 import { DECODER_HEALTH_PROFILE } from '../health/health-profile';
 import { isRecordRevisionConflict, readRecordPair, writeHealth } from '../../platform/records';
+import { nativeScanBatchCommit } from '../../platform/scan-batch-commit';
 import { type installVODDock } from '../../ui/player/vod-dock';
 import { type createDiagnostics } from '../../diagnostics/native';
 import { type createActivityWakePolicy } from './activity-wake';
@@ -426,9 +427,11 @@ export function createPlayerView(env: PlayerViewEnvironment) {
         ? 'Resume'
         : 'Pause';
     pause.dataset.icon = pause.textContent === 'Resume' ? 'play' : 'pause';
+    const paidVod = env.accountVodSelected();
     env.vodStopControl?.render(
-      env.contentLibrary === 'genxtra' || env.accountVodSelected(),
-      !!env.archivePlayer?.selection || env.accountVodSelected(),
+      (env.contentLibrary === 'genxtra' && (!selection || selection.playMode === 'on-demand')) ||
+        paidVod,
+      !!env.archivePlayer?.selection || paidVod,
     );
     const favorite = env.element<HTMLButtonElement>('favorite-button');
     const accountRow = selection ? env.accountBrowser.selectionFor(selection.id) : undefined;
@@ -513,6 +516,8 @@ export function createPlayerView(env: PlayerViewEnvironment) {
       context.scope === String(env.sharingBridge.host.snapshot().generation),
     readRecordPair: async (signal) => {
       signal.throwIfAborted();
+      if (await nativeScanBatchCommit.capabilities(signal))
+        return nativeScanBatchCommit.revisions(signal);
       const saved = await readRecordPair();
       signal.throwIfAborted();
       return saved;

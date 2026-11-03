@@ -291,7 +291,7 @@ async function fixture(held = false, width = 960, height = 540, many = false) {
   );
   return page;
 }
-it('renders bounded chronological safe descriptions and actionable clear failure', async () => {
+it('renders bounded safe descriptions and actionable clear failure', async () => {
   const page = await fixture();
   try {
     await expect.poll(() => page.locator('li').count()).toBe(1);
@@ -357,6 +357,9 @@ it('D-pad enters history, scrolls twenty rows and returns to the toolbar at the 
   const page = await fixture(false, 960, 540, true);
   try {
     await expect.poll(() => page.locator('li').count()).toBe(60);
+    expect(await page.locator('time').first().getAttribute('datetime')).toBe(
+      '1970-01-01T00:00:01.059Z',
+    );
     await page.keyboard.press('ArrowDown');
     const list = page.getByRole('list', { name: 'Recent events' });
     expect(await list.evaluate((node) => node === document.activeElement)).toBe(true);

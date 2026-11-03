@@ -175,12 +175,14 @@ it('shows measured kbps and buffer, and applies one saved target despite cloned 
     const footer = page.locator('#stream-buffer-footer');
     await browserExpect(footer).toContainText('1,200 kbps');
     await browserExpect(footer).toContainText('8.0s / Target 10s');
-    await footer.locator('[data-buffer-action="more"]').click();
+    await footer.locator('[data-buffer-action="more"]').click({ position: { x: 3, y: 12 } });
     await browserExpect(footer).toContainText('Target 11s');
     expect(await page.evaluate(() => Reflect.get(window, 'fixture').saved)).toEqual([
       { key: 'a'.repeat(64), preference: { mode: 'manual', targetSeconds: 11 } },
     ]);
-    await footer.locator('[data-buffer-action="auto"]').click();
+    await footer.locator('[data-buffer-action="less"]').click({ position: { x: 3, y: 12 } });
+    await browserExpect(footer).toContainText('Target 10s');
+    await footer.locator('[data-buffer-action="auto"]').click({ position: { x: 3, y: 12 } });
     await browserExpect(footer.locator('[data-buffer-action="auto"]')).toBeDisabled();
     expect(
       await page.evaluate(() => Reflect.get(window, 'fixture').saved.at(-1).preference),

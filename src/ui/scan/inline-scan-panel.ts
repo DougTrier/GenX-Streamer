@@ -24,12 +24,13 @@ const KIND: Record<NonNullable<AutomaticScanProgress['scanKind']>, string> = {
   continue: 'Finishing scan',
 };
 const count = (n: number) => n.toLocaleString('en-US');
+const DISMISSED_KEY = 'genx.inline-scan-prompt-dismissed.v1';
 
 /**
  * The scan panel above the channel list. A finished saved scan has nothing to
- * do, so it is not shown at startup; Close hides the panel until the user asks
- * again with the magnifier (Finish scan / Refresh / Rescan / Close) or a scan
- * runs. Refresh looks only for new channels and removes confirmed-dead ones;
+ * do, so it is not shown at startup. Close remembers the dismissal on this
+ * device. An explicit request or an active scan can still show the panel.
+ * Refresh looks only for new channels and removes confirmed-dead ones;
  * Rescan checks everything again from scratch.
  */
 export function mountInlineScanPanel(
@@ -116,14 +117,26 @@ export function mountInlineScanPanel(
     watch.observe(button, { attributes: true, attributeFilter: ['hidden', 'disabled'] });
   follow();
   const pace = createScanPace(now);
+  let suppressSavedPrompt = false;
+  try {
+    suppressSavedPrompt = doc.defaultView?.localStorage.getItem(DISMISSED_KEY) === 'true';
+  } catch {
+    // The current-session dismissal still works when storage is unavailable.
+  }
   let dismissed = false,
     revealed = false,
     last: Readonly<AutomaticScanProgress> | null = null;
   close.addEventListener('click', () => {
     pendingFocus = null;
     dismissed = true;
+    suppressSavedPrompt = true;
     revealed = false;
     panel.hidden = true;
+    try {
+      doc.defaultView?.localStorage.setItem(DISMISSED_KEY, 'true');
+    } catch {
+      // The panel is already hidden for this session.
+    }
   });
   function render(progress: Readonly<AutomaticScanProgress>): void {
     const focused = doc.activeElement;
@@ -137,10 +150,11 @@ export function mountInlineScanPanel(
     follow();
     const active = progress.busy || progress.pendingPublications > 0;
     if (active) dismissed = false;
-    const finishedSaved = !active && progress.savedSummary === 'completed' && !revealed;
+    const suppressPrompt =
+      !active && !revealed && (suppressSavedPrompt || progress.savedSummary === 'completed');
     panel.hidden =
       dismissed ||
-      finishedSaved ||
+      suppressPrompt ||
       progress.presentation !== 'inline' ||
       (progress.phase === 'idle' && !active && !progress.error && !progress.total);
     if (panel.hidden) return;

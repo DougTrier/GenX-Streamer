@@ -1,0 +1,27 @@
+{
+  "data": {
+    "day0": [
+      {
+        "short_name": "Kids 24/7",
+        "listings": [
+          {
+            "title": "Xavier Riddle and the Secret Museum",
+            "episode_title": "I am Mary Leakey & Alexander Hamilton",
+            "minutes": 30,
+            "nola_episode": "000115",
+            "nola_root": "XRID",
+            "start_time": "2230"
+          },
+          {
+            "title": "Alma's Way",
+            "episode_title": "Published episode",
+            "minutes": 60,
+            "nola_episode": "000305",
+            "nola_root": "AWAY",
+            "start_time": "2330"
+          }
+        ]
+      }
+    ]
+  }
+}

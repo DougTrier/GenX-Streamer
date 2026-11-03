@@ -199,7 +199,7 @@ export function createScanRuns(env: ScanRunsEnvironment) {
     );
     env.heading.textContent = uiBusy ? 'Scanning' : env.review ? 'Channels' : 'Scan channels';
     const initial = !uiBusy && !env.review && !env.historyMode;
-    env.dialog.dataset.scanState = initial && !env.optionsPanel.open ? 'start' : 'results';
+    env.dialog.dataset.scanState = !initial ? 'results' : env.optionsPanel.open ? 'setup' : 'start';
     env.introduction.hidden = !initial;
     env.count.hidden = !env.review && !env.historyMode;
     env.setup.hidden = false;

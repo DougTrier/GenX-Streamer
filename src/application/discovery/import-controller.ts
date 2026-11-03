@@ -377,16 +377,35 @@ export function createImportController(env: ImportEnvironment) {
   env.element('inline-scan-stop').addEventListener('click', () => {
     if (env.applicationClosing) return;
     const button = env.element<HTMLButtonElement>('inline-scan-stop');
+    const onlineEntry = env.addChannelsEntryController;
+    const generation = env.addChannelsEntryGeneration;
     button.disabled = true;
     env.playbackAction(
-      Promise.all([env.cancelOnlineSourceEntry(), env.sourceScan.stopAutomatic()]).finally(() => {
-        button.disabled = env.applicationClosing;
-      }),
+      Promise.all([env.cancelOnlineSourceEntry(), env.sourceScan.stopAutomatic()])
+        .then(() => {
+          if (
+            !onlineEntry ||
+            env.applicationClosing ||
+            generation !== env.addChannelsEntryGeneration
+          )
+            return;
+          env.element('inline-scan-status').textContent =
+            'Online discovery stopped. Your saved channels are retained.';
+          button.hidden = true;
+          env.element('inline-scan-rescan').hidden = false;
+        })
+        .finally(() => {
+          button.disabled = env.applicationClosing;
+        }),
     );
   });
   env.element('inline-scan-continue').addEventListener('click', () => {
     if (env.applicationClosing || env.addChannelsEntryWork) return;
     env.playbackAction(env.sourceScan.continueAutomatic({ presentation: 'inline' }));
+  });
+  env.element('finish-saved-scan').addEventListener('click', () => {
+    if (env.applicationClosing || env.addChannelsEntryWork) return;
+    env.playbackAction(env.sourceScan.continueAutomatic({ presentation: 'dialog' }));
   });
   env.element('inline-scan-rescan').addEventListener('click', () => startInlineDiscovery(true));
   env
@@ -768,13 +787,31 @@ export function createImportController(env: ImportEnvironment) {
         'The Paid TV program guide could not update. Its previous schedule remains available.';
     },
   });
+  const reportRefreshCleanupFailure = (reason: string) => {
+    void env.diagnostics.emit({
+      operation: 'guide',
+      level: 'warning',
+      code: 'guide-failed',
+      reason,
+    });
+  };
   // Existing foreground/background owners keep one joined lifecycle interface.
   const dailyGuideRefresh = {
     async wake() {
       await freeGuideRefresh.wake();
       await paidGuideRefresh.wake();
     },
-    suspend: () => joinGuideWork([freeGuideRefresh, paidGuideRefresh]),
+    suspend: () =>
+      joinGuideWork([
+        {
+          suspend: freeGuideRefresh.suspend,
+          reportFailure: () => reportRefreshCleanupFailure('free-refresh-cleanup'),
+        },
+        {
+          suspend: paidGuideRefresh.suspend,
+          reportFailure: () => reportRefreshCleanupFailure('paid-refresh-cleanup'),
+        },
+      ]),
     async dispose() {
       unsubscribePlayback();
       const results = await Promise.allSettled([

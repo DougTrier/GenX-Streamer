@@ -24,6 +24,7 @@ async function mount(
     personal?: boolean;
     foreground?: boolean;
     holdFullscreenExit?: boolean;
+    emptyFirstListing?: boolean;
   } = {},
 ): Promise<void> {
   await page.setViewportSize(
@@ -85,6 +86,7 @@ async function mount(
       { id: '3', name: 'Kids', items: titles('Kids', 3) },
     ];
     const log: string[] = [];
+    let categoryRequests = 0;
     const vod = mountAccountVod(
       {
         play: async (title: { name: string }) => {
@@ -104,7 +106,10 @@ async function mount(
         list: async (_a: unknown, _s: string, id: string | null) =>
           id === null
             ? {
-                categories: categories.map(({ id, name }) => ({ id, name })),
+                categories:
+                  ++categoryRequests === 1 && options.emptyFirstListing
+                    ? []
+                    : categories.map(({ id, name }) => ({ id, name })),
                 items: [],
                 skipped: 0,
               }
@@ -480,6 +485,14 @@ test('a rail category jumps to its row; Channels leaves; coming back lands on th
   await openVod(page);
   await expect(page.locator('.vod-categories button[aria-pressed="true"]')).toHaveText('Action');
   await expect.poll(() => focused(page)).toBe('38');
+});
+
+test('reopening VOD reloads a previously empty category listing', async ({ page }) => {
+  await mount(page, { emptyFirstListing: true });
+  await page.locator('#vod-button').click();
+  await expect(page.getByText('No movies are available right now.')).toBeVisible();
+  await page.getByRole('button', { name: 'Back to channels', exact: true }).click();
+  await openVod(page);
 });
 
 test('after a movie stops, VOD shows the titles again on the same poster', async ({ page }) => {

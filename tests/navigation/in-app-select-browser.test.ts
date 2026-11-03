@@ -202,6 +202,28 @@ it('first dialog cancel closes only choices; background closes and disposal rest
     await page.close();
   }
 });
+it('keeps dropdowns stable during unrelated visibility changes', async () => {
+  const page = await fixture();
+  try {
+    const unchanged = await page.evaluate(async () => {
+      const root = document.getElementById('root')!;
+      const unrelated = document.createElement('section');
+      root.append(unrelated);
+      const trigger = root.querySelector('.in-app-select button')!;
+      const text = trigger.firstChild;
+      unrelated.hidden = true;
+      await Promise.resolve();
+      return trigger.firstChild === text;
+    });
+    expect(unchanged).toBe(true);
+    await page.getByRole('button', { name: 'Guide source', exact: true }).click();
+    await page.evaluate(() => (document.getElementById('dialog') as HTMLDialogElement).close());
+    await browserExpect(page.locator('.in-app-select-menu')).toHaveCount(0);
+  } finally {
+    await page.close();
+  }
+});
+
 it('honors hidden state and disabled optgroups when the same owner is refreshed', async () => {
   const page = await fixture();
   try {

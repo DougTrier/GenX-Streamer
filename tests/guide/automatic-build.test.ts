@@ -534,7 +534,8 @@ it.each(['application-closing', 'canceled', 'guide-cancelled'])(
     };
     const owner = createAutomaticGuideBuilder(f.host);
     const work = owner.request();
-    const failedOperation = expect(work).rejects.toBe(code);
+    const settledOperation =
+      code === 'canceled' ? expect(work).resolves.toBeUndefined() : expect(work).rejects.toBe(code);
     await entered.promise;
     let disposed = false;
     const cleanup = owner.dispose().then(() => {
@@ -544,7 +545,7 @@ it.each(['application-closing', 'canceled', 'guide-cancelled'])(
     expect(disposed).toBe(false);
     held.resolve();
     await cleanup;
-    await failedOperation;
+    await settledOperation;
     expect(disposed).toBe(true);
     expect(f.calls).toEqual([]);
     await owner.dispose();

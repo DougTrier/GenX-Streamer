@@ -32,6 +32,7 @@ import type {
 export interface SavedChannel {
   id: string;
   url: string;
+  alternateUrls?: readonly string[];
   allowHttp: boolean;
 }
 export type CheckOutcome = ChannelCheckVerdict | 'NotChecked' | 'Canceled';
@@ -137,11 +138,30 @@ export function createSavedChannelCheck(
       await host.record(part, owner.signal);
     }
   };
+  const answered = (verdict: CheckOutcome) => verdict === 'Reachable' || verdict === 'PlayedHere';
+  async function probeChannel(channel: SavedChannel, signal: AbortSignal): Promise<CheckOutcome> {
+    const probe = (url: string) =>
+      host.probe({ ...channel, url }, signal).catch(() => 'NotChecked' as const);
+    const first = await probe(channel.url);
+    if (answered(first) || first === 'Canceled' || first === 'NotChecked') return first;
+    let uncertain = false;
+    for (const url of channel.alternateUrls ?? []) {
+      if (signal.aborted || !host.idle()) return 'Canceled';
+      const verdict = await probe(url);
+      if (answered(verdict) || verdict === 'Canceled') return verdict;
+      if (verdict === 'NotChecked') uncertain = true;
+    }
+    return uncertain ? 'NotChecked' : first;
+  }
   async function checkBatch(batch: readonly SavedChannel[]): Promise<ChannelObservation[]> {
-    // Channels sharing one stream address are checked once.
+    // Share a check only when every candidate and the transport policy match.
     const byUrl = new Map<string, SavedChannel[]>();
-    for (const channel of batch)
-      byUrl.set(channel.url, [...(byUrl.get(channel.url) ?? []), channel]);
+    for (const channel of batch) {
+      const key = JSON.stringify([channel.allowHttp, channel.url, channel.alternateUrls ?? []]);
+      const group = byUrl.get(key);
+      if (group) group.push(channel);
+      else byUrl.set(key, [channel]);
+    }
     const queue = [...byUrl.values()];
     const observations: ChannelObservation[] = [];
     const abort = new AbortController();
@@ -162,15 +182,19 @@ export function createSavedChannelCheck(
             }
             first = false;
             if (abort.signal.aborted || !host.idle()) return;
-            const outcome = await host
-              .probe(group[0], abort.signal)
-              .catch(() => 'NotChecked' as const);
+            const outcome = await probeChannel(group[0], abort.signal);
             // Stopped because GenX is in use: nothing learned.
             if (abort.signal.aborted) return;
             // Canceled or unknown (for example the device is offline) never counts as a failure.
             if (outcome === 'NotChecked' || outcome === 'Canceled') continue;
             for (const channel of group)
-              observations.push({ channelId: channel.id, verdict: outcome });
+              observations.push({
+                channelId: channel.id,
+                verdict: outcome,
+                ...(!answered(outcome) && channel.alternateUrls?.length
+                  ? { checkedUrls: [channel.url, ...channel.alternateUrls] }
+                  : {}),
+              });
           }
         }),
       );
@@ -180,7 +204,6 @@ export function createSavedChannelCheck(
     }
     // Stopped part way: keep the channels that answered; a failure is never
     // counted without the connection check below, which waits for idle.
-    const answered = (verdict: string) => verdict === 'Reachable' || verdict === 'PlayedHere';
     if (abort.signal.aborted) return observations.filter((o) => answered(o.verdict));
     // Failures only count while the connection itself works: when nothing in the
     // batch answered, the channel that answered most recently must answer now.
@@ -196,7 +219,7 @@ export function createSavedChannelCheck(
         }
       }
       if (canary) {
-        const outcome = await host.probe(canary, owner.signal).catch(() => 'NotChecked' as const);
+        const outcome = await probeChannel(canary, owner.signal);
         if (!answered(outcome)) return [];
         observations.push({ channelId: canary.id, verdict: outcome as ChannelCheckVerdict });
       }

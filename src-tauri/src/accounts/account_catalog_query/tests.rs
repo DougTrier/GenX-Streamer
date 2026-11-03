@@ -461,6 +461,91 @@ mod geography_tests {
         }
     }
     #[test]
+    fn sports_explicit_facet_requires_nfl_evidence_for_paid_count_and_paging() {
+        let c = database();
+        for (letter, name, category) in [
+            ('a', "NFL Network", "US | NFL"),
+            ('b', "Conflict Channel", "US | American Football"),
+            ('c', "NFLive PPV", "US | American Football | PPV"),
+            ('d', "FOX Affiliate", "US | General"),
+            ('e', "SailGP", "US | Sports"),
+            ('f', "NFL Adult", "US | Adult | NFL"),
+            ('g', "NFL Removed", "US | NFL"),
+        ] {
+            c.execute(
+                "UPDATE account_media_entry_v1 SET name=?2,category=?3 WHERE channel_id=?1",
+                params![id(letter), name, category],
+            )
+            .unwrap();
+        }
+        c.execute(
+            "UPDATE account_media_entry_v1 SET epg_id='fox' WHERE channel_id=?1",
+            [id('d')],
+        )
+        .unwrap();
+        crate::account_guide::install(&c).unwrap();
+        c.execute(
+            "INSERT INTO account_guide_v1 VALUES(?1,1,1,1000,1,1,0)",
+            [ACCOUNT],
+        )
+        .unwrap();
+        c.execute("INSERT INTO account_guide_program_v1 VALUES(?1,'fox',1100,1200,0,'Cartoon hour',NULL,'[]'),(?1,'fox',2000,3000,1,'Chicago Bears at Detroit Lions PPV',NULL,'[]')", [ACCOUNT]).unwrap();
+        let mut q = query(Some("US"), true, Sort::Source, Filter::Sports);
+        q.query = "NFL".into();
+        q.sports = Some(crate::catalog::sports::Scope {
+            sport: Some("american-football".into()),
+            league: None,
+            include_ppv: true,
+            window_start_ms: 1000,
+            window_end_ms: 1000 + 7 * 86400000,
+            vocabulary_version: serde_json::from_str::<serde_json::Value>(
+                crate::catalog::sports::VOCABULARY,
+            )
+            .unwrap()["vocabularyVersion"]
+                .as_str()
+                .unwrap()
+                .into(),
+        });
+        let read = |request: &Query| {
+            let (_r, context, _p, _w, _requests) =
+                crate::scan_manifest_work::bookmark_context_fixture();
+            read_page(&c, request, context).unwrap()
+        };
+        let full = read(&q);
+        assert_eq!(full.total, 2);
+        assert_eq!(
+            full.items
+                .iter()
+                .map(|row| row.id.clone())
+                .collect::<Vec<_>>(),
+            [id('a'), id('d')]
+        );
+        assert_eq!(
+            full.items.iter().map(|row| row.ppv).collect::<Vec<_>>(),
+            [false, true]
+        );
+        q.page_size = 1;
+        let first = read(&q);
+        assert_eq!(first.total, 2);
+        assert_eq!(first.items[0].id, id('a'));
+        q.start_index = 1;
+        q.expected_media_revision = Some(first.media_revision);
+        q.expected_preferences_revision = Some(first.preferences_revision);
+        q.expected_guide_revision = first.guide_revision;
+        let next = read(&q);
+        assert_eq!(next.total, 2);
+        assert_eq!(next.items[0].id, id('d'));
+        q.start_index = 0;
+        q.query = "Football".into();
+        assert_eq!(read(&q).total, 4);
+        q.query = "NFLive".into();
+        assert_eq!(read(&q).items[0].id, id('c'));
+        q.query = "NFL".into();
+        q.sports.as_mut().unwrap().sport = None;
+        assert_eq!(read(&q).total, 2);
+    }
+
+    #[test]
     fn sports_paid_list_uses_raw_overrides_cached_affiliates_and_ppv_before_count() {
         let c = database();
         let admitted_ids = |q: &Query| {

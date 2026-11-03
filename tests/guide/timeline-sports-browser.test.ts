@@ -259,3 +259,42 @@ it('keeps the Guide Sport and League controls reachable with remote arrows at ha
     await page.close();
   }
 });
+
+it('requires NFL evidence in the inherited American Football fallback instead of a literal substring', async () => {
+  const page = await fixture(false);
+  const sports = captureSportsScope(
+    'NFL',
+    { sport: 'american-football' },
+    Date.UTC(2026, 9, 11, 12),
+  )!;
+  try {
+    await page.evaluate((sports) => {
+      const w = window as unknown as Record<string, any>; // eslint-disable-line @typescript-eslint/no-explicit-any
+      w.channels = w.channels.slice(0, 3).map((channel: object, index: number) => ({
+        ...channel,
+        name: ['NFL Network', 'Conflict Channel', 'NFLive'][index],
+        category: 'American Football',
+      }));
+      w.host.browseScope = () => ({
+        filter: 'sports',
+        query: 'NFL',
+        sports,
+      });
+    }, sports);
+    await page.evaluate(() => Reflect.get(window, 'owner').setForeground(true));
+    expect(
+      await page.locator('.gx-timeline-channel .media-result-title').allTextContents(),
+    ).toEqual(['NFL Network']);
+    await page.getByLabel('Search guide channels and programs').fill('Football');
+    await page.getByLabel('Search guide channels and programs').press('Enter');
+    await expect.poll(() => page.locator('.gx-timeline-channel').count()).toBe(3);
+    await page.getByLabel('Search guide channels and programs').fill('NFLive');
+    await page.getByLabel('Search guide channels and programs').press('Enter');
+    await expect
+      .poll(() => page.locator('.gx-timeline-channel .media-result-title').allTextContents())
+      .toEqual(['NFLive']);
+  } finally {
+    await page.evaluate(() => Reflect.get(window, 'owner').dispose());
+    await page.close();
+  }
+});

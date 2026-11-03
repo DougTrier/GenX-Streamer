@@ -20,6 +20,7 @@ import {
   type AutomaticGuideBuildHost,
 } from '../../src/guide/automatic-build';
 import {
+  automaticGuideConfigurationChanged,
   createAutomaticGuidePermissions,
   isAutomaticGuidePermissionRefusal,
   previewPermittedAutomaticGuide,
@@ -100,6 +101,26 @@ it('coalesces deferred requests, then captures fresh scope once idle rather than
   );
   await owner.dispose();
   expect(vi.getTimerCount()).toBe(0);
+});
+
+it('reports completion when a deferred cached guide connection settles', async () => {
+  const f = fixture();
+  f.idle(false);
+  f.host.onDeferred = vi.fn();
+  f.host.onProgress = vi.fn();
+  const owner = createAutomaticGuideBuilder(f.host);
+  try {
+    await owner.requestCached();
+    expect(f.host.onDeferred).toHaveBeenCalledOnce();
+    f.idle(true);
+    await owner.wake();
+    expect(f.host.onProgress).toHaveBeenCalledWith(
+      expect.objectContaining({ phase: 'completed', cacheOnly: true, connected: 1 }),
+    );
+    expect(f.host.capture).not.toHaveBeenCalled();
+  } finally {
+    await owner.dispose();
+  }
 });
 
 it('visibly defers explicit Find while busy, retains its manual permission and never waits on its own Guide dialog', async () => {
@@ -240,6 +261,33 @@ it('does not repeat a full acquisition after final maintenance returns a definit
   await owner.wake();
   expect(f.host.capture).toHaveBeenCalledOnce();
   expect(f.host.maintain).toHaveBeenCalledOnce();
+  await owner.dispose();
+});
+
+it('retries after a settled native cancellation of the preempted owner', async () => {
+  const f = fixture();
+  const entered = deferred<void>();
+  const held = deferred<void>();
+  const preview = f.host.preview;
+  f.host.preview = vi.fn(preview).mockImplementationOnce(async () => {
+    entered.resolve();
+    await held.promise;
+    throw 'canceled';
+  });
+  const observed = vi.fn();
+  f.host.onDeferredError = observed;
+  const owner = createAutomaticGuideBuilder(f.host);
+  const work = owner.request();
+  await entered.promise;
+  f.idle(false);
+  const admission = owner.preparePlayback();
+  held.resolve();
+  await admission;
+  await work;
+  f.idle(true);
+  await owner.wake();
+  expect(f.host.preview).toHaveBeenCalledTimes(2);
+  expect(observed).not.toHaveBeenCalled();
   await owner.dispose();
 });
 
@@ -651,7 +699,7 @@ it.each([false, true])(
       expect(await owner.run()).toMatchObject({ deferred: true });
       f.idle(true);
       if (cleanupFails) await expect(owner.wake()).rejects.toBe(cleanup);
-      else await expect(owner.wake()).rejects.toMatchObject({ name: 'AbortError' });
+      else await expect(owner.wake()).resolves.toBeUndefined();
       expect(visible).toHaveBeenCalledOnce();
       expect(isAutomaticGuidePermissionRefusal(visible.mock.calls[0]?.[0])).toBe(!cleanupFails);
       expect(gateway.previewSource).not.toHaveBeenCalled();
@@ -722,6 +770,24 @@ it.each([false, true])(
     await owner.dispose();
   },
 );
+
+it('allows a later tune when a deferred cached connection detects a changed scope before writing', async () => {
+  const f = fixture();
+  const refused = automaticGuideConfigurationChanged();
+  const visible = vi.fn();
+  f.host.onDeferredError = visible;
+  f.host.connectCacheOnly = vi.fn(async () => {
+    throw refused;
+  });
+  f.idle(false);
+  const owner = createAutomaticGuideBuilder(f.host);
+  await owner.requestCached();
+  f.idle(true);
+  await expect(owner.wake()).resolves.toBeUndefined();
+  expect(visible).toHaveBeenCalledExactlyOnceWith(refused);
+  await expect(owner.preparePlayback()).resolves.toBeUndefined();
+  await owner.dispose();
+});
 
 it('never waives a cleanup failure merely because its error object carries a preflight refusal brand', async () => {
   const f = fixture();

@@ -465,6 +465,55 @@ pub(crate) async fn response_conditional(
     .await
 }
 
+/// JSON metadata on a caller's explicitly admitted exact source. No credentials
+/// or redirects; the ordinary destination/DNS/TLS policy still applies.
+pub(crate) async fn response_json_metadata(raw: &str) -> Result<reqwest::Response, String> {
+    let mut headers = reqwest::header::HeaderMap::new();
+    headers.insert(
+        reqwest::header::ACCEPT,
+        reqwest::header::HeaderValue::from_static("application/json"),
+    );
+    response_options_headers(
+        raw,
+        false,
+        (None, Some(headers)),
+        Duration::from_secs(20),
+        Duration::from_secs(5),
+        Duration::from_secs(5),
+        false,
+    )
+    .await
+}
+
+/// Fixed anonymous official PBS KIDS schedule query. No caller-supplied URL,
+/// credentials, redirects or generic GraphQL service is exposed to app input.
+pub(crate) async fn response_pbs_kids_metadata(body: &[u8]) -> Result<reqwest::Response, String> {
+    if body.is_empty() || body.len() > 4096 {
+        return Err("pbs-request-limit".into());
+    }
+    let url = Url::parse("https://graph.services.pbskids.org/").map_err(|_| "pbs-invalid-url")?;
+    if !validate(&url, false) {
+        return Err("url-policy-refused".into());
+    }
+    let client = build_client(
+        false,
+        true,
+        Duration::from_secs(5),
+        Duration::from_secs(5),
+        Duration::from_secs(20),
+    )
+    .map_err(|e| request_failure(e, "unknown", false))?;
+    client
+        .post(url)
+        .header(reqwest::header::ACCEPT, "application/json")
+        .header(reqwest::header::CONTENT_TYPE, "application/json")
+        .header(reqwest::header::ACCEPT_ENCODING, "identity")
+        .body(body.to_vec())
+        .send()
+        .await
+        .map_err(|e| request_failure(e, "unknown", false))
+}
+
 /// Public directory metadata only; no credential headers or redirect dispatch.
 /// An optional cache validator is the exact ETag previously returned for this URL.
 pub(crate) async fn response_directory(
@@ -949,7 +998,7 @@ pub(crate) async fn media_with_client(
         let mut data = Vec::new();
         let mut first_byte_ms = None;
         if response.status().is_success() {
-            const MEDIA_LIMIT: usize = 8 * 1024 * 1024;
+            const MEDIA_LIMIT: usize = 16 * 1024 * 1024;
             if response
                 .content_length()
                 .is_some_and(|size| size > MEDIA_LIMIT as u64)

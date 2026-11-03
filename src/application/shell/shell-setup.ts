@@ -49,6 +49,7 @@ export interface ShellSetupEnvironment {
   readonly nativeViewingForeground: boolean;
   readonly backgroundSuspension: Promise<void> | null;
   readonly updateVisibleGuide: () => void;
+  readonly clearBrowseFilters: () => void;
 }
 
 export function createShellSetup(env: ShellSetupEnvironment) {
@@ -117,7 +118,7 @@ export function createShellSetup(env: ShellSetupEnvironment) {
   );
   let storageRecovery: ReturnType<typeof mountStorageRecovery> | undefined;
   const removeViewport = env.bootstrapBoundary.run('viewport', () =>
-    installViewport(env.element('app')),
+    installViewport(env.element('app'), { clearFilters: env.clearBrowseFilters }),
   );
   const remoteEditMode = env.bootstrapBoundary.run('viewport', () => createRemoteEditMode());
   const removeRemoteNavigation = env.bootstrapBoundary.run('viewport', () =>

@@ -397,8 +397,9 @@ pub(super) fn query_page_inner(
             Filter::Unresponsive => predicates.push(
                 if crate::storage_transaction::channel_check::table_present(c)? {
                     crate::storage_transaction::channel_check::not_responding_predicate(
+                        c,
                         "p.channel_id",
-                    )
+                    )?
                 } else {
                     "0".into()
                 },

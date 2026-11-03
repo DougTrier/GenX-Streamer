@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "vocabularyVersion": "2026-11-01.2",
-  "scope": "Shared TS/Rust query-plan golden cases. normalMatch retains legacy contiguous literal fallback; strictSemanticMatch requires independent evidence plus every semantic target and leftover term. Programme conflicts suppress channel texts. Query intent never supplies row evidence.",
+  "vocabularyVersion": "2026-11-02.1",
+  "scope": "Shared TS/Rust query-plan golden cases. Recognized sport, league and full-team query intent requires independent evidence plus every semantic target and leftover term. Generic literal queries and ambiguous football retain their literal fallback. Programme conflicts suppress channel texts. Query intent never supplies row evidence.",
   "cases": [
     {
       "id": "multi_team_requires_both_missing_second",
@@ -137,13 +137,13 @@
       "strictSemanticMatch": false
     },
     {
-      "id": "literal_prefix_is_not_strict_league_evidence",
+      "id": "literal_prefix_is_not_league_evidence",
       "query": "NFL",
       "texts": [
         "NFLive"
       ],
       "specific": true,
-      "normalMatch": true,
+      "normalMatch": false,
       "strictSemanticMatch": false
     },
     {
@@ -474,6 +474,405 @@
       "specific": true,
       "normalMatch": true,
       "strictSemanticMatch": true
+    },
+    {
+      "id": "facet_af_nfl_rejects_conflict_literal",
+      "query": "NFL",
+      "facet": {
+        "sport": "american-football"
+      },
+      "texts": [
+        "Conflict Channel",
+        "American Football"
+      ],
+      "specific": true,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "facet_af_nfl_rejects_nflive_literal",
+      "query": "NFL",
+      "facet": {
+        "sport": "american-football"
+      },
+      "texts": [
+        "NFLive PPV",
+        "American Football"
+      ],
+      "specific": true,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "facet_af_nfl_accepts_full_team_evidence",
+      "query": "NFL",
+      "facet": {
+        "sport": "american-football"
+      },
+      "texts": [
+        "Chicago Bears at Buffalo Bills"
+      ],
+      "specific": true,
+      "normalMatch": true,
+      "strictSemanticMatch": true
+    },
+    {
+      "id": "facet_af_nfl_accepts_generic_broadcaster_programme",
+      "query": "NFL",
+      "facet": {
+        "sport": "american-football"
+      },
+      "channelTexts": [
+        "FOX",
+        "General"
+      ],
+      "program": {
+        "title": "Chicago Bears at Green Bay Packers",
+        "categories": [
+          {
+            "text": "NFL"
+          }
+        ]
+      },
+      "specific": true,
+      "normalMatch": true,
+      "strictSemanticMatch": true
+    },
+    {
+      "id": "facet_af_nfl_rejects_unrelated_sailing_programme",
+      "query": "NFL",
+      "facet": {
+        "sport": "american-football"
+      },
+      "channelTexts": [
+        "SailGP",
+        "Sports"
+      ],
+      "program": {
+        "title": "Sail Grand Prix",
+        "categories": [
+          {
+            "text": "Sailing"
+          }
+        ]
+      },
+      "specific": true,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "facet_preserves_generic_literal_query",
+      "query": "training",
+      "facet": {
+        "sport": "american-football"
+      },
+      "texts": [
+        "American Football training"
+      ],
+      "specific": false,
+      "normalMatch": true,
+      "strictSemanticMatch": true
+    },
+    {
+      "id": "facet_preserves_bare_football_expansion",
+      "query": "football",
+      "facet": {
+        "sport": "american-football"
+      },
+      "texts": [
+        "College Football"
+      ],
+      "specific": false,
+      "normalMatch": true,
+      "strictSemanticMatch": true
+    },
+    {
+      "id": "facet_af_nfl_requires_remaining_query_terms",
+      "query": "NFL highlights",
+      "facet": {
+        "sport": "american-football"
+      },
+      "texts": [
+        "Chicago Bears practice"
+      ],
+      "specific": true,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "football_generic_rejects_unrelated_sailing",
+      "query": "Football",
+      "texts": [
+        "SailGP",
+        "Sports",
+        "Sail Grand Prix"
+      ],
+      "specific": false,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "football_generic_preserves_literal_soccer_without_inference",
+      "query": "Football",
+      "texts": [
+        "Soccer Football match"
+      ],
+      "specific": false,
+      "normalMatch": true,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "football_af_facet_rejects_soccer",
+      "query": "Football",
+      "facet": {
+        "sport": "american-football"
+      },
+      "texts": [
+        "Soccer Football match"
+      ],
+      "specific": false,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "football_af_facet_rejects_unknown_literal_channel",
+      "query": "Football",
+      "facet": {
+        "sport": "american-football"
+      },
+      "texts": [
+        "Football cartoons",
+        "Children"
+      ],
+      "specific": false,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "nfl_compact_network_brand",
+      "query": "NFL",
+      "texts": [
+        "NFLNetwork"
+      ],
+      "specific": true,
+      "normalMatch": true,
+      "strictSemanticMatch": true
+    },
+    {
+      "id": "nfl_compact_redzone_brand",
+      "query": "NFL",
+      "texts": [
+        "NFLRedZone"
+      ],
+      "specific": true,
+      "normalMatch": true,
+      "strictSemanticMatch": true
+    },
+    {
+      "id": "nfl_brand_substring_is_not_evidence",
+      "query": "NFL",
+      "texts": [
+        "NFLRedZoneish"
+      ],
+      "specific": true,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "nfl_generic_conflict_is_not_evidence",
+      "query": "NFL",
+      "texts": [
+        "Conflict Channel"
+      ],
+      "specific": true,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "college_context_actual_acc_replay",
+      "query": "Football",
+      "facet": {
+        "sport": "american-football"
+      },
+      "channelTexts": [
+        "ACC Digital Network (1080p)",
+        "Sports"
+      ],
+      "program": {
+        "title": "Miami vs. Duke (11.30.19) Football Replay",
+        "description": "Duke takes down Miami in future Blue Devils head coach Manny Diaz's first year with the Hurricanes.",
+        "categories": []
+      },
+      "specific": false,
+      "normalMatch": true,
+      "strictSemanticMatch": true
+    },
+    {
+      "id": "college_context_bare_carrier_no_football",
+      "query": "Football",
+      "facet": {
+        "sport": "american-football"
+      },
+      "channelTexts": [
+        "ACC Digital Network",
+        "Sports"
+      ],
+      "program": {
+        "title": "Conference highlights",
+        "categories": []
+      },
+      "specific": false,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "college_context_basketball_conflict",
+      "query": "Football",
+      "facet": {
+        "sport": "american-football"
+      },
+      "channelTexts": [
+        "ACC Digital Network",
+        "Sports"
+      ],
+      "program": {
+        "title": "Football special: Miami at Duke Basketball",
+        "categories": []
+      },
+      "specific": false,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "college_context_soccer_conflict",
+      "query": "Football",
+      "facet": {
+        "sport": "american-football"
+      },
+      "channelTexts": [
+        "Atlantic Coast Conference",
+        "Sports"
+      ],
+      "program": {
+        "title": "Football replay",
+        "categories": [
+          {
+            "text": "Soccer"
+          }
+        ]
+      },
+      "specific": false,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "college_context_unknown_uk_football",
+      "query": "Football",
+      "facet": {
+        "sport": "american-football"
+      },
+      "channelTexts": [
+        "UK Sports",
+        "Sports"
+      ],
+      "program": {
+        "title": "Miami vs. Duke (11.30.19) Football Replay",
+        "description": "Duke takes down Miami in future Blue Devils head coach Manny Diaz's first year with the Hurricanes.",
+        "categories": []
+      },
+      "specific": false,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "college_context_children_football",
+      "query": "Football",
+      "facet": {
+        "sport": "american-football"
+      },
+      "channelTexts": [
+        "Kids Cartoons",
+        "Children"
+      ],
+      "program": {
+        "title": "Football friends",
+        "categories": []
+      },
+      "specific": false,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "college_context_film_football",
+      "query": "Football",
+      "facet": {
+        "sport": "american-football"
+      },
+      "channelTexts": [
+        "Movie Channel",
+        "Movies"
+      ],
+      "program": {
+        "title": "Football Factory",
+        "categories": []
+      },
+      "specific": false,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "college_context_football_does_not_imply_nfl",
+      "query": "NFL",
+      "channelTexts": [
+        "ACC Digital Network",
+        "Sports"
+      ],
+      "program": {
+        "title": "Miami vs. Duke (11.30.19) Football Replay",
+        "description": "Duke takes down Miami in future Blue Devils head coach Manny Diaz's first year with the Hurricanes.",
+        "categories": []
+      },
+      "specific": true,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "college_context_explicit_af_and_soccer_cannot_infer_league",
+      "query": "College Football",
+      "facet": {
+        "sport": "american-football",
+        "league": "college-football"
+      },
+      "channelTexts": [
+        "ACC Digital Network",
+        "Sports"
+      ],
+      "program": {
+        "title": "American football Soccer highlights",
+        "categories": []
+      },
+      "specific": true,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "college_context_explicit_af_and_basketball_cannot_infer_league",
+      "query": "College Football",
+      "facet": {
+        "sport": "american-football",
+        "league": "college-football"
+      },
+      "channelTexts": [
+        "ACC Digital Network",
+        "Sports"
+      ],
+      "program": {
+        "title": "American football Basketball highlights",
+        "categories": []
+      },
+      "specific": true,
+      "normalMatch": false,
+      "strictSemanticMatch": false
     }
   ]
 }

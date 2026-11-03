@@ -60,12 +60,12 @@
   }
   /* GenXtra playing stretches the picture to its card elsewhere; here the card
      takes its content's height, so the picture keeps its 16:9 height. */
-  #app:not(.compact-content):not(.viewing-fullscreen)
+  #app:not([data-phone-portrait='true']):not(.compact-content):not(.viewing-fullscreen)
     .view:has(#archive-details[data-playback-active='true'])
     > .watch-card {
     flex: none;
   }
-  #app:not(.compact-content):not(.viewing-fullscreen)
+  #app:not([data-phone-portrait='true']):not(.compact-content):not(.viewing-fullscreen)
     .view:has(#archive-details[data-playback-active='true'])
     > .watch-card
     > .screen {

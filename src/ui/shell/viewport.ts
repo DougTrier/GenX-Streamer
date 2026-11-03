@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { installPhoneLayout, type PhoneLayoutOptions } from './phone-layout';
+
 interface NativeImeInsets {
   schemaVersion: 1;
   visible: boolean;
@@ -42,7 +44,8 @@ export function parseNativeImeInsets(value: unknown): NativeImeInsets | null {
 }
 
 /** Visual viewport and actual native IME overlap for adjustNothing editing. */
-export function installViewport(root: HTMLElement): () => void {
+export function installViewport(root: HTMLElement, options: PhoneLayoutOptions = {}): () => void {
+  const phone = installPhoneLayout(root, options);
   const viewport = window.visualViewport;
   const height = () => viewport?.height ?? window.innerHeight;
   const top = () => viewport?.offsetTop ?? 0;
@@ -77,6 +80,34 @@ export function installViewport(root: HTMLElement): () => void {
   let nativeInsets = parseNativeImeInsets(
     (window as Window & { __genxImeInsets?: unknown }).__genxImeInsets,
   );
+  let keyboardOwner: 'modal' | 'main' | null = null;
+  let nativeSessionVisible = false;
+  let visualSessionContracted = false;
+  const editable = (node: Element | null): node is HTMLElement =>
+    node instanceof HTMLElement &&
+    node.matches(
+      'textarea,[contenteditable="true"],input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="file"])',
+    );
+  const captureEditor = (): void => {
+    const focused = document.activeElement;
+    if (!editable(focused)) return;
+    const modal = focused.closest<HTMLDialogElement>('dialog:not([data-primary-page])');
+    if (modal && !modal.open) return;
+    // Focus starts the edit session: Android may report its first visible IME
+    // after the dialog has already closed and restored focus to its opener.
+    keyboardOwner = modal ? 'modal' : 'main';
+    nativeSessionVisible = nativeInsets?.visible === true && nativeInsets.overlapPx > 0;
+    visualSessionContracted = false;
+  };
+  const endKeyboardSession = (): void => {
+    keyboardOwner = null;
+    nativeSessionVisible = false;
+    visualSessionContracted = false;
+    keyboardOpen = false;
+    // A newer dialog/main editor can already own focus while an older IME
+    // finishes hiding. Keep that editor's pending session for its next update.
+    captureEditor();
+  };
   let keyboardDialog: HTMLDialogElement | null = null;
   const scrollPositions = new Map<HTMLElement, number>();
   const restoreModal = (): void => {
@@ -90,11 +121,18 @@ export function installViewport(root: HTMLElement): () => void {
   const rememberScroll = (node: HTMLElement): void => {
     if (!scrollPositions.has(node)) scrollPositions.set(node, node.scrollTop);
   };
-  const revealModalFocus = (): void => {
-    focusFrame = 0;
-    const dialog = keyboardDialog;
-    const focused = document.activeElement;
-    if (disposed || !dialog?.open || !(focused instanceof HTMLElement) || !dialog.contains(focused))
+  const revealModalFocus = (
+    dialog: HTMLDialogElement,
+    focused: Element | null,
+    trackScroll: boolean,
+  ): void => {
+    if (
+      disposed ||
+      !dialog.open ||
+      !(focused instanceof HTMLElement) ||
+      document.activeElement !== focused ||
+      focused.closest('dialog[open]:not([data-primary-page])') !== dialog
+    )
       return;
     const field = focused.closest<HTMLElement>('label') ?? focused;
     for (let node = focused.parentElement; node; node = node.parentElement) {
@@ -103,7 +141,7 @@ export function installViewport(root: HTMLElement): () => void {
         /auto|scroll/u.test(getComputedStyle(node).overflowY) &&
         node.scrollHeight > node.clientHeight
       ) {
-        rememberScroll(node);
+        if (trackScroll) rememberScroll(node);
         const bounds = node.getBoundingClientRect();
         const modal = dialog.getBoundingClientRect();
         const target = field.getBoundingClientRect();
@@ -116,6 +154,10 @@ export function installViewport(root: HTMLElement): () => void {
     }
   };
   const measureCompact = (): void => {
+    if (phone.sync(keyboardOpen, unobstructedHeight)) {
+      root.classList.remove('compact-content');
+      return;
+    }
     if (window.innerWidth > 650) {
       root.classList.remove('compact-content');
       return;
@@ -198,11 +240,7 @@ export function installViewport(root: HTMLElement): () => void {
   const update = (): void => {
     frame = 0;
     const mobile = window.innerWidth <= 650;
-    const editing =
-      document.activeElement instanceof HTMLElement &&
-      document.activeElement.matches(
-        'textarea,[contenteditable="true"],input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="button"]):not([type="submit"]):not([type="file"])',
-      );
+    const editing = editable(document.activeElement);
     if (measuredWidth !== window.innerWidth) {
       measuredWidth = window.innerWidth;
       unobstructedHeight = Math.max(window.innerHeight, height());
@@ -225,11 +263,15 @@ export function installViewport(root: HTMLElement): () => void {
         ? window.devicePixelRatio
         : 1;
     const nativeVisible = nativeInsets?.visible === true && nativeInsets.overlapPx > 0;
+    if (contracted) visualSessionContracted = true;
+    else if (visualSessionContracted && !nativeVisible && !nativeSessionVisible)
+      endKeyboardSession();
     const keyboard =
-      (contracted && (editing || keyboardOpen)) ||
-      (nativeVisible && (editing || keyboardOpen || !!activeModal));
+      (contracted && (editing || keyboardOpen || !!keyboardOwner)) ||
+      (nativeVisible && (editing || keyboardOpen || !!activeModal || !!keyboardOwner));
     const modalKeyboard = keyboard && !!activeModal;
-    const mainKeyboard = keyboard && !activeModal;
+    // Closing a modal does not turn its still-visible IME into a main editor.
+    const mainKeyboard = keyboard && !activeModal && keyboardOwner === 'main';
     const nativeBottom =
       nativeVisible && nativeInsets
         ? (nativeInsets.webViewHeightPx - nativeInsets.overlapPx) / dpr
@@ -238,7 +280,10 @@ export function installViewport(root: HTMLElement): () => void {
     // Choose the smaller available interval instead of subtracting twice.
     const usableHeight = Math.max(1, Math.min(height(), nativeBottom - top()));
     const mainHeight = mainKeyboard ? usableHeight : height();
+    let restoredFocus: { dialog: HTMLDialogElement; focused: Element | null } | null = null;
     if (keyboardDialog !== (modalKeyboard ? activeModal : null)) {
+      if (keyboardDialog && !modalKeyboard && keyboardDialog === activeModal)
+        restoredFocus = { dialog: keyboardDialog, focused: document.activeElement };
       restoreModal();
       keyboardDialog = modalKeyboard ? activeModal : null;
       if (keyboardDialog) {
@@ -268,7 +313,20 @@ export function installViewport(root: HTMLElement): () => void {
     measureCompact();
     if (modalKeyboard) {
       cancelAnimationFrame(focusFrame);
-      focusFrame = requestAnimationFrame(revealModalFocus);
+      const dialog = keyboardDialog!;
+      const focused = document.activeElement;
+      focusFrame = requestAnimationFrame(() => {
+        focusFrame = 0;
+        if (keyboardDialog === dialog) revealModalFocus(dialog, focused, true);
+      });
+    } else if (restoredFocus) {
+      const { dialog, focused } = restoredFocus;
+      // Normal modal scroll owners return after the IME class is removed.
+      // Reveal the same focused control once using that restored geometry.
+      focusFrame = requestAnimationFrame(() => {
+        focusFrame = 0;
+        if (!keyboardOpen && !keyboardDialog) revealModalFocus(dialog, focused, false);
+      });
     }
   };
   const schedule = (): void => {
@@ -279,13 +337,19 @@ export function installViewport(root: HTMLElement): () => void {
     const measured = parseNativeImeInsets(event.detail);
     if (!measured || (nativeInsets && measured.sequence <= nativeInsets.sequence)) return;
     nativeInsets = measured;
+    if (measured.visible && measured.overlapPx > 0) nativeSessionVisible = true;
+    else if (!measured.visible && nativeSessionVisible) endKeyboardSession();
+    schedule();
+  };
+  const focusEditor = (): void => {
+    captureEditor();
     schedule();
   };
   viewport?.addEventListener('resize', schedule);
   viewport?.addEventListener('scroll', schedule);
   window.addEventListener('native-ime-insets', ime);
   window.addEventListener('resize', schedule);
-  document.addEventListener('focusin', schedule);
+  document.addEventListener('focusin', focusEditor);
   document.addEventListener('focusout', schedule);
   document.addEventListener('close', schedule, true);
   const controls = new ResizeObserver(schedule);
@@ -311,17 +375,19 @@ export function installViewport(root: HTMLElement): () => void {
     }
   };
   search.addEventListener('keydown', enter);
+  captureEditor();
   update();
   return () => {
     if (disposed) return;
     disposed = true;
+    phone.dispose();
     cancelAnimationFrame(frame);
     restoreModal();
     viewport?.removeEventListener('resize', schedule);
     viewport?.removeEventListener('scroll', schedule);
     window.removeEventListener('native-ime-insets', ime);
     window.removeEventListener('resize', schedule);
-    document.removeEventListener('focusin', schedule);
+    document.removeEventListener('focusin', focusEditor);
     document.removeEventListener('focusout', schedule);
     document.removeEventListener('close', schedule, true);
     controls.disconnect();

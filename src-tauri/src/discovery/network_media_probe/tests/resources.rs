@@ -19,6 +19,8 @@ use super::*;
 
 #[tokio::test]
 async fn recognized_root_does_not_hide_segment_http_or_html_error_and_latest_complete_is_checked() {
+    let mut padding = vec![0xff; 188];
+    padding[..4].copy_from_slice(&[0x47, 0x1f, 0xff, 0x10]);
     for (status, body, reason) in [
         (404, Vec::new(), "resource-http-unavailable"),
         (
@@ -27,6 +29,13 @@ async fn recognized_root_does_not_hide_segment_http_or_html_error_and_latest_com
             "resource-error-document",
         ),
         (200, ts(), "media-resources-responded"),
+        (200, padding.clone(), "media-format-unverified"),
+        (200, padding.repeat(4), "media-format-unverified"),
+        (
+            200,
+            [padding.repeat(2), ts()].concat(),
+            "media-resources-responded",
+        ),
     ] {
         let f = fixture(HashMap::from([
             ("/root".into(), (200, media("latest"), None)),

@@ -196,6 +196,9 @@ test.afterEach(async ({ page }) => {
 
 test('Cast, choose the TV, it plays: a verified TV needs no second step', async ({ page }) => {
   await mount(page);
+  const first = page.locator('#cast-devices .cast-device').first();
+  await expect(first).toContainText('Fixture A');
+  await expect(first).not.toContainText('protocol-a');
   await selectFirst(page);
   await expect(page.locator('#cast-status')).toContainText('Casting to');
   await expect(page.locator('#cast-confirmation')).toBeHidden();
@@ -424,5 +427,5 @@ test('the TV being cast to is marked, with its own Stop beside it', async ({ pag
     .toBe(1);
   await expect(rows.nth(0).locator('.cast-device')).toHaveAttribute('aria-current', 'false');
   await expect(rows.nth(0).locator('.cast-device-stop')).toBeHidden();
-  await expect(page.locator('#cast-status')).toHaveText('Choose a channel, then select your TV.');
+  await expect(page.locator('#cast-status')).toHaveText('Select your TV to watch on it.');
 });

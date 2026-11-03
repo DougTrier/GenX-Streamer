@@ -81,7 +81,7 @@ function harness(
     },
     probe: async (c) => {
       probed.push(c.id);
-      return outcomes[c.id] ?? 'Reachable';
+      return outcomes[c.url] ?? outcomes[c.id] ?? 'Reachable';
     },
     changed: (checks) => {
       published = checks;
@@ -143,6 +143,23 @@ describe('saved channel check', () => {
     const firstRound = h.recorded[0].map((o) => o.channelId).sort();
     expect(firstRound).toEqual(['dead', 'good', 'twin-a', 'twin-b']);
     expect(h.probed.slice(0, 3).filter((id) => id.startsWith('twin'))).toHaveLength(1);
+  });
+
+  it('checks a working backup separately from channels sharing its failed primary', async () => {
+    const primary = 'https://example.test/dead.m3u8';
+    const backup = 'https://example.test/backup.m3u8';
+    const h = harness(
+      [channel('single', primary), { ...channel('multiple', primary), alternateUrls: [backup] }],
+      { [primary]: 'TimedOut', [backup]: 'Reachable' },
+    );
+    const work = createSavedChannelCheck(h.host, { startDelayMs: 0, restMs: 0, sleepMs: 0 });
+    work.start();
+    await settle(() => h.recorded.length > 0);
+    await work.dispose();
+    expect(h.recorded[0]).toEqual([
+      { channelId: 'single', verdict: 'TimedOut' },
+      { channelId: 'multiple', verdict: 'Reachable' },
+    ]);
   });
 
   it('never counts a failure when the connection itself is down', async () => {

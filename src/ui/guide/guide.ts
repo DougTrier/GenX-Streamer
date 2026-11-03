@@ -297,6 +297,7 @@ export function mountGuide(
   };
   const dialog = document.createElement('dialog');
   dialog.className = 'guide-dialog';
+  dialog.dataset.guideOwner = 'app';
   dialog.setAttribute('aria-label', 'Program guide');
   const title = text('h2', 'Program guide');
   const status = text('p', '');

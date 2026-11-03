@@ -21,7 +21,7 @@
 // src-tauri/Cargo.lock (the tmg-tv entry), src-tauri/tauri.conf.json (which
 // the Android build turns into versionName and versionCode =
 // major*1000000 + minor*1000 + patch), the README's badge and version table,
-// and the landing page's visible version and search metadata.
+// for the source candidate. The landing page describes the published release.
 //
 // Every release needs a higher version: Check for updates compares versions,
 // and Android refuses to update to an equal or lower versionCode.
@@ -77,25 +77,15 @@ const places = [
     file: 'README.md',
     read: (text) => [
       /img\.shields\.io\/badge\/Version-([0-9.]+)-/.exec(text)?.[1],
-      /\| \*\*Version\*\* \| ([0-9.]+)/.exec(text)?.[1],
+      /\| \*\*Candidate version\*\* \| ([0-9.]+)/.exec(text)?.[1],
     ],
     write: (text, from, to) =>
       text
         .replace(`badge/Version-${from}-`, `badge/Version-${to}-`)
-        .replace(`| **Version** | ${from}`, `| **Version** | ${to}`),
-  },
-  {
-    file: 'site/index.html',
-    read: (text) => [
-      /"softwareVersion": "([0-9.]+)"/.exec(text)?.[1],
-      /class="release-version">Version ([0-9.]+)/.exec(text)?.[1],
-    ],
-    write: (text, from, to) =>
-      text
-        .replace(`"softwareVersion": "${from}"`, `"softwareVersion": "${to}"`)
+        .replace(`| **Candidate version** | ${from}`, `| **Candidate version** | ${to}`)
         .replace(
-          `class="release-version">Version ${from}`,
-          `class="release-version">Version ${to}`,
+          `| **Android build** | ${versionCode(from)} |`,
+          `| **Android build** | ${versionCode(to)} |`,
         ),
   },
 ];
@@ -117,6 +107,9 @@ export function checkVersions(root) {
     throw new Error(
       `Versions disagree: ${found.map((place) => `${place.file} ${place.versions.join('/')}`).join(', ')}`,
     );
+  const readme = readFileSync(path.join(root, 'README.md'), 'utf8');
+  if (!readme.includes(`| **Android build** | ${versionCode(first)} |`))
+    throw new Error(`README.md Android build must be ${versionCode(first)}.`);
   return first;
 }
 

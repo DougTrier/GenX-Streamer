@@ -567,6 +567,28 @@ export function createBrowserEngine(
     if (resume && !disposed && !signal?.aborted && !desiredPaused && !replay?.paused)
       void video.play().catch(() => undefined);
   };
+  const hlsBufferTransition = (includeReady: boolean): boolean => {
+    if (!hls || finiteMode || !adaptive) return false;
+    if (video.seeking) return true;
+    const position = video.currentTime;
+    if (!Number.isFinite(position) || position < 0) return false;
+    const ahead = aheadSeconds();
+    if (includeReady && ahead >= Math.max(0.5, adaptive.target)) return true;
+    const duration = hls.levels?.[hls.loadLevel]?.details?.targetduration;
+    const maxGap = Math.max(
+      Number.isFinite(hls.config.maxBufferHole) ? hls.config.maxBufferHole : 0,
+      typeof duration === 'number' && Number.isFinite(duration) && duration > 0 ? duration : 0,
+    );
+    const contiguousEnd = position + Math.max(0, ahead);
+    return bufferedRanges().some(
+      ([start, end]) =>
+        Number.isFinite(start) &&
+        Number.isFinite(end) &&
+        start > contiguousEnd + 0.05 &&
+        start - contiguousEnd <= maxGap + 0.05 &&
+        end - start >= 0.5,
+    );
+  };
   // A live stall: wait for the adaptive goal before resuming, instead of
   // resuming on the first frame and stalling again (stop-start jitter). The
   // goal rises with each stall and never steps down for this channel.
@@ -584,7 +606,12 @@ export function createBrowserEngine(
       signal?.aborted
     )
       return;
-    const target = adaptive.stalled();
+    // A paused media element prevents HLS from repairing its own buffer gaps.
+    // A seek or already available neighbouring range is not network starvation.
+    if (hlsBufferTransition(true)) return;
+    const previousLearned = learnedLiveBuffer.get(adaptiveChannel);
+    const stall = adaptive.beginStall();
+    const target = stall.target;
     if (adaptive.mode === 'auto') learnedLiveBuffer.set(adaptiveChannel, target);
     applyLiveBufferTarget();
     const started = Date.now();
@@ -592,8 +619,15 @@ export function createBrowserEngine(
     releaseHoldTimer = owners.acquire('loaderTimers');
     holdTimer = setInterval(() => {
       if (disposed || signal?.aborted) return endHold(false);
-      if (adaptive!.ready(aheadSeconds()) || Date.now() - started >= adaptive!.holdLimitMs)
+      if (adaptive!.ready(aheadSeconds())) endHold(true);
+      else if (hlsBufferTransition(false)) {
+        if (stall.reclassifyAsTransition()) {
+          if (learnedLiveBuffer.get(adaptiveChannel) === target)
+            learnedLiveBuffer.set(adaptiveChannel, previousLearned);
+          applyLiveBufferTarget();
+        }
         endHold(true);
+      } else if (Date.now() - started >= adaptive!.holdLimitMs) endHold(true);
     }, 250);
   };
   const audioHealth = createBrowserAudioHealth(video, {

@@ -147,7 +147,7 @@ export function validateDiagnosticPage(value: unknown): DiagnosticPage {
 }
 const descriptions: Record<EventCode, string> = {
   'scan-started': 'Channel scan started.',
-  'scan-paused': 'Channel scan paused. Resume it from Add channels.',
+  'scan-paused': 'Channel scan paused. To resume, open Find channels in Settings.',
   'scan-completed': 'Channel scan finished.',
   'scan-catalog-changed':
     'Your channel library changed during the scan. Select Rescan to start a fresh scan.',
@@ -180,6 +180,24 @@ const descriptions: Record<EventCode, string> = {
 };
 export function describeDiagnosticEvent(event: DiagnosticEvent): string {
   const valid = validateDiagnosticEvent(event);
+  if (valid.code === 'guide-failed') {
+    switch (valid.reason) {
+      case 'builder-cleanup':
+        return 'Automatic guide setup could not confirm cleanup before playback.';
+      case 'builder-storage-busy':
+        return 'Automatic guide setup could not finish because guide storage was busy.';
+      case 'builder-cancel-unconfirmed':
+        return 'Automatic guide setup could not confirm that its native request stopped.';
+      case 'maintenance-cleanup':
+        return 'Guide maintenance could not confirm cleanup before playback.';
+      case 'free-refresh-cleanup':
+        return 'The Free TV guide refresh could not confirm cleanup.';
+      case 'paid-refresh-cleanup':
+        return 'The Paid TV guide refresh could not confirm cleanup.';
+      case 'background-wake':
+        return 'Guide background work could not restart after playback.';
+    }
+  }
   const counts = [
     valid.checked === undefined ? '' : `${valid.checked} checked`,
     valid.total === undefined ? '' : `${valid.total} total`,

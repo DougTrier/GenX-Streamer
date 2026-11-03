@@ -49,6 +49,10 @@ export function installCasting(
   options: CastingUiOptions = {},
 ): () => Promise<void> {
   const available = () => options.available?.() !== false;
+  const idleHint = () =>
+    available() && selection()
+      ? 'Select your TV to watch on it.'
+      : 'Choose a channel, then select your TV.';
   const receivers =
     options.receivers ?? createConfirmedReceiver({ readNetworkScope, validateReceiver });
   // Choosing another TV waits while one is still being authorized, as both
@@ -292,7 +296,7 @@ export function installCasting(
     status.textContent =
       snapshot.message ??
       (!only
-        ? 'Choose a channel, then select your TV.'
+        ? idleHint()
         : snapshot.casts.length > 1
           ? `Casting to ${snapshot.casts.length} TVs. Choose another TV to cast this channel there too.`
           : only.state === 'playing'
@@ -302,7 +306,9 @@ export function installCasting(
     markCasting(snapshot);
     options.castsChanged?.(snapshot.casts);
   });
-  const addDevice = (device: ReceiverDetails): void => {
+  const receiverLabel = (device: ReceiverDetails): string =>
+    `${device.name} · ${device.model ?? (device.protocol === 'dlna' ? 'DLNA' : 'Chromecast')}`;
+  const addDevice = (device: ReceiverDetails, showIdentity = false): void => {
     const marks = castMarks(device, deviceListeners);
     const row = document.createElement('div');
     row.className = 'cast-device-row';
@@ -310,7 +316,7 @@ export function installCasting(
     button.className = 'cast-device';
     button.append(
       marks.badge,
-      `${device.name} · ${device.model ?? (device.protocol === 'dlna' ? 'DLNA' : 'Chromecast')}${device.protocolReceiverId ? ' · ' + device.protocolReceiverId : ' · Identity unverified'}`,
+      `${receiverLabel(device)}${!device.protocolReceiverId ? ' · Identity unverified' : showIdentity ? ` · ${device.protocolReceiverId}` : ''}`,
       marks.channel,
     );
     // One tap casts this TV's last channel to it again, whatever plays here.
@@ -460,9 +466,15 @@ export function installCasting(
         if (!live(owned, current)) return;
         const found = await controller.listDevices(owned.signal);
         if (!live(owned, current)) return;
-        for (const device of found) addDevice(device);
+        const labelCounts = new Map<string, number>();
+        for (const device of found) {
+          const label = receiverLabel(device);
+          labelCounts.set(label, (labelCounts.get(label) ?? 0) + 1);
+        }
+        for (const device of found)
+          addDevice(device, (labelCounts.get(receiverLabel(device)) ?? 0) > 1);
         status.textContent = found.length
-          ? 'Select your TV to watch on it.'
+          ? idleHint()
           : 'No receivers found. Check the TV capabilities, venue pairing and whether this network allows device connections.';
         const warnings = await (
           options.warnings ?? (() => invoke<string[]>('cast_discovery_warnings'))

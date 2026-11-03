@@ -86,8 +86,14 @@ export function createChannelBrowserSetup(env: ChannelBrowserSetupEnvironment) {
   const browser = new ChannelBrowser(
     env.element('channel-list'),
     (id) => {
-      env.element('app').dataset.compactView = 'watch';
+      const app = env.element('app');
+      app.dataset.compactView = 'watch';
       env.element<HTMLSelectElement>('compact-view').value = 'watch';
+      if (
+        app.dataset.phoneView === 'browse' &&
+        window.matchMedia('(orientation: portrait)').matches
+      )
+        app.querySelector<HTMLButtonElement>('#phone-watch-button')?.click();
       env.updateVisibleGuide();
       const privateChannel = env.accountBrowser.selectionFor(id);
       if (privateChannel) {

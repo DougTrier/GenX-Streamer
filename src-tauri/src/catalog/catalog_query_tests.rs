@@ -156,6 +156,8 @@ fn not_responding_filter_lists_only_channels_failed_on_two_days() {
     let mut q = query("");
     q.filter = Filter::Unresponsive;
     assert!(ids(&run(&c, &q)).is_empty(), "no checks recorded yet");
+    c.execute_batch("CREATE TABLE channel_url(channel_id TEXT,ordinal INTEGER,url TEXT);")
+        .unwrap();
     let hour = 3_600_000;
     for (at, batch) in [
         (
@@ -178,6 +180,7 @@ fn not_responding_filter_lists_only_channels_failed_on_two_days() {
                 .into_iter()
                 .map(
                     |(id, verdict)| crate::storage_transaction::channel_check::Observation {
+                        checked_urls: None,
                         channel_id: id.into(),
                         verdict: verdict.into(),
                     },
@@ -190,6 +193,9 @@ fn not_responding_filter_lists_only_channels_failed_on_two_days() {
     let page = run(&c, &q);
     assert_eq!(ids(&page), vec!["dead"]);
     assert_eq!(page.total_count, 1);
+    c.execute_batch("INSERT INTO channel_url VALUES('dead',0,'https://a/primary'),('dead',1,'https://a/backup');")
+        .unwrap();
+    assert_eq!(run(&c, &q).total_count, 0);
 }
 #[test]
 fn literal_short_unicode_alias_network_and_published_location_matching() {
@@ -841,6 +847,75 @@ fn sports_cached_programmes_original_categories_ppv_counts_and_cursors() {
     assert_eq!(ids(&run(&c, &q)), ["b"]);
     let cancel = Arc::new(AtomicBool::new(true));
     assert!(query_page(&c, &q, &cancel).is_err());
+}
+
+#[test]
+fn sports_explicit_facet_requires_nfl_evidence_before_counts_and_pages() {
+    let mut c = fixture();
+    c.execute_batch("CREATE TABLE guide_meta(singleton INTEGER PRIMARY KEY,revision INTEGER);INSERT INTO guide_meta VALUES(1,1);CREATE TABLE guide_source(id TEXT PRIMARY KEY,revision INTEGER,published_revision INTEGER);INSERT INTO guide_source VALUES('g',1,1);CREATE TABLE guide_mapping(catalog_source_id TEXT,app_channel_id TEXT,guide_source_id TEXT,xmltv_channel_id TEXT);CREATE INDEX guide_mapping_target ON guide_mapping(guide_source_id,xmltv_channel_id,app_channel_id);CREATE TABLE guide_program(guide_source_id TEXT,channel_id TEXT,start_ms INTEGER,stop_ms INTEGER,title TEXT,description TEXT,categories_json TEXT);CREATE INDEX guide_program_channel_time ON guide_program(guide_source_id,channel_id,start_ms);").unwrap();
+    for (id, name, category, country) in [
+        ("nfl", "NFL Network", "US | NFL", "US"),
+        ("conflict", "Conflict Channel", "American Football", "US"),
+        ("nflive", "NFLive", "American Football", "US"),
+        ("ppv", "Chicago Bears PPV", "US | PPV", "US"),
+        ("false-ppv", "NFLive PPV", "American Football | PPV", "US"),
+        ("affiliate", "FOX Affiliate", "General", "US"),
+        ("news", "CBS News", "News", "US"),
+        ("sailing", "SailGP", "Sports", "US"),
+        ("children", "Happy Kids", "Children", "US"),
+        ("outside", "FOX Outside Window", "General", "US"),
+        ("past", "FOX Past", "General", "US"),
+        ("canada", "NFL Canada", "NFL", "CA"),
+        ("removed", "NFL Removed", "NFL", "US"),
+        ("adult", "NFL Adult", "Adult | NFL", "US"),
+    ] {
+        add(&c, id, name, category, None, [Some(country), None, None]);
+    }
+    c.execute_batch("INSERT INTO removed VALUES('removed');INSERT INTO guide_mapping VALUES('s','affiliate','g','fox'),('s','news','g','news'),('s','sailing','g','sail'),('s','children','g','kids'),('s','outside','g','outside'),('s','past','g','past');INSERT INTO guide_program VALUES('g','fox',1100,1200,'Cartoon hour',NULL,'[]'),('g','fox',2000,3000,'Chicago Bears at Green Bay Packers',NULL,'[]'),('g','news',1100,3000,'Local weather and headlines',NULL,'[]'),('g','sail',1100,3000,'Sail Grand Prix',NULL,'[]'),('g','kids',1100,3000,'Cartoon hour',NULL,'[]'),('g','outside',691201000,691202000,'NFL Live',NULL,'[]'),('g','past',0,900,'NFL Replay',NULL,'[]');").unwrap();
+    refresh(&mut c);
+    let mut q = query("NFL");
+    q.filter = Filter::Sports;
+    q.hide_adult = true;
+    q.geography.insert("country".into(), "US".into());
+    q.sports = Some(crate::catalog::sports::Scope {
+        sport: Some("american-football".into()),
+        league: None,
+        include_ppv: true,
+        window_start_ms: 1000,
+        window_end_ms: 1000 + 7 * 86400000,
+        vocabulary_version: serde_json::from_str::<Value>(crate::catalog::sports::VOCABULARY)
+            .unwrap()["vocabularyVersion"]
+            .as_str()
+            .unwrap()
+            .into(),
+    });
+    let full = run(&c, &q);
+    assert_eq!(ids(&full), ["nfl", "ppv", "affiliate"]);
+    assert_eq!(full.total_count, 3);
+    assert_eq!(
+        full.rows.iter().map(|row| row.ppv).collect::<Vec<_>>(),
+        [false, true, false]
+    );
+    q.page_size = 1;
+    let first = run(&c, &q);
+    assert_eq!(first.total_count, 3);
+    assert_eq!(ids(&first), ["nfl"]);
+    q.expected_catalog_revision = Some(first.catalog_revision);
+    q.expected_view_revision = Some(first.view_revision);
+    q.after = first.after;
+    assert_eq!(ids(&run(&c, &q)), ["ppv"]);
+    q.after = None;
+    q.page_size = 50;
+    q.query = "Football".into();
+    assert_eq!(
+        ids(&run(&c, &q)),
+        ["nfl", "conflict", "nflive", "ppv", "false-ppv", "affiliate"]
+    );
+    q.query = "NFLive".into();
+    assert_eq!(ids(&run(&c, &q)), ["nflive", "false-ppv"]);
+    q.query = "NFL".into();
+    q.sports.as_mut().unwrap().sport = None;
+    assert_eq!(ids(&run(&c, &q)), ["nfl", "ppv", "affiliate"]);
 }
 
 #[test]
@@ -1668,4 +1743,60 @@ fn watched_history_original_adult_fold_survives_category_override() {
     );
     q.hide_adult = false;
     assert_eq!(ids(&run(&c, &q)), ["wide"]);
+}
+
+#[test]
+fn sports_collegiate_programme_context_recalls_observed_acc_before_counts() {
+    let mut c = fixture();
+    c.execute_batch("CREATE TABLE guide_meta(singleton INTEGER PRIMARY KEY,revision INTEGER);INSERT INTO guide_meta VALUES(1,1);CREATE TABLE guide_source(id TEXT PRIMARY KEY,revision INTEGER,published_revision INTEGER);INSERT INTO guide_source VALUES('g',1,1);CREATE TABLE guide_mapping(catalog_source_id TEXT,app_channel_id TEXT,guide_source_id TEXT,xmltv_channel_id TEXT);CREATE TABLE guide_program(guide_source_id TEXT,channel_id TEXT,start_ms INTEGER,stop_ms INTEGER,title TEXT,description TEXT,categories_json TEXT);CREATE INDEX guide_program_channel_time ON guide_program(guide_source_id,channel_id,start_ms);").unwrap();
+    for (id, name, categories) in [
+        ("acc", "ACC Digital Network (1080p)", "[]"),
+        (
+            "basketball",
+            "ACC Digital Network basketball",
+            r#"[{"text":"Basketball"}]"#,
+        ),
+        (
+            "soccer",
+            "Atlantic Coast Conference soccer",
+            r#"[{"text":"Soccer"}]"#,
+        ),
+        ("unknown", "UK Football Channel", "[]"),
+        ("children", "Football cartoons", "[]"),
+    ] {
+        add(&c, id, name, "Sports", None, [Some("US"), None, None]);
+        c.execute("INSERT INTO guide_mapping VALUES('s',?1,'g',?1)", [id])
+            .unwrap();
+        c.execute("INSERT INTO guide_program VALUES('g',?1,1100,2000,?2,?3,?4)", params![id, "Miami vs. Duke (11.30.19) Football Replay", "Duke takes down Miami in future Blue Devils head coach Manny Diaz's first year with the Hurricanes.", categories]).unwrap();
+    }
+    add(
+        &c,
+        "bare",
+        "ACC Digital Network",
+        "Sports",
+        None,
+        [Some("US"), None, None],
+    );
+    refresh(&mut c);
+    let mut q = query("Football");
+    q.filter = Filter::Sports;
+    q.sports = Some(crate::catalog::sports::Scope {
+        sport: Some("american-football".into()),
+        league: None,
+        include_ppv: true,
+        window_start_ms: 1000,
+        window_end_ms: 3000,
+        vocabulary_version: serde_json::from_str::<Value>(crate::catalog::sports::VOCABULARY)
+            .unwrap()["vocabularyVersion"]
+            .as_str()
+            .unwrap()
+            .into(),
+    });
+    let page = run(&c, &q);
+    assert_eq!(ids(&page), ["acc"]);
+    assert_eq!(page.total_count, 1);
+    q.sports.as_mut().unwrap().league = Some("college-football".into());
+    assert_eq!(ids(&run(&c, &q)), ["acc"]);
+    q.query = "NFL".into();
+    assert_eq!(run(&c, &q).total_count, 0);
 }

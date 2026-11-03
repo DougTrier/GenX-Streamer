@@ -90,7 +90,7 @@ export function reconstructionRefusal(
   throw new ScanReconstructionError(code ?? fallback);
 }
 export const MAX_SCAN_CHECKPOINT_BYTES = 20 * 1024 * 1024;
-export const SCAN_CHECKPOINT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+export const SCAN_CHECKPOINT_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 export interface ScanCheckpoint {
   schemaVersion: 1;
   jobId: string;

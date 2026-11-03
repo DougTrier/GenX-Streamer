@@ -603,7 +603,7 @@ export function mountAccountVod(
       if (!rows) {
         rows = (await client.list(current, section, null, signal)).categories;
         if (signal.aborted) return;
-        categoriesCache.set(key(), rows);
+        if (rows.length) categoriesCache.set(key(), rows);
       }
       // Settings → Hide adult channels also hides adult on-demand categories.
       const shown = viewingSettings.current.hideAdult
@@ -620,7 +620,12 @@ export function mountAccountVod(
         }),
       );
       if (!shown.length) {
-        say(`This provider lists no ${section === 'movies' ? 'movies' : 'TV series'}.`);
+        const label = section === 'movies' ? 'movies' : 'TV series';
+        say(
+          rows.length
+            ? `No ${label} match your viewing settings.`
+            : `No ${label} are available right now.`,
+        );
         return;
       }
       setMode('rows');

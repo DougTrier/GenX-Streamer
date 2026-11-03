@@ -121,6 +121,10 @@ export async function maintainGuideStorage(signal: AbortSignal): Promise<GuideMa
   signal.addEventListener('abort', cancel, { once: true });
   try {
     return validateGuideMaintenance(await invoke('guide_retention_cleanup', { requestId }));
+  } catch (error) {
+    // The joined native worker refused retention without the reviewed identity data.
+    if (error === 'guide-retention-identity-unavailable') return 'deferred';
+    throw error;
   } finally {
     signal.removeEventListener('abort', cancel);
     await Promise.resolve(cancellation).then(() => {

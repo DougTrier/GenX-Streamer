@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { isOfficialGuideSuggestion } from './official-suggestions';
+
 const PREFIX = 'https://raw.githubusercontent.com/matthuisman/i.mjh.nz/master/';
 export const MAX_PACK_SUGGESTIONS = 16;
 
@@ -37,8 +39,9 @@ export function validatePackSuggestions(value: unknown): PackGuideSuggestion[] {
       !name.trim() ||
       name.length > 512 ||
       typeof location !== 'string' ||
-      !location.startsWith(PREFIX) ||
-      !/^[A-Za-z0-9_]+(?:\/[A-Za-z0-9_]+)*\.xml\.gz$/.test(location.slice(PREFIX.length)) ||
+      (!isOfficialGuideSuggestion({ name, location, channels }) &&
+        (!location.startsWith(PREFIX) ||
+          !/^[A-Za-z0-9_]+(?:\/[A-Za-z0-9_]+)*\.xml\.gz$/.test(location.slice(PREFIX.length)))) ||
       seen.has(location) ||
       !Number.isSafeInteger(channels) ||
       (channels as number) < 1

@@ -17,6 +17,40 @@
 import { chooseSettingsSection } from './helpers/settings-section';
 import { test, expect } from '@playwright/test';
 
+test('the phone search icon keeps its label inside its touch target', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 780 });
+  await page.goto('/');
+  await expect(page.locator('#app')).toHaveAttribute('data-ready', 'true');
+  await page.locator('#phone-filter-button').click();
+  const button = page.locator('#phone-filter-dialog #search-programs');
+  await expect(button).toHaveAccessibleName('Find channels online');
+  const geometry = await button.evaluate((node) => {
+    const box = node.getBoundingClientRect();
+    const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+    const textBounds: DOMRect[] = [];
+    while (walker.nextNode()) {
+      const range = document.createRange();
+      range.selectNodeContents(walker.currentNode);
+      textBounds.push(...range.getClientRects());
+    }
+    return {
+      width: box.width,
+      height: box.height,
+      contained: textBounds.every(
+        (r) =>
+          r.height === 0 ||
+          (r.left >= box.left - 1 &&
+            r.right <= box.right + 1 &&
+            r.top >= box.top - 1 &&
+            r.bottom <= box.bottom + 1),
+      ),
+    };
+  });
+  expect(geometry.width).toBeGreaterThanOrEqual(44);
+  expect(geometry.height).toBeGreaterThanOrEqual(44);
+  expect(geometry.contained).toBe(true);
+});
+
 for (const size of [
   { width: 320, height: 640 },
   { width: 320, height: 480 },
@@ -39,11 +73,16 @@ for (const size of [
     if (size.width === 736 && size.height === 414) {
       await expect(page.locator('#channel-list')).toHaveAttribute('data-catalog-empty', 'true');
       await expect(page.locator('.channel-row')).toHaveCount(0);
+      if (await page.locator('#phone-filter-button').isVisible())
+        await page.locator('#phone-filter-button').click();
       const refresh = await page.locator('#refresh-button').boundingBox();
       const footer = await page.locator('.app-signoff').boundingBox();
       expect(refresh!.y + refresh!.height).toBeLessThanOrEqual(footer!.y + 0.5);
+      if (await page.locator('#phone-filter-dialog').isVisible())
+        await page.locator('#phone-filter-close').click();
     }
-    if (size.height === 480) await page.getByLabel('Viewing panel').selectOption('channels');
+    if (size.height === 480 && (await page.getByLabel('Viewing panel').isVisible()))
+      await page.getByLabel('Viewing panel').selectOption('channels');
     const clipped = await page.evaluate(() =>
       [...document.querySelectorAll<HTMLButtonElement>('#app button')]
         .filter((button) => button.getClientRects().length && !button.closest('dialog:not([open])'))
@@ -81,12 +120,16 @@ for (const size of [
     ).toBe(true);
     if (await page.getByLabel('Viewing panel').isVisible())
       await page.getByLabel('Viewing panel').selectOption('channels');
+    if (await page.locator('#phone-filter-button').isVisible())
+      await page.locator('#phone-filter-button').click();
     await page.getByRole('button', { name: 'Location and sort', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: 'Location and sort', exact: true });
     await expect(dialog.getByRole('button', { name: 'Done', exact: true })).toBeInViewport({
       ratio: 1,
     });
     await dialog.getByRole('button', { name: 'Done', exact: true }).click();
+    if (await page.locator('#phone-filter-dialog').isVisible())
+      await page.locator('#phone-filter-close').click();
     await page.locator('#settings-button').click();
     for (const section of ['sources', 'preferences', 'data', 'discovery']) {
       await chooseSettingsSection(page, section);

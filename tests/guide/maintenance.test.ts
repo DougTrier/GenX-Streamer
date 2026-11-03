@@ -128,3 +128,8 @@ it('unconfirmed cancellation stays an error even when the SQL receipt arrives', 
   finish(receipt());
   await expect(work).rejects.toThrow('cancellation could not be confirmed');
 });
+
+it('defers joined retention when its reviewed identity data is unavailable', async () => {
+  api.invoke.mockRejectedValueOnce('guide-retention-identity-unavailable');
+  await expect(maintainGuideStorage(new AbortController().signal)).resolves.toBe('deferred');
+});

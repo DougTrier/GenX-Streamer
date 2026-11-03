@@ -57,6 +57,7 @@ export interface ForegroundEnvironment {
   readonly element: <T extends HTMLElement = HTMLElement>(id: string) => T;
   readonly notice: (message: string) => void;
   readonly fullscreenPresentation: ReturnType<typeof installFullscreenPresentation>;
+  readonly setExpanded: (expanded: boolean) => void;
   readonly updatePreviewControl: ReturnType<typeof createPageController>['updatePreviewControl'];
   backgroundSuspension: Promise<void> | null;
   foregroundGeneration: number;
@@ -358,6 +359,14 @@ export function createForegroundController(env: ForegroundEnvironment) {
       await env.switchPrimaryPage('watch');
       return;
     }
+    // Expanded viewing precedes the hidden library rails. Fullscreen is a
+    // separate presentation owner and must leave first without collapsing it.
+    if (env.element('app').classList.contains('expanded')) {
+      if (fullscreenOwner.active || fullscreenOwner.busy || document.fullscreenElement)
+        await fullscreenOwner.set(false);
+      else env.setExpanded(false);
+      return;
+    }
     // VOD's rail is hidden by fullscreen styling. Leave the picture first;
     // opening its gallery here would trap Back on controls that cannot focus.
     if (
@@ -379,6 +388,24 @@ export function createForegroundController(env: ForegroundEnvironment) {
     // At the main screen there is nothing left to dismiss.
   }
   document.addEventListener('keydown', (event) => {
+    if (event.defaultPrevented) return;
+    if (
+      event.key === 'Escape' &&
+      env.pageState.primaryPage === 'watch' &&
+      env.element('app').classList.contains('expanded')
+    ) {
+      if (
+        document.querySelector('dialog[open]') ||
+        (event.target instanceof Element &&
+          event.target.closest(
+            'input,textarea,select,[contenteditable]:not([contenteditable="false"])',
+          ))
+      )
+        return;
+      event.preventDefault();
+      void handleBack().catch(() => env.notice('Closing could not finish.'));
+      return;
+    }
     if (
       event.key === 'Escape' &&
       env.pageState.primaryPage !== 'watch' &&

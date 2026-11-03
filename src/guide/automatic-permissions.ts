@@ -33,6 +33,10 @@ function changed(kind: 'configuration' | 'permission'): DOMException {
   preflightRefusals.add(error);
   return error;
 }
+/** Use only when a configuration check refuses entry before starting a writer. */
+export function automaticGuideConfigurationChanged(): DOMException {
+  return changed('configuration');
+}
 /** Identity proof from this metadata-only producer, never inferred from an error message. */
 export function isAutomaticGuidePermissionRefusal(error: unknown): error is DOMException {
   return typeof error === 'object' && error !== null && preflightRefusals.has(error);

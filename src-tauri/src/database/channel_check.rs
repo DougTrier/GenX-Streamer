@@ -24,6 +24,7 @@ const ERR: &str = "channel-check-invalid";
 /// Failures this far apart count as two different days.
 pub(crate) const NOT_RESPONDING_SPAN_MS: i64 = 20 * 3_600_000;
 const TABLE: &str = "CREATE TABLE IF NOT EXISTS channel_check_v1(channel_id TEXT PRIMARY KEY CHECK(length(CAST(channel_id AS BLOB)) BETWEEN 1 AND 16384),checked_ms INTEGER NOT NULL CHECK(checked_ms>=0),ok_ms INTEGER,first_fail_ms INTEGER,last_fail_ms INTEGER,verdict TEXT NOT NULL CHECK(length(verdict) BETWEEN 1 AND 32))";
+const COVERAGE_TABLE: &str = "CREATE TABLE IF NOT EXISTS channel_check_multi_v1(channel_id TEXT PRIMARY KEY, failed_ms INTEGER NOT NULL, urls TEXT NOT NULL)";
 /// Channel speed (owner design, October 21, 2026): a channel saved by the
 /// Slow pass, or slow to start playing, carries the Slow badge. Getting on the
 /// list is stricter than losing it: a playback start under FAST_START_MS
@@ -35,10 +36,29 @@ pub(crate) const SLOW_START_MS: i64 = 5_000;
 /// with retries up to two minutes).
 const MAX_START_MS: i64 = 120_000;
 /// Catalog query predicate over a channel id expression (the table may not exist yet).
-pub(crate) fn not_responding_predicate(channel: &str) -> String {
-    format!(
-        "{channel} IN(SELECT channel_id FROM channel_check_v1 WHERE first_fail_ms IS NOT NULL AND last_fail_ms-first_fail_ms>={NOT_RESPONDING_SPAN_MS})"
-    )
+fn url_scope(channel: &str) -> String {
+    format!("(SELECT json_group_array(url) FROM (SELECT url FROM channel_url WHERE channel_id={channel} ORDER BY ordinal))")
+}
+fn failure_scope(c: &Connection) -> Result<String, String> {
+    let covered: bool = sql(c.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='table' AND name='channel_check_multi_v1')",
+        [],
+        |r| r.get(0),
+    ))?;
+    let single =
+        "NOT EXISTS(SELECT 1 FROM channel_url WHERE channel_id=k.channel_id AND ordinal>0)";
+    Ok(if covered {
+        let scope = url_scope("k.channel_id");
+        format!("(({single} AND NOT EXISTS(SELECT 1 FROM channel_check_multi_v1 m WHERE m.channel_id=k.channel_id)) OR EXISTS(SELECT 1 FROM channel_check_multi_v1 m WHERE m.channel_id=k.channel_id AND m.failed_ms=k.last_fail_ms AND m.urls={scope}))")
+    } else {
+        single.into()
+    })
+}
+pub(crate) fn not_responding_predicate(c: &Connection, channel: &str) -> Result<String, String> {
+    let scope = failure_scope(c)?;
+    Ok(format!(
+        "{channel} IN(SELECT k.channel_id FROM channel_check_v1 k WHERE k.first_fail_ms IS NOT NULL AND k.last_fail_ms-k.first_fail_ms>={NOT_RESPONDING_SPAN_MS} AND {scope})"
+    ))
 }
 const RESPONDED: [&str; 2] = ["Reachable", "PlayedHere"];
 const FAILED: [&str; 4] = [
@@ -53,6 +73,7 @@ const FAILED: [&str; 4] = [
 pub(crate) struct Observation {
     pub channel_id: String,
     pub verdict: String,
+    pub checked_urls: Option<Vec<String>>,
 }
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -106,6 +127,10 @@ pub(crate) fn validate(request: &Record) -> Result<(), String> {
             o.channel_id.is_empty()
                 || o.channel_id.len() > 16384
                 || o.channel_id.chars().any(char::is_control)
+                || o.checked_urls.as_ref().is_some_and(|urls| {
+                    !(2..=16).contains(&urls.len())
+                        || urls.iter().any(|url| url.is_empty() || url.len() > 16384)
+                })
                 || !(RESPONDED.contains(&o.verdict.as_str())
                     || FAILED.contains(&o.verdict.as_str()))
         })
@@ -134,9 +159,10 @@ pub(crate) fn read(c: &Connection, now_ms: i64) -> Result<Checks, String> {
         }
     }
     if table_present(c)? {
-        let mut statement = sql(c.prepare(
-            "SELECT k.channel_id,k.checked_ms,k.ok_ms,k.first_fail_ms,k.last_fail_ms,k.verdict FROM channel_check_v1 k WHERE EXISTS(SELECT 1 FROM channel c WHERE c.id=k.channel_id) ORDER BY k.channel_id LIMIT 200000",
-        ))?;
+        let scope = failure_scope(c)?;
+        let mut statement = sql(c.prepare(&format!(
+            "SELECT k.channel_id,k.checked_ms,k.ok_ms,k.first_fail_ms,k.last_fail_ms,k.verdict FROM channel_check_v1 k WHERE EXISTS(SELECT 1 FROM channel c WHERE c.id=k.channel_id) AND (k.first_fail_ms IS NULL OR {scope}) ORDER BY k.channel_id LIMIT 200000"
+        )))?;
         let mut rows = sql(statement.query([]))?;
         while let Some(row) = sql(rows.next())? {
             let first: Option<i64> = sql(row.get(3))?;
@@ -170,6 +196,7 @@ pub(crate) fn record(
 ) -> Result<Recorded, String> {
     validate(request)?;
     sql(tx.execute_batch(TABLE))?;
+    sql(tx.execute_batch(COVERAGE_TABLE))?;
     let mut recorded = 0;
     for observation in &request.observations {
         let saved: bool = sql(tx.query_row(
@@ -186,6 +213,35 @@ pub(crate) fn record(
                 params![observation.channel_id, now_ms, observation.verdict],
             ))?;
         } else {
+            let scope = url_scope("?1");
+            let current: String = sql(tx.query_row(
+                &format!("SELECT {scope}"),
+                [&observation.channel_id],
+                |row| row.get(0),
+            ))?;
+            let urls: Vec<String> = serde_json::from_str(&current).map_err(|_| ERR)?;
+            if urls.len() > 1 || observation.checked_urls.is_some() {
+                if urls.len() < 2 || observation.checked_urls.as_ref() != Some(&urls) {
+                    continue;
+                }
+                sql(tx.execute(
+                    "UPDATE channel_check_v1 SET first_fail_ms=NULL WHERE channel_id=?1 AND NOT EXISTS(SELECT 1 FROM channel_check_multi_v1 m WHERE m.channel_id=?1 AND m.failed_ms=channel_check_v1.last_fail_ms AND m.urls=?2)",
+                    params![observation.channel_id, current],
+                ))?;
+                sql(tx.execute(
+                    "INSERT INTO channel_check_multi_v1 VALUES(?1,?2,?3) ON CONFLICT(channel_id) DO UPDATE SET failed_ms=?2,urls=?3",
+                    params![observation.channel_id, now_ms, current],
+                ))?;
+            } else if sql(tx.execute(
+                "DELETE FROM channel_check_multi_v1 WHERE channel_id=?1",
+                [&observation.channel_id],
+            ))? > 0
+            {
+                sql(tx.execute(
+                    "UPDATE channel_check_v1 SET first_fail_ms=NULL WHERE channel_id=?1",
+                    [&observation.channel_id],
+                ))?;
+            }
             sql(tx.execute(
                 "INSERT INTO channel_check_v1(channel_id,checked_ms,ok_ms,first_fail_ms,last_fail_ms,verdict) VALUES(?1,?2,NULL,?2,?2,?3) ON CONFLICT(channel_id) DO UPDATE SET checked_ms=?2,first_fail_ms=COALESCE(first_fail_ms,?2),last_fail_ms=?2,verdict=?3",
                 params![observation.channel_id, now_ms, observation.verdict],
@@ -197,6 +253,7 @@ pub(crate) fn record(
         "DELETE FROM channel_check_v1 WHERE channel_id NOT IN(SELECT id FROM channel)",
         [],
     ))?;
+    sql(tx.execute("DELETE FROM channel_check_multi_v1 WHERE channel_id NOT IN(SELECT channel_id FROM channel_check_v1 WHERE last_fail_ms IS NOT NULL)", []))?;
     Ok(Recorded {
         schema_version: 1,
         recorded,
@@ -325,23 +382,30 @@ pub(crate) fn record_from_scan(
         });
     }
     // CROSS JOIN keeps the entries outside, so SQLite indexes channel_url by
-    // address for the lookup; the newest check of each channel wins.
+    // address for the lookup; the newest check of each channel wins. A failed
+    // primary alone cannot classify a saved channel with backup endpoints.
     let mut statement = sql(tx.prepare(
-        "SELECT cu.channel_id,e.check_verdict,MAX(e.check_ms) FROM source_snapshot_entry e CROSS JOIN channel_url cu ON cu.ordinal=0 AND cu.url=json_extract(e.channel,'$.urls[0]') WHERE e.available=1 AND e.check_ms>=?1 AND e.check_ms<=?2 AND e.check_verdict IS NOT NULL AND NOT (e.check_verdict='TimedOut' AND json_extract(e.evidence,'$.records[0].evidence.kind') IS 'slow') GROUP BY cu.channel_id",
+        "SELECT cu.channel_id,e.check_verdict,MAX(e.check_ms),EXISTS(SELECT 1 FROM channel_url backup WHERE backup.channel_id=cu.channel_id AND backup.ordinal>0) FROM source_snapshot_entry e CROSS JOIN channel_url cu ON cu.ordinal=0 AND cu.url=json_extract(e.channel,'$.urls[0]') WHERE e.available=1 AND e.check_ms>=?1 AND e.check_ms<=?2 AND e.check_verdict IS NOT NULL AND NOT (e.check_verdict='TimedOut' AND json_extract(e.evidence,'$.records[0].evidence.kind') IS 'slow') GROUP BY cu.channel_id",
     ))?;
     let rows = sql(statement.query_map(params![since_ms, now_ms], |r| {
-        Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+        Ok((
+            r.get::<_, String>(0)?,
+            r.get::<_, String>(1)?,
+            r.get::<_, bool>(3)?,
+        ))
     }))?;
     let mut observations = Vec::new();
     for row in rows {
-        let (channel_id, verdict) = sql(row)?;
-        if (RESPONDED.contains(&verdict.as_str()) || FAILED.contains(&verdict.as_str()))
+        let (channel_id, verdict, has_backup) = sql(row)?;
+        if (RESPONDED.contains(&verdict.as_str())
+            || (!has_backup && FAILED.contains(&verdict.as_str())))
             && !channel_id.is_empty()
             && channel_id.len() <= 16384
         {
             observations.push(Observation {
                 channel_id,
                 verdict,
+                checked_urls: None,
             });
         }
     }
@@ -437,7 +501,7 @@ mod tests {
     use super::*;
     fn db() -> Connection {
         let c = Connection::open_in_memory().unwrap();
-        c.execute_batch("CREATE TABLE channel(id TEXT PRIMARY KEY);INSERT INTO channel VALUES('a'),('b'),('c');")
+        c.execute_batch("CREATE TABLE channel(id TEXT PRIMARY KEY);CREATE TABLE channel_url(channel_id TEXT,ordinal INTEGER,url TEXT);INSERT INTO channel VALUES('a'),('b'),('c');")
             .unwrap();
         c
     }
@@ -449,6 +513,7 @@ mod tests {
                 .map(|(id, verdict)| Observation {
                     channel_id: (*id).into(),
                     verdict: (*verdict).into(),
+                    checked_urls: None,
                 })
                 .collect(),
         }
@@ -468,6 +533,41 @@ mod tests {
             .map(|k| k.not_responding)
     }
     const HOUR: i64 = 3_600_000;
+
+    #[test]
+    fn backup_changes_require_two_new_failures_for_the_current_urls() {
+        let mut c = db();
+        write(&mut c, &[("a", "TimedOut")], HOUR);
+        write(&mut c, &[("a", "TimedOut")], 22 * HOUR);
+        assert_eq!(state(&c, "a"), Some(true));
+        c.execute_batch(
+            "INSERT INTO channel_url VALUES('a',0,'https://a/primary'),('a',1,'https://a/backup');",
+        )
+        .unwrap();
+        assert_eq!(state(&c, "a"), None);
+        assert_eq!(write(&mut c, &[("a", "TimedOut")], 23 * HOUR), 0);
+
+        let mut request = batch(&[("a", "TimedOut")]);
+        request.observations[0].checked_urls =
+            Some(vec!["https://a/primary".into(), "https://a/backup".into()]);
+        let mut record_at = |at| {
+            let tx = c.transaction().unwrap();
+            let result = record(&tx, &request, at).unwrap().recorded;
+            tx.commit().unwrap();
+            result
+        };
+        assert_eq!(record_at(24 * HOUR), 1);
+        assert_eq!(record_at(45 * HOUR), 1);
+        assert_eq!(state(&c, "a"), Some(true));
+        c.execute(
+            "UPDATE channel_url SET url='https://a/new' WHERE channel_id='a' AND ordinal=1",
+            [],
+        )
+        .unwrap();
+        assert_eq!(state(&c, "a"), None);
+        let tx = c.transaction().unwrap();
+        assert_eq!(record(&tx, &request, 46 * HOUR).unwrap().recorded, 0);
+    }
     #[test]
     fn two_failures_on_different_days_mark_a_channel_and_one_success_clears_it() {
         let mut c = db();
@@ -489,7 +589,7 @@ mod tests {
         let marked: Vec<String> = c
             .prepare(&format!(
                 "SELECT id FROM channel WHERE {}",
-                not_responding_predicate("id")
+                not_responding_predicate(&c, "id").unwrap()
             ))
             .unwrap()
             .query_map([], |r| r.get(0))
@@ -552,8 +652,8 @@ mod tests {
             "CREATE TABLE channel(id TEXT PRIMARY KEY);
              CREATE TABLE channel_url(channel_id TEXT,ordinal INTEGER,url TEXT);
              CREATE TABLE source_snapshot_entry(source_id TEXT,entry_id TEXT,available INTEGER,check_ms INTEGER,check_verdict TEXT,channel TEXT,evidence TEXT);
-             INSERT INTO channel VALUES('dead'),('alive'),('mirror'),('old'),('unscanned'),('triaged');
-             INSERT INTO channel_url VALUES('dead',0,'https://a/1'),('alive',0,'https://a/2'),('mirror',0,'https://a/3'),('old',0,'https://a/4'),('unscanned',0,'https://a/5'),('alive',1,'https://a/1'),('triaged',0,'https://a/6');",
+             INSERT INTO channel VALUES('dead'),('alive'),('mirror'),('old'),('unscanned'),('triaged'),('backup');
+             INSERT INTO channel_url VALUES('dead',0,'https://a/1'),('alive',0,'https://a/2'),('mirror',0,'https://a/3'),('old',0,'https://a/4'),('unscanned',0,'https://a/5'),('alive',1,'https://a/1'),('triaged',0,'https://a/6'),('backup',0,'https://a/1'),('backup',1,'https://a/2');",
         )
         .unwrap();
         let entry =
@@ -608,6 +708,7 @@ mod tests {
         assert!(row("old").is_none());
         assert!(row("unscanned").is_none());
         assert!(row("triaged").is_none());
+        assert!(row("backup").is_none());
         assert!(read(&c, 0).unwrap().slow_channels.is_empty());
         // A Slow pass: what answered is marked Slow, what failed is not.
         c.execute(

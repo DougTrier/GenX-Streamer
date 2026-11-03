@@ -97,7 +97,7 @@ describe('staged packed v3 checkpoint', () => {
     expect(
       canResumeScanCheckpoint(
         runtime,
-        1000 + 24 * 60 * 60 * 1000,
+        1000 + 7 * 24 * 60 * 60 * 1000,
         runtime.catalogRevision,
         runtime.policyFingerprint,
       ),
