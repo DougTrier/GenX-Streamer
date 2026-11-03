@@ -178,13 +178,13 @@ for (const completion of ['success', 'failure-after-back'] as const)
       await browserExpect(close).toBeFocused();
       if (completion === 'success') {
         await page.keyboard.press('ArrowDown');
-        const guide = page.getByRole('tab', { name: 'Quick Guide' });
-        await browserExpect(guide).toBeFocused();
+        const activeTab = page.getByRole('tab', { selected: true });
+        await browserExpect(activeTab).toBeFocused();
         await page.evaluate(() =>
           Reflect.get(window, 'resolveChecksum')({ sha256: 'a'.repeat(64), bytes: 10 }),
         );
         await browserExpect(checksum).toBeEnabled();
-        await browserExpect(guide).toBeFocused();
+        await browserExpect(activeTab).toBeFocused();
         await page.keyboard.press('Escape');
       } else {
         await page.keyboard.press('Escape');

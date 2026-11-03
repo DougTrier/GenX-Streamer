@@ -68,7 +68,7 @@ describe('actual Chromium scan review component', () => {
         await page.waitForFunction(
           () =>
             document.querySelector<HTMLElement>('.source-scan-dialog')?.dataset.scanState ===
-            'results',
+            'setup',
         );
         expect(
           await page

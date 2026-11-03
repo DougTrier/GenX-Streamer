@@ -96,23 +96,23 @@ you can reach), uninstall GenX Streamer, install the release APK, then import
 the backup. Uninstalling removes the app's saved channels, favorites and
 settings, so the backup comes first.
 
-## 0.1.27 candidate verification
+## Candidate verification
 
 The signed universal Android package reports `com.tmg.tv`, version
 `0.1.27`, build `1027`, minimum API 24, target API 36, and both `arm64-v8a`
 and `armeabi-v7a`. APK SHA-256 is
-`C9767BB1A9831E965C105990CBEFE39B568740A31748ADE2A1001A7F6D4A5C1E`.
+`F918F9290965BDF42A45F956D8C55CFFA7C54A302B3DCE69804A27C7786290A7`.
 The signing certificate SHA-256 is
 `464c42785a80bb27022527d7e5b703c4ecf2d62f433a0f9f6b162ee95b7872ff`.
 Physical S25 and Streamer observations are recorded against build 1026
 in the [device audit](device-playability-audit.md).
 
-Type checking and four version-tool tests passed. The full frontend run
-reported 4,113 passing tests and eight failures. Two failures expected the
-old 24-hour checkpoint cutoff. After updating those expectations, all 35
-tests in the two checkpoint suites passed. Six browser failures remain:
-four scan review geometry or interaction checks, one About checksum focus
-check, and one bulk-removal fixture missing `crypto.randomUUID`.
+Type checking and four version-tool tests passed. The full frontend rerun
+passed 4,121 tests across 364 files. The targeted Playwright TV surface
+and About suites passed all 15 checks. The short scan review now scrolls
+when enlarged controls would crowd the results. Browser fixtures cover
+the setup state, the active About tab, and the native bulk-removal read.
+Physical retesting of this exact rebuilt APK is pending.
 
 ## Recovering from a broken Android release
 

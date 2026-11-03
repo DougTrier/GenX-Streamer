@@ -692,6 +692,15 @@
   max-height: min(30dvh, 160px);
 }
 
+@media (max-height: 420px) {
+  .source-scan-dialog[data-scan-state='results'] {
+    overflow-y: auto;
+  }
+  .source-scan-dialog[data-scan-state='results'] .scan-body {
+    min-height: 120px;
+  }
+}
+
 /* The guide shares the approved static theme; text remains on opaque surfaces. */
 .guide-dialog {
   color: var(--gx-text, #eef2f7);

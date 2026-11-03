@@ -46,7 +46,7 @@ The previous public release is [0.1.3 / build 1003](https://github.com/DougTrier
 
 The signed 0.1.26 / build 1026 audit covered the physical Samsung S25 and Google TV Streamer, including phone touch and fullscreen controls, remote navigation, saved scans, Free and Paid TV, Guide, and casting. The new candidate advances the build number. [Device audit](docs/device-playability-audit.md) · [Search and Guide verification](docs/search-guide-verification.md)
 
-The signed universal candidate APK reports version 0.1.27 and build 1027. Its SHA-256 and verification results are in the [candidate record](docs/release-signing.md#0127-candidate-verification).
+The signed universal APK’s version, build number, SHA-256 and test results are in the [candidate record](docs/release-signing.md#candidate-verification).
 
 The historical features and checks below belong to the withdrawn 0.1.25 release. Those checks did not establish usable phone and handheld layouts across the reported browsing states.
 

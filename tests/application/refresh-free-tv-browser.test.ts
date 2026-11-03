@@ -33,6 +33,10 @@ afterAll(async () => browser?.close());
 
 async function fixture() {
   const page = await browser.newPage();
+  await page.route('http://localhost/health-fixture', (route) =>
+    route.fulfill({ body: '<!doctype html>' }),
+  );
+  await page.goto('http://localhost/health-fixture');
   await page.setContent(`
     <main id="app" data-ready="true"></main>
     <input id="search">
@@ -50,6 +54,10 @@ async function fixture() {
         lastFailMs:86400000,verdict:'TimedOut',notResponding:true
       }]));
       const state = {edits:[],discovery:[],notices:[],failure:false,action:null};
+      window.__TAURI_INTERNALS__ = { invoke: async command => {
+        if (command !== 'read_channel_checks') throw new Error('Unexpected native command: '+command);
+        return {schemaVersion:1,nowMs:86400000,checks:[...checks.values()]};
+      }};
       const env = {
         applicationClosing:false,addChannelsEntryWork:null,
         settings:{favorites:['favorite'],removedChannels:[]},
