@@ -38,10 +38,18 @@ $inner = @'
 $ErrorActionPreference = 'Continue'
 $in = 'C:\genx-input'; $out = 'C:\genx-results'
 Add-Type -AssemblyName System.Drawing, System.Windows.Forms
+$windows = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion'
+$vcRuntime = Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x64' -ErrorAction SilentlyContinue
 $report = [ordered]@{ started = (Get-Date).ToString('o'); user = $env:USERNAME;
+  windowsVersion = $windows.DisplayVersion; windowsBuild = "$($windows.CurrentBuild).$($windows.UBR)";
+  zipSha256 = (Get-FileHash -LiteralPath (Join-Path $in 'GenX.zip') -Algorithm SHA256).Hash.ToLowerInvariant();
+  vcRuntimeX64Installed = ($vcRuntime.Installed -eq 1);
+  vcRuntimeX64Version = $vcRuntime.Version;
+  vcRuntimeX64Dlls = @(Get-ChildItem (Join-Path $env:WINDIR 'System32') -File -Filter 'vcruntime140*.dll' | Select-Object -ExpandProperty Name);
   userIsAdministrator = ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator);
   webView2Runtime = [bool](Get-ChildItem 'C:\Program Files (x86)\Microsoft\EdgeWebView\Application' -ErrorAction SilentlyContinue);
   cases = @() }
+$report | ConvertTo-Json -Depth 6 | Out-File -Encoding utf8 (Join-Path $out 'baseline.json')
 function Shot($name) {
   $b = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds
   $bmp = New-Object System.Drawing.Bitmap $b.Width, $b.Height
@@ -52,19 +60,24 @@ function Check($name, $dir, [switch]$ReadOnly, [switch]$Direct) {
   $case = [ordered]@{ name = $name; folder = $dir; readOnly = [bool]$ReadOnly; standardUser = -not $Direct }
   try {
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
-    Expand-Archive -LiteralPath (Join-Path $in 'GenX.zip') -DestinationPath $dir -Force
+    Expand-Archive -LiteralPath (Join-Path $in 'GenX.zip') -DestinationPath $dir -Force -ErrorAction Stop
     if ($ReadOnly) {
-      # Deny writes to this user (deny entries override the administrator's allow).
-      $case.icacls = (icacls $dir /deny ($env:USERNAME + ':(OI)(CI)(W,AD,WD,DC)') 2>&1 | Out-String).Trim()
+      # Deny specific write rights. Generic write also denies synchronization,
+      # which can prevent ordinary reads and execution.
+      $case.icacls = (icacls $dir /deny ($env:USERNAME + ':(OI)(CI)(WD,AD,WEA,WA,DC)') 2>&1 | Out-String).Trim()
+      if ($LASTEXITCODE -ne 0) { throw 'Could not protect the test folder from writes.' }
       $case.folderWritableByUser = $false
       try { [IO.File]::WriteAllText((Join-Path $dir 'probe.txt'), 'x'); $case.folderWritableByUser = $true } catch {}
+      if ($case.folderWritableByUser) { throw 'The test folder still allows writes.' }
     }
     $exe = Join-Path $dir 'GenX Streamer.exe'
-    $case.entries = @(Get-ChildItem -LiteralPath $dir | ForEach-Object Name)
+    $case.entries = @(Get-ChildItem -LiteralPath $dir -ErrorAction Stop | ForEach-Object Name)
+    if ($case.entries -notcontains 'GenX Streamer.exe') { throw 'The test executable is missing or inaccessible.' }
     if ($Direct) { Start-Process -FilePath $exe -WorkingDirectory $dir }
     else {
-      $runas = Start-Process -FilePath 'runas.exe' -ArgumentList '/trustlevel:0x20000', ('"' + $exe + '"') -PassThru -Wait
-      $case.runasExitCode = $runas.ExitCode
+      # On Windows PowerShell, -Wait also waits for the launched app to exit.
+      # Observe and close the app before waiting for the launcher.
+      $runas = Start-Process -FilePath 'runas.exe' -ArgumentList '/trustlevel:0x20000', ('"' + $exe + '"') -PassThru
     }
     $process = $null
     for ($i = 0; $i -lt 90 -and -not $process; $i++) {
@@ -76,6 +89,7 @@ function Check($name, $dir, [switch]$ReadOnly, [switch]$Direct) {
     $case.webViewProcesses = @(Get-Process -Name 'msedgewebview2' -ErrorAction SilentlyContinue).Count
     if (-not $process) { Shot ($name + '-no-window') }
     if ($process) {
+      $null = $process.Handle
       Start-Sleep -Seconds 20
       $process.Refresh()
       $case.stillRunningAfter20s = -not $process.HasExited
@@ -89,6 +103,7 @@ function Check($name, $dir, [switch]$ReadOnly, [switch]$Direct) {
       if ($case.closedNormally) { $case.exitCode = $process.ExitCode }
       else { Stop-Process -Id $process.Id -Force; $case.forcedAfterTimeout = $true }
     }
+    if ($runas -and $runas.WaitForExit(5000)) { $case.runasExitCode = $runas.ExitCode }
   } catch { $case.error = $_.Exception.Message }
   $script:report.cases += $case
 }

@@ -11,10 +11,12 @@ dropped.
     `464c4278…72ff`).
   - `build-android-release.ps1` signs the universal APK.
   - In-place updates on a Galaxy S25 kept settings, repeatedly.
-- **T081 Clean Windows launch**: launch from a clean Windows (Windows Sandbox) as
-  a standard user and from a read-only folder. The spaces/Unicode-path launch
-  already passes. Retry `scripts/windows-sandbox-launch-check.ps1` after a reboot
-  (sandbox sessions were dropping).
+- **T081 Clean Windows launch**: the rebuilt Windows ZIP passed the November 7,
+  2026 Windows 11 24H2 Sandbox check with WebView2 and without the Visual C++
+  Redistributable. The app launched with a restricted token from a path with
+  spaces and Unicode, offered a writable data folder from a read-only path, and
+  exited normally in both cases. Windows 10 still needs a clean-VM check before
+  release.
 - **T084 Android notices and hashes**: produce them for the final Android APK
   (the Windows ones are done).
 - **T088 Delivery**: the Windows ZIP plus the Android APK, with the user guide.

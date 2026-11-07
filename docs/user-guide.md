@@ -121,6 +121,8 @@ For phone control, select the allowed channels and choose **Invite scoped phone 
 
 On Windows, extract the entire portable ZIP to a writable folder before opening the executable. Windows needs WebView2 Runtime; the executable alone does not supply it. Windows normally uses its application-data folder. For a portable candidate, `tmg-portable.flag` beside the executable selects a sibling `data` folder when writable. An explicit absolute `TMG_DATA_DIR` selects another folder.
 
+If the original GenX Streamer 0.1.27 Windows download reports that `VCRUNTIME140.dll` or `VCRUNTIME140_1.dll` is missing, install or repair the [Microsoft Visual C++ v14 Redistributable for x64](https://aka.ms/vc14/vc_redist.x64.exe), then open GenX Streamer again.
+
 If **Saved data needs attention** appears, retry or use the offered **Writable data folder** / **Use this folder** controls. The chosen folder opens its existing library or starts an empty one; your previous library stays untouched. This is not automatic migration. The alternate choice is remembered for that executable location, so moving the executable may require choosing again. With `TMG_DATA_DIR`, correct that location and restart. Android uses private app storage and offers retry/exit rather than an external-folder choice.
 
 If the message says saved data is **in use**, close other apps using that library and choose **Retry saved data**. A locked library is not replaced from backup, and this state offers retry rather than a different data folder.

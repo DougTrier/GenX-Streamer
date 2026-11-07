@@ -302,8 +302,16 @@ Then build, package and publish:
 1. Run `npm run verify`.
 2. Build Windows with `build-windows.ps1 -Profile Release`, and the signed
    Android APK with `build-android-release.ps1`.
-3. Make the notices and the package (below).
-4. Publish a GitHub release tagged `v<version>` with the APK, the exe, the
+3. Make the notices and package using the Windows executable from step 2.
+   The build fails if the executable imports Visual C++ Redistributable DLLs.
+   Match the SHA-256 in the build output against the standalone exe and the exe
+   extracted from the final ZIP.
+4. Before publishing, launch the final ZIP as a standard user on a clean Windows
+   Sandbox or VM with WebView2 available and no Visual C++ Redistributable
+   installed. Use a VM on the oldest Windows version supported by the release
+   when Sandbox runs a newer version. Keep the launch result with the release
+   checksums.
+5. Publish a GitHub release tagged `v<version>` with the APK, the exe, the
    ZIP, `SHA256SUMS`, `release-manifest.json` and the Android notices.
 
 ```powershell

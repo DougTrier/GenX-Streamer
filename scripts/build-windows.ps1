@@ -20,6 +20,14 @@ $ErrorActionPreference = 'Stop'
 $buildRepo = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $buildCli = Join-Path $buildRepo 'node_modules/.bin/tauri.cmd'
 if (!(Test-Path -LiteralPath $buildCli -PathType Leaf)) { throw 'Install the pinned project dependencies before packaging.' }
+$dumpbin = (Get-Command dumpbin.exe -ErrorAction SilentlyContinue).Source
+if (!$dumpbin) {
+    $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio/Installer/vswhere.exe'
+    if (Test-Path -LiteralPath $vswhere -PathType Leaf) {
+        $dumpbin = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -find 'VC/Tools/MSVC/**/bin/Hostx64/x64/dumpbin.exe' | Select-Object -First 1
+    }
+}
+if (!$dumpbin) { throw 'Install the Visual Studio C++ build tools to verify the portable executable imports.' }
 function Get-SharedFingerprint {
     $distRoot = Join-Path $buildRepo 'dist'
     if (!(Test-Path -LiteralPath (Join-Path $distRoot 'index.html') -PathType Leaf)) { throw 'Shared build is missing.' }
@@ -43,6 +51,10 @@ try {
     if ($UseExistingSharedBuild -and (Get-SharedFingerprint) -ne $sharedBefore) { throw 'Shared assets changed during packaging.' }
     $buildBinary = Join-Path $buildRepo ('src-tauri/target/' + $Profile.ToLowerInvariant() + '/tmg-tv.exe')
     if (!(Test-Path -LiteralPath $buildBinary -PathType Leaf)) { throw 'Packaged executable is missing.' }
+    $dependencies = & $dumpbin /nologo /dependents $buildBinary
+    if ($LASTEXITCODE -ne 0) { throw 'Could not inspect the packaged executable imports.' }
+    $runtimeImports = $dependencies -match '^\s*(vcruntime|msvcp|msvcr|concrt|vcomp|vccorlib|mfc|mfcm)\d\w*\.dll\s*$'
+    if ($runtimeImports) { throw ('Portable executable requires Visual C++ DLLs: ' + ($runtimeImports.Trim() -join ', ')) }
     $buildResult = [ordered]@{
         status = 'BUILT'
         scope = 'Binary packaging only; runtime, signing and release acceptance require separate evidence.'

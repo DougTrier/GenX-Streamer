@@ -13,5 +13,10 @@
 // limitations under the License.
 
 fn main() {
+    // Tauri CLI 2.12 stopped setting this flag. The pinned tauri-build 2.6
+    // still reads it to link the Visual C++ runtime into the executable.
+    if std::env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc") {
+        std::env::set_var("STATIC_VCRUNTIME", "true");
+    }
     tauri_build::build()
 }
