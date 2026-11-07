@@ -15,8 +15,8 @@ dropped.
   2026 Windows 11 24H2 Sandbox check with WebView2 and without the Visual C++
   Redistributable. The app launched with a restricted token from a path with
   spaces and Unicode, offered a writable data folder from a read-only path, and
-  exited normally in both cases. Windows 10 still needs a clean-VM check before
-  release.
+  exited normally in both cases. Windows 10 validation is deferred unless a
+  compatibility issue is reported.
 - **T084 Android notices and hashes**: produce them for the final Android APK
   (the Windows ones are done).
 - **T088 Delivery**: the Windows ZIP plus the Android APK, with the user guide.

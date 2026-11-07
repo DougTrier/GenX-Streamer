@@ -91,8 +91,11 @@ test('a bump changes every place and nothing else', () => {
       const changed = old.filter((line, i) => line !== now[i]);
       assert.ok(changed.length >= 1, file);
       old.forEach((line, i) => {
-        const expected = line.startsWith('| **Android build** |')
-          ? line.replace(String(versionCode(current)), String(result.versionCode))
+        const expected = file === 'README.md'
+          ? line
+              .replace(`badge/Version-${current}-`, `badge/Version-${result.to}-`)
+              .replace(`| **Candidate version** | ${current} |`, `| **Candidate version** | ${result.to} |`)
+              .replace(`| **Android build** | ${versionCode(current)} |`, `| **Android build** | ${result.versionCode} |`)
           : line.replace(current, result.to);
         assert.equal(now[i], expected, file);
       });
