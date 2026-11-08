@@ -172,14 +172,6 @@
       .hero-shot {
         margin: 34px 0 0;
       }
-      .hero-shot img,
-      .phones img {
-        display: block;
-        width: 100%;
-        height: auto;
-        border-radius: 14px;
-        border: 1px solid var(--line);
-      }
       section {
         margin-top: 46px;
       }
@@ -208,27 +200,6 @@
         margin: 0;
         color: var(--muted);
       }
-      .pass {
-        display: grid;
-        grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-        gap: 24px;
-        align-items: center;
-      }
-      .pass ol {
-        margin: 0;
-        padding-left: 1.3em;
-        color: var(--muted);
-      }
-      .phones {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 12px;
-      }
-      @media (max-width: 720px) {
-        .pass {
-          grid-template-columns: 1fr;
-        }
-      }
       a {
         color: var(--cyan);
       }
@@ -239,7 +210,8 @@
         text-align: center;
       }
 
-      .commercial video {
+      .commercial video,
+      .pass-preview video {
         display: block;
         width: 100%;
         height: auto;
@@ -258,10 +230,6 @@
         text-align: left;
         font-size: 0.95rem;
       }
-      .pass .phones {
-        grid-template-columns: minmax(0, 300px);
-        justify-content: center;
-      }
       .commercial summary {
         cursor: pointer;
         color: var(--cyan);
@@ -269,6 +237,84 @@
       .release-note {
         color: var(--muted);
         font-size: 0.9rem;
+      }
+      .pass-feature {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        grid-template-areas: 'intro steps' 'preview preview' 'nearby nearby';
+        row-gap: 22px;
+        align-items: center;
+        column-gap: clamp(22px, 4vw, 50px);
+        padding: clamp(20px, 4vw, 42px);
+        background: radial-gradient(ellipse at 90% 10%, #44305f80, transparent 60%), var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 18px;
+      }
+      .pass-intro {
+        grid-area: intro;
+        align-self: start;
+      }
+      .pass-label {
+        color: var(--magenta);
+        letter-spacing: 0.13em;
+        font-size: 0.8rem;
+        font-weight: 750;
+      }
+      .pass-intro h2 {
+        font-size: clamp(1.7rem, 4vw, 2.55rem);
+        line-height: 1.1;
+        margin: 8px 0 12px;
+      }
+      .pass-intro p,
+      .pass-note {
+        margin: 0;
+      }
+      .pass-intro p:not(.pass-label),
+      .pass-note,
+      .pass-preview figcaption {
+        color: var(--muted);
+      }
+      .pass-preview {
+        grid-area: preview;
+        margin: 0;
+      }
+      .pass-preview figcaption {
+        text-align: center;
+        font-size: 0.8rem;
+        margin-top: 10px;
+      }
+      .pass-steps {
+        grid-area: steps;
+        align-self: start;
+      }
+      .pass-steps ol {
+        margin: 0 0 16px;
+        padding-left: 1.3em;
+      }
+      .pass-note {
+        font-size: 0.9rem;
+        margin-top: 12px;
+      }
+      .nearby-demo {
+        grid-area: nearby;
+        border-top: 1px solid var(--line);
+        padding-top: 20px;
+        margin-top: 12px;
+      }
+      .nearby-demo h3 {
+        font-size: clamp(1.25rem, 3vw, 1.75rem);
+        margin: 0 0 8px;
+      }
+      .nearby-demo p {
+        margin: 0 0 14px;
+        color: var(--muted);
+      }
+      @media (max-width: 740px) {
+        .pass-feature {
+          grid-template-columns: minmax(0, 1fr);
+          grid-template-areas: 'intro' 'preview' 'steps' 'nearby';
+          row-gap: 18px;
+        }
       }
     </style>
   </head>
@@ -343,6 +389,73 @@
         </p>
       </header>
 
+      <section class="pass-feature" aria-labelledby="pass">
+        <div class="pass-intro">
+          <p class="pass-label">PASS IT ALONG</p>
+          <h2 id="pass">Put GenX on a friend’s TV.</h2>
+          <p>
+            Send the app from your Android phone to a compatible Android TV or Google TV on the same
+            Wi‑Fi network.
+          </p>
+        </div>
+        <figure class="pass-preview">
+          <video
+            width="1920"
+            height="1080"
+            controls
+            playsinline
+            preload="metadata"
+            aria-label="Pass It Along, a 43-second phone-to-TV installation demonstration"
+            poster="media/pass-it-along-video-poster.jpg"
+          >
+            <source src="media/pass-it-along-phone-to-tv.mp4" type="video/mp4" />
+            <a href="media/pass-it-along-phone-to-tv.mp4">Open the phone-to-TV demonstration</a>
+          </video>
+          <figcaption>
+            Recorded on a phone and Google TV. The TV was already paired. Local network details are
+            hidden.
+            <a href="media/pass-it-along-phone-to-tv.mp4">Open the MP4</a>
+          </figcaption>
+        </figure>
+        <div class="pass-steps">
+          <ol>
+            <li>Pick the TV in <strong>Install on TV</strong>.</li>
+            <li>If prompted, enter the code shown on the TV.</li>
+            <li>Approve the install with the TV remote.</li>
+          </ol>
+          <a class="button primary" href="getting-started/#tv">See phone-to-TV setup</a>
+          <p class="pass-note">Some TVs prompt you to install a download helper once.</p>
+        </div>
+        <div class="nearby-demo">
+          <h3>Share from phone to phone over Wi‑Fi</h3>
+          <p>
+            Open Pass It Along and start sharing nearby. The other Android phone opens the local
+            download page in its browser and approves the install.
+          </p>
+          <figure class="pass-preview">
+            <video
+              width="1920"
+              height="1080"
+              controls
+              playsinline
+              preload="metadata"
+              aria-label="Pass It Along, a 40-second phone-to-phone nearby sharing demonstration"
+              poster="media/pass-it-along-nearby-poster.jpg"
+            >
+              <source src="media/pass-it-along-phone-to-phone.mp4" type="video/mp4" />
+              <a href="media/pass-it-along-phone-to-phone.mp4"
+                >Open the phone-to-phone demonstration</a
+              >
+            </video>
+            <figcaption>
+              Recorded on two Android emulators on the same Wi‑Fi. The local address, session code
+              and QR code are hidden.
+              <a href="media/pass-it-along-phone-to-phone.mp4">Open the MP4</a>
+            </figcaption>
+          </figure>
+        </div>
+      </section>
+
       <section aria-labelledby="features">
         <h2 id="features">What you get</h2>
         <div class="grid">
@@ -392,36 +505,6 @@
           sources, stores your lineup locally, and uses protected device storage for any provider
           credentials you add.
         </p>
-      </section>
-
-      <section aria-labelledby="pass">
-        <h2 id="pass">Pass it along: no app store needed</h2>
-        <div class="pass">
-          <div>
-            <p class="intro" style="margin: 0 0 12px; text-align: left">
-              Too rad to keep to yourself. GenX Streamer travels friend to friend:
-            </p>
-            <ol>
-              <li>Send it phone to phone with Quick Share or Bluetooth.</li>
-              <li>
-                Share it with everyone nearby: friends scan a QR code or type a short address, with
-                no internet needed.
-              </li>
-              <li>
-                <strong>Install it on a Google TV from your phone:</strong> pick the TV, enter the
-                code it shows, approve on the TV. GenX does the rest.
-              </li>
-            </ol>
-          </div>
-          <div class="phones">
-            <img
-              src="media/pass-it-along-preview.jpg"
-              width="305"
-              height="580"
-              alt="Pass It Along on a phone: Too rad to keep to yourself"
-            />
-          </div>
-        </div>
       </section>
 
       <section aria-labelledby="get">
