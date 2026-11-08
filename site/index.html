@@ -16,8 +16,8 @@
 
   The website's front page (https://dougtrier.github.io/GenX-Streamer/): what
   GenX Streamer is, for people and for search engines. Downloads go through
-  get/, which picks the right file for the visitor's device. No script runs
-  here; the JSON-LD block is data for search engines, never executed.
+  get/, which picks the right file for the visitor's device. The local script
+  provides speed controls for the setup videos.
 -->
 <html lang="en">
   <head>
@@ -26,7 +26,7 @@
     <meta name="msvalidate.01" content="53909E532ACBF7D1D2CB2A5D00899C19" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"
+      content="default-src 'none'; img-src 'self'; media-src 'self'; script-src 'self'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"
     />
     <title>GenX Streamer | Free Live TV App for Windows &amp; Android TV</title>
     <meta
@@ -170,10 +170,10 @@
         outline-offset: 3px;
       }
       .hero-shot {
-        margin: 34px 0 0;
+        margin: 24px 0 0;
       }
       section {
-        margin-top: 46px;
+        margin-top: 34px;
       }
       h2 {
         margin: 0 0 14px;
@@ -242,7 +242,7 @@
         display: grid;
         grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
         grid-template-areas: 'intro steps' 'preview preview' 'nearby nearby';
-        row-gap: 22px;
+        row-gap: 18px;
         align-items: center;
         column-gap: clamp(22px, 4vw, 50px);
         padding: clamp(20px, 4vw, 42px);
@@ -298,8 +298,8 @@
       .nearby-demo {
         grid-area: nearby;
         border-top: 1px solid var(--line);
-        padding-top: 20px;
-        margin-top: 12px;
+        padding-top: 16px;
+        margin-top: 4px;
       }
       .nearby-demo h3 {
         font-size: clamp(1.25rem, 3vw, 1.75rem);
@@ -316,7 +316,107 @@
           row-gap: 18px;
         }
       }
+
+      .trust-line {
+        color: var(--cyan);
+        font-size: 0.93rem;
+        font-weight: 650;
+        margin: 12px 0 0;
+      }
+      .video-speed {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 12px;
+        font-size: 0.9rem;
+      }
+      .video-speed[hidden] {
+        display: none;
+      }
+      .video-speed select {
+        color: var(--text);
+        font: inherit;
+        background: #142544;
+        border: 1px solid var(--line);
+        border-radius: 7px;
+        min-height: 40px;
+        padding: 5px 10px;
+      }
+      .video-speed select:focus-visible,
+      .viewing-discovery summary:focus-visible {
+        outline: 3px solid var(--magenta);
+        outline-offset: 3px;
+      }
+      .viewing-grid {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 16px;
+      }
+      .viewing-grid figure {
+        margin: 0;
+        overflow: hidden;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: var(--panel);
+      }
+      .viewing img {
+        display: block;
+        width: 100%;
+        height: auto;
+      }
+      .viewing-grid figcaption {
+        padding: 12px 16px 16px;
+      }
+      .viewing-grid h3 {
+        color: var(--cyan);
+        margin: 0 0 4px;
+        font-size: 1.1rem;
+      }
+      .viewing-grid p {
+        color: var(--muted);
+        margin: 0;
+      }
+      .viewing-grid .viewing-credit {
+        margin-top: 8px;
+        font-size: 0.78rem;
+      }
+      .viewing-discovery {
+        padding: 10px 14px;
+        margin-top: 12px;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+      }
+      .viewing-discovery summary {
+        color: var(--cyan);
+        cursor: pointer;
+        font-weight: 650;
+      }
+      .viewing-discovery img {
+        max-width: 720px;
+        border-radius: 8px;
+      }
+      .feature-heading {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .feature-icon {
+        width: 24px;
+        height: 24px;
+        flex: 0 0 24px;
+      }
+      @media (max-width: 650px) {
+        .viewing-grid {
+          grid-template-columns: 1fr;
+        }
+        section {
+          margin-top: 28px;
+        }
+      }
     </style>
+    <script src="setup-video-speed.js" defer></script>
   </head>
   <body>
     <main>
@@ -332,15 +432,16 @@
           <a class="button primary" href="get/">Download GenX Streamer</a>
           <a class="button" href="https://github.com/DougTrier/GenX-Streamer">Source on GitHub</a>
         </div>
+        <p class="trust-line">Free · Open source · No GenX account required</p>
         <figure id="commercial" class="hero-shot commercial">
           <video
             width="1920"
             height="1080"
             controls
             playsinline
-            preload="metadata"
+            preload="none"
             aria-label="GenX Streamer, 31-second product commercial"
-            poster="media/commercial-poster.jpg"
+            poster="media/commercial-poster.webp"
           >
             <source src="media/genx-streamer-commercial.mp4" type="video/mp4" />
             <a href="media/genx-streamer-commercial.mp4">Open the GenX Streamer commercial</a>
@@ -404,13 +505,22 @@
             height="1080"
             controls
             playsinline
-            preload="metadata"
+            preload="none"
             aria-label="Pass It Along, a 43-second phone-to-TV installation demonstration"
-            poster="media/pass-it-along-video-poster.jpg"
+            poster="media/pass-it-along-video-poster.webp"
           >
             <source src="media/pass-it-along-phone-to-tv.mp4" type="video/mp4" />
             <a href="media/pass-it-along-phone-to-tv.mp4">Open the phone-to-TV demonstration</a>
           </video>
+          <div class="video-speed" data-video-speed hidden>
+            <label for="speed-tv">Phone-to-TV playback speed</label>
+            <select id="speed-tv">
+              <option value="0.25">¼×</option>
+              <option value="0.5">½×</option>
+              <option value="0.75">¾×</option>
+              <option value="1" selected>1× normal</option>
+            </select>
+          </div>
           <figcaption>
             Recorded on a phone and Google TV. The TV was already paired. Local network details are
             hidden.
@@ -438,15 +548,24 @@
               height="1080"
               controls
               playsinline
-              preload="metadata"
+              preload="none"
               aria-label="Pass It Along, a 40-second phone-to-phone nearby sharing demonstration"
-              poster="media/pass-it-along-nearby-poster.jpg"
+              poster="media/pass-it-along-nearby-poster.webp"
             >
               <source src="media/pass-it-along-phone-to-phone.mp4" type="video/mp4" />
               <a href="media/pass-it-along-phone-to-phone.mp4"
                 >Open the phone-to-phone demonstration</a
               >
             </video>
+            <div class="video-speed" data-video-speed hidden>
+              <label for="speed-phone">Phone-to-phone playback speed</label>
+              <select id="speed-phone">
+                <option value="0.25">¼×</option>
+                <option value="0.5">½×</option>
+                <option value="0.75">¾×</option>
+                <option value="1" selected>1× normal</option>
+              </select>
+            </div>
             <figcaption>
               Recorded on two Android emulators on the same Wi‑Fi. The local address, session code
               and QR code are hidden.
@@ -456,44 +575,212 @@
         </div>
       </section>
 
+      <section class="viewing" aria-labelledby="viewing-title">
+        <h2 id="viewing-title">See what watching looks like</h2>
+        <div class="viewing-grid">
+          <figure>
+            <a
+              href="https://github.com/DougTrier/GenX-Streamer/blob/main/docs/screenshots/tv-open-cinema-guide.png"
+            >
+              <img
+                src="media/tv-open-cinema-guide.webp"
+                width="960"
+                height="540"
+                loading="lazy"
+                alt="Big Buck Bunny playing beside the program guide in GenX Streamer on Android TV"
+              />
+            </a>
+            <figcaption>
+              <h3>See what’s on, keep watching</h3>
+              <p>Browse the program guide while the current stream stays in view.</p>
+              <p class="viewing-credit">
+                Sample schedule. Big Buck Bunny © 2008 Blender Foundation / www.bigbuckbunny.org,
+                <a href="https://peach.blender.org/about/">CC BY 3.0</a>.
+              </p>
+            </figcaption>
+          </figure>
+          <figure>
+            <a
+              href="https://github.com/DougTrier/GenX-Streamer/blob/main/docs/screenshots/tv-genxtra-playing.png"
+            >
+              <img
+                src="media/tv-genxtra-playing.webp"
+                width="960"
+                height="540"
+                loading="lazy"
+                alt="GenXtra playing the original black-and-white Night of the Living Dead beside search results"
+              />
+            </a>
+            <figcaption>
+              <h3>Rediscover a classic in GenXtra</h3>
+              <p>
+                Find public-domain films and classic TV, like the original 1968
+                <em>Night of the Living Dead</em>.
+              </p>
+            </figcaption>
+          </figure>
+        </div>
+        <details class="viewing-discovery">
+          <summary>See local station discovery in action</summary>
+          <p>
+            Search area code <strong>618</strong> for local TV websites and radio streams near
+            several cities, or enter ZIP <strong>62901</strong> to focus on Carbondale.
+            <a
+              href="https://github.com/DougTrier/GenX-Streamer/blob/main/docs/screenshots/tv-web-local-zip-62901.png"
+              >See the ZIP results</a
+            >.
+          </p>
+          <a
+            href="https://github.com/DougTrier/GenX-Streamer/blob/main/docs/screenshots/tv-web-local-area-618.png"
+          >
+            <img
+              src="media/tv-web-local-area-618.webp"
+              width="960"
+              height="540"
+              loading="lazy"
+              alt="GenX Streamer’s local discovery results for area code 618 on Android TV"
+            />
+          </a>
+        </details>
+      </section>
+
       <section aria-labelledby="features">
         <h2 id="features">What you get</h2>
         <div class="grid">
           <div class="card">
-            <h3>Discover and save public channels</h3>
+            <h3 class="feature-heading">
+              <svg
+                class="feature-icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="10.5" cy="10.5" r="5.5" />
+                <path d="m15 15 5 5" /></svg
+              ><span>Discover and save public channels</span>
+            </h3>
             <p>
               GenX searches publicly available sources it can reach and checks which streams
               respond. You choose what to save and can add your own playlists.
             </p>
           </div>
           <div class="card">
-            <h3>GenXtra</h3>
+            <h3 class="feature-heading">
+              <svg
+                class="feature-icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="3" y="5" width="18" height="14" rx="2" />
+                <path d="M8 5v14m8-14v14M3 10h5m8 0h5M3 14h5m8 0h5" /></svg
+              ><span>GenXtra</span>
+            </h3>
             <p>A library of public-domain films and classic TV, with downloads.</p>
           </div>
           <div class="card">
-            <h3>Program guide</h3>
+            <h3 class="feature-heading">
+              <svg
+                class="feature-icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="3" y="5" width="18" height="15" rx="2" />
+                <path d="M7 3v4m10-4v4M3 10h18m-13 5h3m3 0h3" /></svg
+              ><span>Program guide</span>
+            </h3>
             <p>
               What's on now and next, instant replay and captions, with a remote-friendly design for
               TVs.
             </p>
           </div>
           <div class="card">
-            <h3>Paid TV, your way</h3>
+            <h3 class="feature-heading">
+              <svg
+                class="feature-icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="5" y="10" width="14" height="11" rx="2" />
+                <path d="M8 10V7a4 4 0 0 1 8 0v3m-4 4v3" /></svg
+              ><span>Paid TV, your way</span>
+            </h3>
             <p>Bring your own provider account; it stays in your device's protected storage.</p>
           </div>
           <div class="card">
-            <h3>Find local stations</h3>
+            <h3 class="feature-heading">
+              <svg
+                class="feature-icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M20 10c0 5-8 10-8 10s-8-5-8-10a8 8 0 0 1 16 0Z" />
+                <circle cx="12" cy="10" r="2.5" /></svg
+              ><span>Find local stations</span>
+            </h3>
             <p>
               Search by area code or ZIP for local TV websites and radio streams. Open sites inside
               GenX and save favorites.
             </p>
           </div>
           <div class="card">
-            <h3>Cast to a screen</h3>
+            <h3 class="feature-heading">
+              <svg
+                class="feature-icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path
+                  d="M3 11V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2h-8M3 15a4 4 0 0 1 4 4m-4-1a1 1 0 0 1 1 1"
+                /></svg
+              ><span>Cast to a screen</span>
+            </h3>
             <p>Send what you're watching to a Chromecast or DLNA TV.</p>
           </div>
           <div class="card">
-            <h3>Old devices welcome</h3>
+            <h3 class="feature-heading">
+              <svg
+                class="feature-icon"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.7"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <rect x="3" y="6" width="18" height="13" rx="2" />
+                <path d="m8 3 4 3 4-3m-10 13h4m6 0h2" /></svg
+              ><span>Old devices welcome</span>
+            </h3>
             <p>
               Runs on 32- and 64-bit Android TVs and handhelds, with its own decoders for formats
               some devices can't play.
