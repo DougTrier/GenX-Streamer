@@ -50,9 +50,9 @@ Each step is a separate choice; **Not now** at any point changes nothing.
 
 Each release has a higher version than the last (`node scripts/bump-version.mjs
 patch|minor|major` sets it everywhere: `package.json`, `package-lock.json`,
-`src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, `src-tauri/tauri.conf.json`
-and the README candidate badge and Android build). The landing page reflects
-the published download and is updated at publication. Check for updates offers a release only when its
+`src-tauri/Cargo.toml`, `src-tauri/Cargo.lock`, and `src-tauri/tauri.conf.json`).
+The README and landing page describe the published release and are updated at
+publication. Check for updates offers a release only when its
 version is higher than the running copy's. Android's `versionCode` is
 `major*1000000 + minor*1000 + patch`, so each part stays below 1000.
 The version code increases for each public release; GenX offers only a newer version. `npm run verify` fails

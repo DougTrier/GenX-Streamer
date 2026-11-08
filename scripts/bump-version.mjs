@@ -20,8 +20,8 @@
 // package.json, package-lock.json (twice), src-tauri/Cargo.toml,
 // src-tauri/Cargo.lock (the tmg-tv entry), src-tauri/tauri.conf.json (which
 // the Android build turns into versionName and versionCode =
-// major*1000000 + minor*1000 + patch), the README's badge and version table,
-// for the source candidate. The landing page describes the published release.
+// major*1000000 + minor*1000 + patch). The README and landing page describe
+// the published release and are updated at publication.
 //
 // Every release needs a higher version: Check for updates compares versions,
 // and Android refuses to update to an equal or lower versionCode.
@@ -73,21 +73,6 @@ const places = [
     read: (text) => [JSON.parse(text).version],
     write: (text, from, to) => text.replace(`"version": "${from}"`, `"version": "${to}"`),
   },
-  {
-    file: 'README.md',
-    read: (text) => [
-      /img\.shields\.io\/badge\/Version-([0-9.]+)-/.exec(text)?.[1],
-      /\| \*\*Candidate version\*\* \| ([0-9.]+)/.exec(text)?.[1],
-    ],
-    write: (text, from, to) =>
-      text
-        .replace(`badge/Version-${from}-`, `badge/Version-${to}-`)
-        .replace(`| **Candidate version** | ${from}`, `| **Candidate version** | ${to}`)
-        .replace(
-          `| **Android build** | ${versionCode(from)} |`,
-          `| **Android build** | ${versionCode(to)} |`,
-        ),
-  },
 ];
 
 /** Every place's version, by file (a place may hold it twice). */
@@ -107,9 +92,6 @@ export function checkVersions(root) {
     throw new Error(
       `Versions disagree: ${found.map((place) => `${place.file} ${place.versions.join('/')}`).join(', ')}`,
     );
-  const readme = readFileSync(path.join(root, 'README.md'), 'utf8');
-  if (!readme.includes(`| **Android build** | ${versionCode(first)} |`))
-    throw new Error(`README.md Android build must be ${versionCode(first)}.`);
   return first;
 }
 

@@ -89,15 +89,13 @@ test('a bump changes every place and nothing else', () => {
       const now = readFileSync(path.join(root, file), 'utf8').split('\n');
       assert.equal(now.length, old.length, file);
       const changed = old.filter((line, i) => line !== now[i]);
+      if (file === 'README.md') {
+        assert.deepEqual(now, old, 'The README describes the public release');
+        continue;
+      }
       assert.ok(changed.length >= 1, file);
       old.forEach((line, i) => {
-        const expected = file === 'README.md'
-          ? line
-              .replace(`badge/Version-${current}-`, `badge/Version-${result.to}-`)
-              .replace(`| **Candidate version** | ${current} |`, `| **Candidate version** | ${result.to} |`)
-              .replace(`| **Android build** | ${versionCode(current)} |`, `| **Android build** | ${result.versionCode} |`)
-          : line.replace(current, result.to);
-        assert.equal(now[i], expected, file);
+        assert.equal(now[i], line.replace(current, result.to), file);
       });
     }
     // Dependencies stay identical even when one already has the next app version.
