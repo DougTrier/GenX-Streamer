@@ -603,8 +603,8 @@ test('the web page shows only the plain download page for an invalid link', asyn
 });
 
 const getPage = pathToFileURL(path.resolve('site/get/index.html')).href;
-const release = (assets: { name: string; digest?: string; url?: string }[]) => ({
-  tag_name: 'v1.2.0',
+const release = (assets: { name: string; digest?: string; url?: string }[], tag = 'v1.2.0') => ({
+  tag_name: tag,
   draft: false,
   prerelease: false,
   assets: assets.map((asset) => ({
@@ -612,7 +612,7 @@ const release = (assets: { name: string; digest?: string; url?: string }[]) => (
     digest: asset.digest ?? `sha256:${'ab'.repeat(32)}`,
     browser_download_url:
       asset.url ??
-      `https://github.com/DougTrier/GenX-Streamer/releases/download/v1.2.0/${asset.name}`,
+      `https://github.com/DougTrier/GenX-Streamer/releases/download/${tag}/${asset.name}`,
   })),
 });
 const files = [
@@ -699,5 +699,21 @@ test('the download page says plainly when there is no public release yet', async
   await openGetPage(page, { message: 'Not Found' }, 404);
   await expect(page.locator('#status')).toHaveText(
     'No public release of GenX Streamer was found yet.',
+  );
+});
+
+test('the download page uses the Pages mirror for both 0.1.33 packages', async ({ page }) => {
+  const mirrored = release(
+    files.map(({ name }) => ({ name: name.replace('1.2.0', '0.1.33') })),
+    'v0.1.33',
+  );
+  await openGetPage(page, mirrored, 200, '?for=windows');
+  await expect(page.locator('#download')).toHaveAttribute(
+    'href',
+    '../downloads/v0.1.33/GenX-Streamer-0.1.33-Windows-x64-portable.zip',
+  );
+  await expect(page.locator('#list a')).toHaveAttribute(
+    'href',
+    '../downloads/v0.1.33/GenX-Streamer-0.1.33-Android.apk',
   );
 });

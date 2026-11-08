@@ -30,7 +30,7 @@
     <meta name="referrer" content="no-referrer" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; connect-src https://api.github.com; script-src 'sha256-dfGnQMgDyCUj/c5EGrzccyj91NnKbOagmYQvTmKptmo='; base-uri 'none'; form-action 'none'"
+      content="default-src 'none'; img-src 'self'; style-src 'unsafe-inline'; connect-src https://api.github.com; script-src 'sha256-jWe++Biay9AOPYIgU3Iz7oUpIjMmZK8z8wD5M9s8/S8='; base-uri 'none'; form-action 'none'"
     />
     <title>Get GenX Streamer: download for Android TV, phones and Windows</title>
     <meta
@@ -191,9 +191,12 @@
           typeof asset.browser_download_url === 'string' &&
           asset.browser_download_url === PREFIX + tag + '/' + asset.name &&
           /^sha256:[0-9a-f]{64}$/.test(asset.digest || '');
-        function link(asset) {
+        const downloadUrl = (asset, tag) =>
+          tag === 'v0.1.33' ? '../downloads/v0.1.33/' + asset.name : asset.browser_download_url;
+        function link(asset, tag) {
           const a = document.createElement('a');
-          a.href = asset.browser_download_url;
+          a.href = downloadUrl(asset, tag);
+          a.download = asset.name;
           a.rel = 'noopener noreferrer';
           a.textContent = asset.name;
           return a;
@@ -223,7 +226,8 @@
               );
               text('requirements', build.requirements);
               const download = document.getElementById('download');
-              download.href = chosen.browser_download_url;
+              download.href = downloadUrl(chosen, tag);
+              download.download = chosen.name;
               download.textContent = 'Download ' + chosen.name;
               text('sha', chosen.digest.slice(7));
               text('guidance', build.guidance);
@@ -240,7 +244,7 @@
               document.getElementById('list').replaceChildren(
                 ...others.map((asset) => {
                   const item = document.createElement('li');
-                  item.append(link(asset));
+                  item.append(link(asset, tag));
                   return item;
                 }),
               );
