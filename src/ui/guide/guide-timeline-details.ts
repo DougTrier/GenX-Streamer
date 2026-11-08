@@ -23,6 +23,7 @@ import {
 } from '../../guide/channel-coverage';
 import { describeChannelCoverage } from '../../guide/coverage-presentation';
 import { validateGuideCategories } from '../../guide/categories';
+import { replayDateLabel } from '../../search/replay-dates';
 import {
   appendPpvBadge,
   timelineProgramPpv,
@@ -327,6 +328,22 @@ export function createTimelineDetails(env: TimelineDetailsEnvironment) {
       categories,
       coverage,
     );
+    if (env.host.replayDate) {
+      const replay = env.doc.createElement('p');
+      const present = (gameDate?: string) => {
+        const label = replayDateLabel({ ...program, gameDate });
+        replay.textContent = label ?? '';
+        replay.hidden = !label;
+      };
+      present();
+      timing.after(replay);
+      void env.host
+        .replayDate(program, abort.signal)
+        .then((gameDate) => {
+          if (valid()) present(gameDate);
+        })
+        .catch(() => undefined);
+    }
     env.addWeekCoverage(channel, abort, valid);
     exit.focus();
     const current =

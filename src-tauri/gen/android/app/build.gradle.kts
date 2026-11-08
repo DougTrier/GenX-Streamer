@@ -90,6 +90,11 @@ rust {
 }
 
 dependencies {
+    // Keep Tauri's Android JSON bridge and Media3's Guava dependency on patched releases.
+    implementation(platform("com.fasterxml.jackson:jackson-bom:2.21.7"))
+    constraints {
+        implementation("com.google.guava:guava:33.7.2-android")
+    }
     implementation("androidx.webkit:webkit:1.14.0")
     implementation("androidx.appcompat:appcompat:1.7.1")
     implementation("androidx.activity:activity-ktx:1.10.1")

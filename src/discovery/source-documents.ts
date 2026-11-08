@@ -21,6 +21,7 @@ const nexus = 'https://dearbulut.github.io/iptv/playlists/';
  * This reduces a scan plan; saved channels, favorites and provider choices stay intact. */
 export function distinctSourceDocuments<T extends { location: string; allowHttp?: boolean }>(
   sources: readonly T[],
+  keepSubset: (source: T) => boolean = () => false,
 ): T[] {
   const full = new Set(
     sources
@@ -32,7 +33,8 @@ export function distinctSourceDocuments<T extends { location: string; allowHttp?
     const location = new URL(source.location).href;
     if (
       (location === `${nexus}best.m3u` || location === `${nexus}online.m3u`) &&
-      full.has(source.allowHttp === true)
+      full.has(source.allowHttp === true) &&
+      !keepSubset(source)
     )
       return false;
     const key = sourceDocumentKey(source);

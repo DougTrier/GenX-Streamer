@@ -31,6 +31,33 @@ fn fixture() -> (tempfile::TempDir, Store) {
 fn saved(store: &Store) -> Value {
     serde_json::from_str(&store.read("preferences").unwrap().unwrap()).unwrap()
 }
+
+#[test]
+fn favorite_teams_round_trip_without_changing_channel_favorites() {
+    let (root, store) = fixture();
+    let mut pref = saved(&store);
+    assert!(pref.get("favoriteTeams").is_none());
+    let teams = json!([
+        {"id":"manual-school","name":"Central Eagles","sport":"Volleyball","location":"Springfield, IL","level":"High school","scheduleUrl":"https://school.example/schedule","broadcasterUrl":"https://station.example/sports"},
+        {"id":"nfl-chicago-bears","name":"Chicago Bears","sport":"American Football","location":"Chicago","level":"Pro","league":"NFL"}
+    ]);
+    pref["favoriteTeams"] = teams.clone();
+    store.write("preferences", &pref.to_string()).unwrap();
+    drop(store);
+    let store = Store::new(root.path().into(), "test".into()).unwrap();
+    let mut current = saved(&store);
+    assert_eq!(current["favoriteTeams"], teams);
+    assert_eq!(current["favorites"], pref["favorites"]);
+    current["volume"] = json!(0.7);
+    store.write("preferences", &current.to_string()).unwrap();
+    assert_eq!(saved(&store)["favoriteTeams"], teams);
+    current["favoriteTeams"][0]["scheduleUrl"] = json!("javascript:alert(1)");
+    assert!(store.write("preferences", &current.to_string()).is_err());
+    assert_eq!(saved(&store)["favoriteTeams"], teams);
+    current["favoriteTeams"] = json!([]);
+    store.write("preferences", &current.to_string()).unwrap();
+    assert_eq!(saved(&store)["favoriteTeams"], json!([]));
+}
 #[derive(Default, Debug, PartialEq, Eq)]
 struct BackupCounts {
     checks: usize,

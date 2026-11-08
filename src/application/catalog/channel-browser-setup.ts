@@ -59,6 +59,7 @@ export interface ChannelBrowserSetupEnvironment {
   readonly catalogBrowseViewRevision: number;
   readonly liveBrowseJobs: Map<AbortController, Promise<unknown>>;
   readonly toggleChannelFavorite: ReturnType<typeof createChannelEdits>['toggleChannelFavorite'];
+  readonly pendingChannelFavorite: (id: string) => boolean | undefined;
   readonly channelActions: ReturnType<typeof createChannelListControls>['channelActions'];
 }
 
@@ -129,7 +130,7 @@ export function createChannelBrowserSetup(env: ChannelBrowserSetupEnvironment) {
           identity: () =>
             `${env.library.libraryIntent}:` +
             (env.accountBrowser.selectedAccount
-              ? env.accountBrowser.identity()
+              ? `${env.accountBrowser.identity()}:${env.accountBrowser.preferenceEpoch()}`
               : `${env.catalogRevision}:${env.catalogBrowseViewRevision}`),
           scopeIdentity: () =>
             `${env.library.archiveStorageEpoch}:${env.library.libraryIntent}:${env.accountBrowser.identity()}`,
@@ -147,7 +148,7 @@ export function createChannelBrowserSetup(env: ChannelBrowserSetupEnvironment) {
             const joined = createOwnedAbortSignals([signal, owner.signal]);
             const work = (
               env.accountBrowser.selectedAccount
-                ? env.accountBrowser.query(input, joined.signal)
+                ? env.accountBrowser.query({ ...input, favoritesFirst: false }, joined.signal)
                 : queryCatalogPage({ ...input, favoritesFirst: true }, joined.signal)
             ).finally(() => {
               joined.dispose();
@@ -170,6 +171,7 @@ export function createChannelBrowserSetup(env: ChannelBrowserSetupEnvironment) {
               ? 60
               : 72,
       onFavorite: (id) => env.toggleChannelFavorite(id),
+      pendingFavorite: (id) => env.pendingChannelFavorite(id),
       onManage: (id) => env.channelActions.open(id),
       history: {
         store: getWatchHistory(),

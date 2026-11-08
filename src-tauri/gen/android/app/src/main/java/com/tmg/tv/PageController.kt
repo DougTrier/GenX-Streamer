@@ -19,6 +19,8 @@ package com.tmg.tv
 import android.annotation.SuppressLint
 import android.app.ActivityManager
 import android.content.Context
+import android.content.pm.PackageManager
+import android.content.res.Configuration
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -50,6 +52,8 @@ import android.webkit.WebStorage
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.FrameLayout
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.webkit.WebViewCompat
 import androidx.webkit.WebViewFeature
 import org.json.JSONArray
@@ -232,6 +236,7 @@ class PageController(
     val arrow = pointer ?: return false
     return when (event.actionMasked) {
       MotionEvent.ACTION_DOWN -> {
+        fullscreenTap.reset()
         if (!arrow.touchMode) { arrow.touchMode = true; arrow.invalidate() }
         val button = arrow.buttonAt(event.x, event.y)
         barTouch = button
@@ -256,6 +261,13 @@ class PageController(
   private var videoOnly = false
   /** GenX went full screen because the site asked; undone when the viewer leaves it. */
   private var fullscreenForSite = false
+  private val fullscreenTap = RemoteDoubleTap()
+  private val television by lazy {
+    val mode = context.resources.configuration.uiMode and Configuration.UI_MODE_TYPE_MASK
+    TelevisionCapability.isTelevision(mode,
+      context.packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK),
+      context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEVISION))
+  }
   private val ui = Handler(Looper.getMainLooper())
   private val hideBar = Runnable { pointer?.let { it.bar = false; it.invalidate() } }
   /** Whether the page's video keeps the screen on (WebView marks a view for it). */
@@ -360,6 +372,7 @@ class PageController(
   }
   /** Remote keys return to GenX; the page stays in the viewing area. */
   fun leave(reason: String, notify: Boolean = true) {
+    fullscreenTap.reset()
     held.clear()
     released.clear()
     pulsing.clear()
@@ -558,6 +571,7 @@ class PageController(
     })()
   """.trimIndent()
   fun setVideoOnly(value: Boolean) {
+    fullscreenTap.reset()
     videoOnly = value
     if (!value) fullscreenForSite = false
     page?.let { view ->
@@ -653,6 +667,7 @@ class PageController(
       // A site's own full screen: its video fills the viewing area and GenX
       // goes full screen around it, so it covers the screen like before.
       override fun onShowCustomView(v: View, callback: CustomViewCallback) {
+        fullscreenTap.reset()
         custom = v
         customExit = callback
         v.isFocusable = true
@@ -665,6 +680,7 @@ class PageController(
       }
       override fun onHideCustomView() {
         if (custom == null) return
+        fullscreenTap.reset()
         custom?.let { container.removeView(it) }
         custom = null
         customExit = null
@@ -677,9 +693,8 @@ class PageController(
         wakeBar()
       }
     }
-    // W06: downloads are never started here. W16: an Android app (APK) the
-    // viewer clicked goes to GenX, which downloads it and opens Android's
-    // installer; everything else is refused.
+    // W06: downloads are never started here. GenX asks before downloading
+    // an APK, and Android still controls the installer confirmation.
     view.setDownloadListener { url, userAgent, disposition, mime, _ ->
       if (ApkRules.isApk(url, mime, disposition)) {
         host.genxEvent("genx-apk-offer", JSONObject().put("url", url).put("userAgent", userAgent ?: "")
@@ -739,7 +754,10 @@ class PageController(
   fun history(back: Boolean) {
     page?.let { if (back && it.canGoBack()) it.goBack() else if (!back && it.canGoForward()) it.goForward() }
   }
-  fun pause() { page?.onPause() }
+  fun pause() {
+    fullscreenTap.reset()
+    page?.onPause()
+  }
   fun resume() { page?.onResume() }
 
   fun status(): JSONObject {
@@ -848,6 +866,27 @@ class PageController(
     page ?: return false
     val arrow = pointer ?: return false
     val down = event.action == KeyEvent.ACTION_DOWN
+    val device = event.device
+    val googleVoiceRemote = device?.vendorId == 0x18d1 && device.productId == 0x9451
+    val fullscreen = videoOnly || custom != null
+    val shortcutKey = if (fullscreen) KeyEvent.KEYCODE_DPAD_DOWN else KeyEvent.KEYCODE_DPAD_UP
+    val canTap = code == shortcutKey && entered && television &&
+      ViewCompat.getRootWindowInsets(container)?.isVisible(WindowInsetsCompat.Type.ime()) != true
+    if (!canTap || event.isCanceled || event.repeatCount > 0) {
+      fullscreenTap.reset()
+    } else if (down) {
+      fullscreenTap.press(event.eventTime)
+    } else if (event.action == KeyEvent.ACTION_UP && fullscreenTap.release(event.eventTime, googleVoiceRemote)) {
+      released[code] = SystemClock.uptimeMillis()
+      if (custom != null) {
+        val wasAlreadyFullscreen = videoOnly && !fullscreenForSite
+        exitSiteFullscreen()
+        if (wasAlreadyFullscreen) host.toggleFullscreen()
+      } else {
+        host.toggleFullscreen()
+      }
+      return true
+    }
     if (down && arrow.touchMode) { arrow.touchMode = false; arrow.invalidate() }
     when (code) {
       KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT, KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> {
@@ -857,7 +896,8 @@ class PageController(
         // Infrared remotes send press/release pairs every ~100 ms while a
         // button is held; a press soon after a release continues the glide.
         val wasReleased = released.remove(code)
-        if (held.containsKey(code) && wasReleased != null && now - wasReleased < RELEASE_GRACE_MS) {
+        if (!googleVoiceRemote && held.containsKey(code) && wasReleased != null && now - wasReleased < RELEASE_GRACE_MS) {
+          fullscreenTap.reset()
           seen[code] = now
           pulsing.add(code)
           return true
@@ -956,6 +996,7 @@ class PageController(
   }
 
   fun close() {
+    fullscreenTap.reset()
     ui.removeCallbacks(hideBar)
     ui.removeCallbacks(awakeCheck)
     if (awake) { awake = false; host.keepAwake(false) }

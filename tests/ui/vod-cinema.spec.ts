@@ -341,8 +341,19 @@ for (const personal of [false, true])
     await expect(rowCards(page, 0).nth(1)).toBeFocused();
     await press(page, 'ArrowLeft', 'ArrowLeft');
     await expect(page.locator('.vod-categories [data-category="1"]')).toBeFocused();
+    await press(page, 'ArrowUp', 'ArrowRight');
+    await expect(page.locator('[data-vod-section="series"]')).toBeFocused();
+    await press(page, 'ArrowLeft');
+    await expect(page.locator('[data-vod-section="movies"]')).toBeFocused();
+    await press(page, 'ArrowDown');
+    await expect(page.locator('.vod-categories [data-category="1"]')).toBeFocused();
     await press(page, 'ArrowRight');
     expect(await page.evaluate(() => !!document.activeElement?.closest('#vod-gallery'))).toBe(true);
+    await press(page, 'ArrowLeft', 'ArrowUp', 'ArrowRight', 'Enter');
+    await expect(page.locator('[data-vod-section="series"]')).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    );
   });
 
 test('VOD fills the screen with a slim rail, a banner and category rows of six posters', async ({

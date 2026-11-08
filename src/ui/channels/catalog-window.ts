@@ -23,7 +23,14 @@ import {
 
 export type BrowseQuery = Pick<
   CatalogQuery,
-  'query' | 'filter' | 'geography' | 'sort' | 'hideAdult' | 'sports' | 'historyIds'
+  | 'query'
+  | 'filter'
+  | 'favoritesOnly'
+  | 'geography'
+  | 'sort'
+  | 'hideAdult'
+  | 'sports'
+  | 'historyIds'
 >;
 export type CatalogWindowState = 'uninitialized' | 'pending' | 'ready' | 'error' | 'closed';
 export interface CatalogWindowAnchor {
@@ -35,7 +42,7 @@ export interface CatalogWindowHost {
   revision(): string;
   query(input: Omit<CatalogQuery, 'requestId'>, signal: AbortSignal): Promise<CatalogPage>;
   changed(): void;
-  captureAnchor?(): CatalogWindowAnchor | null;
+  captureAnchor?(moved?: (id: string) => boolean): CatalogWindowAnchor | null;
   restoreAnchor?(anchor: CatalogWindowAnchor, index: number, id: string): void;
 }
 const PAGE_SIZE = 50;
@@ -107,13 +114,18 @@ export class CatalogWindow {
     }
     return -1;
   }
-  reset(input: BrowseQuery, identity: string, preserve = false): void {
+  reset(
+    input: BrowseQuery,
+    identity: string,
+    preserve = false,
+    moved?: (id: string) => boolean,
+  ): void {
     if (this.closed) return;
     this.identity = identity;
     const revision = this.host.revision();
     const key = JSON.stringify([input, identity, revision]);
     if (key === this.key) return;
-    const anchor = preserve ? this.host.captureAnchor?.() : null;
+    const anchor = preserve ? this.host.captureAnchor?.(moved) : null;
     this.key = key;
     this.generation++;
     this.controller.abort();

@@ -39,6 +39,8 @@ for (const size of [
   // Landscape handhelds give the Guide the workspace, so 854 px fits a grid.
   // Narrower screens retain the readable agenda.
   it(`normal Guide uses the real shell with readable ${size.width < 850 ? 'agenda' : 'grid'} ${size.width}x${size.height}`, async () => {
+    const longTitle =
+      'A long programme title that does not fit inside a short time cell <em>Live</em>';
     const page = await fixture(false, true);
     try {
       await page.setViewportSize(size);
@@ -53,6 +55,7 @@ for (const size of [
               'responsive',
               'in-app-select',
               'modal-viewport',
+              'sports-filters',
               'guide-panel',
               // The TV's compact-control rules, which once made cells spill.
               ...(size.deviceKind === 'tv' ? ['tv-density'] : []),
@@ -73,7 +76,18 @@ for (const size of [
         host.mappings=async()=>saved.slice(0,3).map((c,i)=>({...mapping,appChannelId:c.id,xmltvChannelId:'xml'+i}));
         const agenda=${JSON.stringify(size.width < 850)};
         const listing=(id,title,startMs,stopMs,ordinal)=>({catalogSourceId:'catalog',appChannelId:id,guideSourceId:'guide',xmltvChannelId:'xml'+saved.findIndex(c=>c.id===id),title,startMs,stopMs,ordinal,description:'Complete controlled listing details',categories:[{text:'Sports'}]});
-        host.query=async q=>{calls.queries.push(q);return {programs:agenda?[listing(q.appChannelIds[0],'Readable current programme',instant-1000,instant+100000,0),listing(q.appChannelIds[0],'Upcoming programme with complete title',instant+200000,instant+300000,1)]:[],nextCursor:null,sourceRevision:1,databaseRevision:1};};
+        host.query = async (q) => {
+          calls.queries.push(q);
+          const programs = agenda
+            ? [
+                listing(q.appChannelIds[0], 'Readable current programme', instant-1000, instant+100000, 0),
+                listing(q.appChannelIds[0], 'Upcoming programme with complete title', instant+200000, instant+300000, 1),
+              ]
+            : ${size.deviceKind === 'tv'}
+              ? q.appChannelIds.map(id => listing(id, ${JSON.stringify(longTitle)}, instant+200000, instant+300000, 0))
+              : [];
+          return { programs, nextCursor: null, sourceRevision: 1, databaseRevision: 1 };
+        };
         if(agenda)host.summary=async q=>({...q,catalogRevision:'1',databaseRevision:1,mappingStatus:'mapped',mapping:{catalogSourceId:'catalog',appChannelId:q.appChannelId,guideSourceId:'guide',xmltvChannelId:'xml'+saved.findIndex(c=>c.id===q.appChannelId)},sourceRevision:1,publishedRevision:1,updatedMs:instant,coverage:{startMs:instant-1000,endMs:instant+300000},cacheStatus:'current',currentStatus:'current',nextStatus:'next',current:{title:'Readable current programme',startMs:instant-1000,stopMs:instant+100000},next:{title:'Upcoming programme with complete title',startMs:instant+200000,stopMs:instant+300000}});
 
         window.guide=GuideUI.mountGuide(document.getElementById('primary-view-host'),host);
@@ -188,6 +202,26 @@ for (const size of [
         );
         if (size.deviceKind === 'tv') {
           expect(offscreen, `${size.width}x${size.height}`).toEqual([]);
+          const toolbar = page.locator('.gx-timeline-toolbar');
+          await toolbar.getByRole('button', { name: 'Sports', exact: true }).click();
+          const alignment = await toolbar.evaluate((node) => {
+            const center = (selector: string) => {
+              const box = node.querySelector(selector)!.getBoundingClientRect();
+              return box.top + box.height / 2;
+            };
+            return Math.abs(center('.sports-filters') - center('.gx-timeline-search'));
+          });
+          expect(alignment).toBeLessThanOrEqual(1);
+          await page
+            .locator('.gx-timeline-status[data-state="ready"]')
+            .waitFor({ state: 'attached' });
+          await page.locator('.gx-timeline-cell').first().focus();
+          const focused = page.locator('.gx-timeline-focused-listing');
+          await focused.waitFor({ state: 'visible' });
+          expect(await focused.textContent()).toContain(longTitle);
+          expect(await focused.locator('em').count()).toBe(0);
+          await first.focus();
+          expect(await focused.isVisible()).toBe(false);
         } else {
           // A short landscape Guide reserves its top-left mini and gives the
           // toolbar a bounded rail. Every remote destination must be revealed,

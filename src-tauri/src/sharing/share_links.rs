@@ -14,8 +14,7 @@
 
 //! Share links (docs/share-links.md): the system share sheet for "Watch News 24
 //! on GenX Streamer: <link>" and for the app itself, links that open GenX
-//! Streamer (genx:// and the https page link), and the check that a shared
-//! stream's server is public before anything is fetched from it.
+//! Streamer (genx:// and the https page link).
 //!
 //! The native side only carries links: it admits a link's outer shape (our
 //! own scheme or page, bounded, no control characters) and hands it to the
@@ -37,8 +36,6 @@ mod windows_share;
 pub(crate) use windows_links::{forward_to_running_copy, start as start_windows};
 
 use serde::Serialize;
-use std::net::SocketAddr;
-use std::time::Duration;
 
 /// The longest link GenX accepts (src/sharing/share-link.ts LIMITS.link).
 pub(crate) const MAX_LINK: usize = 6000;
@@ -259,59 +256,6 @@ pub(crate) async fn share_app_file(
         let _ = (app, title, text);
         Err("share-unavailable".into())
     }
-}
-
-/// The address a shared stream or logo may be fetched from: http or https, a
-/// host, no credentials.
-fn shared_destination(raw: &str) -> Result<(String, u16), String> {
-    let refused = || "share-destination-invalid".to_string();
-    if raw.len() > 2048 || raw.chars().any(|c| c.is_control() || c.is_whitespace()) {
-        return Err(refused());
-    }
-    let url = reqwest::Url::parse(raw).map_err(|_| refused())?;
-    if !matches!(url.scheme(), "http" | "https")
-        || !url.username().is_empty()
-        || url.password().is_some()
-    {
-        return Err(refused());
-    }
-    let host = url.host_str().ok_or_else(refused)?;
-    let host = host
-        .trim_start_matches('[')
-        .trim_end_matches(']')
-        .to_string();
-    let port = url.port_or_known_default().ok_or_else(refused)?;
-    Ok((host, port))
-}
-
-/// Every address a resolved name gives must be public (sharing_policy::public_upstream),
-/// so a link can never point GenX at the viewer's own network.
-pub(crate) fn all_public(addresses: &[SocketAddr]) -> Result<(), String> {
-    if addresses.is_empty() || addresses.len() > 128 {
-        return Err("share-destination-unresolved".into());
-    }
-    if addresses
-        .iter()
-        .any(|address| !crate::sharing_policy::public_upstream(address.ip()))
-    {
-        return Err("share-destination-private".into());
-    }
-    Ok(())
-}
-
-/// Checks that a shared link's stream (or logo) server is on the public
-/// internet before GenX plays or fetches it.
-#[tauri::command]
-pub(crate) async fn check_shared_destination(url: String) -> Result<(), String> {
-    let (host, port) = shared_destination(&url)?;
-    let lookup = tokio::net::lookup_host((host.as_str(), port));
-    let addresses: Vec<SocketAddr> = tokio::time::timeout(Duration::from_secs(8), lookup)
-        .await
-        .map_err(|_| "share-destination-unresolved".to_string())?
-        .map_err(|_| "share-destination-unresolved".to_string())?
-        .take(129)
-        .collect();
-    all_public(&addresses)
 }
 
 #[cfg(test)]

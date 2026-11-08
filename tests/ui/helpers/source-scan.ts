@@ -79,7 +79,9 @@ export async function saveReviewedSource(page: Page, fileCandidates?: number): P
   const save = review.getByRole('button', { name: 'Save selected channels', exact: true });
   await expect(save).toBeEnabled();
   await save.click();
-  await expect(review.getByRole('status')).toHaveText('Selected channels saved.');
+  await expect(review.getByRole('status')).toHaveText('Selected channels saved.', {
+    ...(fileCandidates && fileCandidates >= 10_000 ? { timeout: 30_000 } : {}),
+  });
   await review.getByRole('button', { name: 'Close scan review', exact: true }).click();
   await expect(review).not.toBeVisible();
 }

@@ -267,7 +267,10 @@ async fn master_resource_survives_owned_pause_but_absolute_lifetime_is_not_exten
     assert!(request(relay.media_url(), &format!("GET {path} HTTP/1.1"))
         .await
         .starts_with(b"HTTP/1.1 200"));
-    relay.state.lock().unwrap().started = Instant::now() - MAX_LIFETIME;
+    tokio::time::pause();
+    tokio::time::advance(MAX_LIFETIME).await;
+    // Keep the ordinary lease fresh so only the absolute limit can refuse renewal.
+    relay.state.lock().unwrap().renewed = Instant::now();
     assert_eq!(relay.renew(), Err("cast-relay-expired"));
     relay.stop().await.unwrap();
 }

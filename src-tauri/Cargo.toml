@@ -1,6 +1,6 @@
 [package]
 name = "tmg-tv"
-version = "0.1.28"
+version = "0.1.33"
 description = "GenX Streamer portable IPTV player"
 edition = "2021"
 rust-version = "1.88"
@@ -14,7 +14,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["unstable"] }
+tauri = { version = "2.11.6", features = ["unstable"] }
 tauri-plugin-dialog = { version = "=2.6.0", default-features = false }
 tauri-plugin-fs = "=2.4.5"
 serde = { version = "1", features = ["derive"] }
@@ -43,6 +43,8 @@ flate2 = "=1.1.9"
 unicode-normalization = "=0.1.25"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+rcgen = { version = "=0.14.8", default-features = false, features = ["ring"] }
+mdns-sd = "=0.20.1"
 
 [target.'cfg(windows)'.dependencies]
 windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security_Cryptography", "Win32_Storage_FileSystem", "Win32_NetworkManagement_IpHelper", "Win32_Networking_WinSock", "Win32_NetworkManagement_Ndis", "Win32_UI_Shell", "Win32_UI_WindowsAndMessaging", "Win32_System_Registry", "Win32_System_DataExchange", "Win32_System_LibraryLoader", "Win32_System_Threading"] }
@@ -61,6 +63,7 @@ jni = "0.21"
 tao = { path = "vendor/tao" }
 
 [dev-dependencies]
+tauri = { version = "2.11.6", features = ["test"] }
 tokio = { version = "1", features = ["test-util"] }
 
 # Third-party code is optimized even in development builds, which run on the

@@ -45,6 +45,7 @@ pub(crate) struct Reply {
     pub committed: bool,
     pub status: &'static str,
     pub archived_count: usize,
+    pub expired_event_ids: Vec<String>,
     pub checked_targets: usize,
     pub deferred_count: usize,
     pub catalog_revision: String,
@@ -96,8 +97,9 @@ struct Candidate {
 pub(crate) struct Prepared {
     round_id: String,
     round: Round,
-    promoted: Vec<i64>,
+    promoted: Vec<Option<i64>>,
     candidates: Vec<Candidate>,
+    expired_event_ids: Vec<String>,
     pub coverage_complete: bool,
     pub deferred_count: usize,
     pub targets: Vec<Target>,
@@ -204,7 +206,8 @@ fn configuration(c: &Connection) -> Result<(Vec<Value>, String, bool), String> {
         sources.retain(|s| {
             let raw = location(s).unwrap_or_default();
             let subset = [format!("{nexus}best.m3u"), format!("{nexus}online.m3u")].contains(&raw);
-            !(subset && full.contains(&(s["allowHttp"] == true)))
+            let saved = canonical.iter().any(|source| source["id"] == s["id"]);
+            !(subset && !saved && full.contains(&(s["allowHttp"] == true)))
                 && seen.insert((raw, s["allowHttp"] == true))
         });
         let digest = hash(&json!(["source-cleanup-config-v1", canonical, providers]))?;
@@ -254,10 +257,7 @@ fn read_round(
     }
     Ok(round)
 }
-fn coverage(c: &Connection, round: &Round) -> Result<Option<Vec<i64>>, String> {
-    if round.unknown_coverage || round.sources.is_empty() {
-        return Ok(None);
-    }
+fn coverage(c: &Connection, round: &Round) -> Result<Vec<Option<i64>>, String> {
     let mut promoted = Vec::new();
     for source in &round.sources {
         let id = source.definition["id"].as_str().ok_or(ERR)?;
@@ -272,7 +272,8 @@ fn coverage(c: &Connection, round: &Round) -> Result<Option<Vec<i64>>, String> {
             permission,
         )) = row
         else {
-            return Ok(None);
+            promoted.push(None);
+            continue;
         };
         let definition: Value = serde_json::from_str(&definition).map_err(|_| ERR)?;
         let grant = hash(&json!([
@@ -293,11 +294,35 @@ fn coverage(c: &Connection, round: &Round) -> Result<Option<Vec<i64>>, String> {
             || crate::scan_checkpoint::source_fingerprint(&definition)?
                 != crate::scan_checkpoint::source_fingerprint(&source.definition)?
         {
-            return Ok(None);
+            promoted.push(None);
+            continue;
         }
-        promoted.push(revision);
+        promoted.push(Some(revision));
     }
-    Ok(Some(promoted))
+    Ok(promoted)
+}
+fn event_titles(
+    c: &Connection,
+    source_id: &str,
+    check: &mut impl FnMut() -> Result<(), String>,
+) -> Result<(bool, HashSet<String>), String> {
+    let mut statement = sql(c.prepare("SELECT json_extract(channel,'$.name') FROM source_snapshot_entry WHERE source_id=?1 AND available=1"))?;
+    let titles = sql(statement.query_map([source_id], |row| row.get::<_, String>(0)))?;
+    let mut nonempty = false;
+    let mut game_titles = HashSet::new();
+    for title in titles {
+        check()?;
+        nonempty = true;
+        let title = crate::scan_resume_reconcile::normalized(&sql(title)?);
+        if crate::catalog::sports::has_explicit_event_tag(&title) {
+            game_titles.insert(title);
+        }
+    }
+    Ok((nonempty, game_titles))
+}
+fn event_expiry_allowed(c: &Connection, catalog_revision: i64) -> Result<bool, String> {
+    let prior = crate::scan_checkpoint::read(c, catalog_revision)?;
+    Ok(crate::scan_checkpoint::completed_replacement_identity(&prior).is_ok())
 }
 fn admitted_profile(profile: &str) -> bool {
     [20_000, 45_000, 60_000]
@@ -438,6 +463,7 @@ fn reply(
     c: &Connection,
     status: &'static str,
     archived: usize,
+    expired_event_ids: Vec<String>,
     checked: usize,
     deferred: usize,
 ) -> Result<Reply, String> {
@@ -447,6 +473,7 @@ fn reply(
         committed: true,
         status,
         archived_count: archived,
+        expired_event_ids,
         checked_targets: checked,
         deferred_count: deferred,
         catalog_revision: catalog.to_string(),
@@ -478,8 +505,7 @@ impl PairStore {
         let mut c = connect_background(&self.root.join(DB), true)?;
         let tx = sql(c.transaction())?;
         let round = read_round(self, &tx, &prepared.round_id, platform, now, 1)?;
-        if prepared.coverage_complete && coverage(&tx, &round)?.as_ref() != Some(&prepared.promoted)
-        {
+        if coverage(&tx, &round)? != prepared.promoted {
             return Err("source-cleanup-membership-changed".into());
         }
         check()
@@ -564,16 +590,25 @@ impl PairStore {
         ensure(&tx)?;
         let round = read_round(self, &tx, &request.round_id, platform, now, 0)?;
         let promoted = coverage(&tx, &round)?;
+        let covered_sources: HashSet<_> = round
+            .sources
+            .iter()
+            .zip(&promoted)
+            .filter_map(|(source, revision)| revision.and(source.definition["id"].as_str()))
+            .collect();
+        let coverage_complete =
+            !round.unknown_coverage && !promoted.is_empty() && promoted.iter().all(Option::is_some);
         let mut prepared = Prepared {
             round_id: request.round_id.clone(),
             round: round.clone(),
-            promoted: promoted.clone().unwrap_or_default(),
+            promoted,
             candidates: Vec::new(),
-            coverage_complete: promoted.is_some(),
+            expired_event_ids: Vec::new(),
+            coverage_complete,
             deferred_count: 0,
             targets: Vec::new(),
         };
-        if prepared.coverage_complete {
+        if !covered_sources.is_empty() {
             let snapshot = Self::read_connection_validated(&tx)?;
             let empty_catalog = json!({"sources":[],"channels":[]});
             let catalog = snapshot.catalog.as_ref().unwrap_or(&empty_catalog);
@@ -585,16 +620,44 @@ impl PairStore {
                 .map(|s| Ok((s["id"].as_str().ok_or(ERR)?, s)))
                 .collect::<Result<_, String>>()?;
             let mut keys = HashSet::new();
+            let mut titles_by_source = HashMap::new();
+            let can_expire_events = event_expiry_allowed(&tx, round.catalog_revision)?;
             for channel in catalog["channels"].as_array().ok_or(ERR)? {
                 check()?;
                 let id = channel["id"].as_str().ok_or(ERR)?;
                 if !public_channel(channel) || protected(preferences, id) {
                     continue;
                 }
-                let source = sources
-                    .get(channel["sourceId"].as_str().ok_or(ERR)?)
-                    .ok_or(ERR)?;
+                let source_id = channel["sourceId"].as_str().ok_or(ERR)?;
+                let source = sources.get(source_id).ok_or(ERR)?;
                 if source["kind"] != "url" {
+                    continue;
+                }
+                let name = channel["name"].as_str().ok_or(ERR)?;
+                if crate::scan_resume_reconcile::game_listing(channel)
+                    && crate::catalog::sports::has_explicit_event_tag(name)
+                {
+                    if can_expire_events && covered_sources.contains(source_id) {
+                        let (nonempty, titles) = match titles_by_source.entry(source_id) {
+                            std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
+                            std::collections::hash_map::Entry::Vacant(entry) => {
+                                entry.insert(event_titles(&tx, source_id, &mut check)?)
+                            }
+                        };
+                        // Empty lists cannot establish absence. Match the title so
+                        // a shared guide ID or a recycled URL cannot retain an old game.
+                        let title = crate::scan_resume_reconcile::normalized(name);
+                        if *nonempty && !titles.contains(&title) {
+                            if prepared.expired_event_ids.len() == CANDIDATE_LIMIT {
+                                prepared.deferred_count += 1;
+                            } else {
+                                prepared.expired_event_ids.push(id.into());
+                            }
+                        }
+                    }
+                    continue;
+                }
+                if !prepared.coverage_complete {
                     continue;
                 }
                 let urls = channel["urls"].as_array().ok_or(ERR)?;
@@ -650,7 +713,7 @@ impl PairStore {
                 }
                 prepared.candidates.push(Candidate {
                     id: id.into(),
-                    source_id: channel["sourceId"].as_str().ok_or(ERR)?.into(),
+                    source_id: source_id.into(),
                     targets: target_rows,
                 });
             }
@@ -689,7 +752,10 @@ impl PairStore {
             return Err("source-cleanup-authority-changed".into());
         }
         let coverage = coverage(&tx, &round)?;
-        if !prepared.coverage_complete || coverage.is_none() {
+        if coverage != prepared.promoted {
+            return Err("source-cleanup-membership-changed".into());
+        }
+        if !prepared.coverage_complete && prepared.expired_event_ids.is_empty() {
             sql(tx.execute(
                 "DELETE FROM source_cleanup_round WHERE id=?1",
                 [&prepared.round_id],
@@ -698,15 +764,13 @@ impl PairStore {
                 &tx,
                 "coverage-incomplete",
                 0,
+                Vec::new(),
                 checked_targets,
                 prepared.deferred_count,
             )?;
             check()?;
             sql(tx.commit())?;
             return Ok(result);
-        }
-        if coverage.as_ref() != Some(&prepared.promoted) {
-            return Err("source-cleanup-membership-changed".into());
         }
         let allowed: HashSet<&str> = prepared.targets.iter().map(|t| t.key.as_str()).collect();
         let mut observed = HashMap::new();
@@ -738,8 +802,21 @@ impl PairStore {
             .map(|s| Ok((s["id"].as_str().ok_or(ERR)?, s)))
             .collect::<Result<_, String>>()?;
         let mut archived = Vec::new();
-        let mut incoming = Vec::new();
+        let mut expired_events = Vec::new();
         let mut deferred = prepared.deferred_count;
+        if !prepared.expired_event_ids.is_empty() {
+            if event_expiry_allowed(&tx, round.catalog_revision)? {
+                for id in &prepared.expired_event_ids {
+                    check()?;
+                    if !protected(&preferences, id) {
+                        expired_events.push(id.clone());
+                    }
+                }
+            } else {
+                deferred += prepared.expired_event_ids.len();
+            }
+        }
+        let mut incoming = Vec::new();
         for candidate in &prepared.candidates {
             check()?;
             let channel = channels
@@ -827,8 +904,23 @@ impl PairStore {
             return Err("source-cleanup-preference-limit".into());
         }
         removed.extend(archived.iter().map(|id| json!(id)));
+        let updated_catalog = if expired_events.is_empty() {
+            None
+        } else {
+            let expired: HashSet<&str> = expired_events.iter().map(String::as_str).collect();
+            let mut updated = catalog.clone();
+            updated["channels"]
+                .as_array_mut()
+                .ok_or(ERR)?
+                .retain(|channel| {
+                    channel["id"]
+                        .as_str()
+                        .is_none_or(|id| !expired.contains(id))
+                });
+            Some(updated.to_string())
+        };
         let records = RecordPair {
-            catalog: None,
+            catalog: updated_catalog,
             preferences: if archived.is_empty() {
                 None
             } else {
@@ -844,7 +936,7 @@ impl PairStore {
             crate::health_storage::parse(health)?;
         }
         let (cr, hr, _) = revisions(&tx)?;
-        if records.preferences.is_some() || health.is_some() {
+        if records.catalog.is_some() || records.preferences.is_some() || health.is_some() {
             let validated = validate(&records)?;
             Self::apply_scan_transaction(
                 &tx,
@@ -880,6 +972,7 @@ impl PairStore {
                 "completed"
             },
             archived.len(),
+            expired_events,
             checked_targets,
             deferred,
         )?;

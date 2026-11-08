@@ -42,7 +42,6 @@ import { type mountLocalStreams } from '../../ui/scan/local-streams';
 import { type Preferences } from '../../preferences';
 import { type mountArchiveSearch } from '../../ui/genxtra/archive-search';
 import { type ContentLibrary } from '../genxtra/content-library';
-import { type SharedPlayable } from './shared-incoming';
 import type { GuidePlaybackIntent } from '../playback/guide-playback-intent';
 
 /** What this area reads from, and writes back to, the rest of the application. */
@@ -72,7 +71,6 @@ export interface SharingAndCastingEnvironment {
   readonly persistedCatalogRevision: string;
   readonly localStreams: ReturnType<typeof mountLocalStreams> | undefined;
   /** Streams someone shared with this viewer (share-links.ts), playable while GenX runs. */
-  readonly shareLinks: { channel(id: string): SharedPlayable | undefined } | undefined;
   readonly settings: Preferences;
   readonly saveSettings: ReturnType<typeof createSettingsController>['saveSettings'];
   readonly applicationClosing: boolean;
@@ -143,7 +141,7 @@ export function createSharingAndCasting(env: SharingAndCastingEnvironment) {
       },
       publishSelectionAllowed: (selection) => !env.privatePlayback(selection),
       channels: () => env.catalog.channels,
-      extraChannel: (id) => env.localStreams?.channel(id) ?? env.shareLinks?.channel(id),
+      extraChannel: (id) => env.localStreams?.channel(id),
       settings: () => env.settings,
       saveAudio: async (patch, context, generation) => {
         const current = () =>

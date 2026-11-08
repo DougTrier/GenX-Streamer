@@ -6,10 +6,12 @@ import type { ChannelFilter } from '../../ui/channels/channel-browser';
 export type LiveBrowseTab = 'free' | 'paid';
 export interface LiveTabBrowseState {
   filter: ChannelFilter;
+  favoritesOnly?: boolean;
   query: string;
   sportsFacet: SportsFacet;
   geography: GeographyFilter;
   sort: 'source' | 'geography' | 'name';
+  favoritesSort?: LiveTabBrowseState['sort'];
 }
 
 function tabKey(tab: LiveBrowseTab): LiveBrowseTab {
@@ -27,6 +29,7 @@ function copy(state: Readonly<LiveTabBrowseState>): LiveTabBrowseState {
     throw new Error('Live TV browsing filter is invalid.');
   return {
     filter: state.filter,
+    ...(state.favoritesOnly ? { favoritesOnly: true } : {}),
     query: state.query,
     sportsFacet: {
       ...(state.sportsFacet.sport === undefined ? {} : { sport: state.sportsFacet.sport }),
@@ -41,6 +44,7 @@ function copy(state: Readonly<LiveTabBrowseState>): LiveTabBrowseState {
         : { countries: [...state.geography.countries] }),
     },
     sort: state.sort,
+    ...(state.favoritesSort === undefined ? {} : { favoritesSort: state.favoritesSort }),
   };
 }
 

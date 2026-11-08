@@ -37,6 +37,7 @@ import type { GuideHistoryScope } from '../../guide/history-scope';
 export interface GuideBrowseScope {
   filter: string;
   query: string;
+  favoritesOnly?: boolean;
   sports?: SportsScope;
   history?: GuideHistoryScope;
 }
@@ -57,6 +58,8 @@ export interface TimelineChannel {
 }
 
 export interface TimelineHost {
+  searchVisibleWindow?: boolean;
+  replayDate?(program: MappedProgram, signal: AbortSignal): Promise<string | undefined>;
   /** Seed only from the active tab; Free and Paid timelines retain separate state. */
   browseScope?(): GuideBrowseScope;
   /** Null is pending; failed distinguishes refusal from a completed empty result. */
@@ -88,6 +91,7 @@ export interface TimelineHost {
       xmltvChannelId: string;
       sourceRevision: number;
       filterMask?: number;
+      firstStartMs?: number;
     }[];
   }>;
   logos?: {
@@ -260,6 +264,7 @@ export function timelineProgramKey(p: MappedProgram): string {
     p.title,
     p.description,
     guideCategoryKey(p.categories),
+    p.replay,
   ]);
 }
 

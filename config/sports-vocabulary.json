@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "vocabularyVersion": "2026-11-02.1",
+  "vocabularyVersion": "2026-11-07.1",
   "policyVersion": "explicit-sports-v1",
   "normalization": "nfkc-lowercase-ln-tokens",
   "sports": [
@@ -669,6 +669,428 @@
       "contextualAliases": [
         "Commanders"
       ]
+    },
+    {
+      "id": "mlb-arizona-diamondbacks",
+      "leagueId": "mlb",
+      "label": "Arizona Diamondbacks",
+      "evidenceAliases": [
+        "Arizona Diamondbacks"
+      ],
+      "queryAliases": [
+        "Arizona Diamondbacks"
+      ],
+      "contextualAliases": [
+        "Diamondbacks"
+      ]
+    },
+    {
+      "id": "mlb-athletics",
+      "leagueId": "mlb",
+      "label": "Athletics",
+      "evidenceAliases": [
+        "Oakland Athletics"
+      ],
+      "queryAliases": [
+        "Oakland Athletics"
+      ],
+      "contextualAliases": [
+        "Athletics"
+      ]
+    },
+    {
+      "id": "mlb-atlanta-braves",
+      "leagueId": "mlb",
+      "label": "Atlanta Braves",
+      "evidenceAliases": [
+        "Atlanta Braves"
+      ],
+      "queryAliases": [
+        "Atlanta Braves"
+      ],
+      "contextualAliases": [
+        "Braves"
+      ]
+    },
+    {
+      "id": "mlb-baltimore-orioles",
+      "leagueId": "mlb",
+      "label": "Baltimore Orioles",
+      "evidenceAliases": [
+        "Baltimore Orioles"
+      ],
+      "queryAliases": [
+        "Baltimore Orioles"
+      ],
+      "contextualAliases": [
+        "Orioles"
+      ]
+    },
+    {
+      "id": "mlb-boston-red-sox",
+      "leagueId": "mlb",
+      "label": "Boston Red Sox",
+      "evidenceAliases": [
+        "Boston Red Sox"
+      ],
+      "queryAliases": [
+        "Boston Red Sox"
+      ],
+      "contextualAliases": [
+        "Red Sox"
+      ]
+    },
+    {
+      "id": "mlb-chicago-cubs",
+      "leagueId": "mlb",
+      "label": "Chicago Cubs",
+      "evidenceAliases": [
+        "Chicago Cubs"
+      ],
+      "queryAliases": [
+        "Chicago Cubs"
+      ],
+      "contextualAliases": [
+        "Cubs"
+      ]
+    },
+    {
+      "id": "mlb-chicago-white-sox",
+      "leagueId": "mlb",
+      "label": "Chicago White Sox",
+      "evidenceAliases": [
+        "Chicago White Sox"
+      ],
+      "queryAliases": [
+        "Chicago White Sox"
+      ],
+      "contextualAliases": [
+        "White Sox"
+      ]
+    },
+    {
+      "id": "mlb-cincinnati-reds",
+      "leagueId": "mlb",
+      "label": "Cincinnati Reds",
+      "evidenceAliases": [
+        "Cincinnati Reds"
+      ],
+      "queryAliases": [
+        "Cincinnati Reds"
+      ],
+      "contextualAliases": [
+        "Reds"
+      ]
+    },
+    {
+      "id": "mlb-cleveland-guardians",
+      "leagueId": "mlb",
+      "label": "Cleveland Guardians",
+      "evidenceAliases": [
+        "Cleveland Guardians"
+      ],
+      "queryAliases": [
+        "Cleveland Guardians"
+      ],
+      "contextualAliases": [
+        "Guardians"
+      ]
+    },
+    {
+      "id": "mlb-colorado-rockies",
+      "leagueId": "mlb",
+      "label": "Colorado Rockies",
+      "evidenceAliases": [
+        "Colorado Rockies"
+      ],
+      "queryAliases": [
+        "Colorado Rockies"
+      ],
+      "contextualAliases": [
+        "Rockies"
+      ]
+    },
+    {
+      "id": "mlb-detroit-tigers",
+      "leagueId": "mlb",
+      "label": "Detroit Tigers",
+      "evidenceAliases": [
+        "Detroit Tigers"
+      ],
+      "queryAliases": [
+        "Detroit Tigers"
+      ],
+      "contextualAliases": [
+        "Tigers"
+      ]
+    },
+    {
+      "id": "mlb-houston-astros",
+      "leagueId": "mlb",
+      "label": "Houston Astros",
+      "evidenceAliases": [
+        "Houston Astros"
+      ],
+      "queryAliases": [
+        "Houston Astros"
+      ],
+      "contextualAliases": [
+        "Astros"
+      ]
+    },
+    {
+      "id": "mlb-kansas-city-royals",
+      "leagueId": "mlb",
+      "label": "Kansas City Royals",
+      "evidenceAliases": [
+        "Kansas City Royals"
+      ],
+      "queryAliases": [
+        "Kansas City Royals"
+      ],
+      "contextualAliases": [
+        "Royals"
+      ]
+    },
+    {
+      "id": "mlb-los-angeles-angels",
+      "leagueId": "mlb",
+      "label": "Los Angeles Angels",
+      "evidenceAliases": [
+        "Los Angeles Angels",
+        "Los Angeles Angels of Anaheim"
+      ],
+      "queryAliases": [
+        "Los Angeles Angels",
+        "Los Angeles Angels of Anaheim"
+      ],
+      "contextualAliases": [
+        "Angels"
+      ]
+    },
+    {
+      "id": "mlb-los-angeles-dodgers",
+      "leagueId": "mlb",
+      "label": "Los Angeles Dodgers",
+      "evidenceAliases": [
+        "Los Angeles Dodgers"
+      ],
+      "queryAliases": [
+        "Los Angeles Dodgers"
+      ],
+      "contextualAliases": [
+        "Dodgers"
+      ]
+    },
+    {
+      "id": "mlb-miami-marlins",
+      "leagueId": "mlb",
+      "label": "Miami Marlins",
+      "evidenceAliases": [
+        "Miami Marlins"
+      ],
+      "queryAliases": [
+        "Miami Marlins"
+      ],
+      "contextualAliases": [
+        "Marlins"
+      ]
+    },
+    {
+      "id": "mlb-milwaukee-brewers",
+      "leagueId": "mlb",
+      "label": "Milwaukee Brewers",
+      "evidenceAliases": [
+        "Milwaukee Brewers"
+      ],
+      "queryAliases": [
+        "Milwaukee Brewers"
+      ],
+      "contextualAliases": [
+        "Brewers"
+      ]
+    },
+    {
+      "id": "mlb-minnesota-twins",
+      "leagueId": "mlb",
+      "label": "Minnesota Twins",
+      "evidenceAliases": [
+        "Minnesota Twins"
+      ],
+      "queryAliases": [
+        "Minnesota Twins"
+      ],
+      "contextualAliases": [
+        "Twins"
+      ]
+    },
+    {
+      "id": "mlb-new-york-mets",
+      "leagueId": "mlb",
+      "label": "New York Mets",
+      "evidenceAliases": [
+        "New York Mets"
+      ],
+      "queryAliases": [
+        "New York Mets"
+      ],
+      "contextualAliases": [
+        "Mets"
+      ]
+    },
+    {
+      "id": "mlb-new-york-yankees",
+      "leagueId": "mlb",
+      "label": "New York Yankees",
+      "evidenceAliases": [
+        "New York Yankees"
+      ],
+      "queryAliases": [
+        "New York Yankees"
+      ],
+      "contextualAliases": [
+        "Yankees"
+      ]
+    },
+    {
+      "id": "mlb-philadelphia-phillies",
+      "leagueId": "mlb",
+      "label": "Philadelphia Phillies",
+      "evidenceAliases": [
+        "Philadelphia Phillies"
+      ],
+      "queryAliases": [
+        "Philadelphia Phillies"
+      ],
+      "contextualAliases": [
+        "Phillies"
+      ]
+    },
+    {
+      "id": "mlb-pittsburgh-pirates",
+      "leagueId": "mlb",
+      "label": "Pittsburgh Pirates",
+      "evidenceAliases": [
+        "Pittsburgh Pirates"
+      ],
+      "queryAliases": [
+        "Pittsburgh Pirates"
+      ],
+      "contextualAliases": [
+        "Pirates"
+      ]
+    },
+    {
+      "id": "mlb-san-diego-padres",
+      "leagueId": "mlb",
+      "label": "San Diego Padres",
+      "evidenceAliases": [
+        "San Diego Padres"
+      ],
+      "queryAliases": [
+        "San Diego Padres"
+      ],
+      "contextualAliases": [
+        "Padres"
+      ]
+    },
+    {
+      "id": "mlb-san-francisco-giants",
+      "leagueId": "mlb",
+      "label": "San Francisco Giants",
+      "evidenceAliases": [
+        "San Francisco Giants"
+      ],
+      "queryAliases": [
+        "San Francisco Giants"
+      ],
+      "contextualAliases": [
+        "Giants"
+      ]
+    },
+    {
+      "id": "mlb-seattle-mariners",
+      "leagueId": "mlb",
+      "label": "Seattle Mariners",
+      "evidenceAliases": [
+        "Seattle Mariners"
+      ],
+      "queryAliases": [
+        "Seattle Mariners"
+      ],
+      "contextualAliases": [
+        "Mariners"
+      ]
+    },
+    {
+      "id": "mlb-st-louis-cardinals",
+      "leagueId": "mlb",
+      "label": "St. Louis Cardinals",
+      "evidenceAliases": [
+        "St. Louis Cardinals"
+      ],
+      "queryAliases": [
+        "St. Louis Cardinals"
+      ],
+      "contextualAliases": [
+        "Cardinals"
+      ]
+    },
+    {
+      "id": "mlb-tampa-bay-rays",
+      "leagueId": "mlb",
+      "label": "Tampa Bay Rays",
+      "evidenceAliases": [
+        "Tampa Bay Rays"
+      ],
+      "queryAliases": [
+        "Tampa Bay Rays"
+      ],
+      "contextualAliases": [
+        "Rays"
+      ]
+    },
+    {
+      "id": "mlb-texas-rangers",
+      "leagueId": "mlb",
+      "label": "Texas Rangers",
+      "evidenceAliases": [
+        "Texas Rangers"
+      ],
+      "queryAliases": [
+        "Texas Rangers"
+      ],
+      "contextualAliases": [
+        "Rangers"
+      ]
+    },
+    {
+      "id": "mlb-toronto-blue-jays",
+      "leagueId": "mlb",
+      "label": "Toronto Blue Jays",
+      "evidenceAliases": [
+        "Toronto Blue Jays"
+      ],
+      "queryAliases": [
+        "Toronto Blue Jays"
+      ],
+      "contextualAliases": [
+        "Blue Jays"
+      ]
+    },
+    {
+      "id": "mlb-washington-nationals",
+      "leagueId": "mlb",
+      "label": "Washington Nationals",
+      "evidenceAliases": [
+        "Washington Nationals"
+      ],
+      "queryAliases": [
+        "Washington Nationals"
+      ],
+      "contextualAliases": [
+        "Nationals"
+      ]
     }
   ],
   "sources": [
@@ -710,7 +1132,7 @@
     {
       "id": "mlb",
       "url": "https://www.mlb.com/team",
-      "checkedDate": "2026-11-01"
+      "checkedDate": "2026-11-07"
     },
     {
       "id": "nhl",

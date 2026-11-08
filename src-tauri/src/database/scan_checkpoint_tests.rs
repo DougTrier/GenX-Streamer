@@ -275,8 +275,14 @@ fn checkpoint_refuses_unpublished_targets_policy_shift_secret_source_and_expiry(
         "scan-checkpoint-policy-stale"
     );
     assert_eq!(
-        scan_checkpoint::validate(&v.to_string(), &prefs, &catalog, 1, scan_now() + 7 * 86_400_000)
-            .unwrap_err(),
+        scan_checkpoint::validate(
+            &v.to_string(),
+            &prefs,
+            &catalog,
+            1,
+            scan_now() + 7 * 86_400_000
+        )
+        .unwrap_err(),
         "scan-checkpoint-expired"
     );
     v["sourceDefinitions"][0]["source"]["location"] =

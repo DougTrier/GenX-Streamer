@@ -49,7 +49,8 @@ export interface DataTransferSetupEnvironment {
 
 export function createDataTransferSetup(env: DataTransferSetupEnvironment) {
   const removeDataTransfer = installDataTransfer({
-    available: () => !env.importRunning && env.element('app').dataset.ready === 'true',
+    available: () =>
+      !env.importRunning && !env.transferBusy && env.element('app').dataset.ready === 'true',
     busy: (value) => {
       env.transferBusy = value;
       env.setImportBusy(value);

@@ -141,6 +141,96 @@ test('the share card shows a shared name as text and runs nothing until a choice
   await expect(card.locator('.share-card-message')).toHaveText('Link copied.');
 });
 
+test('a forged share link cannot fetch a stream or logo and can only act on a saved channel', async ({
+  page,
+}) => {
+  await fixture(page, 'shared-channel-fixture');
+  const outbound: string[] = [];
+  await page.route('https://attack.fixture.com/**', (route) => {
+    outbound.push(route.request().url());
+    return route.fulfill({ status: 302, headers: { location: 'http://127.0.0.1/private' } });
+  });
+  await page.goto('/shared-channel-fixture');
+  await page.evaluate(async () => {
+    const incomingPath = '/src/application/sharing/shared-incoming.ts';
+    const cardPath = '/src/ui/sharing/share-card.ts';
+    const linkPath = '/src/sharing/share-link.ts';
+    const { createSharedIncoming } = await import(incomingPath);
+    const { mountShareCard } = await import(cardPath);
+    const { buildShareMessage } = await import(linkPath);
+    const acted: unknown[] = [];
+    let pendingFavorite: boolean | undefined;
+    const saved = {
+      id: 'saved',
+      name: 'Saved station',
+      urls: ['https://public.example.com/feed.ts'],
+    };
+    const env = {
+      settings: { favorites: [], removedChannels: [] as string[] },
+      catalog: { channels: [saved] },
+      library: { contentLibrary: 'live' },
+      sharingBridge: { select: (value: unknown) => acted.push(value) },
+      presentPrimaryPage() {},
+      playbackAction: (work: Promise<unknown>) => void work,
+      toggleChannelFavorite: (id: string) => acted.push({ favorite: id }),
+      pendingChannelFavorite: () => pendingFavorite,
+    };
+    const receiver = createSharedIncoming(
+      env,
+      mountShareCard(document.getElementById('app')!, async () => true),
+    );
+    Reflect.set(window, 'shareProbe', {
+      acted,
+      pending: (value: boolean) => {
+        pendingFavorite = value;
+      },
+      remove: (removed: boolean) => {
+        env.settings.removedChannels = removed ? ['saved'] : [];
+      },
+      open: (stream: string) =>
+        receiver.receive(
+          buildShareMessage({
+            kind: 'channel',
+            name: 'Forged station name',
+            stream,
+            logo: 'https://attack.fixture.com/tracking.png',
+          }).link,
+        ),
+    });
+  });
+  const card = page.getByRole('dialog');
+  await page.evaluate(() =>
+    Reflect.get(window, 'shareProbe').open('https://attack.fixture.com/redirect.ts'),
+  );
+  await expect(card).toContainText('Find this channel in Free TV');
+  await expect(card.getByRole('button', { name: 'Play' })).toHaveCount(0);
+  await expect(card.getByRole('button', { name: 'Add to favorites' })).toHaveCount(0);
+  await card.getByRole('button', { name: 'Close', exact: true }).last().click();
+  const openSaved = () =>
+    page.evaluate(() =>
+      Reflect.get(window, 'shareProbe').open('https://public.example.com/feed.ts'),
+    );
+  await openSaved();
+  await expect(card.getByRole('heading')).toHaveText('Saved station was shared with you');
+  await page.evaluate(() => Reflect.get(window, 'shareProbe').remove(true));
+  await card.getByRole('button', { name: 'Play' }).click();
+  await expect(card).toContainText('no longer saved');
+  expect(await page.evaluate(() => Reflect.get(window, 'shareProbe').acted)).toEqual([]);
+  await page.evaluate(() => Reflect.get(window, 'shareProbe').remove(false));
+  await openSaved();
+  await card.getByRole('button', { name: 'Add to favorites' }).click();
+  await page.evaluate(() => Reflect.get(window, 'shareProbe').pending(true));
+  await openSaved();
+  await card.getByRole('button', { name: 'Add to favorites' }).click();
+  await openSaved();
+  await card.getByRole('button', { name: 'Play' }).click();
+  expect(await page.evaluate(() => Reflect.get(window, 'shareProbe').acted)).toEqual([
+    { favorite: 'saved' },
+    { id: 'saved', name: 'Saved station', url: 'https://public.example.com/feed.ts' },
+  ]);
+  expect(outbound).toEqual([]);
+});
+
 /** Mounts the Send app page with its Settings opener, as the app does. */
 async function mountSendApp(page: Page) {
   await page.evaluate(async () => {

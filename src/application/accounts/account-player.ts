@@ -184,6 +184,24 @@ export function createAccountPlayer(host: AccountPlayerHost) {
       throw cleanupFailed();
     }
   };
+  const releaseForSelection = async (
+    playerStop: Promise<void>,
+    stillCurrent: () => boolean,
+  ): Promise<void> => {
+    try {
+      await release(playerStop);
+    } catch {
+      // A newer click has its own stop queued. Only the latest selection can
+      // retry, and it still needs a real release before starting another engine.
+      if (!stillCurrent()) throw canceled();
+      try {
+        await release(stopPlayer());
+      } catch (failure) {
+        if (!stillCurrent()) throw canceled();
+        throw failure;
+      }
+    }
+  };
   const begin = (allowClosing = false) => {
     if (closed || (closing && !allowClosing)) throw new Error('The account player is closed.');
     if (suspension && !allowClosing) throw canceled();
@@ -295,7 +313,7 @@ export function createAccountPlayer(host: AccountPlayerHost) {
     await enqueue(async () => {
       let issued: Session | null = null;
       try {
-        await release(stopped);
+        await releaseForSelection(stopped, () => current(owned, captured, combined.signal));
         startTiming.mark('previous-released');
         if (!current(owned, captured, combined.signal)) throw canceled();
         if (choice && !alternate && chooseBest) {
@@ -589,7 +607,7 @@ export function createAccountPlayer(host: AccountPlayerHost) {
       combined.signal.addEventListener('abort', interrupt, { once: true });
       await enqueue(async () => {
         try {
-          await release(stopped);
+          await releaseForSelection(stopped, () => current(owned, captured, combined.signal));
           if (!current(owned, captured, combined.signal)) throw canceled();
           await host.player.select(admitted, recovery);
           if (!current(owned, captured, combined.signal)) throw canceled();

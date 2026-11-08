@@ -1,0 +1,119 @@
+/* Copyright 2026 Doug Trier. SPDX-License-Identifier: Apache-2.0 */
+#sports-filters:has(.my-teams-entry) {
+  container-type: inline-size;
+}
+
+.sports-filter-controls:has(.my-teams-entry) {
+  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+  gap: 10px;
+}
+
+.my-teams-entry {
+  align-self: end;
+  min-height: 44px;
+  padding-inline: 12px;
+}
+
+.team-list {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  padding: 0;
+}
+
+.team-list > li {
+  display: grid;
+  gap: 4px;
+  justify-items: start;
+  padding: 10px;
+  border: 1px solid var(--line, #536779);
+  border-radius: 8px;
+  overflow-wrap: anywhere;
+}
+
+.team-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.my-teams-dialog {
+  width: min(640px, 92vw);
+}
+
+.my-teams-dialog .dialog-head {
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+:is(.my-teams-dialog, .my-teams-browse, [data-settings-panel='favorite-teams']) button {
+  min-height: 44px;
+}
+
+[data-settings-panel='favorite-teams'] .dialog-actions {
+  gap: 10px;
+}
+
+.team-game-results {
+  width: 100%;
+}
+
+.game-search-results {
+  flex: 0 1 auto;
+  max-height: min(42%, 18rem);
+  overflow: auto;
+  padding: 0 4px;
+}
+
+.game-search-results button {
+  min-height: 44px;
+}
+
+.my-teams-browse {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 0 4px;
+}
+
+.my-teams-browse-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 6px 0;
+}
+
+.my-teams-browse-head h3 {
+  margin: 0;
+}
+
+.browser:has(> .my-teams-browse:not([hidden])) > #channel-list {
+  display: none;
+}
+
+.team-game-results > ul {
+  display: grid;
+  gap: 8px;
+  list-style: none;
+  padding: 0;
+}
+
+.team-game-results li {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  border-top: 1px solid var(--line, #536779);
+  padding-top: 8px;
+}
+
+@container (max-width: 290px) {
+  .sports-filter-controls:has(.my-teams-entry) {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .my-teams-entry {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+}

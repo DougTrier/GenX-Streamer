@@ -228,7 +228,7 @@ pub(super) fn query_page_inner(
             Sha256::digest(
                 serde_json::to_vec(&(
                     QUERY_VERSION,
-                    ("sports-v1", sports_guide_revision),
+                    ("sports-v4", sports_guide_revision),
                     &query.sports,
                     crate::catalog::sports::VOCABULARY,
                     endpoint_projection.then_some(crate::catalog_endpoint_projection::POLICY),
@@ -240,7 +240,7 @@ pub(super) fn query_page_inner(
                     &query.history_ids,
                     &query.geography,
                     query.sort,
-                    query.favorites_first,
+                    (query.favorites_first, query.favorites_only),
                     slow_any,
                     vr // Favorite/removal/Slow membership revisions bind ordering and cursor scope.
                 ))
@@ -305,9 +305,23 @@ pub(super) fn query_page_inner(
         let mut values: Vec<SqlValue> = Vec::new();
         let mut predicates =
             vec!["NOT EXISTS(SELECT 1 FROM removed r WHERE r.id=p.channel_id)".to_string()];
+        let mut football_rank = None;
         if sports.as_ref().is_some_and(|p| p.sports_filter()) {
             let category = effective_category_expression(&tx)?;
-            predicates.push(format!("(genx_sports_list_channel(c.name,c.category,{category},p.search_text||char(10)||p.provider_key) OR genx_sports_cached(c.id))"));
+            let direct = format!("genx_sports_list_channel(c.name,c.category,{category},p.search_text||char(10)||p.provider_key)");
+            let matched = format!("({direct} OR genx_sports_cached(c.id))");
+            if query.filter == Filter::All && sports.as_ref().is_some_and(|p| p.football_coverage())
+            {
+                predicates.push(format!(
+                    "({matched} OR genx_football_coverage(c.name,c.category,{category}))"
+                ));
+                predicates.push(format!(
+                    "NOT genx_football_entertainment(c.category,{category})"
+                ));
+                football_rank = Some(format!("CASE WHEN {direct} THEN x'00' WHEN genx_sports_cached(c.id) THEN x'01' ELSE x'02' END"));
+            } else {
+                predicates.push(matched);
+            }
         } else if !q.is_empty() {
             let chars: Vec<char> = q.chars().collect();
             let (table, token) = match chars.as_slice() {
@@ -384,8 +398,10 @@ pub(super) fn query_page_inner(
         } else {
             if sports.as_ref().is_some_and(|p| p.include_ppv()) { let category=effective_category_expression(&tx)?; format!("(NOT {ppv} OR genx_sports_ppv_list_channel(c.name,c.category,{category},p.search_text||char(10)||p.provider_key) OR genx_sports_ppv_cached(c.id))") } else { format!("NOT {ppv}") }
         });
+        if query.favorites_only || query.filter == Filter::Favorites {
+            predicates.push("p.channel_id IN(SELECT id FROM favorite)".into());
+        }
         match query.filter {
-            Filter::Favorites => predicates.push("p.channel_id IN(SELECT id FROM favorite)".into()),
             Filter::News => predicates.push("instr(p.category_key,'news')>0".into()),
             Filter::Sports => {
                 if sports.as_ref().is_none_or(|p| !p.sports_filter()) {
@@ -404,7 +420,7 @@ pub(super) fn query_page_inner(
                     "0".into()
                 },
             ),
-            Filter::All | Filter::Ppv | Filter::Watched => {}
+            Filter::All | Filter::Favorites | Filter::Ppv | Filter::Watched => {}
         }
         if query.hide_adult {
             predicates
@@ -437,7 +453,17 @@ pub(super) fn query_page_inner(
             "catalog_projection p JOIN channel c ON c.id=p.channel_id".to_owned()
         } else if endpoint_projection {
             let members = crate::catalog::ppv::groups_cte();
-            prefix = format!("{}, matching_aliases AS MATERIALIZED(SELECT DISTINCT am.endpoint_key,am.preferred,am.custom_category,am.guide_source,am.guide_channel FROM endpoint_members am JOIN ppv_groups ppg ON {} JOIN catalog_projection p ON p.channel_id=am.channel_id JOIN channel c ON c.id=p.channel_id WHERE {}) ", members.trim_end(), crate::catalog::ppv::same_group("ppg", "am"), predicates.join(" AND "));
+            let keys =
+                "am.endpoint_key,am.preferred,am.custom_category,am.guide_source,am.guide_channel";
+            let (selection, grouping) = if let Some(rank) = &football_rank {
+                (
+                    format!("{keys}, MIN({rank}) AS football_rank"),
+                    format!(" GROUP BY {keys}"),
+                )
+            } else {
+                (format!("DISTINCT {keys}"), String::new())
+            };
+            prefix = format!("{}, matching_aliases AS MATERIALIZED(SELECT {selection} FROM endpoint_members am JOIN ppv_groups ppg ON {} JOIN catalog_projection p ON p.channel_id=am.channel_id JOIN channel c ON c.id=p.channel_id WHERE {}{grouping}) ", members.trim_end(), crate::catalog::ppv::same_group("ppg", "am"), predicates.join(" AND "));
             predicates = vec!["em.position=1".into()];
             format!(
                 "catalog_projection p JOIN endpoint_members em ON em.channel_id=p.channel_id JOIN matching_aliases ma ON {}",
@@ -445,6 +471,16 @@ pub(super) fn query_page_inner(
             )
         } else {
             "catalog_projection p JOIN channel c ON c.id=p.channel_id".to_owned()
+        };
+        let sort = if let Some(rank) = &football_rank {
+            let rank = if endpoint_projection {
+                "ma.football_rank"
+            } else {
+                rank
+            };
+            format!("CAST(({rank}) || {sort} AS BLOB)")
+        } else {
+            sort
         };
         // The stamp is read while this transaction holds its shared lock, so no
         // write can commit between it and the rows read here.
@@ -586,6 +622,18 @@ pub(super) fn query_page_inner(
                 .is_some_and(|list| list.iter().any(|(id, k)| *id == cursor.id && *k == key));
             let exists: i64 = if listed {
                 1
+            } else if football_rank.is_some() {
+                if cached.is_some() {
+                    return Err("catalog-query-invalid-cursor".into());
+                }
+                let mut cursor_values = values.clone();
+                cursor_values.push(cursor.id.clone().into());
+                cursor_values.push(key.clone().into());
+                sql(tx.query_row(
+                    &format!("{prefix}SELECT count(*) FROM {base} WHERE {} AND p.channel_id=? AND {sort}=?", predicates.join(" AND ")),
+                    params_from_iter(cursor_values),
+                    |r| r.get(0),
+                ))?
             } else {
                 sql(tx.query_row(
                     &format!("{cursor_prefix}SELECT count(*) FROM {cursor_base} WHERE p.channel_id=? AND {sort}=?"),

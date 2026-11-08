@@ -64,6 +64,20 @@ export const sportsWords = (value: string): string[] =>
     .normalize('NFKC')
     .toLowerCase()
     .match(/[\p{L}\p{N}]+/gu) ?? [];
+const entertainmentCategories = new Set([
+  'series',
+  'entertainment',
+  'movie',
+  'movies',
+  'cinema',
+  'kids',
+  'children',
+  'cartoons',
+]);
+export const isFootballEntertainment = (...categories: string[]) =>
+  categories.some((category) =>
+    sportsWords(category).some((word) => entertainmentCategories.has(word)),
+  );
 const normalized = (value: string) => value.normalize('NFKC').toLowerCase();
 type Kind = 'sport' | 'league' | 'team' | 'literal-expansion';
 interface Alias {
@@ -226,15 +240,33 @@ function directProgrammeFacts(texts: readonly string[], channel: SportsFacts): S
   }
   return direct;
 }
+function programmeFields(
+  program: Pick<SportsProgram, 'title' | 'description' | 'categories'>,
+  includeSynopsis: boolean,
+): string[] {
+  const categories = (program.categories ?? []).map((entry) => entry.text);
+  if (!includeSynopsis) {
+    const title = sportsFacts([program.title]).sports;
+    return [
+      program.title,
+      ...categories.filter(
+        (category) =>
+          !title.size || [...sportsFacts([category]).sports].every((id) => title.has(id)),
+      ),
+    ];
+  }
+  return [program.title, program.description ?? '', ...categories];
+}
+
 export function programmeSportsFacts(
   program: Pick<SportsProgram, 'title' | 'description' | 'categories'>,
   channel: SportsFacts,
+  facet: SportsFacet = {},
+  plan?: SportsSearchPlan,
 ): SportsFacts {
-  const texts = [
-    program.title,
-    program.description ?? '',
-    ...(program.categories ?? []).map((entry) => entry.text),
-  ];
+  // Keep synopsis text searchable without letting an incidental mention
+  // qualify the programme for a selected sport or league.
+  const texts = programmeFields(program, !facet.sport && !facet.league && !plan?.bareFootball);
   const direct = directProgrammeFacts(texts, channel);
   const inherited = emptyFacts();
   merge(inherited, direct);
@@ -256,13 +288,14 @@ export function programmeSportsTexts(
   program: Pick<SportsProgram, 'title' | 'description' | 'categories'>,
   channelTexts: readonly string[],
   channel: SportsFacts = sportsFacts(channelTexts),
+  facet: SportsFacet = {},
+  plan?: SportsSearchPlan,
 ): string[] {
-  const texts = [
-    program.title,
-    program.description ?? '',
-    ...(program.categories ?? []).map((entry) => entry.text),
-  ];
-  const direct = directProgrammeFacts(texts, channel);
+  const texts = programmeFields(program, !plan?.bareFootball);
+  const direct = directProgrammeFacts(
+    facet.sport || facet.league ? programmeFields(program, false) : texts,
+    channel,
+  );
   const conflict =
     (direct.leagues.size > 0 &&
       channel.leagues.size > 0 &&
@@ -274,6 +307,7 @@ export function programmeSportsTexts(
 }
 export interface SportsSearchPlan {
   literal: string;
+  bareFootball: boolean;
   remaining: string[];
   semantic: Alias[];
   specific: boolean;
@@ -292,8 +326,10 @@ export function planSportsSearch(query: string): SportsSearchPlan {
       at++;
     }
   }
+  const literal = normalized(query.trim());
   return {
-    literal: normalized(query.trim()),
+    literal,
+    bareFootball: literal === 'football',
     remaining,
     semantic,
     specific: semantic.some((entry) => entry.kind !== 'literal-expansion'),
@@ -316,10 +352,16 @@ export function matchesSportsSearch(
   const selectedFacet = !!(facet.sport || facet.league);
   // Explicit query intent requires independent row evidence. Literal
   // substrings such as "conflict" cannot stand in for NFL facts.
-  // Generic text and bare "football" keep their existing literal behavior.
+  // Bare football can mean soccer, but its literal spelling alone is not evidence.
   const requireEvidence = plan.specific || (semanticOnly && !selectedFacet);
   const fields = texts.map(normalized);
-  if (!requireEvidence && fields.some((text) => text.includes(plan.literal))) return true;
+  if (
+    !requireEvidence &&
+    (plan.bareFootball
+      ? facts.sports.has('soccer') && fields.some((text) => sportsWords(text).includes('football'))
+      : fields.some((text) => text.includes(plan.literal)))
+  )
+    return true;
   if (!plan.semantic.length) return false;
   const words = texts.flatMap(sportsWords);
   return (

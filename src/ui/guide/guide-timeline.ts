@@ -52,6 +52,7 @@ import {
   guideSearchMatches,
   timelineCategoryMatches,
   WINDOW,
+  WEEK,
   timelineWindowStart,
   aborted,
 } from './guide-timeline-model';
@@ -142,6 +143,7 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
       next: () => next,
       nextChannel: () => nextChannel,
       nextDay: () => nextDay,
+      nextMatch: () => nextMatch,
       now: () => now,
       OVERSCAN: () => OVERSCAN,
       previousChannel: () => previousChannel,
@@ -151,7 +153,8 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
       historyScope: () => (filter === 'watched' ? inheritedHistory : undefined),
       historyRevision: () => (filter === 'watched' ? historyRevision : null),
       sportsScope: () => currentSportsScope(),
-      programSports: () => (semanticSports() ? currentSportsScope() : undefined),
+      programSports: () =>
+        semanticSports() || (host.searchVisibleWindow && search) ? currentSportsScope() : undefined,
       programPages: () => programPages,
       readLimit: () => readLimit,
       refresh: () => refresh,
@@ -315,6 +318,12 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
   const status = doc.createElement('p');
   status.className = 'gx-timeline-status';
   status.setAttribute('role', 'status');
+  const focusedListing = doc.createElement('p');
+  focusedListing.className = 'gx-timeline-focused-listing';
+  focusedListing.hidden = true;
+  focusedListing.setAttribute('aria-hidden', 'true');
+  const focusedTitle = doc.createElement('span');
+  focusedListing.append(focusedTitle);
   const axis = doc.createElement('div');
   axis.className = 'gx-timeline-axis';
   const viewport = doc.createElement('div');
@@ -323,12 +332,19 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
   viewport.setAttribute('aria-label', 'Guide channel rows');
   const content = doc.createElement('div');
   content.className = 'gx-timeline-content';
+  viewport.addEventListener('focusin', ({ target }) => {
+    const cell =
+      target instanceof HTMLElement ? target.closest<HTMLButtonElement>('.gx-timeline-cell') : null;
+    const title = cell?.title.split('\n', 1)[0] ?? '';
+    focusedTitle.textContent = title;
+    focusedListing.hidden = !title;
+  });
   viewport.append(content);
   const details = doc.createElement('section');
   details.className = 'gx-timeline-details';
   details.hidden = true;
   details.setAttribute('aria-label', 'Listing details');
-  root.append(controlsToggle, toolbar, status, axis, viewport, details);
+  root.append(controlsToggle, toolbar, status, focusedListing, axis, viewport, details);
   const agendaHeader = doc.createElement('div');
   agendaHeader.className = 'gx-agenda-header';
   agendaHeader.hidden = true;
@@ -362,6 +378,7 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
     from = Math.floor(host.now() / HALF) * HALF;
   let controller: AbortController | null = null,
     detailController: AbortController | null = null,
+    matchController: AbortController | null = null,
     timer: ReturnType<typeof setTimeout> | null = null;
   let countdown: { node: HTMLElement; program: MappedProgram; valid(): boolean } | null = null;
   let active: Promise<void> | null = null,
@@ -373,6 +390,7 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
   let channelIndex = new Map<string, TimelineChannel>();
   let returnFocus: HTMLElement | null = null;
   let filter: TimelineCategory = 'all';
+  let favoritesOnly = false;
   // Typed Guide search; matches look ahead a week so a game later on is found.
   let search = '';
   let sportsFacet: SportsFacet = {};
@@ -474,12 +492,15 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
       const texts = channel
         ? [channel.name, channel.category ?? '', channel.originalCategory ?? '']
         : [];
+      const channelFacts = sportsFacts(texts);
+      const facet = filter === 'sports' ? sportsFacet : {};
+      const plan = planSportsSearch(search);
       return matchesSportsSearch(
-        planSportsSearch(search),
-        programmeSportsTexts(program, texts),
-        programmeSportsFacts(program, sportsFacts(texts)),
+        plan,
+        programmeSportsTexts(program, texts, channelFacts, facet, plan),
+        programmeSportsFacts(program, channelFacts, facet, plan),
         false,
-        filter === 'sports' ? sportsFacet : {},
+        facet,
       );
     }
     return guideSearchMatches(
@@ -487,7 +508,12 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
       `${program.title} ${program.description ?? ''} ${(program.categories ?? []).map((c) => c.text).join(' ')}`,
     );
   };
-  const categoryMatches = (channel: TimelineChannel) => {
+  const categoryMatches = (
+    channel: TimelineChannel,
+    mask = listedCache?.channels.get(savedChannelKey(channel))?.filterMask,
+    grouped = listedCache?.grouped,
+  ) => {
+    if (favoritesOnly && !channel.favorite) return false;
     if (filter === 'watched') {
       if (!inheritedHistory?.ids.includes(channel.id)) return false;
       return (
@@ -497,8 +523,6 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
         )
       );
     }
-    const member = listedCache?.channels.get(savedChannelKey(channel));
-    const mask = member?.filterMask;
     const marked = mask === undefined ? isPpvChannel(channel) : (mask & 8) !== 0;
     if (marked && filter !== 'ppv' && currentSportsScope()?.includePpv !== true) return false;
     if (filter === 'ppv' && !marked) return false;
@@ -511,7 +535,7 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
         matchesSportsSearch(planSportsSearch(search), texts, facts, marked, sportsFacet)
       );
     }
-    if (!listedCache?.grouped)
+    if (!grouped)
       return timelineCategoryMatches(
         channel,
         filter,
@@ -528,19 +552,23 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
       ? 'No watched channels have saved listings here. Change the search, location or time, or choose All.'
       : search
         ? host.listedChannels
-          ? `Nothing matches “${search}” in the next 7 days.`
+          ? host.searchVisibleWindow
+            ? `No matches for “${search}” in these 3 hours. Choose Next match to look ahead.`
+            : `Nothing matches “${search}” in the next 7 days.`
           : `No saved channels match “${search}”.`
         : host.listedChannels && !host.channels().some(channelListed)
           ? 'No saved listings for this time. Find program guides or choose another time.'
-          : filter === 'favorites'
-            ? host.listedChannels
-              ? 'No favorite channels have listings for this time. Choose All to browse saved listings.'
-              : 'No favorite channels. Choose All to browse saved channels.'
-            : filter === 'all'
-              ? 'No saved channels.'
-              : host.listedChannels
-                ? 'No saved listings in this category for this time. Choose All to browse saved listings.'
-                : 'No saved channels in this category. Choose All to browse saved channels.';
+          : favoritesOnly
+            ? 'No favorite channels have listings in this view. Change the category, location or time.'
+            : filter === 'favorites'
+              ? host.listedChannels
+                ? 'No favorite channels have listings for this time. Choose All to browse saved listings.'
+                : 'No favorite channels. Choose All to browse saved channels.'
+              : filter === 'all'
+                ? 'No saved channels.'
+                : host.listedChannels
+                  ? 'No saved listings in this category for this time. Choose All to browse saved listings.'
+                  : 'No saved channels in this category. Choose All to browse saved channels.';
   let filteredSource: readonly TimelineChannel[] | null = null;
   let filteredCategory: TimelineCategory | null = null;
   let filteredSearch = '';
@@ -653,6 +681,8 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
   const next = button('Next 3 hours', () => move(WINDOW));
   const previousDay = button('Previous day', () => move(-86_400_000));
   const nextDay = button('Next day', () => move(86_400_000));
+  const nextMatch = button('Next match', () => void launch(jumpToNextMatch()));
+  nextMatch.hidden = true;
   for (const [control, text] of [
     [back, '-3h'],
     [next, '+3h'],
@@ -667,7 +697,7 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
   date.setAttribute('aria-label', 'Guide date');
   const times = doc.createElement('div');
   times.className = 'gx-timeline-time-controls';
-  times.append(previousDay, back, now, next, nextDay);
+  times.append(previousDay, back, now, next, nextDay, nextMatch);
   const categories = doc.createElement('div');
   categories.className = 'gx-timeline-categories';
   categories.setAttribute('role', 'group');
@@ -865,6 +895,67 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
     previousDay.disabled = timelineWindowStart(from, host.now(), -86_400_000) === null;
     next.disabled = timelineWindowStart(from, host.now(), WINDOW) === null;
     nextDay.disabled = timelineWindowStart(from, host.now(), 86_400_000) === null;
+    nextMatch.hidden = !host.searchVisibleWindow || !search;
+    nextMatch.disabled =
+      !!matchController || from + WINDOW >= Math.floor(host.now() / HALF) * HALF + WEEK;
+  }
+  async function jumpToNextMatch() {
+    if (closed || !foreground || nextMatch.hidden || nextMatch.disabled || !host.listedChannels)
+      return;
+    const start = from + WINDOW;
+    const end = Math.floor(host.now() / HALF) * HALF + WEEK;
+    const revision = host.catalogRevision();
+    const mine = generation;
+    const request = (matchController = new AbortController());
+    const current = () =>
+      !closed &&
+      foreground &&
+      mine === generation &&
+      !request.signal.aborted &&
+      revision === host.catalogRevision();
+    navigationState();
+    try {
+      const result = await host.listedChannels(
+        start,
+        end,
+        request.signal,
+        search,
+        filter === 'ppv',
+        currentSportsScope(),
+        filter === 'watched' ? inheritedHistory : undefined,
+      );
+      if (!current() || result.catalogRevision !== revision) return;
+      const inventory = new Map(
+        host.channels().map((channel) => [savedChannelKey(channel), channel]),
+      );
+      let earliest = Infinity;
+      for (const member of result.channels) {
+        const channel = inventory.get(
+          JSON.stringify([member.catalogSourceId, member.appChannelId]),
+        );
+        const at = member.firstStartMs;
+        if (
+          channel &&
+          categoryMatches(channel, member.filterMask ?? 0, false) &&
+          at !== undefined &&
+          Number.isSafeInteger(at) &&
+          at < end
+        )
+          earliest = Math.min(earliest, Math.max(start, at));
+      }
+      if (!Number.isFinite(earliest)) {
+        status.textContent = `No later matches for “${search}” in the next seven days.`;
+        return;
+      }
+      const target = Math.min(Math.floor(earliest / HALF) * HALF, end - WINDOW);
+      matchController = null;
+      if (target > from) move(target - from);
+    } catch {
+      if (current()) status.textContent = 'Could not look ahead. Choose Next match to retry.';
+    } finally {
+      if (matchController === request) matchController = null;
+      navigationState();
+    }
   }
   function report() {
     if (!closed) {
@@ -948,6 +1039,8 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
     generation++;
     controller?.abort();
     detailController?.abort();
+    matchController?.abort();
+    matchController = null;
     closeDetails();
     content.replaceChildren();
     if (rowOwnedFocus && foreground && !closed) viewport.focus({ preventScroll: true });
@@ -975,6 +1068,7 @@ export function mountGuideTimeline(container: HTMLElement, host: TimelineHost) {
     const key = JSON.stringify(scope ?? null);
     if (!scope || key === inheritedScopeKey) return;
     inheritedScopeKey = key;
+    favoritesOnly = scope.favoritesOnly ?? false;
     filter =
       (['all', 'favorites', 'news', 'sports', 'ppv', 'watched'] as const).find(
         (item) => item === scope.filter,

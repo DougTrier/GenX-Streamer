@@ -612,7 +612,9 @@ export function createAutomaticScanRuns(env: AutomaticScanRunsEnvironment) {
               ? 'rescan'
               : 'refresh';
     if (continuing || indexedFresh) {
-      env.status.textContent = continuing ? 'Checking saved scan progress…' : 'Preparing channel scan…';
+      env.status.textContent = continuing
+        ? 'Checking saved scan progress…'
+        : 'Preparing channel scan…';
       env.error.textContent = '';
     }
     const task = env.begin(false, continuing && !env.checkpoint && !!env.host.createBoundedResume);

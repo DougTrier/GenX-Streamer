@@ -84,7 +84,7 @@ impl PairStore {
     }
 
     pub(super) fn capture_pair(c: &Connection) -> Result<CapturedPair, String> {
-        let mut extensions = [None, None, None];
+        let mut extensions = [None, None, None, None];
         let (cp, pp): (bool, bool) = sql(c.query_row(
             "SELECT catalog_present,preferences_present FROM metadata WHERE singleton=1",
             [],
@@ -206,6 +206,7 @@ impl PairStore {
                     stored_extensions.0,
                     stored_extensions.1,
                     stored_extensions.2,
+                    None,
                 ];
                 let consent: Option<bool> = sql(c.query_row(
                     "SELECT voice_search_consent FROM preference WHERE singleton=1",
@@ -215,6 +216,13 @@ impl PairStore {
                 if let Some(consent) = consent {
                     pref["voiceSearchConsent"] = json!(consent);
                 }
+            }
+            if preference_extensions::favorite_teams_table(c)? {
+                extensions[3] = sql(c.query_row(
+                    "SELECT (SELECT teams FROM favorite_teams_v1 WHERE singleton=1)",
+                    [],
+                    |row| row.get(0),
+                ))?;
             }
             if sql(c.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)))? >= 10 {
                 let overrides = channel_categories::capture(c)?;
@@ -284,6 +292,7 @@ impl PairStore {
                 "reviewedChannelProviders",
                 "reviewedGuideProviders",
                 "preferredRegion",
+                "favoriteTeams",
             ]
             .into_iter()
             .zip(captured.extensions)

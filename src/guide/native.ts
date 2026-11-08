@@ -409,6 +409,7 @@ export interface MappedProgram {
   title: string;
   description: string | null;
   categories?: GuideCategory[];
+  replay?: import('../search/replay-dates').ReplayDates;
   ordinal: number;
 }
 export interface ProgramQuery {

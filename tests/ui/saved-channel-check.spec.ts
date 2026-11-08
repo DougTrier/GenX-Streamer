@@ -270,7 +270,7 @@ test('a channel that failed on two days is marked, listed and removable in one s
   await expect(page.locator('.channel-row')).toHaveCount(1);
   await expect(page.locator('#dead-channels')).toBeVisible();
   await expect(page.locator('#dead-channels-text')).toHaveText(
-    '1 saved channel failed checks on two different days.',
+    '1 across Free TV failed checks on two different days, including channels outside this view.',
   );
 
   await page.locator('#remove-dead-channels').click();

@@ -18,15 +18,17 @@ import { readFileSync } from 'node:fs';
 import { runInNewContext } from 'node:vm';
 import ts from 'typescript';
 import { expect, it } from 'vitest';
+import { gameSearchTarget } from '../../src/search/team-web-search';
 
 // Execute the actual application wiring without platform setup or media/network authority.
-function fixture() {
+function fixture(paid = false) {
   const source = readFileSync('src/main.ts', 'utf8');
   const handlers = new Map<string, (event: { key?: string; preventDefault(): void }) => void>();
   const calls = {
     channelQueries: [] as string[],
     guideQueries: [] as string[],
     acquired: 0,
+    gameQueries: [] as string[],
     focus: '',
     blurred: 0,
   };
@@ -39,6 +41,7 @@ function fixture() {
         focus: () => {
           calls.focus = id;
         },
+        click: () => handlers.get(`${id}:click`)?.({ preventDefault() {} }),
         addEventListener: (
           type: string,
           callback: typeof handlers extends Map<string, infer T> ? T : never,
@@ -56,8 +59,20 @@ function fixture() {
   };
   const context = {
     element,
+    document: { getElementById: () => null },
+    gameSearchTarget,
+    preferencesSetup: { settings: {} },
+    favoriteTeams: { closeBrowse() {} },
+    gameSearch: {
+      close() {},
+      start: ({ matchup }: { matchup: string }) => calls.gameQueries.push(matchup),
+    },
+    accountBrowser: { selectedAccount: paid ? { id: 'account' } : null },
     library: { contentLibrary: 'live', liveBrowseSuspended: false },
-    browser: { search: (query: string) => calls.channelQueries.push(query) },
+    browser: {
+      search: (query: string) => calls.channelQueries.push(query),
+      getBrowseState: () => ({ filter: 'all', sportsFacet: {} }),
+    },
     libraryQueries: { live: '', genxtra: '' },
     playbackAction: (work: unknown) => work,
     switchPrimaryPage: (page: string, query: string) => {
@@ -84,22 +99,35 @@ function fixture() {
   );
   return { calls, context, search, handlers, source };
 }
-it('Live typing and Enter search actual channels only, retain text, and do not acquire or allocate a program-results owner', () => {
-  const f = fixture();
+it.each([false, true])('Live Enter searches public sources only for Free TV (paid: %s)', (paid) => {
+  const f = fixture(paid);
   let prevented = 0;
   f.handlers.get('search:input')!({ preventDefault() {} });
+  expect(f.calls.acquired).toBe(0);
   f.handlers.get('search:keydown')!({ key: 'Enter', preventDefault: () => prevented++ });
   expect(f.calls.channelQueries).toEqual(['evening news', 'evening news']);
   expect(f.context.libraryQueries.live).toBe('evening news');
   expect(f.search.value).toBe('evening news');
   expect(f.calls.focus).toBe('channel-list');
   expect(prevented).toBe(1);
-  expect(f.calls.acquired).toBe(0);
+  expect(f.calls.acquired).toBe(paid ? 0 : 1);
   expect(f.calls.guideQueries).toEqual([]);
   expect(f.source).not.toMatch(
     /mountProgramSearch|programSearchPane|programSearchPendingCancellation/,
   );
 });
+it.each([false, true])(
+  'matchup search uses the game route in Free or Paid TV (paid: %s)',
+  (paid) => {
+    const f = fixture(paid);
+    f.search.value = 'Iowa Hawkeyes at Northwestern Wildcats';
+    f.handlers.get('search:input')!({ preventDefault() {} });
+    expect(f.calls.gameQueries).toEqual([]);
+    f.handlers.get('search:keydown')!({ key: 'Enter', preventDefault() {} });
+    expect(f.calls.gameQueries).toEqual([f.search.value]);
+    expect(f.calls.acquired).toBe(0);
+  },
+);
 // Owner request, October 19, 2026: the Guide button always opens the grid;
 // text left in the channel search no longer turns it into Program search.
 it('Guide opens on the grid and leaves the channel search text alone', () => {

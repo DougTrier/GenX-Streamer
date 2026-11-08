@@ -966,13 +966,19 @@ mod finite_vod_body_tests {
     #[tokio::test(start_paused = true)]
     async fn vod_checks_cannot_revive_idle_expiry_maxlife_or_a_non_vod_owner() {
         for scenario in ["idle", "maxlife", "live"] {
+            let old = Instant::now();
+            match scenario {
+                "idle" => tokio::time::advance(LEASE).await,
+                "maxlife" => tokio::time::advance(MAX_LIFETIME).await,
+                _ => {}
+            }
             let calls = Arc::new(AtomicUsize::new(0));
             let state = vod_state(calls.clone(), Arc::new(AtomicBool::new(false)));
             {
                 let mut s = state.lock().unwrap();
                 match scenario {
-                    "idle" => s.renewed = Instant::now() - LEASE,
-                    "maxlife" => s.started = Instant::now() - MAX_LIFETIME,
+                    "idle" => s.renewed = old,
+                    "maxlife" => s.started = old,
                     _ => s.vod = false,
                 }
             }
@@ -1060,6 +1066,8 @@ mod finite_vod_body_tests {
     #[tokio::test(start_paused = true)]
     async fn a_fresh_success_after_idle_or_maxlife_expiry_cannot_revive_the_owner() {
         for maxlife in [false, true] {
+            let old = Instant::now();
+            tokio::time::advance(if maxlife { MAX_LIFETIME } else { LEASE }).await;
             let state = vod_state(
                 Arc::new(AtomicUsize::new(0)),
                 Arc::new(AtomicBool::new(false)),
@@ -1083,9 +1091,9 @@ mod finite_vod_body_tests {
             {
                 let mut s = state.lock().unwrap();
                 if maxlife {
-                    s.started = Instant::now() - MAX_LIFETIME;
+                    s.started = old;
                 } else {
-                    s.renewed = Instant::now() - LEASE;
+                    s.renewed = old;
                 }
             }
             let renewed = state.lock().unwrap().renewed;

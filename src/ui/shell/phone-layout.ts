@@ -236,14 +236,20 @@ export function installPhoneLayout(root: HTMLElement, host: PhoneLayoutOptions =
     if (
       dialog.open &&
       event.key === 'Enter' &&
-      event.target instanceof HTMLElement &&
+      event.target instanceof HTMLInputElement &&
       event.target.id === 'search'
     ) {
-      // This edit surface never submits a provider search. A composing Enter
-      // may commit text normally, but must not reach the main input shortcut.
       event.stopPropagation();
       if (!event.isComposing) {
         event.preventDefault();
+        // Use the same online action as the magnifier and keep the dialog's return focus.
+        if (
+          !event.repeat &&
+          event.target.value.trim() &&
+          root.dataset.contentLibrary === 'live' &&
+          root.querySelector('#live-tv-button[aria-pressed="true"]')
+        )
+          searchControls?.querySelector<HTMLButtonElement>('#search-programs')?.click();
         dismiss();
       }
     }

@@ -54,6 +54,8 @@ pub struct Query {
     pub sort: Sort,
     #[serde(default)]
     pub favorites_first: bool,
+    #[serde(default)]
+    pub favorites_only: bool,
     /// Leave out adult channels (category "xxx" or "adult").
     #[serde(default)]
     pub hide_adult: bool,

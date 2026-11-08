@@ -13,6 +13,7 @@
 // limitations under the License.
 
 mod chromecast;
+pub(super) use chromecast::LanReceiverVerifier;
 mod discovery;
 mod dlna;
 mod network_scope;

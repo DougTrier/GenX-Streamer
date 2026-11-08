@@ -497,10 +497,14 @@ it('Finish saved scan reopens the dialog for a resume still in progress', async 
     expect(await dialog.isVisible()).toBe(true);
     await dialog.getByRole('button', { name: 'Close scan review' }).click();
     await expect.poll(() => dialog.isVisible()).toBe(false);
-    expect(await page.evaluate(() => {
-      const scan = Reflect.get(window, 'scan');
-      return scan.continueAutomatic({ presentation: 'dialog' }) === Reflect.get(window, 'running');
-    })).toBe(true);
+    expect(
+      await page.evaluate(() => {
+        const scan = Reflect.get(window, 'scan');
+        return (
+          scan.continueAutomatic({ presentation: 'dialog' }) === Reflect.get(window, 'running')
+        );
+      }),
+    ).toBe(true);
     expect(await dialog.isVisible()).toBe(true);
     expect(await calls(page)).toMatchObject({ factory: 1, prepare: 1 });
   } finally {

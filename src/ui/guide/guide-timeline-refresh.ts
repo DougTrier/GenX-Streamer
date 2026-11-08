@@ -82,6 +82,7 @@ export interface TimelineRefreshEnvironment {
   readonly next: HTMLButtonElement;
   readonly previousDay: HTMLButtonElement;
   readonly nextDay: HTMLButtonElement;
+  readonly nextMatch: HTMLButtonElement;
   agendaCompact: boolean;
   readonly controlsToggle: HTMLButtonElement;
   readonly toolbar: HTMLElement;
@@ -224,7 +225,9 @@ export function createTimelineRefresh(env: TimelineRefreshEnvironment) {
               await env.launch(
                 (async () => {
                   const sports = env.sportsScope;
-                  const end = anchor + (searched || sports ? WEEK : WINDOW);
+                  const end =
+                    anchor +
+                    (!env.host.searchVisibleWindow && (searched || sports) ? WEEK : WINDOW);
                   const history = env.historyScope;
                   membership = history
                     ? await env.host.listedChannels!(
@@ -346,8 +349,8 @@ export function createTimelineRefresh(env: TimelineRefreshEnvironment) {
           const focused = env.doc.activeElement;
           env.times.replaceChildren(
             ...(nextAgendaMode
-              ? [env.back, env.now, env.next, env.previousDay, env.nextDay]
-              : [env.previousDay, env.back, env.now, env.next, env.nextDay]),
+              ? [env.back, env.now, env.next, env.previousDay, env.nextDay, env.nextMatch]
+              : [env.previousDay, env.back, env.now, env.next, env.nextDay, env.nextMatch]),
           );
           if (focused instanceof HTMLElement && env.times.contains(focused))
             focused.focus({ preventScroll: true });

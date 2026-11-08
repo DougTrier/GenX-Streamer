@@ -55,12 +55,6 @@ export async function copyText(text: string): Promise<boolean> {
   }
 }
 
-/** Whether a shared stream's or logo's server is on the public internet (native DNS check). */
-export async function checkSharedDestination(url: string): Promise<void> {
-  if (!isTauri()) return;
-  await invoke('check_shared_destination', { url });
-}
-
 /** The link GenX was opened with, or the newest since; each is given out once. */
 export async function takeIncomingLink(): Promise<string | null> {
   if (!isTauri()) return null;

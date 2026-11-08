@@ -52,7 +52,7 @@ export function validatePageUrl(value: string, allowHttp: boolean): string {
   url.hash = '';
   return url.href;
 }
-function validatePage(
+export function validatePage(
   page: DiscoveryPage,
   requestedUrl: string,
   allowHttp: boolean,

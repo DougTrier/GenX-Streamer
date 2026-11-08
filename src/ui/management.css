@@ -31,6 +31,16 @@
   text-overflow: ellipsis;
   font-size: 13px;
 }
+.source-identity {
+  display: grid;
+  min-width: 0;
+}
+.source-identity small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--sub);
+}
 .source-row button {
   font-size: 12px;
   flex-shrink: 0;

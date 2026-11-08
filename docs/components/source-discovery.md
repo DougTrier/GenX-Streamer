@@ -32,6 +32,15 @@ loses work; the slow pass and automatic checks are bounded. See
 [daily-source-refresh.md](../daily-source-refresh.md) and the reviewed
 provider list in [research-reviewed-providers.json](../research-reviewed-providers.json).
 
+## Deferred security finding
+
+Automatic public scans use the existing stream validation and follow provider
+redirects. The security audit identified a possible hardening step to check
+each connection and redirect for private destinations. This is deferred
+because some working channels may depend on private provider, VPN, or ISP
+routing. Keep the current behavior. If revisited, first measure the impact on
+working channels without blocking requests.
+
 ## Tests
 
 ```powershell

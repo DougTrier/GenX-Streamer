@@ -105,6 +105,7 @@ it('retains independently cached league categories and description without any a
     ...program('Bears vs Packers', NOW - 1000, NOW + 3600000),
     description: 'Replay from the saved provider schedule',
     categories: [{ text: 'NFL' }],
+    replay: { originalAirDate: '2026-09-04', previousAirDate: null },
   };
   const published: (readonly NowPlayingRow[])[] = [];
   let calls = 0;
@@ -130,6 +131,7 @@ it('retains independently cached league categories and description without any a
       title: 'Bears vs Packers',
       description: cached.description,
       categories: [{ text: 'NFL' }],
+      replay: cached.replay,
     });
     cached.categories[0]!.text = 'NBA';
     expect(published.at(-1)?.[0]?.categories).toEqual([{ text: 'NFL' }]);

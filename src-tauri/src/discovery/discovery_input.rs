@@ -17,6 +17,28 @@ use crate::network;
 use serde::Serialize;
 
 const MAX_BYTES: usize = 2 * 1024 * 1024;
+const IHSA_CONFERENCE_DIRECTORY: &str = "https://www.ihsa.org/data/school/conf.htm";
+
+fn decode_html(
+    bytes: Vec<u8>,
+    requested_url: &str,
+    response_url: &str,
+    html_mime: bool,
+) -> Result<String, String> {
+    match String::from_utf8(bytes) {
+        Ok(html) => Ok(html),
+        // IHSA declares ISO-8859-1 in this roster's HTML. Keep the exception
+        // tied to the exact requested and final HTTPS address.
+        Err(error)
+            if html_mime
+                && requested_url == IHSA_CONFERENCE_DIRECTORY
+                && response_url == IHSA_CONFERENCE_DIRECTORY =>
+        {
+            Ok(error.into_bytes().into_iter().map(char::from).collect())
+        }
+        Err(_) => Err("discovery-invalid-utf8".into()),
+    }
+}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -27,10 +49,22 @@ pub struct DiscoveryPage {
 }
 
 pub async fn fetch(raw: &str, allow_http: bool) -> Result<DiscoveryPage, String> {
+    fetch_page(raw, allow_http, false).await
+}
+
+pub(crate) async fn fetch_page(
+    raw: &str,
+    allow_http: bool,
+    public_listing: bool,
+) -> Result<DiscoveryPage, String> {
     if raw.len() > 16_384 {
         return Err("discovery-url-too-large".into());
     }
-    let mut response = network::response(raw, allow_http, None).await?;
+    let mut response = if public_listing {
+        network::public_listing_response(raw).await?
+    } else {
+        network::response(raw, allow_http, None).await?
+    };
     if !response.status().is_success() {
         return Err(format!("http-{}", response.status().as_u16()));
     }
@@ -65,7 +99,7 @@ pub async fn fetch(raw: &str, allow_http: bool) -> Result<DiscoveryPage, String>
         }
         bytes.extend_from_slice(&chunk);
     }
-    let html = String::from_utf8(bytes).map_err(|_| "discovery-invalid-utf8".to_string())?;
+    let html = decode_html(bytes, raw, &response_url, html_mime)?;
     let prefix: String = html
         .trim_start_matches('\u{feff}')
         .trim_start()
@@ -93,6 +127,35 @@ mod tests {
         io::{AsyncReadExt, AsyncWriteExt},
         net::TcpListener,
     };
+
+    #[test]
+    fn legacy_encoding_is_allowed_only_for_the_exact_ihsa_html_roster() {
+        let html = b"<html>Lyc\xe9e</html>";
+        assert_eq!(
+            decode_html(
+                html.to_vec(),
+                IHSA_CONFERENCE_DIRECTORY,
+                IHSA_CONFERENCE_DIRECTORY,
+                true,
+            )
+            .unwrap(),
+            "<html>Lycée</html>",
+        );
+        for (requested, response, html_mime) in [
+            (IHSA_CONFERENCE_DIRECTORY, IHSA_CONFERENCE_DIRECTORY, false),
+            (
+                IHSA_CONFERENCE_DIRECTORY,
+                "https://www.ihsa.org/other",
+                true,
+            ),
+            ("https://example.org/other", IHSA_CONFERENCE_DIRECTORY, true),
+        ] {
+            assert_eq!(
+                decode_html(html.to_vec(), requested, response, html_mime).unwrap_err(),
+                "discovery-invalid-utf8",
+            );
+        }
+    }
 
     async fn fixture(headers: &str, body: &[u8]) -> (String, tokio::task::JoinHandle<()>) {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();

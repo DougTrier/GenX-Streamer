@@ -18,6 +18,7 @@ import { canonicalRecords, openPlaylistImport } from './helpers/source-scan';
 import { chooseCategory } from './helpers/category';
 import { saveReviewedSource } from './helpers/source-scan';
 import { chooseSettingsSection } from './helpers/settings-section';
+import { closeChannelSearch, openChannelSearch } from './helpers/search-workflows';
 import { expect, test, type Page } from '@playwright/test';
 
 const playlist = (newsName = 'World News', streamSuffix = 'one'): string =>
@@ -62,7 +63,7 @@ test('worker file import, filters, search, and metadata render as text', async (
   await expect(page.locator('.channel strong')).toHaveText('Film, Classics');
   await page.getByRole('searchbox', { name: 'Search channels' }).fill('does not exist');
   await expect(page.locator('#list-empty')).toHaveText(
-    'No channels here. Try another filter or search.',
+    'No matching channels or saved guide listings. Programme matches need a connected guide.',
   );
   await page.getByRole('searchbox', { name: 'Search channels' }).fill('');
   await importFile(
@@ -245,7 +246,14 @@ for (const width of [360, 768, 1280]) {
     await page.setViewportSize({ width, height: 800 });
     await importFile(page);
     await noHorizontalOverflow(page);
-    // Upright phones show the categories as one dropdown beside Favs and Guide.
+    const phone = await page.locator('#phone-filter-button').isVisible();
+    if (phone) {
+      await openChannelSearch(page);
+      await expect(page.locator('#phone-filter-dialog #compact-filter')).toBeVisible();
+      await noHorizontalOverflow(page);
+      await closeChannelSearch(page);
+      await page.locator('#phone-watch-button').click();
+    }
     const categories = page
       .locator('#compact-filter, .in-app-select[data-native-select-id="compact-filter"]')
       .locator('visible=true');
@@ -255,7 +263,7 @@ for (const width of [360, 768, 1280]) {
       '#fullscreen-button',
       '#search',
       '[data-filter="sports"]',
-    ]) {
+    ].filter((selector) => !phone || !['#search', '[data-filter="sports"]'].includes(selector))) {
       if (selector === '[data-filter="sports"]' && (await categories.count()) > 0)
         selector =
           '#compact-filter, .in-app-select[data-native-select-id="compact-filter"] >> visible=true';

@@ -28,6 +28,8 @@ for (const tv of [false, true])
       );
       await expectLiveVideoOnly(page);
       expect(await page.getByRole('button', { name: 'Map guide', exact: true }).count()).toBe(0);
+      const browse = page.locator('#phone-browse-button');
+      if (await browse.isVisible()) await browse.click();
       const guide = page.getByRole('button', { name: 'Free TV guide', exact: true });
       await guide.focus();
       await expect(guide).toBeFocused();

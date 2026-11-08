@@ -35,6 +35,7 @@ export function installCategoryMenu(root: HTMLElement): CategoryMenu | null {
   const options = root.querySelector<HTMLElement>('.browse-options');
   const filters = options?.querySelector<HTMLElement>('.filters');
   const sidehead = options?.querySelector<HTMLElement>('.sidehead');
+  const favorites = sidehead?.querySelector<HTMLElement>('[data-filter="favorites"]');
   const count = root.querySelector<HTMLElement>('#channel-count');
   if (!options || !filters || !sidehead || !count) return null;
   const trigger = document.createElement('button');
@@ -60,7 +61,9 @@ export function installCategoryMenu(root: HTMLElement): CategoryMenu | null {
   let folded = false;
   function label(): void {
     const chosen = items().find((item) => item.getAttribute('aria-pressed') === 'true');
-    const name = chosen?.textContent?.trim() || 'All';
+    const name =
+      chosen?.textContent?.trim() ||
+      (favorites?.getAttribute('aria-pressed') === 'true' ? 'Favorites' : 'All');
     // A count, or nothing while the list is still loading ("Loading channels…").
     const number = /^[\d.,\s]+channels?$/i.test((count!.textContent ?? '').trim())
       ? (count!.textContent ?? '').replace(/\s*channels?$/i, '').trim()
@@ -106,6 +109,7 @@ export function installCategoryMenu(root: HTMLElement): CategoryMenu | null {
     attributes: true,
     attributeFilter: ['aria-pressed', 'hidden'],
   });
+  if (favorites) watch.observe(favorites, { attributeFilter: ['aria-pressed'] });
   watch.observe(count, { childList: true, characterData: true, subtree: true });
   const resize = new ResizeObserver(() => sync());
   resize.observe(options);

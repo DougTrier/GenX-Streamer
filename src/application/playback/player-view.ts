@@ -54,6 +54,7 @@ import { streamBufferKey, saveStreamBufferPreference } from './stream-buffer-sta
 import { recordLiveBufferSample } from '../../diagnostics/playback-trace';
 import { createWatchHistoryRecorder } from './watch-history-recorder';
 import { getWatchHistory } from '../../playback/watch-history';
+import { renderFavoriteButton } from '../../ui/channels/favorite-button';
 
 /** What this area reads from, and writes back to, the rest of the application. */
 export interface PlayerViewEnvironment {
@@ -84,6 +85,7 @@ export interface PlayerViewEnvironment {
   readonly accountVodSelected: () => boolean;
   readonly accountBrowser: ReturnType<typeof createAccountBrowser>;
   readonly accountPreferenceWork: Promise<AccountPreferencesReceipt> | null;
+  readonly pendingChannelFavorite: (id: string) => boolean | undefined;
   readonly settings: Preferences;
   readonly castButton: HTMLButtonElement;
   readonly castingAvailable: boolean;
@@ -435,16 +437,19 @@ export function createPlayerView(env: PlayerViewEnvironment) {
     );
     const favorite = env.element<HTMLButtonElement>('favorite-button');
     const accountRow = selection ? env.accountBrowser.selectionFor(selection.id) : undefined;
+    const pendingFavorite = selection ? env.pendingChannelFavorite(selection.id) : undefined;
     favorite.disabled =
       env.backgroundLiveChoice !== null ||
       archived ||
       !selection ||
-      (!!env.accountPlayer?.selection && (!accountRow || !!env.accountPreferenceWork));
+      (!!env.accountPlayer?.selection &&
+        pendingFavorite === undefined &&
+        (!accountRow || !!env.accountPreferenceWork));
     const isFavorite = accountRow
       ? accountRow.favorite
       : !!selection && env.settings.favorites.includes(selection.id);
-    favorite.textContent = isFavorite ? '★ Favorited' : '☆ Favorite';
-    favorite.setAttribute('aria-pressed', String(isFavorite));
+    favorite.dataset.channelId = selection?.id ?? '';
+    renderFavoriteButton(favorite, pendingFavorite ?? isFavorite, pendingFavorite !== undefined);
     env.element<HTMLButtonElement>('remove-channel').disabled =
       env.backgroundLiveChoice !== null ||
       archived ||

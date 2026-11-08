@@ -27,8 +27,7 @@
  * (credentials in the address, account-style paths or query fields), and an
  * incoming link is held to the same rules, so a crafted link cannot carry one
  * either. Incoming links are untrusted: every field is checked here, names are
- * shown as text, and the native layer checks the stream's server is public
- * before anything is fetched (check_shared_destination).
+ * shown as text, and channel actions resolve only against the saved catalog.
  */
 
 /** The web page a link opens when GenX Streamer is not installed (site/watch/). */
@@ -84,35 +83,9 @@ export function cleanName(raw: unknown): string {
   return name;
 }
 
-/** Query fields that carry an account, a session or a signature, never a public channel. */
-const ACCOUNT_FIELDS = new Set([
-  'username',
-  'user',
-  'login',
-  'password',
-  'pass',
-  'passwd',
-  'pwd',
-  'token',
-  'auth',
-  'authorization',
-  'key',
-  'apikey',
-  'api_key',
-  'access_token',
-  'sig',
-  'signature',
-  'session',
-  'sessionid',
-  'sid',
-  'hdnts',
-  'hdnea',
-  'jwt',
-  'secret',
-  'mac',
-]);
-/** Xtream-style account paths: /live/<user>/<password>/<id>, and its movie, series and catch-up forms. */
-const ACCOUNT_PATH = /^\/(?:live|movie|series|timeshift|streaming)\/[^/]+\/[^/]+\/./iu;
+/** Xtream-style account paths, including numeric channel IDs without a type prefix. */
+const ACCOUNT_PATH =
+  /^\/(?:(?:live|movie|series|timeshift|streaming)\/[^/]+\/[^/]+\/.|[^/]+\/[^/]+\/\d+(?:\.[a-z0-9]+)?$)/iu;
 /** What a stream address may end in: playlists, transport streams and media files. */
 const STREAM_EXTENSION =
   /\.(?:m3u8|m3u|ts|mts|m2ts|mp4|m4v|mov|mkv|webm|mp3|aac|m4a|ogg|oga|opus|flac)$/iu;
@@ -177,10 +150,21 @@ function address(raw: unknown, schemes: readonly string[]): URL | null {
 export function shareableStream(raw: unknown): string {
   const url = address(raw, ['http:', 'https:']);
   if (!url) throw new ShareLinkError('share-stream-invalid');
-  if (url.username || url.password || ACCOUNT_PATH.test(url.pathname))
+  let path: string;
+  try {
+    path = decodeURIComponent(url.pathname);
+  } catch {
+    throw new ShareLinkError('share-stream-invalid');
+  }
+  // Signatures and credentials can use arbitrary query names and encoded paths.
+  if (
+    url.username ||
+    url.password ||
+    url.search ||
+    /[%\\\p{Cc}]/u.test(path) ||
+    ACCOUNT_PATH.test(path)
+  )
     throw new ShareLinkError('share-stream-account');
-  for (const field of url.searchParams.keys())
-    if (ACCOUNT_FIELDS.has(field.toLowerCase())) throw new ShareLinkError('share-stream-account');
   if (privateHost(url.hostname)) throw new ShareLinkError('share-stream-private');
   const last = url.pathname.split('/').pop() ?? '';
   if (last.includes('.') && !STREAM_EXTENSION.test(last))

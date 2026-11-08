@@ -182,6 +182,131 @@ fn entry(urls: &[&str]) -> Value {
 }
 
 #[test]
+fn a_refreshed_playlist_removes_expired_games_with_reused_addresses_and_guide_ids() {
+    let mut f = Fixture::new(&["https://streams.invalid/event"]);
+    let game = json!({"id":"c","sourceId":"s1","name":"[NBA] Boston at Philadelphia","category":"Live Events",
+        "providerId":"NBA.Basketball.Dummy.us","urls":["https://streams.invalid/event"]});
+    f.catalog["channels"][0] = game.clone();
+    for (id, source_id, title) in [
+        ("favorite-game", "s1", "[NBA] Denver at Los Angeles"),
+        ("kept-game", "s1", "[NBA] Chicago at Washington"),
+        ("failed-source-game", "s2", "[NBA] New York at Cleveland"),
+        ("concert", "s1", "[Music] Jazz at the Plaza"),
+    ] {
+        let mut other = game.clone();
+        other["id"] = json!(id);
+        other["sourceId"] = json!(source_id);
+        other["name"] = json!(title);
+        f.catalog["channels"].as_array_mut().unwrap().push(other);
+    }
+    f.prefs["favorites"] = json!(["favorite-game"]);
+    f.save_config();
+    let r = f.round();
+    f.promote(
+        0,
+        vec![
+            json!({"name":"[NBA] Utah at Phoenix","category":"Live Events",
+                "providerId":"NBA.Basketball.Dummy.us","urls":["https://streams.invalid/event"]}),
+            json!({"name":"[NBA] Chicago at Washington","category":"Live Events",
+                "providerId":"NBA.Basketball.Dummy.us","urls":["https://streams.invalid/new"]}),
+        ],
+    );
+    let p = f.prepare(&r);
+    assert!(!p.coverage_complete);
+    assert!(p.targets.is_empty());
+    let result = f.commit(&p, &[]);
+    assert_eq!(result.archived_count, 0);
+    assert_eq!(result.expired_event_ids, ["c"]);
+    assert_eq!(f.preferences()["removedChannels"], json!([]));
+    assert_eq!(f.preferences()["favorites"], json!(["favorite-game"]));
+    assert_eq!(
+        f.c()
+            .query_row("SELECT count(*) FROM channel WHERE id='c'", [], |r| r
+                .get::<_, i64>(0))
+            .unwrap(),
+        0
+    );
+}
+
+#[test]
+fn an_unreplaceable_checkpoint_arriving_after_prepare_defers_game_expiry() {
+    let mut f = Fixture::new(&["https://streams.invalid/event"]);
+    f.catalog["channels"][0]["name"] = json!("[NBA] Boston at Philadelphia");
+    f.catalog["channels"][0]["category"] = json!("Live Events");
+    f.save_config();
+    let round = f.round();
+    f.promote(0, vec![entry(&["https://streams.invalid/current"])]);
+    let prepared = f.prepare(&round);
+    assert_eq!(prepared.expired_event_ids, ["c"]);
+    let c = f.c();
+    crate::scan_checkpoint::ensure(&c).unwrap();
+    c.execute(
+        "UPDATE scan_checkpoint SET revision=1,job_id='unrecovered',contents='{}' WHERE singleton=1",
+        [],
+    )
+    .unwrap();
+    let receipt = f.commit(&prepared, &[]);
+    assert!(receipt.expired_event_ids.is_empty());
+    assert_eq!(receipt.deferred_count, 1);
+    assert_eq!(
+        c.query_row("SELECT count(*) FROM channel WHERE id='c'", [], |r| r
+            .get::<_, i64>(0))
+            .unwrap(),
+        1
+    );
+}
+
+#[test]
+fn a_changed_saved_address_enters_refresh_even_when_the_same_stream_is_mirrored() {
+    let mut f = Fixture::new(&["https://streams.invalid/old"]);
+    f.prefs["favorites"] = json!(["c"]);
+    f.save_config();
+    let rotated = "https://streams.invalid/current";
+    f.promote(1, vec![entry(&[rotated])]);
+    f.promote(
+        0,
+        vec![json!({"name":"Retired channel","category":"Sports","urls":[rotated]})],
+    );
+    let prepared = f
+        .store
+        .prepare_source_snapshot_activation(
+            source_snapshot_activation::Request {
+                schema_version: 1,
+                sources: ["s2", "s1"]
+                    .into_iter()
+                    .map(|source_id| source_snapshot_activation::SourceRevision {
+                        source_id: source_id.into(),
+                        source_revision: "1".into(),
+                    })
+                    .collect(),
+                query: String::new(),
+                preferred_region: None,
+                budget_ms: 20_000,
+                mode: source_snapshot_activation::Mode::Refresh,
+                expected_catalog_revision: f.store.read_snapshot().unwrap().catalog_revision,
+                expected_checkpoint_revision: "0".into(),
+                alias_provider_ids: Vec::new(),
+                demoted_provider_ids: Vec::new(),
+            },
+            "windows",
+            || Ok(()),
+        )
+        .unwrap();
+    let header = prepared.header.unwrap();
+    assert_eq!(header.candidate_count, 2);
+    assert_eq!(
+        f.c()
+            .query_row(
+                "SELECT source_id FROM source_activation_row WHERE manifest_id=?1 AND ordinal=0",
+                [&header.manifest_id],
+                |r| r.get::<_, String>(0),
+            )
+            .unwrap(),
+        "s1"
+    );
+}
+
+#[test]
 fn cleanup_does_not_block_first_refresh_with_reviewed_providers_and_no_catalog_record() {
     let root = tempfile::tempdir().unwrap();
     let store = PairStore::new(root.path().into()).unwrap();

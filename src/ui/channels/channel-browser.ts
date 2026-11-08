@@ -15,6 +15,7 @@
  */
 
 import { formatCompactViewingTime } from '../../guide/time';
+import { renderFavoriteButton } from './favorite-button';
 import { locationSearchText } from '../../search/location-labels';
 import { CatalogWindow, type CatalogWindowAnchor, type CatalogWindowHost } from './catalog-window';
 import { hasOfficialGeographyLabels } from './geography-controls';
@@ -27,8 +28,10 @@ import {
 import type { NowPlayingRow } from '../../application/accounts/paid-now-playing';
 import { declaredCategoryAliases, categoryAliasMatches } from '../../search/category-aliases';
 import { isPpvChannel, hasPpvMarker } from '../../catalog/ppv';
+import { replayDateLabel } from '../../search/replay-dates';
 import {
   captureSportsScope,
+  isFootballEntertainment,
   matchesSportsFacet,
   matchesSportsSearch,
   planSportsSearch,
@@ -36,6 +39,7 @@ import {
   programmeSportsTexts,
   sportsMatchupTitle,
   sportsFacts,
+  sportsWords,
   type SportsFacet,
   type SportsFacts,
   type SportsProgram,
@@ -56,6 +60,7 @@ export interface BrowserChannel {
   name: string;
   category: string;
   originalCategory?: string;
+  favorite?: boolean;
   ppv?: boolean;
   cachedPrograms?: readonly SportsProgram[];
   sourceId?: string;
@@ -82,6 +87,7 @@ export interface ChannelBrowserOptions {
   /** Includes the four-pixel row gap; at least 48 preserves a 44px control. */
   baseRowHeight?: number | (() => number);
   onFavorite?: (id: string) => void;
+  pendingFavorite?: (id: string) => boolean | undefined;
   onManage?: (id: string) => void;
   history?: {
     store: Pick<
@@ -160,6 +166,7 @@ export class ChannelBrowser {
   private selected: string | null = null;
   private emptyReason: CatalogEmptyReason = 'no-sources';
   private filter: ChannelFilter = 'all';
+  private favoritesOnly = false;
   private sportsFacet: SportsFacet = {};
   private sportsWindowKey = '';
   private sportsWindow: SportsScope | undefined;
@@ -170,7 +177,8 @@ export class ChannelBrowser {
   private hideAdult = true;
   private query = '';
   private geographyFilter: GeographyFilter = {};
-  private geographySort: 'source' | 'geography' | 'name' | null = null;
+  private geographySort: LiveTabBrowseState['sort'] = 'source';
+  private favoritesSort: LiveTabBrowseState['sort'] = 'source';
   private geographyRegistry: GeographyRegistry | null = null;
   private frame = 0;
   private focusedIndex = 0;
@@ -218,7 +226,7 @@ export class ChannelBrowser {
     if (indexedHost)
       this.indexed = new CatalogWindow({
         ...indexedHost,
-        captureAnchor: () => this.captureAnchor(),
+        captureAnchor: (moved) => this.captureAnchor(moved),
         restoreAnchor: (anchor, index, id) => this.restoreAnchor(anchor, index, id),
         changed: () => {
           if (this.disposed || !this.useIndexed()) return;
@@ -506,8 +514,21 @@ export class ChannelBrowser {
       ? this.indexed!.indexOf(id ?? null)
       : this.visible.findIndex((row) => row.id === id);
   }
-  private captureAnchor(): CatalogWindowAnchor | null {
-    if (this.displayAnchor) return this.displayAnchor.window;
+  private captureAnchor(moved?: (id: string) => boolean): CatalogWindowAnchor | null {
+    if (this.displayAnchor) {
+      const saved = this.displayAnchor.window;
+      // The old DOM is still on screen while a native refresh is in flight.
+      if (moved?.(saved.id)) {
+        const alternatives = saved.alternatives.filter((id) => !moved(id));
+        if (alternatives.length)
+          this.displayAnchor.window = {
+            ...saved,
+            id: alternatives[0]!,
+            alternatives: alternatives.slice(1),
+          };
+      }
+      return this.displayAnchor.window;
+    }
     if (!this.length) return null;
     const active = document.activeElement;
     const owned = active instanceof HTMLElement && this.list.contains(active) ? active : null;
@@ -517,16 +538,28 @@ export class ChannelBrowser {
       focused >= 0 &&
       (focused + 1) * this.rowHeight > top &&
       focused * this.rowHeight < top + this.list.clientHeight;
-    const index = focusedVisible
+    let index = focusedVisible
       ? focused
       : Math.min(this.length - 1, Math.floor(top / this.rowHeight));
-    const row = this.at(index);
+    let row = this.at(index);
     if (!row) return null;
+    // Favorites sort first. Following the newly starred row would jump to its
+    // new position, so keep a neighboring row in the viewport instead.
+    if (moved?.(row.id)) {
+      for (const neighbor of [index + 1, index - 1]) {
+        const candidate = this.at(neighbor);
+        if (candidate && !moved(candidate.id)) {
+          index = neighbor;
+          row = candidate;
+          break;
+        }
+      }
+    }
     const anchor: CatalogWindowAnchor = {
       id: row.id,
       index,
       alternatives: [this.at(index + 1)?.id, this.at(index - 1)?.id].filter(
-        (id): id is string => !!id,
+        (id): id is string => !!id && !moved?.(id),
       ),
     };
     this.displayAnchor = {
@@ -562,13 +595,23 @@ export class ChannelBrowser {
       saved.focus &&
       saved.intent === this.focusIntent &&
       (document.activeElement === saved.focus.element || document.activeElement === this.list)
-    )
+    ) {
+      const originalId =
+        saved.focus.element.dataset.channelId ?? saved.focus.element.dataset.channel;
+      const originalIndex = this.indexOf(originalId);
+      const top = this.list.scrollTop;
+      const originalVisible =
+        originalIndex >= 0 &&
+        (originalIndex + 1) * this.rowHeight > top &&
+        originalIndex * this.rowHeight < top + this.list.clientHeight;
+      if (originalVisible) this.focusedIndex = originalIndex;
       this.restoredFocus = {
-        id,
+        id: (originalVisible ? originalId : undefined) ?? id,
         action: saved.focus.action,
         element: saved.focus.element,
         intent: saved.intent,
       };
+    }
   }
   private schedule = (): void => {
     if (this.disposed || this.frame) return;
@@ -689,19 +732,19 @@ export class ChannelBrowser {
     selected: string | null,
     emptyReason?: CatalogEmptyReason,
   ): void {
+    const previousFavorites = this.favorites;
+    this.favorites = new Set(favorites);
     this.all = channels;
     if (emptyReason !== undefined) this.emptyReason = emptyReason;
     if (this.indexedHost?.ready?.() === false) {
       // A suspended native catalog will render again when its owner admits browsing.
       // Do not index the entire retained library on the UI thread while waiting.
-      this.favorites = new Set(favorites);
       this.selected = selected;
       return;
     }
     if (this.useIndexed()) {
-      this.favorites = new Set(favorites);
       this.selected = selected;
-      this.apply();
+      this.apply(previousFavorites);
       return;
     }
     this.searchMetadata = channels.map((channel) => {
@@ -745,9 +788,8 @@ export class ChannelBrowser {
       this.metadataCache.set(channel, metadata);
       return metadata;
     });
-    this.favorites = new Set(favorites);
     this.selected = selected;
-    this.apply();
+    this.apply(previousFavorites);
   }
   search(query: string): void {
     this.query = searchKey(query.trim());
@@ -758,8 +800,9 @@ export class ChannelBrowser {
     this.hideAdult = hide;
     this.apply();
   }
-  setFilter(filter: ChannelFilter): void {
+  setFilter(filter: ChannelFilter, favoritesOnly = false): void {
     this.filter = filter;
+    this.favoritesOnly = favoritesOnly;
     this.sportsControls?.setActive(filter === 'sports');
     this.apply();
   }
@@ -772,16 +815,27 @@ export class ChannelBrowser {
   getBrowseState(): LiveTabBrowseState {
     return {
       filter: this.filter,
+      ...(this.favoritesOnly ? { favoritesOnly: true } : {}),
       query: this.query,
       sportsFacet: { ...this.sportsFacet },
       geography: this.getGeographyFilter(),
-      sort: this.geographySort ?? 'source',
+      sort: this.geographySort,
+      ...(this.favoritesSort === 'source' ? {} : { favoritesSort: this.favoritesSort }),
     };
+  }
+
+  getSort(): LiveTabBrowseState['sort'] {
+    return this.isFavoritesOnly() ? this.favoritesSort : this.geographySort;
+  }
+
+  isFavoritesOnly(): boolean {
+    return this.filter === 'favorites' || this.favoritesOnly;
   }
   /** Apply one tab's UI choices together; a restored tab receives a fresh saved-schedule window. */
   restoreBrowseState(state: LiveTabBrowseState): void {
     captureSportsScope('', state.sportsFacet);
     this.filter = state.filter;
+    this.favoritesOnly = state.favoritesOnly ?? false;
     this.query = searchKey(state.query.trim());
     this.sportsFacet = { ...state.sportsFacet };
     this.geographyFilter = {
@@ -789,6 +843,7 @@ export class ChannelBrowser {
       ...(state.geography.countries ? { countries: [...state.geography.countries] } : {}),
     };
     this.geographySort = state.sort;
+    this.favoritesSort = state.favoritesSort ?? 'source';
     this.sportsWindowKey = '';
     this.sportsControls?.setFacet(this.sportsFacet);
     this.sportsControls?.setActive(this.filter === 'sports');
@@ -850,7 +905,8 @@ export class ChannelBrowser {
     this.geographyFilter = Object.fromEntries(
       Object.entries(filter).filter(([, value]) => value !== undefined),
     );
-    this.geographySort = sort;
+    if (this.isFavoritesOnly()) this.favoritesSort = sort;
+    else this.geographySort = sort;
     this.geographyRegistry = registry;
     this.update(this.all, [...this.favorites], this.selected);
   }
@@ -867,9 +923,10 @@ export class ChannelBrowser {
       this.indexedHost?.scopeIdentity?.() ?? this.indexedHost?.identity() ?? 'local',
       this.query,
       this.filter,
+      this.favoritesOnly,
       this.getSportsScope(),
       this.hideAdult,
-      this.geographySort ?? 'source',
+      this.getSort(),
       this.geographyFilter.country ?? null,
       this.geographyFilter.region ?? null,
       this.geographyFilter.state ?? null,
@@ -877,9 +934,13 @@ export class ChannelBrowser {
       this.options.history?.scope() ?? null,
     ]);
   }
-  private apply(): void {
+  private apply(previousFavorites?: ReadonlySet<string>): void {
     const indexed = this.useIndexed();
     const sports = this.getSportsScope();
+    if (this.sportsPlanQuery !== this.query) {
+      this.sportsPlanQuery = this.query;
+      this.sportsPlan = planSportsSearch(this.query);
+    }
     this.presentedHistoryScope = JSON.stringify(this.options.history?.scope());
     const historyIds = this.filter === 'watched' ? this.historyIds() : undefined;
     this.sportsControls?.presentScope(sports);
@@ -891,7 +952,10 @@ export class ChannelBrowser {
       this.restoredFocus = null;
       this.list.scrollTop = 0;
     }
-    const anchor = !indexed && preserve ? this.captureAnchor() : null;
+    const moved = previousFavorites
+      ? (id: string) => previousFavorites.has(id) !== this.favorites.has(id)
+      : undefined;
+    const anchor = !indexed && preserve ? this.captureAnchor(moved) : null;
     this.browseScope = scope;
     if (indexed) {
       this.visible = [];
@@ -901,8 +965,9 @@ export class ChannelBrowser {
         {
           query: this.query,
           filter: this.filter,
+          ...(this.favoritesOnly ? { favoritesOnly: true } : {}),
           geography: this.geographyFilter,
-          sort: this.geographySort ?? 'source',
+          sort: this.getSort(),
           hideAdult: this.hideAdult,
           ...(sports ? { sports } : {}),
           ...(historyIds === undefined ? {} : { historyIds }),
@@ -913,6 +978,7 @@ export class ChannelBrowser {
           this.programmeMembershipEpoch,
         ]),
         preserve,
+        moved,
       );
       this.updateCount();
       this.render();
@@ -920,17 +986,20 @@ export class ChannelBrowser {
     }
     const visible: BrowserChannel[] = [];
     this.sportsPpvRows.clear();
-    if (this.sportsPlanQuery !== this.query) {
-      this.sportsPlanQuery = this.query;
-      this.sportsPlan = planSportsSearch(this.query);
-    }
     const plan = this.sportsPlan;
     const facet = this.filter === 'sports' ? this.sportsFacet : {};
     const specificFacet = !!(facet.sport || facet.league);
     const semanticSports = specificFacet || plan.semantic.length > 0;
+    const footballCoverage = plan.bareFootball && this.filter === 'all';
+    const footballRanks = new Map<string, number>();
     const hasGeography = Object.values(this.geographyFilter).some((value) => value !== undefined);
     for (const metadata of this.searchMetadata) {
       const channel = metadata.channel;
+      if (
+        footballCoverage &&
+        isFootballEntertainment(channel.category, metadata.originalCategory ?? '')
+      )
+        continue;
       const accepts = (
         texts: readonly string[],
         facts: SportsFacts,
@@ -964,7 +1033,9 @@ export class ChannelBrowser {
           categoryAliasMatches(metadata.categoryAliases, this.query);
         metadata.queryMatch = {
           query: this.query,
-          normal: literal || matchesSportsSearch(plan, texts, metadata.sportsFacts),
+          normal:
+            (!plan.bareFootball && literal) ||
+            matchesSportsSearch(plan, texts, metadata.sportsFacts),
           semantic:
             plan.semantic.length > 0 &&
             matchesSportsSearch(plan, texts, metadata.sportsFacts, true),
@@ -979,12 +1050,17 @@ export class ChannelBrowser {
           (program.categories ?? []).some((entry) => hasPpvMarker(entry.text));
         if (this.filter === 'ppv' && !ppv) return false;
         return accepts(
-          programmeSportsTexts(program, texts, metadata.sportsFacts),
-          programmeSportsFacts(program, metadata.sportsFacts),
+          programmeSportsTexts(program, texts, metadata.sportsFacts, facet, plan),
+          programmeSportsFacts(program, metadata.sportsFacts, facet, plan),
           ppv,
         );
       });
       const programme = matched[0];
+      const related =
+        footballCoverage &&
+        !metadata.ppv &&
+        metadata.sportsFacts.sports.size === 0 &&
+        sportsWords(channel.name).some((word) => word === 'sports' || word === 'sport');
       const rowPpv =
         metadata.ppv ||
         (!direct &&
@@ -1011,7 +1087,8 @@ export class ChannelBrowser {
                       (this.filter === 'sports' && metadata.sportsFacts.sports.size > 0);
       if (
         inFilter &&
-        (direct || !!programme) &&
+        (!this.favoritesOnly || this.favorites.has(channel.id)) &&
+        (direct || !!programme || related) &&
         !(
           this.hideAdult &&
           (metadata.normalizedCategory.includes('xxx') ||
@@ -1021,13 +1098,15 @@ export class ChannelBrowser {
         (!hasGeography || matchesGeography(channel, this.geographyFilter))
       ) {
         if (rowPpv) this.sportsPpvRows.add(channel.id);
+        if (footballCoverage) footballRanks.set(channel.id, direct ? 0 : programme ? 1 : 2);
         visible.push(channel);
       }
     }
     this.visible = visible;
-    if (this.geographySort && this.geographySort !== 'source')
+    const sort = this.getSort();
+    if (sort !== 'source')
       this.visible.sort((a, b) => {
-        if (this.geographySort === 'geography' && this.geographyRegistry)
+        if (sort === 'geography' && this.geographyRegistry)
           return compareGeographicChannels(a, b, this.geographyRegistry);
         const cmp = (left: string, right: string) => (left < right ? -1 : left > right ? 1 : 0);
         return (
@@ -1047,7 +1126,9 @@ export class ChannelBrowser {
             ordered.push(channel);
     this.visible = historyIds
       ? this.visible.sort((a, b) => historyIds.indexOf(a.id) - historyIds.indexOf(b.id))
-      : ordered;
+      : footballCoverage
+        ? ordered.sort((a, b) => footballRanks.get(a.id)! - footballRanks.get(b.id)!)
+        : ordered;
     if (anchor) {
       let index = [anchor.id, ...anchor.alternatives]
         .map((id) => this.indexOf(id))
@@ -1128,17 +1209,17 @@ export class ChannelBrowser {
                 ? 'Channels could not be loaded. Try another filter or refresh.'
                 : this.filter === 'watched'
                   ? 'No watched channels here. Play a channel, or change the search or location filter.'
-                  : this.query
-                    ? 'No matching channels or saved guide listings. Programme matches need a connected guide.'
-                    : this.all.length
-                      ? 'No channels here. Try another filter or search.'
-                      : {
-                          'no-sources': 'Select the search icon to find channels.',
-                          'empty-sources':
-                            'Your saved sources contain no channels. Update or replace a source in Settings.',
-                          'removed-channels':
-                            'All saved channels are removed. Restore removed channels in Settings.',
-                        }[this.emptyReason];
+                  : !this.all.length && this.options.history?.scope()?.kind !== 'paid'
+                    ? {
+                        'no-sources': 'Select the search icon to find channels.',
+                        'empty-sources':
+                          'Your saved sources contain no channels. Update or replace a source in Settings.',
+                        'removed-channels':
+                          'All saved channels are removed. Restore removed channels in Settings.',
+                      }[this.emptyReason]
+                    : this.query
+                      ? 'No matching channels or saved guide listings. Programme matches need a connected guide.'
+                      : 'No channels here. Try another filter or search.';
     if (empty.textContent !== emptyText) empty.textContent = emptyText;
   }
   setGuideRows(rows: readonly ChannelGuideRow[]): void {
@@ -1242,6 +1323,10 @@ export class ChannelBrowser {
     const focused = restored?.id ?? ownedFocus?.dataset.channel ?? ownedFocus?.dataset.channelId;
     this.restoredFocus = null;
     const fragment = document.createDocumentFragment();
+    const facet = this.filter === 'sports' ? this.sportsFacet : {};
+    const plan = this.sportsPlan;
+    const sportSelected = Boolean(facet.sport || facet.league || plan.bareFootball);
+    const sportsScope = sportSelected ? this.getSportsScope() : undefined;
     for (let i = start; i < end; i++) {
       const channel = this.at(i);
       if (!channel) {
@@ -1303,6 +1388,27 @@ export class ChannelBrowser {
       let playing: SportsProgram | null = null;
       let playingPrefix = '';
       const display = this.displayMetadata(channel);
+      const matchesSelectedSport = (program: SportsProgram) => {
+        if (!sportSelected) return true;
+        const facts = programmeSportsFacts(program, display.facts, facet, plan);
+        return (
+          matchesSportsFacet(facts, facet) &&
+          (!plan.bareFootball ||
+            matchesSportsSearch(
+              plan,
+              programmeSportsTexts(
+                program,
+                [channel.name, channel.category],
+                display.facts,
+                facet,
+                plan,
+              ),
+              facts,
+              false,
+              facet,
+            ))
+        );
+      };
       const showPlaying = (logoShown: boolean) => {
         const channelMatchup = display.matchup;
         if (!playing) {
@@ -1354,6 +1460,17 @@ export class ChannelBrowser {
           provider.hidden = true;
           meta.textContent = playingPrefix + title;
           meta.classList.add('channel-event-title');
+        }
+        const replayDate = channel.sourceId?.startsWith('account-')
+          ? replayDateLabel(playing)
+          : undefined;
+        if (replayDate) {
+          if (logoShown) meta.prepend(replayDate, ' · ');
+          else {
+            provider.hidden = false;
+            provider.textContent = replayDate;
+          }
+          button.setAttribute('aria-label', `${button.getAttribute('aria-label')} · ${replayDate}`);
         }
       };
       const notResponding = this.notResponding.has(channel.id);
@@ -1439,11 +1556,11 @@ export class ChannelBrowser {
           summary.cacheStatus !== 'unavailable'
             ? summary.current
             : null;
-        if (program) {
+        if (program && matchesSelectedSport(program)) {
           playing = program;
           playingPrefix = summary!.cacheStatus === 'stale' ? 'Cached · ' : '';
         }
-        if (program && program.stopMs !== null && program.stopMs > program.startMs) {
+        if (playing && program && program.stopMs !== null && program.stopMs > program.startMs) {
           const time = document.createElement('small');
           time.className = 'channel-program-time';
           time.textContent = `${formatCompactViewingTime(program.startMs)} – ${formatCompactViewingTime(program.stopMs)}`;
@@ -1457,27 +1574,38 @@ export class ChannelBrowser {
           progress.setAttribute('aria-label', 'Current program progress');
           programMeta.append(time, progress);
         }
-        button.title += ` · ${guide.current}${guide.next ? ' · ' + guide.next : ''}`;
+        if (!sportSelected)
+          button.title += ` · ${guide.current}${guide.next ? ' · ' + guide.next : ''}`;
         button.setAttribute('aria-label', button.title);
       }
       if (!playing && channel.sourceId) {
         const paid = this.nowPlaying.get(JSON.stringify([channel.sourceId, channel.id]));
-        if (paid) {
+        if (paid && matchesSelectedSport(paid)) {
           playing = paid;
-          const range = `${formatCompactViewingTime(paid.startMs)} – ${formatCompactViewingTime(paid.stopMs)}`;
-          button.title += ` · Now: ${paid.title} (${range})`;
-          button.setAttribute('aria-label', button.title);
+          if (!sportSelected) {
+            const range = `${formatCompactViewingTime(paid.startMs)} – ${formatCompactViewingTime(paid.stopMs)}`;
+            button.title += ` · Now: ${paid.title} (${range})`;
+            button.setAttribute('aria-label', button.title);
+          }
         }
+      }
+      if (!playing && sportsScope) {
+        playing =
+          this.savedProgrammes(channel, sportsScope)
+            .filter(matchesSelectedSport)
+            .sort((left, right) => left.startMs - right.startMs)[0] ?? null;
+        if (playing) playingPrefix = 'Scheduled · ';
+      }
+      if (sportSelected && playing) {
+        button.title += ` · ${playingPrefix}${playing.title}`;
+        button.setAttribute('aria-label', button.title);
       }
       showPlaying(monogram.dataset.artwork === 'logo');
       markNotResponding();
+      const favorite = channel.favorite ?? this.favorites.has(channel.id);
       const star = document.createElement('span');
       star.className = 'channel-star';
-      star.textContent = this.favorites.has(channel.id)
-        ? '★'
-        : channel.id === this.selected
-          ? '●'
-          : '';
+      star.textContent = favorite ? '★' : channel.id === this.selected ? '●' : '';
       button.append(monogram, copy, schedule);
       if (!this.options.onFavorite) button.append(star);
       const row = document.createElement('div');
@@ -1502,14 +1630,15 @@ export class ChannelBrowser {
           control.className = `channel-action channel-${action}${action === 'favorite' ? ' media-result-favorite' : ''}`;
           control.dataset.channelAction = action;
           control.dataset.channelId = channel.id;
-          control.textContent =
-            action === 'favorite' ? (this.favorites.has(channel.id) ? '★' : '☆') : '⌄';
+          if (action === 'manage') control.textContent = '⌄';
           control.setAttribute(
             'aria-label',
             action === 'favorite' ? `Favorite ${channel.name}` : `Manage ${channel.name}`,
           );
-          if (action === 'favorite')
-            control.setAttribute('aria-pressed', String(this.favorites.has(channel.id)));
+          if (action === 'favorite') {
+            const pending = this.options.pendingFavorite?.(channel.id);
+            renderFavoriteButton(control, pending ?? favorite, pending !== undefined);
+          }
           row.append(control);
         }
       }

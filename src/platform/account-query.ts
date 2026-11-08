@@ -48,6 +48,7 @@ export interface AccountChannelQuery {
   sports?: SportsScope;
   sort: 'source' | 'name' | 'category' | 'country';
   favoritesFirst?: boolean;
+  favoritesOnly?: boolean;
   /** An app country code, several joined by commas ("US,CA,UK"), or '' for channels whose country is unknown. */
   country?: string | null;
   /** Leave out groups explicitly labeled adult. */
@@ -176,6 +177,7 @@ export function validateAccountChannelQuery(value: AccountChannelQuery): Account
       'expectedPreferencesRevision',
       'expectedGuideRevision',
       'favoritesFirst',
+      'favoritesOnly',
       'country',
       'hideAdult',
       'sports',
@@ -217,6 +219,7 @@ export function validateAccountChannelQuery(value: AccountChannelQuery): Account
     (row.pageSize as number) < 1 ||
     (row.pageSize as number) > 64 ||
     (row.favoritesFirst !== undefined && typeof row.favoritesFirst !== 'boolean') ||
+    (row.favoritesOnly !== undefined && typeof row.favoritesOnly !== 'boolean') ||
     (row.anchorId != null && !channelId(row.anchorId, row.accountId))
   )
     throw invalid();
@@ -246,6 +249,7 @@ export function validateAccountChannelQuery(value: AccountChannelQuery): Account
     filter: row.filter as AccountChannelQuery['filter'],
     sort: row.sort as AccountChannelQuery['sort'],
     favoritesFirst: row.favoritesFirst === undefined ? true : (row.favoritesFirst as boolean),
+    ...(row.favoritesOnly === true ? { favoritesOnly: true } : {}),
     startIndex: row.startIndex as number,
     pageSize: row.pageSize as number,
     ...(row.anchorId == null ? {} : { anchorId: row.anchorId as string }),

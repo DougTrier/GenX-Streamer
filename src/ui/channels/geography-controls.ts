@@ -109,6 +109,7 @@ export function mountGeographyControls(
   options: GeographyControlsOptions = {},
 ): {
   update(): void;
+  showSort(value: 'source' | 'geography' | 'name', favoritesOnly: boolean): void;
   reset(): void;
   restore(value: { filter: GeographyFilter; sort: 'source' | 'geography' | 'name' }): void;
   dispose(): void;
@@ -187,8 +188,8 @@ export function mountGeographyControls(
     });
   }
   const sortLabel = document.createElement('label');
-  sortLabel.textContent = 'Sort';
-  sortLabel.append(sort);
+  const sortCaption = document.createTextNode('Sort');
+  sortLabel.append(sortCaption, sort);
   // Short controls first, the long country checklist last: with 250
   // countries the remote reached Sort only after about 125 presses
   // (Streamer, October 19). Region and state follow a single chosen country.
@@ -349,6 +350,10 @@ export function mountGeographyControls(
   update();
   return {
     update,
+    showSort(value, favoritesOnly): void {
+      sort.value = value;
+      sortCaption.data = favoritesOnly ? 'Sort favorites' : 'Sort';
+    },
     restore(value): void {
       if (disposed) return;
       filter = { ...value.filter };

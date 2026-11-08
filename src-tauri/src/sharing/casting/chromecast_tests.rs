@@ -254,7 +254,10 @@ fn asked(seen: &[Value], kind: &str, ns: &str) -> usize {
 #[tokio::test]
 async fn load_polls_when_playing_status_omits_media_identity() {
     let mut unsolicited = media("PLAYING", None);
-    unsolicited["status"][0].as_object_mut().unwrap().remove("media");
+    unsolicited["status"][0]
+        .as_object_mut()
+        .unwrap()
+        .remove("media");
     let (session, server) = loaded(Tv {
         after_load: vec![unsolicited],
         status: vec![media("PLAYING", None)],
@@ -263,7 +266,10 @@ async fn load_polls_when_playing_status_omits_media_identity() {
     .await;
     assert_eq!(session.media_session, Some(7));
     drop(session);
-    assert_eq!(asked(&server.await.unwrap(), "GET_STATUS", protocol::MEDIA), 1);
+    assert_eq!(
+        asked(&server.await.unwrap(), "GET_STATUS", protocol::MEDIA),
+        1
+    );
 }
 
 #[tokio::test]

@@ -21,6 +21,7 @@
 pub(crate) mod apk_contents;
 pub mod casting;
 pub(crate) mod compatibility;
+pub(crate) mod favorites;
 pub mod lan;
 pub(crate) mod native_sharing;
 pub(crate) mod nearby_download;

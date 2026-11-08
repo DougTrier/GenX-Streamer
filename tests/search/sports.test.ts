@@ -22,15 +22,15 @@ for (const entry of queries.cases)
     const plan = planSportsSearch(entry.query);
     const channel = 'channelTexts' in entry ? (entry.channelTexts ?? []) : [];
     const program = 'program' in entry ? entry.program : undefined;
+    const facet = 'facet' in entry ? (entry.facet as SportsFacet) : {};
     const texts = program
-      ? programmeSportsTexts(program, channel)
+      ? programmeSportsTexts(program, channel, undefined, facet, plan)
       : 'texts' in entry
         ? (entry.texts ?? [])
         : [];
     const facts = program
-      ? programmeSportsFacts(program, sportsFacts(channel))
+      ? programmeSportsFacts(program, sportsFacts(channel), facet, plan)
       : sportsFacts(texts);
-    const facet = 'facet' in entry ? (entry.facet as SportsFacet) : {};
     expect(plan.specific).toBe(entry.specific);
     expect(
       matchesSportsFacet(facts, facet) && matchesSportsSearch(plan, texts, facts, false, facet),
@@ -109,7 +109,7 @@ it('retains college league specificity, longest phrases and residual words', () 
     matchesSportsSearch(planSportsSearch('NFL Canada'), ['NFL Germany'], sportsFacts(['NFL'])),
   ).toBe(false);
 });
-it('keeps ambiguous football literal matches plus positive American-football expansion without auto PPV', () => {
+it('requires football evidence while preserving soccer with a football label and keeping PPV opt-in', () => {
   const plan = planSportsSearch('football');
   expect(plan.specific).toBe(false);
   expect(

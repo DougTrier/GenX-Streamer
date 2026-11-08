@@ -57,6 +57,7 @@ fn query(text: &str) -> Query {
         geography: Map::new(),
         sort: Sort::Source,
         favorites_first: false,
+        favorites_only: false,
         hide_adult: false,
         after: None,
         start_index: None,
@@ -646,6 +647,23 @@ fn slow_channels_sort_after_fast_and_badge_changes_refuse_old_cursors() {
     assert_eq!(ids(&run(&c, &query(""))), ids(&before));
 }
 #[test]
+fn favorites_only_combines_with_category_before_sorting() {
+    let mut c = favorites_fixture();
+    add(&c, "s0", "Z Sports", "Sports", None, [None; 3]);
+    add(&c, "s1", "A Sports", "Sports", None, [None; 3]);
+    add(&c, "s2", "B Sports", "Sports", None, [None; 3]);
+    c.execute_batch("INSERT INTO favorite VALUES('s0'); INSERT INTO favorite VALUES('s1');")
+        .unwrap();
+    refresh(&mut c);
+    let mut q = query("");
+    q.filter = Filter::Sports;
+    q.sort = Sort::Name;
+    assert_eq!(ids(&run(&c, &q)), vec!["s1", "s2", "s0"]);
+    q.favorites_only = true;
+    assert_eq!(ids(&run(&c, &q)), vec!["s1", "s0"]);
+}
+
+#[test]
 fn favorites_first_is_opt_in_and_keeps_stable_ties_for_every_sort() {
     let c = favorites_fixture();
     for sort in [Sort::Source, Sort::Name, Sort::Geography] {
@@ -847,6 +865,46 @@ fn sports_cached_programmes_original_categories_ppv_counts_and_cursors() {
     assert_eq!(ids(&run(&c, &q)), ["b"]);
     let cancel = Arc::new(AtomicBool::new(true));
     assert!(query_page(&c, &q, &cancel).is_err());
+    add(
+        &c,
+        "0-coverage",
+        "AAA Sports Desk",
+        "Sports",
+        None,
+        [Some("US"), None, None],
+    );
+    add(
+        &c,
+        "0-cartoon",
+        "TG Junior",
+        "Kids",
+        None,
+        [Some("US"), None, None],
+    );
+    add(
+        &c,
+        "0-series",
+        "Dallas Cowboys Cheerleaders",
+        "Series",
+        None,
+        [Some("US"), None, None],
+    );
+    c.execute_batch("INSERT INTO guide_mapping VALUES('s','0-cartoon','g','kids'); INSERT INTO guide_program VALUES('g','kids',1200,1800,'The Fixies','The friends watch an NFL football game.','[]');").unwrap();
+    refresh(&mut c);
+    q.expected_catalog_revision = None;
+    q.expected_view_revision = None;
+    q.query = "football".into();
+    q.sports.as_mut().unwrap().league = None;
+    q.sports.as_mut().unwrap().include_ppv = false;
+    q.filter = Filter::All;
+    q.sort = Sort::Name;
+    assert_eq!(ids(&run(&c, &q)), ["a", "e", "0-coverage"]);
+    q.page_size = 2;
+    let first = run(&c, &q);
+    q.expected_catalog_revision = Some(first.catalog_revision);
+    q.expected_view_revision = Some(first.view_revision);
+    q.after = first.after;
+    assert_eq!(ids(&run(&c, &q)), ["0-coverage"]);
 }
 
 #[test]
@@ -916,6 +974,18 @@ fn sports_explicit_facet_requires_nfl_evidence_before_counts_and_pages() {
     q.query = "NFL".into();
     q.sports.as_mut().unwrap().sport = None;
     assert_eq!(ids(&run(&c, &q)), ["nfl", "ppv", "affiliate"]);
+
+    c.execute_batch(
+        "INSERT INTO guide_program VALUES
+        ('g','kids',2000,3000,'Cartoon hour','The children go to a baseball game.','[{\"text\":\"Comedy\"}]'),
+        ('g','fox',3000,4000,'Chicago Cubs at St. Louis Cardinals',NULL,'[]');",
+    )
+    .unwrap();
+    q.query.clear();
+    q.sports.as_mut().unwrap().sport = Some("baseball".into());
+    let baseball = run(&c, &q);
+    assert_eq!(ids(&baseball), ["affiliate"]);
+    assert_eq!(baseball.total_count, 1);
 }
 
 #[test]

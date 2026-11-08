@@ -34,7 +34,7 @@ export interface AccountScopeEnvironment {
   readonly accountBrowser: ReturnType<typeof createAccountBrowser>;
   readonly browser: ChannelBrowser;
   readonly libraryQueries: { live: string };
-  readonly chooseCategory: (filter: ChannelFilter) => void;
+  readonly chooseCategory: (filter: ChannelFilter, favoritesOnly?: boolean) => void;
   readonly viewingChoices: ReturnType<typeof mountViewingChoices> | undefined;
   readonly geographyControls: ReturnType<typeof mountGeographyControls>;
   readonly element: <T extends HTMLElement = HTMLElement>(id: string) => T;
@@ -49,9 +49,9 @@ export function createAccountScope(env: AccountScopeEnvironment) {
     env.libraryQueries.live = state.query;
     env.element<HTMLInputElement>('search').value = state.query;
     env.element('clear-search').hidden = state.query.length === 0;
-    env.chooseCategory(state.filter);
-    env.geographyControls.restore({ filter: state.geography, sort: state.sort });
     env.browser.restoreBrowseState(state);
+    env.chooseCategory(state.filter, state.favoritesOnly);
+    env.geographyControls.restore({ filter: state.geography, sort: env.browser.getSort() });
   };
   async function selectAccountScope(
     account: AccountMetadata | null,

@@ -17,6 +17,8 @@
 import type { AccountGuide } from '../../platform/account-guide';
 import type { AccountMetadata } from '../../platform/account-vault';
 import type { VisibleGuideChannel } from '../../ui/guide/channel-guide';
+import type { ReplayDates } from '../../search/replay-dates';
+import { lookupReplayDates } from '../guide/team-games';
 
 /** What a Paid TV channel row on screen is showing now, from the stored provider guide. */
 export interface NowPlayingRow extends VisibleGuideChannel {
@@ -25,6 +27,8 @@ export interface NowPlayingRow extends VisibleGuideChannel {
   stopMs: number;
   description?: string | null;
   categories?: readonly { text: string }[];
+  replay?: ReplayDates;
+  gameDate?: string;
 }
 export interface PaidNowPlayingHost {
   guide: Pick<AccountGuide, 'programs'>;
@@ -120,6 +124,7 @@ export function createPaidNowPlaying(host: PaidNowPlayingHost) {
                 startMs: current.startMs,
                 stopMs: current.stopMs!,
                 ...(current.description ? { description: current.description } : {}),
+                ...(current.replay ? { replay: current.replay } : {}),
                 ...(current.categories?.length
                   ? { categories: current.categories.map((category) => ({ ...category })) }
                   : {}),
@@ -131,15 +136,28 @@ export function createPaidNowPlaying(host: PaidNowPlayingHost) {
         }
       }),
     );
-    if (disposed || mine !== generation || controller.signal.aborted) return;
-    if (
-      host.account()?.id !== account.id ||
-      host.account()?.revision !== account.revision ||
-      keyFor(scope, host.account()) !== capturedKey
-    )
-      return;
-    owner = null;
-    publish(rows.filter((row): row is NowPlayingRow => row !== null));
+    const current = () =>
+      !disposed &&
+      mine === generation &&
+      !controller.signal.aborted &&
+      host.account()?.id === account.id &&
+      host.account()?.revision === account.revision &&
+      keyFor(scope, host.account()) === capturedKey;
+    if (!current()) return;
+    const visible = rows.filter((row): row is NowPlayingRow => row !== null);
+    publish(visible);
+    try {
+      const dates = await lookupReplayDates(visible, controller.signal);
+      if (current() && dates.some(Boolean)) {
+        publish(
+          visible.map((row, index) => (dates[index] ? { ...row, gameDate: dates[index] } : row)),
+        );
+      }
+    } catch {
+      // A missing or canceled official lookup leaves the provider listing visible.
+    } finally {
+      if (owner === controller) owner = null;
+    }
   }
   const reload = () => {
     if (!disposed) void load();

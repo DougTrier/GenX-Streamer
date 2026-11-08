@@ -15,6 +15,7 @@
  */
 
 import { GUIDE_REFRESH_INTERVAL_MS } from '../../guide/refresh-interval';
+import { lookupReplayDates } from '../../application/guide/team-games';
 import type { AccountMetadata } from '../../platform/account-vault';
 import type {
   AccountGuide,
@@ -149,6 +150,10 @@ export function mountPaidGuide(container: HTMLElement, host: PaidGuideHost) {
   };
 
   const timeline = mountGuideTimeline(panel, {
+    searchVisibleWindow: true,
+    async replayDate(program, signal) {
+      return (await lookupReplayDates([program], signal))[0];
+    },
     browseScope: host.browseScope,
     initiallyForeground: false,
     agendaWidth: PANEL_AGENDA_WIDTH,
@@ -157,10 +162,11 @@ export function mountPaidGuide(container: HTMLElement, host: PaidGuideHost) {
     async listedChannels(start, end, signal, search, ppv, sports, history) {
       const current = account;
       if (!current || !stored) throw new Error('Paid TV guide is not loaded.');
+      const scope = sports && { ...sports, windowStartMs: start, windowEndMs: end };
       const reply = history
-        ? await host.guide.listed(current, start, end, search ?? '', signal, ppv, sports, history)
-        : sports
-          ? await host.guide.listed(current, start, end, search ?? '', signal, ppv, sports)
+        ? await host.guide.listed(current, start, end, search ?? '', signal, ppv, scope, history)
+        : scope
+          ? await host.guide.listed(current, start, end, search ?? '', signal, ppv, scope)
           : await host.guide.listed(current, start, end, search ?? '', signal, ppv);
       if (reply.revision !== stored.revision) throw new Error('Paid TV guide changed.');
       if ((ppv || sports || history) && reply.channelIds === undefined)
@@ -170,6 +176,9 @@ export function mountPaidGuide(container: HTMLElement, host: PaidGuideHost) {
       const listed = new Set(reply.epgIds);
       const listedChannels = reply.channelIds === undefined ? null : new Set(reply.channelIds);
       const ppvChannels = reply.ppvChannelIds === undefined ? null : new Set(reply.ppvChannelIds);
+      const starts = new Map(
+        reply.channelIds?.map((id, index) => [id, reply.firstStartsMs?.[index]]),
+      );
       return {
         catalogRevision: revision(),
         databaseRevision: stored.revision,
@@ -183,6 +192,7 @@ export function mountPaidGuide(container: HTMLElement, host: PaidGuideHost) {
             guideSourceId: channel.guideSourceId!,
             xmltvChannelId: channel.xmltvChannelId!,
             sourceRevision: stored!.revision,
+            firstStartMs: starts.get(channel.id),
             filterMask: (ppvChannels ? ppvChannels.has(channel.id) : ppv || isPpvChannel(channel))
               ? 8
               : 0,
@@ -232,6 +242,7 @@ export function mountPaidGuide(container: HTMLElement, host: PaidGuideHost) {
         title: program.title,
         description: program.description,
         categories: program.categories,
+        ...(program.replay ? { replay: program.replay } : {}),
         ordinal: program.ordinal,
       }));
       const last = programs.at(-1);

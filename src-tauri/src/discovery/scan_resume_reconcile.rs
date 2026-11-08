@@ -53,11 +53,22 @@ fn ecma_space(c: char) -> bool {
         '\u{2000}'..='\u{200a}' | '\u{2028}' | '\u{2029}' | '\u{202f}' |
         '\u{205f}' | '\u{3000}' | '\u{feff}')
 }
-fn normalized(s: &str) -> String {
+pub(crate) fn normalized(s: &str) -> String {
     s.nfkc()
         .collect::<String>()
         .trim_matches(ecma_space)
         .to_lowercase()
+}
+pub(crate) fn game_listing(channel: &Value) -> bool {
+    channel["category"]
+        .as_str()
+        .is_some_and(|category| normalized(category) == "live events")
+        && channel["name"].as_str().is_some_and(|name| {
+            let name = normalized(name);
+            [" at ", " vs ", " vs. ", " v "]
+                .iter()
+                .any(|separator| name.contains(separator))
+        })
 }
 pub(crate) fn metadata(c: &Value) -> Result<String, String> {
     encoded(&json!([
@@ -365,14 +376,17 @@ pub(crate) fn prepare(
             }
             let (ambiguous_provider, ambiguous_metadata) = ambiguous(c)?;
             if id.is_none()
+                && !game_listing(c)
                 && c["providerId"].as_str().is_some_and(|s| !s.is_empty())
                 && provider_count.get(&pk) == Some(&1)
                 && !ambiguous_provider
             {
                 let matching = old_provider.get(&pk);
-                if matching.is_some_and(|a| a.len() == 1) {
-                    id = Some(string(matching.unwrap()[0], "id")?.to_owned());
-                } else if matching.is_none_or(Vec::is_empty) {
+                if let Some([old]) = matching.map(Vec::as_slice) {
+                    if !game_listing(old) {
+                        id = Some(string(old, "id")?.to_owned());
+                    }
+                } else if matching.is_none() {
                     id = Some(format!(
                         "provider:{}:{}",
                         component(sid),

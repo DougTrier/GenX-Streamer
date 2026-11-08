@@ -12,6 +12,7 @@ const receipt = {
   committed: true,
   status: 'completed',
   archivedCount: 1,
+  expiredEventIds: [],
   checkedTargets: 1,
   deferredCount: 0,
   catalogRevision: '4',
@@ -63,6 +64,7 @@ it('rejects malformed or impossible cleanup receipts', () => {
   for (const update of [
     { committed: false },
     { archivedCount: -1 },
+    { expiredEventIds: ['duplicate', 'duplicate'] },
     { checkedTargets: 257 },
     { catalogRevision: '04' },
     { viewRevision: '9223372036854775808' },

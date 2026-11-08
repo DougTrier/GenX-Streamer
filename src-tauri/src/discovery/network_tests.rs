@@ -895,3 +895,47 @@ async fn owned_resolver_failure_marker_survives_request_chain_without_os_text() 
     );
     assert_eq!(resolver.0.load(std::sync::atomic::Ordering::SeqCst), 1);
 }
+#[test]
+fn automatic_listing_fetches_restrict_dns_and_redirect_targets() {
+    use std::net::{Ipv4Addr, SocketAddr};
+
+    let origin = Url::parse("https://sports.example.org/schedule").unwrap();
+    assert!(public_listing_redirect(
+        &origin,
+        &Url::parse("https://sports.example.org:443/game").unwrap()
+    ));
+    let mapped = Ipv4Addr::new(192, 168, 1, 1).to_ipv6_mapped();
+    let private_redirect = format!("https://[{mapped}]/game");
+    for target in [
+        "http://sports.example.org/game",
+        "https://sports.example.org:8443/game",
+        "https://other.example.org/game",
+        "https://127.1/game",
+        &private_redirect,
+        "https://user@sports.example.org/game",
+    ] {
+        assert!(!public_listing_redirect(
+            &origin,
+            &Url::parse(target).unwrap()
+        ));
+    }
+    let mut addresses: Vec<SocketAddr> = [
+        "8.8.8.8:0",
+        "127.0.0.1:0",
+        "169.254.169.254:0",
+        "100.64.1.2:0",
+        "[fd00::1]:0",
+    ]
+    .into_iter()
+    .map(|address| address.parse().unwrap())
+    .collect();
+    addresses.push(SocketAddr::from((
+        Ipv4Addr::new(10, 0, 0, 1).to_ipv6_mapped(),
+        0,
+    )));
+    let public = addresses[0];
+    assert_eq!(
+        public_listing_addresses(addresses).collect::<Vec<_>>(),
+        [public]
+    );
+}

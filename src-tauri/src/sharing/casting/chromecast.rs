@@ -26,12 +26,11 @@ use tokio::{
 };
 use tokio_rustls::{client::TlsStream, TlsConnector};
 
-/// Cast receivers use locally generated TLS certificates rather than public Web PKI.
-/// This verifier is used only after a private-LAN discovery record was explicitly selected;
-/// it verifies handshake signatures but is not Google Cast device-authentication attestation.
+/// Local receivers use generated TLS certificates. Verify possession of the key
+/// in the handshake. The caller owns any additional peer authentication.
 #[derive(Debug)]
-struct LanReceiverVerifier {
-    provider: Arc<rustls::crypto::CryptoProvider>,
+pub(crate) struct LanReceiverVerifier {
+    pub(crate) provider: Arc<rustls::crypto::CryptoProvider>,
 }
 
 impl ServerCertVerifier for LanReceiverVerifier {

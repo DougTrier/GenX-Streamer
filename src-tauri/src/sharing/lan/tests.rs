@@ -514,6 +514,60 @@ async fn tls_refuses_untrusted_certificate_wrong_origin_arbitrary_targets_and_pr
     );
     manager.stop().await.unwrap();
 }
+
+#[tokio::test]
+async fn ambiguous_http_framing_cannot_consume_a_lan_pairing_invite() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    use tokio::net::TcpStream;
+
+    let manager = LanManager::default();
+    let info = manager.start(config()).await.unwrap();
+    let address: SocketAddr = info
+        .address
+        .strip_prefix("https://")
+        .unwrap()
+        .parse()
+        .unwrap();
+    let mut roots = rustls::RootCertStore::empty();
+    roots
+        .add(CertificateDer::from(
+            include_bytes!("fixtures/loopback-root.der").to_vec(),
+        ))
+        .unwrap();
+    let tls = rustls::ClientConfig::builder_with_provider(Arc::new(
+        rustls::crypto::ring::default_provider(),
+    ))
+    .with_safe_default_protocol_versions()
+    .unwrap()
+    .with_root_certificates(roots)
+    .with_no_client_auth();
+    let connector = tokio_rustls::TlsConnector::from(Arc::new(tls));
+    let body = format!(r#"{{"secret":"{}"}}"#, info.pairing_secret);
+    for extra in ["Content-Length: 0\r\n", "Transfer-Encoding: chunked\r\n"] {
+        let socket = TcpStream::connect(address).await.unwrap();
+        let mut stream = connector
+            .connect(
+                rustls::pki_types::ServerName::IpAddress(address.ip().into()),
+                socket,
+            )
+            .await
+            .unwrap();
+        let request = format!(
+            "POST /pair HTTP/1.1\r\nHost: {address}\r\nOrigin: {}\r\nContent-Length: {}\r\n{extra}\r\n{body}",
+            info.address, body.len(),
+        );
+        stream.write_all(request.as_bytes()).await.unwrap();
+        let mut prefix = [0; 12];
+        tokio::time::timeout(Duration::from_secs(5), stream.read_exact(&mut prefix))
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(&prefix, b"HTTP/1.1 400");
+    }
+    let _ = pair(&client(), &info, &info.pairing_secret).await;
+    manager.stop().await.unwrap();
+}
+
 #[tokio::test]
 async fn listener_collision_expired_invite_and_registry_bounds() {
     let manager = LanManager::default();

@@ -313,7 +313,8 @@ export function createScanController(env: ScanEnvironment) {
     };
   }
   let scanRegion: PreferredRegion | undefined;
-  const scanProviderSources = () => providerScanSources(env.catalog, env.settings);
+  const scanProviderSources = (refreshSaved?: boolean) =>
+    providerScanSources(env.catalog, env.settings, refreshSaved);
   // Included sources allow plain HTTP (owner decision); applied once to saved records.
   const adoptIncludedHttp = () =>
     (env.catalogWrites = env.catalogWrites

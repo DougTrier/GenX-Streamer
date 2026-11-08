@@ -4,10 +4,10 @@ Included-source scans preserve the complete playlist when a publisher offers bot
 a complete index and documented filtered copies. For IPTV Nexus, its
 [published contract](https://github.com/dearbulut/iptv#quick-start) says `index.m3u`
 contains every stream, while `best.m3u` and `online.m3u` are filtered versions.
-When the complete index is selected with the same HTTP permission, the scan skips
-those two subsets. Choosing the curated lists without the complete index still
-works. Other hosts, query-bearing URLs and differing permissions are retained.
-This changes the scan plan, not saved channels, favorites or source configuration.
+When the complete index is selected with the same HTTP permission, discovery skips
+those two subsets. A full refresh still reads a previously saved curated playlist
+under its own source identity so its channel URLs can be updated. Other hosts,
+query-bearing URLs and differing permissions are retained.
 
 An October 31, 2026 audit of the local Thor configuration found 12 included
 channel providers and 103 guide suggestions. The fetched `best` and `online`
@@ -38,8 +38,12 @@ observations from that job; a new scan starts with an empty transport registry.
 Each recipient still requires its own current source, permission and publication
 checks. Refresh separately uses stored health: unchanged working entries are
 normally trusted for seven days, while explicit full recheck bypasses that cache.
-Playlist disappearance marks source membership unavailable; it does not itself
-delete a saved channel or prove that its stream stopped working.
+Playlist disappearance does not prove that a stream stopped working. A complete,
+nonempty refresh can remove a non-favorited matchup with an explicit sport or league
+tag from the saved Live Events lineup when its original playlist drops the title.
+Other sources can fail that
+refresh without holding up this check. A matching title can keep its identity
+when the URL rotates. New URLs still need the regular stream check before use.
 
 Automatic cleanup runs during a full Refresh or Rescan with an empty search over
 the configured sources. It first captures the current library and source grants.

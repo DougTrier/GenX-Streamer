@@ -983,6 +983,23 @@ export function mountLocalStreams(
   );
 
   return {
+    stationSites(): string[] {
+      return [
+        ...(found?.tv ?? []).map((station) => station.website),
+        ...(favorites?.stations ?? []).flatMap(({ tv }) => (tv ? [tv.website] : [])),
+      ];
+    },
+    async openGamePage(url: string, title: string): Promise<void> {
+      const page = new URL(url);
+      if (page.protocol !== 'https:' || page.username || page.password)
+        throw new Error('Choose an HTTPS game page.');
+      if (!active) {
+        await host.showLive();
+        open(true);
+      }
+      showTab('websites');
+      await openPage(page.href, title);
+    },
     get active() {
       return active;
     },

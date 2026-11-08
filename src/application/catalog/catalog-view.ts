@@ -135,8 +135,22 @@ export function createCatalogView(env: CatalogViewEnvironment) {
     for (const source of env.catalog.sources) {
       const row = document.createElement('div');
       row.className = 'source-row';
+      const identity = document.createElement('div');
+      identity.className = 'source-identity';
       const name = document.createElement('span');
       name.textContent = source.name;
+      const origin = document.createElement('small');
+      if (source.kind === 'file') origin.textContent = 'Local file';
+      else {
+        try {
+          const url = new URL(source.location);
+          origin.textContent = url.host || 'Website unavailable';
+        } catch {
+          origin.textContent = 'Website unavailable';
+        }
+      }
+      origin.title = origin.textContent;
+      identity.append(name, origin);
       const remove = document.createElement('button');
       remove.textContent = 'Remove';
       remove.setAttribute('aria-label', `Remove source ${source.name}`);
@@ -144,7 +158,7 @@ export function createCatalogView(env: CatalogViewEnvironment) {
       remove.addEventListener('click', () => {
         void removeSource(source.id);
       });
-      row.append(name, remove);
+      row.append(identity, remove);
       rows.append(row);
     }
     sourceList.replaceChildren(rows);

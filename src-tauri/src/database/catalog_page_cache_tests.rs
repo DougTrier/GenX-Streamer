@@ -60,6 +60,8 @@ fn queries() -> Vec<crate::catalog_query::Query> {
             json!({"country":"US"}),
         ),
         ("", "favorites", "source", false, false, json!({})),
+        ("", "favorites", "name", true, false, json!({})),
+        ("", "favorites", "geography", true, false, json!({})),
     ] {
         out.push(serde_json::from_value(json!({"schemaVersion":1,"requestId":"cache-fixture","expectedCatalogRevision":null,"expectedViewRevision":null,"query":text,"filter":filter,"geography":geography,"sort":sort,"favoritesFirst":favorites_first,"hideAdult":hide_adult,"after":null,"startIndex":null,"anchorId":null,"pageSize":7})).unwrap());
     }

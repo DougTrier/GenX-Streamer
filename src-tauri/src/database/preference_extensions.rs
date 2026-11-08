@@ -96,6 +96,9 @@ fn providers(input: &Value, guide: bool) -> Result<Value, String> {
     Ok(Value::Array(result))
 }
 pub(super) fn normalize(preferences: &mut Value) -> Result<(), String> {
+    if let Some(teams) = preferences.get("favoriteTeams") {
+        validate_favorite_teams(teams)?;
+    }
     if preferences
         .get("contentLibrary")
         .is_some_and(|value| !matches!(value.as_str(), Some("live" | "genxtra")))
@@ -168,6 +171,63 @@ pub(super) fn normalize(preferences: &mut Value) -> Result<(), String> {
         }
     }
     Ok(())
+}
+
+fn validate_favorite_teams(value: &Value) -> Result<(), String> {
+    const INVALID: &str = "record-invalid-favorite-teams";
+    let teams = value
+        .as_array()
+        .filter(|list| list.len() <= 128)
+        .ok_or(INVALID)?;
+    let mut ids = HashSet::new();
+    for team in teams {
+        let fields = team.as_object().ok_or(INVALID)?;
+        if fields.keys().any(|key| {
+            !matches!(
+                key.as_str(),
+                "id" | "name"
+                    | "sport"
+                    | "location"
+                    | "level"
+                    | "league"
+                    | "scheduleUrl"
+                    | "broadcasterUrl"
+            )
+        }) {
+            return Err(INVALID.into());
+        }
+        let id = field(team, "id", 128).map_err(|_| INVALID)?;
+        if !id
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+            || !ids.insert(id)
+        {
+            return Err(INVALID.into());
+        }
+        for name in ["name", "sport", "location"] {
+            field(team, name, 160).map_err(|_| INVALID)?;
+        }
+        for name in ["level", "league"] {
+            if fields.contains_key(name) {
+                field(team, name, 160).map_err(|_| INVALID)?;
+            }
+        }
+        for name in ["scheduleUrl", "broadcasterUrl"] {
+            if fields.contains_key(name) {
+                location(&field(team, name, 2048).map_err(|_| INVALID)?, false)
+                    .map_err(|_| INVALID)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn favorite_teams_table(c: &rusqlite::Connection) -> Result<bool, String> {
+    super::sql(c.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='table' AND name='favorite_teams_v1')",
+        [],
+        |row| row.get(0),
+    ))
 }
 
 #[cfg(test)]

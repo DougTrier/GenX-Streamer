@@ -50,6 +50,7 @@ class ApkRulesTest {
     val xapk = "https://data.winudf.com/XAPK/Y29tLndoYXRzYXBw?_p=Y29t"
     val xapkDisposition = "attachment; filename=\"WhatsApp+Messenger_2.26.40.76_APKPure.xapk\""
     assertFalse(ApkRules.isApk(xapk, "application/octet-stream", xapkDisposition))
+    assertFalse(ApkRules.isApk(xapk, apkType, xapkDisposition))
     assertTrue(ApkRules.isBundle(xapk, "application/octet-stream", xapkDisposition))
     assertTrue(ApkRules.isBundle("https://www.apkmirror.com/x", null, "attachment; filename=\"app.apkm\""))
     assertFalse(ApkRules.isApk("https://example.org/movie.mp4", "video/mp4", null))
@@ -75,8 +76,11 @@ class ApkRulesTest {
 
   @Test
   fun cookiesStayWithTheSiteClicked() {
-    assertTrue(ApkRules.sameHost("https://www.apkmirror.com/download.php?id=1", "https://www.apkmirror.com/x"))
-    assertFalse(ApkRules.sameHost("https://cdn.example.net/file.apk", "https://www.apkmirror.com/x"))
+    assertEquals("https://www.apkmirror.com", ApkRules.origin("https://www.apkmirror.com:443/download.php?id=secret#token"))
+    assertEquals("https://www.apkmirror.com:8443", ApkRules.origin("https://www.apkmirror.com:8443/x"))
+    assertEquals("https://cdn.example.net", ApkRules.origin("https://cdn.example.net/file.apk"))
+    val credentialed = java.net.URI("https", "fixture:fixture", "example.org", -1, "/a.apk", null, null)
+    assertEquals(null, ApkRules.origin(credentialed.toString()))
   }
 
   @Test

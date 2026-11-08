@@ -18,7 +18,8 @@
  * GenXtra search navigation: result cards, partial outcomes, the main TV
  * dropdown and local search.
  */
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+import { openChannelSearch } from './helpers/search-workflows';
 import {
   useArchiveStatusNavigation,
   mount,
@@ -26,6 +27,13 @@ import {
 } from './archive-status-navigation.fixture';
 
 useArchiveStatusNavigation();
+
+async function useTvLayout(page: Page) {
+  await page.locator('#app').evaluate((app) => {
+    app.dataset.deviceKind = 'tv';
+  });
+  await expect(page.locator('#app')).not.toHaveAttribute('data-phone-portrait', 'true');
+}
 
 test('legacy result cards expose unknown language and an explicit video choice', async ({
   page,
@@ -136,6 +144,7 @@ for (const query of ['', 'Saved query']) {
     }) => {
       await page.goto('/');
       await expect(page.locator('#app')).toHaveAttribute('data-ready', 'true');
+      await useTvLayout(page);
       await page.locator('#genxtra-button').click();
       await page.locator('#search').fill(query);
       await page.evaluate((microphone) => {
@@ -242,7 +251,7 @@ for (const library of ['live', 'genxtra'] as const) {
       document.querySelector<HTMLElement>('#app')!.dataset.deviceKind =
         library === 'live' ? 'tv' : 'desktop';
     }, library);
-    await page.locator('#search').fill('Clear this query');
+    await (await openChannelSearch(page)).fill('Clear this query');
     await page.locator('#clear-search').click();
     await expect(page.locator('#search')).toHaveValue('');
     await expect(page.locator('#clear-search')).toBeHidden();
@@ -262,6 +271,7 @@ for (const seek of ['enabled', 'forward-disabled', 'disabled', 'hidden'] as cons
   }) => {
     await page.goto('/');
     await expect(page.locator('#app')).toHaveAttribute('data-ready', 'true');
+    await useTvLayout(page);
     await page.locator('#genxtra-button').click();
     await page.evaluate((seek) => {
       // Isolate navigation with the actual main handlers and production dock.
@@ -310,6 +320,7 @@ test('actual main TV dropdown routing reaches both selectors and toolbar while o
   await page.setViewportSize({ width: 960, height: 540 });
   await page.goto('/');
   await expect(page.locator('#app')).toHaveAttribute('data-ready', 'true');
+  await useTvLayout(page);
   await page.locator('#genxtra-button').click();
   await page.locator('#search').fill('Q');
   await page.evaluate(async () => {
@@ -369,6 +380,7 @@ test('actual main TV dropdown routing reaches both selectors and toolbar while o
 test('actual main status retains optional counters and immediately hides previous-query progress', async ({
   page,
 }) => {
+  await page.setViewportSize({ width: 1280, height: 720 });
   // The archive status renderer lives in the library controller (moved out of main.ts).
   await page.route('**/src/application/genxtra/library-controller.ts*', async (route) => {
     const response = await route.fetch();

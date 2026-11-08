@@ -70,6 +70,15 @@ import './ui/guide-panel.css';
 import './ui/premium-buttons.css';
 import './ui/category-menu.css';
 import './ui/sports-filters.css';
+import './ui/favorite-teams.css';
+import { mountFavoriteTeams } from './ui/settings/favorite-teams';
+import {
+  discoverTeamGames,
+  lookupIllinoisTeams,
+  searchGamePages,
+} from './application/guide/team-games';
+import { gameSearchTarget } from './search/team-web-search';
+import { mountGameSearch } from './ui/guide/game-search';
 import './ui/saved-channel-check.css';
 import './ui/picture-states.css';
 import './ui/header-art.css';
@@ -144,6 +153,7 @@ import { createSharingAndCasting } from './application/sharing/sharing-and-casti
 import { createPreferencesSetup } from './application/shell/preferences-setup';
 import { createPlaybackSetup } from './application/playback/playback-setup';
 import { createShellSetup } from './application/shell/shell-setup';
+import { createFavoriteTransfer } from './application/sharing/favorite-transfer';
 import { createGuidePlaybackIntents } from './application/playback/guide-playback-intent';
 import { joinGuideWork } from './application/guide/join-guide-work';
 
@@ -235,6 +245,11 @@ const app = createSharedContext(
     dailyRefresh: () => dailyRefresh,
     DEVICE_KIND_KEY: () => DEVICE_KIND_KEY,
     diagnostics: () => diagnostics,
+    dismissTeamBrowse: () => () => {
+      if (!gameSearch.close()) return favoriteTeams.back();
+      element('search').focus({ preventScroll: true });
+      return true;
+    },
     disposeVODTransport: () => disposeVODTransport,
     editPublicChannelGroup: () => editPublicChannelGroup,
     element: () => element,
@@ -373,6 +388,7 @@ const app = createSharedContext(
     switchPrimaryPage: () => switchPrimaryPage,
     televisionSelects: () => sharingAndCasting.televisionSelects,
     toggleChannelFavorite: () => toggleChannelFavorite,
+    pendingChannelFavorite: () => pendingChannelFavorite,
     transferBusy: () => transferBusy,
     updateGuideForeground: () => updateGuideForeground,
     updateImportActions: () => updateImportActions,
@@ -449,7 +465,12 @@ const accountScope = createAccountScope(app);
 const { selectAccountScope } = accountScope;
 
 const channelEdits = createChannelEdits(app);
-const { editPublicChannelGroup, publicGroupControllers, toggleChannelFavorite } = channelEdits;
+const {
+  editPublicChannelGroup,
+  pendingChannelFavorite,
+  publicGroupControllers,
+  toggleChannelFavorite,
+} = channelEdits;
 
 const accountPlaybackSelection = createAccountPlaybackSelection(app);
 const { selectAccountPlayback, playAccountVod } = accountPlaybackSelection;
@@ -512,7 +533,7 @@ if (isTauri())
   bootstrapBoundary.run('shell', () =>
     mountVpnIndicator(document.querySelector<HTMLElement>('.topbar')!, createVpnStatus()),
   );
-const shellSetup = createShellSetup(app);
+const shellSetup = createShellSetup(app, createFavoriteTransfer(app));
 const {
   playbackDiagnostics,
   audioDiagnostics,
@@ -594,7 +615,6 @@ const playbackAllowsHttp = (url: string) =>
   archivePlayer?.allowsHttp(url) === true ||
   localStreams?.allowsHttp(url) === true ||
   accountPlayer?.allowsHttp(url) === true ||
-  shareLinks?.allowsHttp(url) === true ||
   sourceAllowsHttp(url);
 // Android: Paid TV movies and episodes play natively so their embedded audio
 // languages and subtitles can be chosen, and so do live channels whose MPEG-2
@@ -730,6 +750,56 @@ const accountSetup = createAccountSetup(app);
 const { accountControls, openAccountSettings } = accountSetup;
 
 element('settings-button').addEventListener('click', openAccountSettings);
+const findTeamChannel = ({ id, sourceId }: { id: string; sourceId: string }) =>
+  preferencesSetup.settings.removedChannels.includes(id)
+    ? undefined
+    : catalog.channels.find((channel) => channel.id === id && channel.sourceId === sourceId);
+function openGamePage(url: string, title: string): void {
+  if (localStreams) playbackAction(localStreams.openGamePage(url, title));
+}
+const gameSearch = mountGameSearch(element('channel-list'), {
+  search: (target, signal) => searchGamePages(target, localStreams?.stationSites() ?? [], signal),
+  open: openGamePage,
+});
+const favoriteTeams = mountFavoriteTeams(
+  element('favorite-teams-settings'),
+  element('sports-filters').querySelector<HTMLElement>('.sports-filter-controls')!,
+  {
+    read: () => preferencesSetup.settings.favoriteTeams ?? [],
+    location: () => {
+      const region = preferencesSetup.settings.preferredRegion;
+      return region?.state ?? region?.country ?? '';
+    },
+    update: settingsController.saveFavoriteTeams,
+    lookupIllinois: isTauri() ? lookupIllinoisTeams : undefined,
+    discover: (team, signal, includeChannels) =>
+      discoverTeamGames(team, signal, localStreams?.stationSites(), includeChannels),
+    channelName: (reference) => findTeamChannel(reference)?.name,
+    tune: (reference) =>
+      playbackAction(
+        (async () => {
+          if (accountBrowser.selectedAccount) await libraries?.select(null);
+          const channel = findTeamChannel(reference);
+          if (!channel) throw new Error('This channel is no longer available.');
+          element('app').dataset.compactView = 'watch';
+          element<HTMLSelectElement>('compact-view').value = 'watch';
+          if (
+            element('app').dataset.phoneView === 'browse' &&
+            matchMedia('(orientation: portrait)').matches
+          )
+            element('phone-watch-button').click();
+          await guideHost.watch(channel, new AbortController().signal);
+        })(),
+      ),
+    watch: openGamePage,
+    openSettings: () => {
+      if (!element<HTMLDialogElement>('settings-dialog').open) element('settings-button').click();
+      document
+        .querySelector<HTMLButtonElement>('[data-settings-section="favorite-teams"]')
+        ?.click();
+    },
+  },
+);
 const speechSearch = mountSpeechSearch(
   element('speech-control'),
   element<HTMLInputElement>('search'),
@@ -828,11 +898,27 @@ updateVisibleGuide();
 // the channel search used to open Program search instead. The guide's own
 // search box finds programmes.
 element('guide-button').addEventListener('click', () => playbackAction(switchPrimaryPage('guide')));
+function startGameSearch(): boolean {
+  const search = element<HTMLInputElement>('search');
+  const { filter, sportsFacet } = browser.getBrowseState();
+  const target = gameSearchTarget(
+    search.value,
+    preferencesSetup.settings.favoriteTeams ?? [],
+    filter === 'sports' ? sportsFacet : undefined,
+  );
+  if (!target) return false;
+  favoriteTeams.closeBrowse();
+  search.blur();
+  void gameSearch.start({ ...target, includeYouTube: !accountBrowser.selectedAccount });
+  return true;
+}
 element('search').addEventListener(
   'keydown',
   (event) => {
     if (
       event.key === 'Enter' &&
+      !event.isComposing &&
+      !event.repeat &&
       (library.contentLibrary === 'genxtra' || !library.liveBrowseSuspended) &&
       element<HTMLInputElement>('search').value.trim()
     ) {
@@ -842,6 +928,8 @@ element('search').addEventListener(
         return;
       }
       browser.search(element<HTMLInputElement>('search').value);
+      if (startGameSearch()) return;
+      if (!accountBrowser.selectedAccount) element('search-programs').click();
       element<HTMLInputElement>('search').blur();
       element('channel-list').focus({ preventScroll: true });
     }
@@ -875,6 +963,7 @@ const { renderPlayer, vodRewind, renderVODTransport, disposeVODTransport, playba
 element('genxtra-button').addEventListener('click', () => playbackAction(switchLibrary('genxtra')));
 element('search-programs').addEventListener('click', () => {
   if (library.contentLibrary === 'genxtra') playbackAction(archiveSearch!.searchOnline());
+  else if (startGameSearch()) return;
   // Paid channels come from the account's own import, never the public scan.
   else if (accountBrowser.selectedAccount) {
     element('settings-button').click();
@@ -882,6 +971,8 @@ element('search-programs').addEventListener('click', () => {
   } else startInlineDiscovery();
 });
 element('search').addEventListener('input', () => {
+  gameSearch.close();
+  favoriteTeams.closeBrowse();
   const query = element<HTMLInputElement>('search').value;
   libraryQueries[library.contentLibrary] = query;
   if (library.contentLibrary === 'genxtra') renderArchiveDiscovery(archiveDiscovery.snapshot);
@@ -889,29 +980,67 @@ element('search').addEventListener('input', () => {
   element('search-programs').hidden = false;
   element('clear-search').hidden = query.length === 0;
 });
+for (const id of [
+  'live-tv-button',
+  'paid-tv-button',
+  'genxtra-button',
+  'guide-button',
+  'local-button',
+]) {
+  document.getElementById(id)?.addEventListener('click', gameSearch.close, { capture: true });
+}
+element('sports-filters').addEventListener('click', (event) => {
+  if ((event.target as Element).closest('.my-teams-entry')) gameSearch.close();
+});
+element('sports-filters').addEventListener('change', gameSearch.close);
 element('clear-search').addEventListener('click', () => {
   const search = element<HTMLInputElement>('search');
   search.value = '';
   search.dispatchEvent(new Event('input', { bubbles: true }));
   if (library.contentLibrary === 'genxtra' && element('app').dataset.deviceKind === 'tv')
     remoteEditMode.navigate(search);
-  element(library.contentLibrary === 'live' ? 'channel-list' : 'search').focus({
-    preventScroll: true,
-  });
+  const target =
+    library.contentLibrary === 'live' && !search.closest('dialog[open]')
+      ? element('channel-list')
+      : search;
+  target.focus({ preventScroll: true });
 });
 const categorySelector = element<HTMLSelectElement>('compact-filter');
-const chooseCategory = (filter: ChannelFilter): void => {
+const chooseCategory = (
+  category: ChannelFilter,
+  favoritesOnly = browser.isFavoritesOnly(),
+): void => {
+  gameSearch.close();
+  favoriteTeams.closeBrowse();
+  const filter = favoritesOnly && category === 'all' ? 'favorites' : category;
+  browser.setFilter(filter, favoritesOnly && filter !== 'favorites');
   for (const item of document.querySelectorAll<HTMLElement>('[data-filter]'))
-    item.setAttribute('aria-pressed', String(item.dataset.filter === filter));
+    item.setAttribute(
+      'aria-pressed',
+      String(
+        item.dataset.filter === 'favorites'
+          ? browser.isFavoritesOnly()
+          : item.dataset.filter === filter,
+      ),
+    );
   categorySelector.value = filter;
-  browser.setFilter(filter);
+  geographyControls.showSort(browser.getSort(), browser.isFavoritesOnly());
+  sharingAndCasting.televisionSelects?.refresh();
   presentNotResponding();
 };
 function clearBrowseFilters(): void {
   clearActiveBrowseFilters(app);
 }
 for (const button of document.querySelectorAll<HTMLButtonElement>('[data-filter]'))
-  button.addEventListener('click', () => chooseCategory(button.dataset.filter as ChannelFilter));
+  button.addEventListener('click', () => {
+    const category = button.dataset.filter as ChannelFilter;
+    if (category === 'favorites') {
+      const { filter } = browser.getBrowseState();
+      chooseCategory(filter === 'favorites' ? 'all' : filter, !browser.isFavoritesOnly());
+    } else {
+      chooseCategory(category);
+    }
+  });
 categorySelector.addEventListener('change', () =>
   chooseCategory(categorySelector.value as ChannelFilter),
 );

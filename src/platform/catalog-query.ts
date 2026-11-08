@@ -55,6 +55,7 @@ export interface CatalogQuery {
   };
   sort: 'source' | 'name' | 'geography';
   favoritesFirst?: boolean;
+  favoritesOnly?: boolean;
   /** Leave out channels explicitly labeled adult. */
   hideAdult?: boolean;
   sports?: SportsScope;
@@ -204,6 +205,7 @@ function query(input: CatalogQueryInput, requestId: string): CatalogQuery {
       'geography',
       'sort',
       'favoritesFirst',
+      'favoritesOnly',
       'hideAdult',
       'sports',
       'historyIds',
@@ -222,6 +224,7 @@ function query(input: CatalogQueryInput, requestId: string): CatalogQuery {
     ) ||
     !['source', 'name', 'geography'].includes(String(v.sort)) ||
     (v.favoritesFirst !== undefined && typeof v.favoritesFirst !== 'boolean') ||
+    (v.favoritesOnly !== undefined && typeof v.favoritesOnly !== 'boolean') ||
     (v.hideAdult !== undefined && typeof v.hideAdult !== 'boolean') ||
     !integer(v.pageSize, 50) ||
     v.pageSize < 1 ||

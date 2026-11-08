@@ -26,7 +26,6 @@ import {
   SHARE_PAGE,
   type SharedItem,
 } from '../../src/sharing/share-link';
-import { streamCheckMessage } from '../../src/application/sharing/shared-incoming';
 
 const channel: SharedItem = {
   kind: 'channel',
@@ -86,6 +85,10 @@ describe('share links', () => {
       'http://alice:s3cret@provider.example.com/stream.m3u8',
       'http://provider.example.com/get.php?username=alice&password=s3cret',
       'http://provider.example.com/play.m3u8?token=abc',
+      'https://cdn.example.com/live.m3u8?X-Amz-Signature=secret',
+      'https://provider.example.com/%6cive/alice/secret/12345.ts',
+      'https://provider.example.com/alice/secret/12345',
+      'https://provider.example.com/%256cive/alice/secret/12345.ts',
       'https://cdn.example.com/live.m3u8?hdnts=exp=1~acl=*',
       'http://portal.example.com/play/live.php?mac=00:1A:79:00:00:01&stream=1',
     ]) {
@@ -202,22 +205,5 @@ describe('share links', () => {
         refused,
       ).not.toBe('accepted');
     expect(code(() => parseShareLink(`genx://watch?v=2&c=ch&n=x`))).toBe('share-link-version');
-  });
-
-  it('explains expired, moved, region-locked and unreachable streams plainly', () => {
-    expect(streamCheckMessage('News 24', { status: 404 })).toContain(
-      'no longer at the shared address',
-    );
-    expect(streamCheckMessage('News 24', { status: 410 })).toContain('moved or ended');
-    expect(streamCheckMessage('News 24', { status: 403 })).toContain('certain countries');
-    expect(streamCheckMessage('News 24', { status: 451 })).toContain('certain countries');
-    expect(streamCheckMessage('News 24', { status: 503 })).toContain('not answering');
-    expect(streamCheckMessage('News 24', { error: 'dns-failure' })).toContain('could not be found');
-    expect(streamCheckMessage('News 24', { error: 'share-destination-private' })).toContain(
-      'private or local network',
-    );
-    expect(streamCheckMessage('News 24', { error: 'timeout' })).toContain('did not answer');
-    expect(streamCheckMessage('News 24', {})).toBeNull();
-    expect(streamCheckMessage('News 24', { status: 200 })).toBeNull();
   });
 });

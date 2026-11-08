@@ -71,6 +71,7 @@ fn query(text: &str) -> Query {
         geography: Map::new(),
         sort: Sort::Source,
         favorites_first: false,
+        favorites_only: false,
         hide_adult: false,
         after: None,
         start_index: None,

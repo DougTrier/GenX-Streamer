@@ -429,11 +429,32 @@ impl PairStore {
             let mut source_definitions = Vec::new();
             let mut total = 0usize;
             let mut packed_bytes = 0usize;
-            // Published playlists often mirror each other. A stream (exact ordered
-            // URL list, the stored address hash) is checked once per job: the first
-            // due occurrence in configured source/entry order. A stream with a
-            // current check in any requested source is not checked again.
+            // A mirrored stream normally needs only its first due occurrence.
+            // An existing saved channel with a changed address needs its own
+            // publication so that the new address can keep the saved identity.
             let mut streams = HashSet::<String>::new();
+            let mut saved_by_metadata = HashMap::new();
+            if request.query.trim().is_empty() && !matches!(request.mode, Mode::Slow) {
+                let mut statement = sql(tx.prepare(
+                    "SELECT c.source_id,c.provider_id,c.name,c.category,u.url FROM channel c
+                     JOIN channel_url u ON u.channel_id=c.id AND u.ordinal=0",
+                ))?;
+                let mut rows = sql(statement.query([]))?;
+                while let Some(row) = sql(rows.next())? {
+                    check()?;
+                    let channel = json!({
+                        "sourceId": sql::<String>(row.get(0))?,
+                        "providerId": sql::<Option<String>>(row.get(1))?.unwrap_or_default(),
+                        "name": sql::<String>(row.get(2))?,
+                        "category": sql::<String>(row.get(3))?
+                    });
+                    let url: String = sql(row.get(4))?;
+                    saved_by_metadata
+                        .entry(crate::scan_resume_reconcile::metadata(&channel)?)
+                        .and_modify(|saved| *saved = None)
+                        .or_insert(Some(url));
+                }
+            }
             let grant_with = |definition: &Value, profile: &str| {
                 hash(&json!([
                     "network-permission-v1",
@@ -580,7 +601,13 @@ impl PairStore {
                         {
                             continue;
                         }
-                        if !streams.insert(address) {
+                        let first_transport = streams.insert(address);
+                        let updates_saved_address = !saved_by_metadata.is_empty()
+                            && saved_by_metadata
+                                .get(&crate::scan_resume_reconcile::metadata(&channel)?)
+                                .and_then(Option::as_deref)
+                                .is_some_and(|url| channel["urls"][0] != url);
+                        if !first_transport && !updates_saved_address {
                             continue;
                         }
                         let category = channel["category"].as_str().ok_or(ERR)?.to_owned();
@@ -602,15 +629,20 @@ impl PairStore {
                         if packed_bytes > 20 * 1024 * 1024 - 256 * 1024 {
                             return Err("scan-checkpoint-too-large".into());
                         }
-                        let priority = activation_priority(
+                        let demoted = provider.is_some_and(|p| demoted_ids.contains(p));
+                        let priority = i16::from(activation_priority(
                             relevance_tier(
                                 &request.query,
                                 channel["name"].as_str().ok_or(ERR)?,
                                 alias_hit,
                             ),
                             region_priority(&channel, context.preferences.get("preferredRegion")),
-                            provider.is_some_and(|p| demoted_ids.contains(p)),
-                        );
+                            demoted,
+                        )) - if updates_saved_address && !demoted {
+                            128
+                        } else {
+                            0
+                        };
                         candidates.push((priority, packed));
                         sql(tx.execute(
                             "INSERT INTO source_activation_selected VALUES(?1,?2,?3,?4,?5)",

@@ -18,6 +18,7 @@ const receipt: SourceCleanupReceipt = {
   committed: true,
   status: 'completed',
   archivedCount: 1,
+  expiredEventIds: [],
   checkedTargets: 1,
   deferredCount: 0,
   catalogRevision: '4',

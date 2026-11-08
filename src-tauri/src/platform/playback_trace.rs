@@ -704,6 +704,9 @@ impl Store {
             }
             "clear" => {
                 r.active = false;
+                r.version = self.version.clone();
+                r.build = self.build;
+                r.started_at_ms = 0;
                 r.until_ms = 0;
                 r.records.clear();
                 r.dropped_events = 0;
@@ -1663,11 +1666,14 @@ mod tests {
             });
         } // exercise bounded persisted snapshot without 800 disk syncs
         store.record(record()).unwrap();
-        let next = Store::new(path, "0.1.6");
+        let next = Store::new(path, "0.1.32");
         let report = next.action("read").unwrap();
         assert_eq!(report["active"], false);
+        assert_eq!(report["build"], 1006);
         assert_eq!(report["records"].as_array().unwrap().len(), LIMIT);
-        next.action("clear").unwrap();
+        let cleared = next.action("clear").unwrap();
+        assert_eq!(cleared["build"], 1032);
+        assert_eq!(cleared["startedAtMs"], 0);
         assert_eq!(
             next.action("read").unwrap()["records"]
                 .as_array()

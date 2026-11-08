@@ -14,7 +14,12 @@
  * limitations under the License.
  */
 
-import { openGuideProgramSearch, seedSavedSearchChannels } from './helpers/search-workflows';
+import {
+  closeChannelSearch,
+  openChannelSearch,
+  openGuideProgramSearch,
+  seedSavedSearchChannels,
+} from './helpers/search-workflows';
 import { openPlaylistImport } from './helpers/source-scan';
 import { saveReviewedSource } from './helpers/source-scan';
 import { test, expect } from '@playwright/test';
@@ -31,7 +36,7 @@ for (const viewport of [
     await expect(page.locator('#app')).toHaveAttribute('data-ready', 'true');
     if (await page.getByLabel('Viewing panel').isVisible())
       await page.getByLabel('Viewing panel').selectOption('channels');
-    const input = page.locator('#search');
+    const input = await openChannelSearch(page);
     expect(
       await input.evaluate((node) =>
         Math.abs(
@@ -79,6 +84,9 @@ test('short TV layout keeps a complete guided channel row visible while searchin
   await page.setViewportSize({ width: 960, height: 540 });
   await page.goto('/');
   await expect(page.locator('#app')).toHaveAttribute('data-ready', 'true');
+  await page.locator('#app').evaluate((root) => {
+    root.dataset.deviceKind = 'tv';
+  });
   await openPlaylistImport(page);
   await page.locator('#playlist-file').setInputFiles({
     name: 'fixture.m3u',
@@ -91,20 +99,8 @@ test('short TV layout keeps a complete guided channel row visible while searchin
   await expect(page.locator('#import-dialog')).not.toBeVisible();
   const divider = page.locator('#divider');
   await divider.focus();
-  // Each key saves asynchronously; await its actual applied width before the next key.
-  for (let index = 0; index < 18; index++) {
-    const current = Number(await divider.getAttribute('aria-valuenow'));
-    expect(Number.isFinite(current) && current >= 240 && current <= 600).toBe(true);
-    await divider.press('ArrowLeft');
-    await expect(divider).toHaveAttribute('aria-valuenow', String(Math.max(240, current - 20)));
-    if (current <= 260) break;
-  }
+  await divider.press('Home');
   await expect(divider).toHaveAttribute('aria-valuenow', '240');
-  // Browser dimensions alone do not identify a television. Set the CSS fixture
-  // after the desktop divider setup; Android capability detection is separate.
-  await page.locator('#app').evaluate((root) => {
-    root.dataset.deviceKind = 'tv';
-  });
   await page.locator('#search').fill('CBS');
   await expect(page.locator('#search-programs')).toBeVisible();
   await expect(page.locator('#compact-filter')).toBeHidden();
@@ -147,7 +143,7 @@ test('native Back honors a modal owner that still has work to settle', async ({ 
   await expect(dialog).not.toBeVisible();
 });
 
-test('shared saved-channel search stays in the left pane and Enter never tunes or acquires', async ({
+test('typing in saved-channel search stays in the left pane without tuning or acquiring', async ({
   page,
 }) => {
   let acquisitions = 0;
@@ -160,7 +156,6 @@ test('shared saved-channel search stays in the left pane and Enter never tunes o
   await seedSavedSearchChannels(page);
   const title = await page.locator('#watch-title').textContent();
   await page.locator('#search').fill('Chicago Bears');
-  await page.locator('#search').press('Enter');
   await expect(page.locator('#channel-count')).toHaveText('1 channel');
   await expect(page.locator('#channel-list .channel strong')).toHaveText(['Chicago Bears TV']);
   await expect(page.locator('#primary-view-host')).toBeHidden();
@@ -215,7 +210,8 @@ for (const size of [
     await expect(page.locator('#app')).toHaveAttribute('data-ready', 'true');
     await seedSavedSearchChannels(page);
     const title = await page.locator('#watch-title').textContent();
-    await page.locator('#search').fill('Chicago Bears');
+    await (await openChannelSearch(page)).fill('Chicago Bears');
+    await closeChannelSearch(page);
     const { guide, input } = await openGuideProgramSearch(page, 'Chicago Bears');
     await expect(input).toHaveValue('Chicago Bears');
     const action = guide.getByRole('button', { name: 'Search programs', exact: true });

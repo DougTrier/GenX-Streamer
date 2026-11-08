@@ -16,6 +16,49 @@
 
 import { expect, test, type Page } from '@playwright/test';
 
+test('replay dates distinguish a provider air date from an exact completed NFL game', async ({
+  page,
+}) => {
+  await page.route('**/replay-date-fixture', (route) =>
+    route.fulfill({ contentType: 'text/html', body: '<!doctype html><title>Replay dates</title>' }),
+  );
+  await page.goto('/replay-date-fixture');
+  const result = await page.evaluate(async () => {
+    const { nflGameDate, nflReplayQuery, replayDateLabel } = await import(
+      '/src/search/replay-dates.ts' as string
+    );
+    const listing = {
+      title: 'NFL Replay: Cowboys at Eagles · 2025 Week 1',
+      startMs: Date.UTC(2026, 10, 7),
+    };
+    const query = nflReplayQuery(listing);
+    const url = 'https://www.nfl.com/games/cowboys-at-eagles-2025-reg-1';
+    const html = `<title>Dallas Cowboys at Philadelphia Eagles 2025 REG 1 - Game Center</title>
+      <link rel="canonical" href="${url}">
+      <section data-testid="MatchupBanner-2"><time data-testid="game-date" datetime="2025-09-05T00:20:00Z"></time></section>
+      <script>window.utag_data = {"gameState":"FINAL","siteSubsection":"gamecenter"};</script>`;
+    const replay = { originalAirDate: '2025-09-04', previousAirDate: '2025-09-06' };
+    return {
+      url: query?.urls[0],
+      official: nflGameDate(html, url, query)?.day,
+      future: nflGameDate(html.replace('FINAL', 'PREGAME'), url, query),
+      wrongTeams: nflGameDate(html.replace('Philadelphia Eagles', 'Detroit Lions'), url, query),
+      missingWeek: nflReplayQuery({ ...listing, title: 'NFL Replay: Cowboys at Eagles · 2025' }),
+      provider: replayDateLabel({ ...listing, replay }),
+      previous: replayDateLabel({ ...listing, replay: { ...replay, originalAirDate: null } }),
+      skipLookup: nflReplayQuery({ ...listing, replay }),
+    };
+  });
+  expect(result.url).toBe('https://www.nfl.com/games/cowboys-at-eagles-2025-reg-1');
+  expect(result.official).toBe('2025-09-04');
+  expect(result.future).toBeUndefined();
+  expect(result.wrongTeams).toBeUndefined();
+  expect(result.missingWeek).toBeUndefined();
+  expect(result.provider).toMatch(/^Originally aired · /u);
+  expect(result.previous).toMatch(/^Previously aired · /u);
+  expect(result.skipLookup).toBeUndefined();
+});
+
 /** The real Paid TV guide panel and timeline with a controlled guide host (no native, no network). */
 async function mount(
   page: Page,
@@ -28,6 +71,8 @@ async function mount(
     sharedEpg?: boolean;
     sports?: boolean;
     history?: boolean;
+    replay?: boolean;
+    laterMatch?: boolean;
   },
 ): Promise<void> {
   await page.route('**/paid-guide-fixture', (route) =>
@@ -181,6 +226,7 @@ async function mount(
       ) => {
         Reflect.set(window, 'lastListedSports', sports);
         Reflect.set(window, 'lastListedHistory', history);
+        Reflect.set(window, 'lastListedWindow', [_from, _to]);
         const matched = rows
           .filter((row) => !history || history.ids.includes(row.id))
           .filter((row) => !options.sharedEpg || ('ppv' in row && row.ppv === true) === ppv)
@@ -197,6 +243,10 @@ async function mount(
           .filter(
             (row) =>
               !search ||
+              (options.laterMatch &&
+                search.toLowerCase() === 'football' &&
+                _from <= now + 5 * hour &&
+                now + 5 * hour < _to) ||
               (options.ppv && ppv && search.toLowerCase() === 'championship') ||
               `${row.name} ${row.category}`.toLowerCase().includes(search.toLowerCase()),
           );
@@ -204,6 +254,7 @@ async function mount(
           revision: stored!.revision,
           epgIds: matched.map((row) => row.epgId),
           channelIds: matched.map((row) => row.id),
+          ...(options.laterMatch ? { firstStartsMs: matched.map(() => now + 5 * hour) } : {}),
           ppvChannelIds: matched
             .filter((row) => ppv || ('ppv' in row && row.ppv))
             .map((row) => row.id),
@@ -233,8 +284,8 @@ async function mount(
           programs: [
             {
               epgId,
-              startMs: now,
-              stopMs: now + 3 * hour,
+              startMs: options.laterMatch ? now + 5 * hour : now,
+              stopMs: now + (options.laterMatch ? 8 : 3) * hour,
               ordinal: 0,
               title: options.sports
                 ? rows.find((row) => row.id === channelId)?.category.includes('MLB')
@@ -247,6 +298,9 @@ async function mount(
                   : 'NFL Football: Bears at Saints',
               description: 'Chicago and New Orleans meet.',
               categories: [],
+              ...(options.replay
+                ? { replay: { originalAirDate: '2025-09-04', previousAirDate: '2025-09-06' } }
+                : {}),
             },
           ],
         };
@@ -444,6 +498,45 @@ test('opening the Paid TV guide downloads the provider guide and lists its chann
   await page.getByRole('button', { name: 'Close guide' }).click();
   await expect.poll(async () => (await log(page)).at(-1)).toBe('close');
 });
+
+test('shows the original date separately from the replay slot in listing details', async ({
+  page,
+}) => {
+  await mount(page, { stored: 'fresh', download: 'ok', replay: true });
+  await page.getByRole('button', { name: /NFL Football: Bears at Saints/ }).click();
+  await expect(page.getByText(/^Originally aired · /u)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Back to timeline' })).toBeVisible();
+});
+
+for (const narrow of [false, true]) {
+  test(`Football searches the visible Paid Guide window and jumps to the next actual listing (narrow=${narrow})`, async ({
+    page,
+  }) => {
+    await mount(page, { stored: 'fresh', download: 'ok', laterMatch: true });
+    if (narrow) {
+      await page.setViewportSize({ width: 430, height: 700 });
+      await page.locator('#host').evaluate((host) => {
+        host.style.width = '430px';
+      });
+      await expect(page.locator('.gx-timeline')).toHaveAttribute('data-layout', 'agenda');
+    }
+    const search = page.getByRole('searchbox', { name: 'Search guide channels and programs' });
+    await search.fill('Football');
+    await search.press('Enter');
+    await expect(page.getByText('No matches for “Football” in these 3 hours.')).toBeVisible();
+    await expect(page.getByRole('button', { name: 'FOX 32 Chicago' })).toHaveCount(0);
+    const firstWindow = await page.evaluate(
+      () => Reflect.get(window, 'lastListedWindow') as number[],
+    );
+    expect(firstWindow[1]! - firstWindow[0]!).toBe(3 * 3_600_000);
+    await page.getByRole('button', { name: 'Next match' }).click();
+    await expect(page.getByRole('button', { name: /NFL Football: Bears at Saints/ })).toBeVisible();
+    const laterWindow = await page.evaluate(
+      () => Reflect.get(window, 'lastListedWindow') as number[],
+    );
+    expect(laterWindow[0]! - firstWindow[0]!).toBe(5 * 3_600_000);
+  });
+}
 
 test('a guide downloaded recently opens without downloading again', async ({ page }) => {
   await mount(page, { stored: 'fresh', download: 'ok' });

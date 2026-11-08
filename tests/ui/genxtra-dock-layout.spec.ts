@@ -25,6 +25,8 @@ async function mount(page: Page, television: boolean): Promise<void> {
   );
   await page.goto('/vod-dock-fixture');
   await page.evaluate(async (television) => {
+    const phoneLayout = '/src/ui/phone-portrait.css';
+    if (television) await import(phoneLayout);
     const shellPath = '/src/ui/shell/shell.ts',
       dockPath = '/src/ui/player/vod-dock.ts',
       viewportPath = '/src/ui/shell/viewport.ts',

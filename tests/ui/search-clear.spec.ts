@@ -18,7 +18,6 @@ import { openPlaylistImport } from './helpers/source-scan';
 import { saveReviewedSource } from './helpers/source-scan';
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
-// Candidate: copy to tests/ui/search-clear.spec.ts only after applying the reviewed patch.
 async function reach(page: Page, target: Locator): Promise<void> {
   const visits = new Map<string, number>();
   for (let step = 0; step < 40; step++) {
@@ -85,11 +84,13 @@ for (const size of [
     await expect(page.locator('#import-dialog')).not.toBeVisible({ timeout: 30000 });
     if (await page.locator('#compact-view').isVisible())
       await page.locator('#compact-view').selectOption('channels');
+    const phoneFilters = page.locator('#phone-filter-button');
+    const phone = await phoneFilters.isVisible();
+    const search = page.getByRole('searchbox', { name: 'Search channels' });
+    if (phone) await phoneFilters.click();
     const clear = page.getByRole('button', { name: 'Clear search', exact: true });
     await expect(clear).toBeHidden();
-    await page
-      .getByRole('searchbox', { name: 'Search channels' })
-      .fill('a long unmatched query that should not need individual deletion');
+    await search.fill('a long unmatched query that should not need individual deletion');
     await expect(page.locator('#channel-count')).toHaveText('0 channels');
     await expect(page.locator('#search-programs')).toBeVisible();
     await clear.evaluate((button) => {
@@ -109,20 +110,25 @@ for (const size of [
     expect(hit.height).toBeGreaterThanOrEqual(44);
     expect(hit.inBounds && hit.hit).toBe(true);
     // Focus setup only; all traversal and activation after this use actual keyboard arrows/OK.
-    await page.locator('#channel-list').focus();
+    await (phone ? page.locator('#phone-filter-close') : page.locator('#channel-list')).focus();
     await reach(page, clear);
     await page.keyboard.press('Enter');
     await expect(page.locator('#search')).toHaveValue('');
     await expect(page.locator('#channel-count')).toHaveText('2 channels');
     await expect(page.locator('#search-programs')).toBeVisible();
     await expect(clear).toBeHidden();
-    await expect(page.locator('#channel-list')).toBeFocused();
+    await expect(phone ? search : page.locator('#channel-list')).toBeFocused();
     await expect(page.locator('#playback-status')).toHaveText('Ready when you are');
     expect(mediaRequests).toBe(0);
-    await page.getByRole('searchbox', { name: 'Search channels' }).fill('Sports');
+    if (phone) await search.press('Enter'); // Remote navigation mode requires OK to edit again.
+    await search.fill('Sports');
     await expect(clear).toBeVisible();
     await clear.click();
     await expect(page.locator('#channel-count')).toHaveText('2 channels');
-    await expect(page.locator('#channel-list')).toBeFocused();
+    await expect(phone ? search : page.locator('#channel-list')).toBeFocused();
+    if (phone) {
+      await page.locator('#phone-filter-close').click();
+      await expect(phoneFilters).toBeFocused();
+    }
   });
 }

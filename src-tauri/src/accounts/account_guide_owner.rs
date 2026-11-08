@@ -247,6 +247,7 @@ pub(crate) struct Listed {
     epg_ids: Vec<String>,
     channel_ids: Vec<String>,
     ppv_channel_ids: Vec<String>,
+    first_starts_ms: Vec<i64>,
 }
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -319,6 +320,7 @@ pub(crate) async fn listed(
             epg_ids: membership.epg_ids,
             channel_ids: membership.channel_ids,
             ppv_channel_ids: membership.ppv_channel_ids,
+            first_starts_ms: membership.first_starts_ms,
         })
     })
     .await

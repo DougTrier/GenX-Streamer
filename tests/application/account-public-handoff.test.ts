@@ -22,10 +22,12 @@ import { createAccountPlayback } from '../../src/platform/account-playback';
 
 function deferred() {
   let resolve!: () => void;
-  const promise = new Promise<void>((done) => {
+  let reject!: (error: Error) => void;
+  const promise = new Promise<void>((done, fail) => {
     resolve = done;
+    reject = fail;
   });
-  return { promise, resolve };
+  return { promise, resolve, reject };
 }
 
 it('canceled public handoff cannot select after its preceding cleanup finally settles', async () => {
@@ -396,6 +398,65 @@ it('a suspended private channel reacquires a new capability only on explicit sel
     await player.dispose();
   }
 });
+
+it('retries a transient stop failure before starting the current channel', async () => {
+  const select = vi.fn(async () => {});
+  const stop = vi.fn(async () => {}).mockRejectedValueOnce(new Error('transient cleanup failure'));
+  const owner = createAccountPlayer({
+    player: { select, stop, suspend: vi.fn(async () => {}) },
+    playback: { start: vi.fn(), stop: vi.fn(), retryCleanup: async () => {} },
+  });
+  const channel = { id: 'live', name: 'Live', url: 'https://fixture.invalid/live' };
+  await owner.selectPublic(channel);
+  expect(stop).toHaveBeenCalledTimes(2);
+  expect(select).toHaveBeenCalledExactlyOnceWith(channel, undefined);
+  await owner.dispose();
+});
+
+it('keeps a persistent stop failure visible and does not start a second player', async () => {
+  const select = vi.fn(async () => {});
+  const stop = vi.fn(async () => {}).mockRejectedValue(new Error('persistent cleanup failure'));
+  const owner = createAccountPlayer({
+    player: { select, stop, suspend: vi.fn(async () => {}) },
+    playback: { start: vi.fn(), stop: vi.fn(), retryCleanup: async () => {} },
+  });
+  await expect(
+    owner.selectPublic({ id: 'live', name: 'Live', url: 'https://fixture.invalid/live' }),
+  ).rejects.toThrow('The previous player could not stop');
+  expect(stop).toHaveBeenCalledTimes(2);
+  expect(select).not.toHaveBeenCalled();
+  stop.mockResolvedValue(undefined);
+  await owner.dispose();
+});
+
+it.each([false, true])(
+  'a replaced channel leaves cleanup with the newer selection (retry started: %s)',
+  async (retried) => {
+    const first = deferred();
+    const retryStarted = deferred();
+    const select = vi.fn(async () => {});
+    const stop = vi.fn(async () => {});
+    if (retried) stop.mockRejectedValueOnce(new Error('initial cleanup failed'));
+    stop.mockImplementationOnce(() => {
+      retryStarted.resolve();
+      return first.promise;
+    });
+    const owner = createAccountPlayer({
+      player: { select, stop, suspend: vi.fn(async () => {}) },
+      playback: { start: vi.fn(), stop: vi.fn(), retryCleanup: async () => {} },
+    });
+    const old = owner.selectPublic({ id: 'old', name: 'Old', url: 'https://fixture.invalid/old' });
+    const rejected = expect(old).rejects.toMatchObject({ name: 'AbortError' });
+    if (retried) await retryStarted.promise;
+    const next = { id: 'next', name: 'Next', url: 'https://fixture.invalid/next' };
+    const latest = owner.selectPublic(next);
+    first.reject(new Error('old cleanup failed'));
+    await Promise.all([rejected, latest]);
+    expect(stop).toHaveBeenCalledTimes(retried ? 3 : 2);
+    expect(select).toHaveBeenCalledExactlyOnceWith(next, undefined);
+    await owner.dispose();
+  },
+);
 
 it('background cleanup rejection remains a failed join and prevents later decoder admission', async () => {
   const gate = deferred(),

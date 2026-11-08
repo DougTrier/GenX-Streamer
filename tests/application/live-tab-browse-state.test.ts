@@ -25,6 +25,7 @@ it('starts each tab independently and never gives an untouched Paid tab the Free
     sportsFacet: { sport: 'american-football', league: 'nfl' },
     geography: { country: 'US', state: 'US-IL' },
     sort: 'name',
+    favoritesSort: 'geography',
   });
   owner.capture('free', free);
   expect(owner.restore('paid')).toBeNull();

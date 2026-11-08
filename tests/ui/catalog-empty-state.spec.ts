@@ -48,7 +48,7 @@ test('removing the last channel explains restoration across restart instead of a
   await expect(page.locator('#import-dialog')).not.toBeVisible();
   await page.getByRole('searchbox', { name: 'Search channels' }).fill('absent');
   await expect(page.locator('#list-empty')).toHaveText(
-    'No channels here. Try another filter or search.',
+    'No matching channels or saved guide listings. Programme matches need a connected guide.',
   );
   await page.getByRole('searchbox', { name: 'Search channels' }).fill('');
   await page.locator('.channel').click();

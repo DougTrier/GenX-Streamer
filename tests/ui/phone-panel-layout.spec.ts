@@ -48,6 +48,7 @@ async function mount(page: Page, size: (typeof SIZES)[number]): Promise<void> {
           'media-results',
           'tv-density',
           'live-replay',
+          'phone-portrait',
         ]
           .map((name) => `<link rel="stylesheet" href="/src/ui/${name}.css">`)
           .join('') +
@@ -78,21 +79,43 @@ async function mount(page: Page, size: (typeof SIZES)[number]): Promise<void> {
 for (const size of SIZES)
   test(`channel panel row and dock: ${size.name}`, async ({ page }) => {
     await mount(page, size);
-    const row = await page.evaluate(() => {
-      const head = document.getElementById('channel-count')!.parentElement!;
-      const panel = head.closest('.browser')!.getBoundingClientRect();
-      return [...head.children]
-        .filter((child) => (child as HTMLElement).getClientRects().length > 0)
-        .map((child) => {
-          const box = child.getBoundingClientRect();
-          return {
-            name: child.id || child.className,
-            inside: box.left >= panel.left - 0.5 && box.right <= panel.right + 0.5,
-          };
-        });
-    });
-    expect(row.length).toBeGreaterThanOrEqual(3);
-    for (const item of row) expect(item.inside, `${item.name} leaves the channel panel`).toBe(true);
+    const phoneLayout = await page.locator('#phone-filter-button').isVisible();
+    if (phoneLayout) {
+      const filters = page.locator('#phone-filter-button');
+      const guide = page.getByRole('button', { name: 'Free TV guide', exact: true });
+      await expect(filters).toBeInViewport({ ratio: 1 });
+      await expect(guide).toBeInViewport({ ratio: 1 });
+      await filters.click();
+      const sheet = page.getByRole('dialog', { name: 'Search & Filters', exact: true });
+      for (const control of [
+        sheet.getByRole('searchbox'),
+        sheet.getByRole('button', { name: 'Favorites', exact: true }),
+        sheet.locator('summary[aria-label="Location and sort"]'),
+      ]) {
+        await expect(control).toBeInViewport({ ratio: 1 });
+        const box = (await control.boundingBox())!;
+        expect(box.height).toBeGreaterThanOrEqual(44);
+      }
+      await sheet.getByRole('button', { name: 'Show channels' }).click();
+      await expect(filters).toBeFocused();
+    } else {
+      const row = await page.evaluate(() => {
+        const head = document.getElementById('channel-count')!.parentElement!;
+        const panel = head.closest('.browser')!.getBoundingClientRect();
+        return [...head.children]
+          .filter((child) => (child as HTMLElement).getClientRects().length > 0)
+          .map((child) => {
+            const box = child.getBoundingClientRect();
+            return {
+              name: child.id || child.className,
+              inside: box.left >= panel.left - 0.5 && box.right <= panel.right + 0.5,
+            };
+          });
+      });
+      expect(row.length).toBeGreaterThanOrEqual(3);
+      for (const item of row)
+        expect(item.inside, `${item.name} leaves the channel panel`).toBe(true);
+    }
     if (size.phone) {
       await expect(page.locator('.dock .channel-actions')).toBeHidden();
     } else if (!size.tv) {
@@ -100,7 +123,7 @@ for (const size of SIZES)
       await expect(page.locator('#favorite-button')).toBeVisible();
       await expect(page.locator('#remove-channel')).toBeVisible();
     }
-    if (size.phone && size.height <= 420) {
+    if (size.phone && size.height <= 420 && !phoneLayout) {
       // Landscape phones: one compact row of controls under the picture.
       const tops = await page.evaluate(() =>
         [...document.querySelectorAll<HTMLElement>('.dock button, .dock #playback-status')]

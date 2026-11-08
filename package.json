@@ -1,6 +1,6 @@
 {
   "name": "genx-streamer",
-  "version": "0.1.28",
+  "version": "0.1.33",
   "private": true,
   "license": "Apache-2.0",
   "type": "module",
@@ -31,6 +31,9 @@
     "@tauri-apps/plugin-fs": "2.4.5",
     "hls.js": "1.7.3",
     "mpegts.js": "1.8.2"
+  },
+  "overrides": {
+    "minimatch": "11.0.3"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",

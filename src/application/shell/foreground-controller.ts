@@ -128,6 +128,7 @@ export interface ForegroundEnvironment {
   readonly libraries: ReturnType<typeof mountLibrarySwitcher> | undefined;
   readonly libraryQueries: Record<ContentLibrary, string>;
   readonly renderCatalog: () => void;
+  readonly dismissTeamBrowse?: () => boolean;
 }
 
 export function createForegroundController(env: ForegroundEnvironment) {
@@ -384,6 +385,7 @@ export function createForegroundController(env: ForegroundEnvironment) {
       return;
     }
     if (env.archiveSearch?.dismissEpisodes()) return;
+    if (env.dismissTeamBrowse?.()) return;
     // Back unwinds viewing UI; closing the application requires explicit Exit.
     // At the main screen there is nothing left to dismiss.
   }
@@ -434,7 +436,14 @@ export function createForegroundController(env: ForegroundEnvironment) {
       void fullscreenOwner
         .set(false)
         .catch(() => env.notice('Leaving full screen could not finish.'));
+      return;
     }
+    if (
+      event.key === 'Escape' &&
+      !document.querySelector('dialog[open]') &&
+      env.dismissTeamBrowse?.()
+    )
+      event.preventDefault();
   });
   document.addEventListener('visibilitychange', () => {
     env.updateGuideForeground();

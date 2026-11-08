@@ -50,7 +50,7 @@ export interface ChannelHealthEnvironment {
   readonly notice: (message: string) => void;
   readonly editPublicChannelGroup: (
     id: string,
-    action: CatalogGroupAction | (() => CatalogGroupAction),
+    action: CatalogGroupAction,
     moreIds?: readonly string[],
   ) => Promise<void>;
   readonly settings: Preferences;

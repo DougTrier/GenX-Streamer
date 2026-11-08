@@ -49,6 +49,7 @@ async function fixture(
   ready = true,
   logos = false,
   held = false,
+  favoriteAction = false,
 ): Promise<Page> {
   const page = await browser.newPage();
   await page.setContent(
@@ -64,19 +65,25 @@ async function fixture(
     window.calls=[];window.selections=[];window.hold=${JSON.stringify(held)};window.pending=[];window.outcome='ready';
     window.browseReady=${JSON.stringify(ready)};window.durableRevision="7";
     window.viewRevision='9';window.ownerIdentity='public';window.dataIdentity='fixture';
-    window.inserted=0;window.removed=[];window.reversed=false;
+    window.inserted=0;window.removed=[];window.reversed=false;window.promoted=null;
     const row=i=>({id:'c'+i,sourceId:'public',name:'Channel '+i,category:i%2?'Sports':'News',favorite:i%100===0,geography:{country:'US',state:'US-IL'}});
     const oracle=q=>{
       const filtered=q.query==='needle'||q.filter==='favorites';
       const total=Math.min(100000,(filtered?1000:100000)+window.inserted-window.removed.length);
       const scale=filtered?100:1;
       const original=q.anchorId?.startsWith('c')?Number(q.anchorId.slice(1))/scale:null;
-      const forwardRank=original===null||window.removed.includes(original)?null:original+window.inserted-window.removed.filter(i=>i<original).length;
+      const promoted=filtered?null:window.promoted;
+      let forwardRank=original===null||window.removed.includes(original)?null:original+window.inserted-window.removed.filter(i=>i<original).length;
+      if(forwardRank!==null&&promoted!==null)forwardRank=forwardRank===promoted?0:forwardRank<promoted?forwardRank+1:forwardRank;
       const rank=forwardRank===null?null:window.reversed?total-1-forwardRank:forwardRank;
       const anchor=rank!==null&&Number.isInteger(rank)&&rank>=0&&rank<total?rank:null;
       const start=q.anchorId?anchor===null?0:Math.max(0,anchor-1):q.startIndex??0;
       const at=index=>{
         if(window.reversed)index=total-1-index;
+        if(promoted!==null){
+          if(index===0)return {...row(promoted),favorite:true};
+          if(index<=promoted)index--;
+        }
         if(index<window.inserted)return {...row(0),id:'inserted'+index};
         let value=index-window.inserted;
         for(const removed of window.removed)if(removed<=value)value++;
@@ -94,7 +101,11 @@ async function fixture(
     window.logoVisible=[]; window.logoRejected=[]; window.badArtwork=false;
     const logos={get:c=>window.badArtwork?'data:image/png;base64,AAAA':null,
       visible:channels=>window.logoVisible=channels.map(c=>c.id),rejected:c=>window.logoRejected.push(c.id)};
-    window.cb=new IndexedUI.ChannelBrowser(document.querySelector('#list'),id=>window.selections.push(id),undefined,host,${logos ? '{logos}' : '{}'});
+    const onFavorite=id=>{
+      window.promoted=Number(id.slice(1));window.viewRevision='10';window.dataIdentity='favorited';
+      window.cb.update([], [id], ${JSON.stringify(selected)});
+    };
+    window.cb=new IndexedUI.ChannelBrowser(document.querySelector('#list'),id=>window.selections.push(id),undefined,host,${logos ? '{logos}' : favoriteAction ? '{onFavorite}' : '{}'});
     // Supplying no whole catalog proves the indexed path cannot search JS metadata.
     window.cb.update([],[],${JSON.stringify(selected)});
     window.release=()=>{window.hold=false;window.pending.splice(0).forEach(resolve=>resolve())};
@@ -259,6 +270,30 @@ it('a removed focus anchor uses its nearest surviving row instead of the playing
       .poll(async () => (await page.locator('[data-channel="c1006"]').boundingBox())?.y)
       .toBe(before?.y);
     expect(await page.locator('#list').evaluate((element) => element.scrollTop)).toBe(72017);
+  } finally {
+    await cleanup(page);
+  }
+});
+
+it('stays in the current rows and moves remote focus to a neighbor when a favorite is promoted', async () => {
+  const page = await fixture('c0', true, false, false, true);
+  try {
+    await browseAt(page, 1000, false);
+    const star = page.locator('[data-channel-action="favorite"][data-channel-id="c1002"]');
+    // Indexed rows supply their own favorite status, including Paid TV account rows.
+    await browserExpect(
+      page.locator('[data-channel-action="favorite"][data-channel-id="c1000"]'),
+    ).toHaveAttribute('aria-pressed', 'true');
+    const next = page.locator('[data-channel-action="favorite"][data-channel-id="c1003"]');
+    const before = await next.boundingBox();
+    await star.focus();
+    await page.keyboard.press('Enter');
+    await browserExpect(next).toBeFocused();
+    await expect.poll(async () => (await next.boundingBox())?.y).toBe(before?.y);
+    expect(await page.locator('#list').evaluate((element) => element.scrollTop)).toBe(72017);
+    expect(await page.evaluate(() => Reflect.get(window, 'selections'))).toEqual([]);
+    const calls = await page.evaluate(() => Reflect.get(window, 'calls'));
+    expect(calls.some((call: { anchorId?: string }) => call.anchorId === 'c1003')).toBe(true);
   } finally {
     await cleanup(page);
   }

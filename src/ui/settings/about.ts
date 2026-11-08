@@ -24,6 +24,7 @@ import robotoLicense from '../../../assets/fonts/roboto-condensed/OFL.txt?raw';
 import yellowtailLicense from '../../../assets/fonts/yellowtail/LICENSE.txt?raw';
 import dependencyNoticesUrl from '../../../assets/licenses/dependency-notices.txt?url&no-inline';
 import { mountSendApp } from './send-app';
+import type { FavoriteTransfer } from '../../application/sharing/favorite-transfer';
 import { mountAboutUpdate } from './about-update';
 import { mountAboutIdentity } from './about-identity';
 
@@ -101,7 +102,11 @@ const guide = [
   ],
 ] as const;
 
-export function mountAbout(root: HTMLElement, opener: HTMLButtonElement): () => void {
+export function mountAbout(
+  root: HTMLElement,
+  opener: HTMLButtonElement,
+  favorites?: FavoriteTransfer,
+): () => void {
   // Bundle the full notice file without loading its text into the viewing/scan heap.
   const componentNotices = document.createElement('link');
   componentNotices.rel = 'license';
@@ -229,10 +234,14 @@ export function mountAbout(root: HTMLElement, opener: HTMLButtonElement): () => 
   const removers: (() => void)[] = [];
   // The same page Settings' header opens (Send app to a friend).
   removers.push(
-    mountSendApp(root, [
-      document.querySelector<HTMLButtonElement>('#send-app-button'),
-      dialog.querySelector<HTMLButtonElement>('.about-send-app'),
-    ]),
+    mountSendApp(
+      root,
+      [
+        document.querySelector<HTMLButtonElement>('#send-app-button'),
+        dialog.querySelector<HTMLButtonElement>('.about-send-app'),
+      ],
+      favorites,
+    ),
   );
   const identity = mountAboutIdentity(dialog.querySelector<HTMLElement>('.about-identity')!);
   removers.push(identity.dispose);

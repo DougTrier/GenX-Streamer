@@ -92,6 +92,7 @@ pub(crate) async fn inspect_discovery_page(
     url: String,
     allow_http: bool,
     request_id: String,
+    public_listing: Option<bool>,
     state: tauri::State<'_, NativeState>,
 ) -> Result<discovery_input::DiscoveryPage, String> {
     if state.closing.load(Ordering::SeqCst) {
@@ -102,8 +103,15 @@ pub(crate) async fn inspect_discovery_page(
         .lock()
         .map_err(|_| "request-lock".to_string())?
         .register(request_id.clone())?;
+    let fetch = async {
+        if public_listing == Some(true) {
+            discovery_input::fetch_page(&url, false, true).await
+        } else {
+            discovery_input::fetch(&url, allow_http).await
+        }
+    };
     let result = tokio::select! {
-        response = discovery_input::fetch(&url, allow_http) => response,
+        response = fetch => response,
         _ = receiver => Err("canceled".into()),
     };
     state

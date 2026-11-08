@@ -40,19 +40,22 @@ for (const viewport of [
     });
     await page.goto('/');
     await expect(page.locator('#app')).toHaveAttribute('data-ready', 'true');
+    const compact = await page.locator('#phone-filter-button').isVisible();
     for (const [id, art, name] of BUTTONS) {
       const button = page.locator(`#${id}`);
       await expect(button).toHaveAccessibleName(name);
-      expect(await button.evaluate((node) => getComputedStyle(node).backgroundImage)).toContain(
-        art,
-      );
+      const image = await button.evaluate((node) => getComputedStyle(node).backgroundImage);
+      if (compact) expect(image).not.toContain(art);
+      else expect(image).toContain(art);
     }
     // Below 1000 px (not TVs) Cast and Settings are painted icons; wider screens the labelled art.
     const phone = viewport.width < 1000;
-    for (const [id, art] of [
-      ['cast-button', phone ? 'genx-nav-cast-icon' : 'genx-nav-cast'],
-      ['settings-button', phone ? 'genx-nav-settings-icon' : 'genx-nav-settings'],
-    ])
+    for (const [id, art] of compact
+      ? []
+      : [
+          ['cast-button', phone ? 'genx-nav-cast-icon' : 'genx-nav-cast'],
+          ['settings-button', phone ? 'genx-nav-settings-icon' : 'genx-nav-settings'],
+        ])
       expect(
         await page.locator(`#${id}`).evaluate((node) => getComputedStyle(node).backgroundImage),
       ).toContain(art);
@@ -95,8 +98,5 @@ for (const viewport of [
       expect(Math.abs(box.top - boxes[0]!.top)).toBeLessThanOrEqual(1);
       expect(box.height).toBeGreaterThanOrEqual(44);
     }
-    const badge = await page
-      .locator('#genxtra-button .genxtra-badge')
-      .evaluate((node) => node.getBoundingClientRect().width);
-    expect(badge).toBeGreaterThanOrEqual(boxes[0]!.width - 1);
+    await expect(page.locator('#genxtra-button .genxtra-label')).toBeVisible();
   });

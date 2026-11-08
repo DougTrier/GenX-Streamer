@@ -1,6 +1,6 @@
 # Share links
 
-**Release status:** 0.1.25 / build 1025 has been withdrawn because of phone/handheld layout and Football/NFL search issues. Public downloads provide [0.1.28 / build 1028](https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.28). See the [candidate status](../README.md#release-status) and [physical device audit](device-playability-audit.md) for the current development build. Results in this document apply to the builds named alongside them.
+**Release status:** 0.1.25 / build 1025 has been withdrawn because of phone/handheld layout and Football/NFL search issues. Public downloads provide [0.1.33 / build 1033](https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.33). See the [candidate status](../README.md#release-status) and [physical device audit](device-playability-audit.md) for the current development build. Results in this document apply to the builds named alongside them.
 
 Two ways to pass GenX Streamer on (owner's idea, October 24, 2026):
 
@@ -60,7 +60,7 @@ Paid TV stream addresses contain the account's user name and password.
 
 ## Incoming links are untrusted
 
-An incoming link is checked like a scanned source, and more:
+An incoming link identifies a channel or title:
 
 1. The native layer admits only its outer shape: `genx://watch` or the page
    address, at most 6,000 characters, no spaces or control characters
@@ -68,32 +68,15 @@ An incoming link is checked like a scanned source, and more:
    is never placed into page script: the page is told one is waiting and asks
    for it (`take_incoming_link`).
 2. The interface reads every field (`parseShareLink`) and shows names as text.
-3. `check_shared_destination` resolves the stream's (and logo's) host and
-   refuses it unless every address is public (`sharing_policy::public_upstream`),
-   so a link that names a local or private address is refused. The logo is
-   shown only after that check.
-   - **Limit, plainly:** the check runs once, before playback. The media
-     fetch resolves the name again and follows redirects, playlist variants
-     and segments without repeating it.
-   - A crafted link could therefore still reach the viewer's own network,
-     through a name that changes its address (DNS rebinding) or through a
-     redirect. Enforcing the check on every connection for shared streams is
-     open work.
-4. The card says "<name> was shared with you" with **Play** and **Add to
-   favorites**. Nothing plays or is saved until one is chosen.
-5. Play and Add to favorites check the stream once more
-   (`inspect_media_resources`) and explain a failure plainly: gone (404/410:
-   moved or ended), refused (401/403/451: some channels only play in certain
-   countries, or need a fresh link), the server not answering, not found, or
-   not a stream GenX can play.
+3. The channel address must exactly match an active, saved channel. Link
+   contents can’t initiate a network request or add a source. The card uses the
+   saved channel name and offers **Play** and **Add to favorites**. A missing
+   channel can be found through Free TV search.
+4. An action rechecks that the channel is still saved. Playback uses its
+   existing source permissions.
 
-A played shared channel that is not in the saved channels is playable while
-GenX runs (the sharing host's `extraChannel`, like local radio); plain HTTP is
-allowed only for that chosen stream. **Add to favorites** saves it as its own
-one-channel source, exactly what adding the address under Add channels makes,
-so a later refresh keeps the channel and its favorite. A GenXtra title opens in
-GenXtra and plays its first playable file; if this device's library does not
-have the title yet, GenXtra shows a search for its name instead.
+A GenXtra title opens in GenXtra and plays its first playable file. If this
+device’s library lacks the title, GenXtra shows a search for its name.
 
 ## Opening GenX from a link
 

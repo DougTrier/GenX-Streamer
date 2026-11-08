@@ -22,13 +22,14 @@ use std::{
     net::{IpAddr, SocketAddr},
     pin::Pin,
     sync::{Arc, Mutex},
-    time::{Duration, Instant},
+    time::Duration,
 };
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
     sync::watch,
     task::{JoinHandle, JoinSet},
+    time::Instant,
 };
 
 const LEASE: Duration = Duration::from_secs(60);

@@ -38,24 +38,32 @@ for (const viewport of [
     const title = await page.locator('#watch-title').textContent();
     const query = page.locator('#search');
     const clear = page.getByRole('button', { name: 'Clear search', exact: true });
+    const phoneFilters = page.locator('#phone-filter-button');
+    const phoneSheet = page.getByRole('dialog', { name: 'Search & Filters', exact: true });
+    const phone = await phoneFilters.isVisible();
+    const enterSavedQuery = async () => {
+      if (phone) await phoneFilters.click();
+      await query.fill('Chicago Bears');
+      if (phone) await phoneSheet.getByRole('button', { name: 'Show channels' }).click();
+      else await query.press('Enter');
+    };
     await expect(page.locator('#speech-control .speech-search-button')).toHaveCount(1);
     await expect(page.locator('.speech-search-button')).toHaveCount(1);
-    await query.fill('Chicago Bears');
-    if (viewport.width === 360) {
-      await expect(page.locator('#app')).toHaveAttribute('data-compact-view', 'channels');
-      await expect(query).toBeVisible();
-      await expect(query).toBeFocused();
-    }
-    await query.press('Enter');
+    await enterSavedQuery();
     await expect(page.locator('#channel-list .channel strong')).toHaveText(['Chicago Bears TV']);
     await expect(page.locator('#primary-view-host')).toBeHidden();
+    if (phone) await phoneFilters.click();
     await expect(clear).toBeVisible();
     await clear.click();
     await expect(query).toHaveValue('');
     await expect(clear).toBeHidden();
-    await expect(page.locator('#channel-list')).toBeFocused();
+    if (phone) {
+      await expect(query).toBeFocused();
+      await phoneSheet.getByRole('button', { name: 'Show channels' }).click();
+      await expect(phoneFilters).toBeFocused();
+    } else await expect(page.locator('#channel-list')).toBeFocused();
     await expect(page.locator('#channel-count')).toHaveText('2 channels');
-    await query.fill('Chicago Bears');
+    await enterSavedQuery();
     await page.locator('#guide-button').click();
     const guide = page.getByRole('dialog', { name: 'Program guide', exact: true });
     await expect(guide).toBeVisible();

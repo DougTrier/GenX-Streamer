@@ -155,8 +155,8 @@ export function scanText(file, text, local = { block: [], review: [] }, reviewed
   return findings;
 }
 
-function tracked() {
-  return execFileSync('git', ['-C', ROOT, 'ls-files', '-z'], {
+function tracked(extra = []) {
+  return execFileSync('git', ['-C', ROOT, 'ls-files', '-z', ...extra], {
     encoding: 'utf8',
     maxBuffer: 1 << 28,
   })
@@ -195,9 +195,9 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
       ),
     );
   } else if (command === 'scan') {
-    // In the public repository every tracked file is scanned, not only the
-    // copy set: new files are covered without editing the lists above.
-    const all = tracked();
+    // Include new source before it reaches the index. The copy command still
+    // uses only the tracked release set.
+    const all = [...new Set(tracked(['--cached', '--others', '--exclude-standard']))];
     const findings = scan(all);
     const summary = {};
     for (const finding of findings) {

@@ -7,8 +7,8 @@
   Android TV, Google TV and Amazon Fire TV, plus Android phones and handhelds.
   Pass it along to a friend with no app store.
 
-  [![Public release](https://img.shields.io/badge/Public_release-0.1.28-brightgreen?style=for-the-badge)](https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.28)
-  [![Candidate version](https://img.shields.io/badge/Version-0.1.28-blue?style=for-the-badge)](#release-status)
+  [![Public release](https://img.shields.io/badge/Public_release-0.1.33-brightgreen?style=for-the-badge)](https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.33)
+  [![Candidate version](https://img.shields.io/badge/Version-0.1.33-blue?style=for-the-badge)](#release-status)
   [![Tauri](https://img.shields.io/badge/Tauri-2-24C8DB?style=for-the-badge&logo=tauri&logoColor=white)](https://tauri.app/)
   [![Rust](https://img.shields.io/badge/Rust-native%20layer-B7410E?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
   [![Android](https://img.shields.io/badge/Android-TV%20%7C%20phone-3DDC84?style=for-the-badge&logo=android&logoColor=white)](docs/user-guide.md)
@@ -37,12 +37,12 @@
 
 **0.1.25 / build 1025 has been withdrawn** after reports of unusable phone and handheld layouts and incorrect Football/NFL search results. Its public release and downloads are unavailable while fixes are developed and verified.
 
-The current public release is [0.1.28 / build 1028](https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.28). It provides the signed Android APK and Windows x64 downloads. The earlier [0.1.3 / build 1003](https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.3) remains available in release history.
+The current public release is [0.1.33 / build 1033](https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.33). It provides the signed Android APK and Windows x64 downloads. The earlier [0.1.3 / build 1003](https://github.com/DougTrier/GenX-Streamer/releases/tag/v0.1.3) remains available in release history.
 
 | Development candidate | Value |
 | --- | --- |
-| **Candidate version** | 0.1.28 |
-| **Android build** | 1028 |
+| **Candidate version** | 0.1.33 |
+| **Android build** | 1033 |
 
 The signed 0.1.26 / build 1026 audit covered the physical Samsung S25 and Google TV Streamer, including phone touch and fullscreen controls, remote navigation, saved scans, Free and Paid TV, Guide, and casting. Build 1027 received targeted checks on both devices. [Device audit](docs/device-playability-audit.md) · [Search and Guide verification](docs/search-guide-verification.md)
 

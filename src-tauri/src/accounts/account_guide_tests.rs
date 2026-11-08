@@ -49,6 +49,8 @@ const GUIDE: &str = r#"<?xml version="1.0" encoding="UTF-8"?>
     <title lang="en">NFL Football: Bears at Saints</title>
     <desc lang="en">Chicago &amp; New Orleans meet.</desc>
     <category lang="en">Sports</category>
+    <previously-shown start="20261017190000 -0500"/>
+    <original-air-date>2026-10-10</original-air-date>
   </programme>
   <programme start="20261018180000 +0000" stop="20261018210000 +0000" channel="fox32.us">
     <title lang="en">NFL Football: Bears at Saints</title>
@@ -116,6 +118,14 @@ fn keeps_only_this_accounts_channels_in_the_window_and_counts_unusable_listings(
     );
     assert_eq!(game.categories.len(), 1);
     assert_eq!(game.stop_ms, Some(NOW + 3 * HOUR));
+    assert_eq!(
+        game.replay.as_ref().unwrap().original_air_date.as_deref(),
+        Some("2026-10-10")
+    );
+    assert_eq!(
+        game.replay.as_ref().unwrap().previous_air_date.as_deref(),
+        Some("2026-10-17")
+    );
 }
 
 #[test]
@@ -889,6 +899,20 @@ fn a_committed_guide_lists_channels_listings_and_search_for_this_account() {
         (1, 4, 2, 3)
     );
     assert_eq!(status(&c, ACCOUNT).unwrap(), Some(receipt));
+    let early =
+        listed_channels_in_scope(&c, ACCOUNT, NOW, NOW + 3 * HOUR, "local news", false).unwrap();
+    assert!(early.channel_ids.is_empty());
+    let later = listed_channels_in_scope(
+        &c,
+        ACCOUNT,
+        NOW + 3 * HOUR,
+        NOW + 6 * HOUR,
+        "local news",
+        false,
+    )
+    .unwrap();
+    assert_eq!(later.channel_ids, [channel_id('a')]);
+    assert_eq!(later.first_starts_ms, [NOW + 3 * HOUR]);
     // Removed channels stay out; a channel without an EPG ID has no guide row.
     let rows = channels(&c, ACCOUNT).unwrap();
     let names: Vec<(&str, bool)> = rows.iter().map(|r| (r.name.as_str(), r.favorite)).collect();
@@ -914,6 +938,24 @@ fn a_committed_guide_lists_channels_listings_and_search_for_this_account() {
     let page = programs(&c, ACCOUNT, "fox32.us", NOW, NOW + 4 * HOUR, None, 1).unwrap();
     assert_eq!(page.len(), 1);
     assert_eq!(page[0].title, "NFL Football: Bears at Saints");
+    assert_eq!(
+        page[0]
+            .replay
+            .as_ref()
+            .unwrap()
+            .original_air_date
+            .as_deref(),
+        Some("2026-10-10")
+    );
+    assert_eq!(
+        page[0]
+            .replay
+            .as_ref()
+            .unwrap()
+            .previous_air_date
+            .as_deref(),
+        Some("2026-10-17")
+    );
     let next = programs(
         &c,
         ACCOUNT,
@@ -936,6 +978,12 @@ fn a_new_guide_replaces_the_old_one_whole() {
     let parsed = read(only, &["fox32.us", "unlisted.us"]).unwrap();
     let receipt = commit(&mut c, ACCOUNT, 1, &parsed, NOW + HOUR, &mut || Ok(())).unwrap();
     assert_eq!((receipt.revision, receipt.programs), (2, 1));
+    let dates: i64 = c
+        .query_row("SELECT count(*) FROM account_guide_replay_v1", [], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    assert_eq!(dates, 0);
     assert!(
         programs(&c, ACCOUNT, "unlisted.us", NOW, NOW + 4 * HOUR, None, 100)
             .unwrap()

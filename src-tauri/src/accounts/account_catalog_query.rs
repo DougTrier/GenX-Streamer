@@ -70,6 +70,8 @@ pub(crate) struct Query {
     pub sort: Sort,
     #[serde(default = "favorites_first")]
     pub favorites_first: bool,
+    #[serde(default)]
+    pub favorites_only: bool,
     /// An app country code, several joined by commas ("US,CA,UK", at most 64),
     /// or "" for channels whose country is unknown.
     #[serde(default)]
@@ -441,8 +443,18 @@ fn scope(c: &Connection, plan: Option<&crate::catalog::sports::Plan>) -> Result<
         .collect::<Vec<_>>()
         .join(" OR ");
     let ppv = crate::catalog::ppv::channel("e.name", "e.category", category);
-    let search = if plan.is_some() {
-        format!("(?2 IS NOT NULL AND (genx_sports_list_channel(e.name,e.category,{category},COALESCE(e.provider_id,'')||char(10)||COALESCE(e.epg_id,'')||char(10)||COALESCE(genx_sports_country(e.category),'')) OR genx_sports_cached(e.channel_id)))")
+    let search = if let Some(plan) = plan {
+        let (coverage, entertainment) = if plan.football_coverage() {
+            (
+                format!(" OR (?4='all' AND genx_football_coverage(e.name,e.category,{category}))"),
+                format!(
+                    " AND (?4<>'all' OR NOT genx_football_entertainment(e.category,{category}))"
+                ),
+            )
+        } else {
+            (String::new(), String::new())
+        };
+        format!("(?2 IS NOT NULL AND ({} OR genx_sports_cached(e.channel_id){coverage}){entertainment})", sports_channel_match(category))
     } else {
         format!("(?2='' OR instr(lower(e.name)||char(10)||lower(e.category)||char(10)||lower({category})||char(10)||lower(COALESCE(e.provider_id,''))||char(10)||lower(COALESCE(e.epg_id,'')),lower(?2))>0)")
     };
@@ -463,6 +475,9 @@ fn scope(c: &Connection, plan: Option<&crate::catalog::sports::Plan>) -> Result<
             AND (?4 IN ('all','ppv','watched') OR (?4='news' AND instr(lower({category}),'news')>0) OR (?4='sports' AND ({sports})) OR (?4='movies' AND (instr(lower({category}),'movie')>0 OR instr(lower({category}),'cinema')>0 OR instr(lower({category}),'film')>0)) OR (?4='favorites' AND {favorite}=1))"),
         category,favorite,
     })
+}
+fn sports_channel_match(category: &str) -> String {
+    format!("genx_sports_list_channel(e.name,e.category,{category},COALESCE(e.provider_id,'')||char(10)||COALESCE(e.epg_id,'')||char(10)||COALESCE(genx_sports_country(e.category),''))")
 }
 /// The Paid TV list's live scope for other readers (the account guide): the
 /// FROM/WHERE (account as ?1, removed channels excluded) and the effective

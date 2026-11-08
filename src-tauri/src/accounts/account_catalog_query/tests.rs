@@ -90,6 +90,7 @@ mod geography_tests {
             history_ids: None,
             sort,
             favorites_first: false,
+            favorites_only: false,
             country: country.map(str::to_owned),
             hide_adult,
             start_index: 0,
@@ -203,6 +204,15 @@ mod geography_tests {
             letters(&c, &query(None, true, Sort::Source, Filter::Favorites)),
             "B"
         );
+    }
+    #[test]
+    fn favorites_only_combines_with_category() {
+        let c = database();
+        let mut q = query(None, false, Sort::Name, Filter::Sports);
+        q.favorites_only = true;
+        assert_eq!(letters(&c, &q), "B");
+        q.filter = Filter::News;
+        assert_eq!(letters(&c, &q), "");
     }
     #[test]
     fn country_filter_matches_only_verified_countries() {
@@ -321,6 +331,42 @@ mod geography_tests {
         group.hide_adult = false;
         assert_eq!(letters(&c, &group), "ABCDEF");
     }
+    #[test]
+    fn sports_football_ranks_confirmed_matches_above_general_coverage() {
+        let c = database();
+        for (letter, name, category) in [
+            ('a', "Sports Desk", "Sports"),
+            ('b', "Dallas Cowboys Cheerleaders", "Series"),
+            ('c', "NBA TV", "Sports"),
+            ('d', "NFL Network", "Sports"),
+        ] {
+            c.execute(
+                "UPDATE account_media_entry_v1 SET name=?2,category=?3 WHERE channel_id=?1",
+                params![id(letter), name, category],
+            )
+            .unwrap();
+        }
+        let mut q = query(None, false, Sort::Source, Filter::All);
+        q.query = "Football".into();
+        q.sports = Some(crate::catalog::sports::Scope {
+            sport: None,
+            league: None,
+            include_ppv: false,
+            window_start_ms: 1000,
+            window_end_ms: 1000 + 7 * 86400000,
+            vocabulary_version: serde_json::from_str::<serde_json::Value>(
+                crate::catalog::sports::VOCABULARY,
+            )
+            .unwrap()["vocabularyVersion"]
+                .as_str()
+                .unwrap()
+                .into(),
+        });
+        q.anchor_id = Some(id('a'));
+        assert_eq!(names(&c, &q).1, ["NFL Network", "Sports Desk"]);
+        assert_eq!(names(&c, &q).1, ["NFL Network", "Sports Desk"]);
+    }
+
     #[test]
     fn sports_include_league_and_singular_sport_groups() {
         let c = database();

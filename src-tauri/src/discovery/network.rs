@@ -134,6 +134,69 @@ impl reqwest::dns::Resolve for PlatformResolver {
     }
 }
 
+fn public_listing_addresses(
+    addresses: Vec<std::net::SocketAddr>,
+) -> impl Iterator<Item = std::net::SocketAddr> {
+    addresses
+        .into_iter()
+        .filter(|address| crate::sharing_policy::public_upstream(address.ip()))
+}
+
+struct PublicListingResolver;
+impl reqwest::dns::Resolve for PublicListingResolver {
+    fn resolve(&self, name: reqwest::dns::Name) -> reqwest::dns::Resolving {
+        Box::pin(async move {
+            let mut addresses =
+                public_listing_addresses(resolve_cached(name.as_str()).await.unwrap_or_default())
+                    .peekable();
+            if addresses.peek().is_none() {
+                return Err(Box::new(DnsFailure) as Box<dyn std::error::Error + Send + Sync>);
+            }
+            Ok(Box::new(addresses) as reqwest::dns::Addrs)
+        })
+    }
+}
+
+fn public_listing_url(url: &Url) -> bool {
+    validate(url, false)
+        && url.port().is_none()
+        && url.host_str().is_some_and(|host| {
+            match host.trim_matches(['[', ']']).parse::<std::net::IpAddr>() {
+                Ok(ip) => crate::sharing_policy::public_upstream(ip),
+                Err(_) => host.contains('.') && !host.ends_with('.'),
+            }
+        })
+}
+
+fn public_listing_redirect(origin: &reqwest::Url, target: &Url) -> bool {
+    public_listing_url(target) && target.origin() == origin.origin()
+}
+
+pub(crate) async fn public_listing_response(raw: &str) -> Result<reqwest::Response, String> {
+    let url = Url::parse(raw).map_err(|_| "invalid-url".to_string())?;
+    if !public_listing_url(&url) {
+        return Err("url-policy-refused".into());
+    }
+    let origin = url.clone();
+    let client = reqwest::Client::builder()
+        .no_proxy()
+        .dns_resolver(std::sync::Arc::new(PublicListingResolver))
+        .user_agent("TMG-TV/0.1")
+        .connect_timeout(Duration::from_secs(5))
+        .read_timeout(Duration::from_secs(5))
+        .timeout(Duration::from_secs(20))
+        .redirect(Policy::custom(move |attempt| {
+            if attempt.previous().len() >= 5 || !public_listing_redirect(&origin, attempt.url()) {
+                attempt.error("redirect-policy-refused")
+            } else {
+                attempt.follow()
+            }
+        }))
+        .build()
+        .map_err(category)?;
+    client.get(url).send().await.map_err(category)
+}
+
 /// Connect gate (owner design, October 21, 2026): in a triaged scan the
 /// server must accept a plain connection within `within`, before any TLS is
 /// started. Our own name lookup is not counted against the server. The

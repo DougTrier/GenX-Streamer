@@ -25,10 +25,15 @@ import {
 const href = (location: string) => new URL(location).href;
 
 /** Saved URL sources plus included (discovered) providers, as one scan's sources. */
-export function providerScanSources(catalog: CatalogRecord, settings: Preferences): Source[] {
+export function providerScanSources(
+  catalog: CatalogRecord,
+  settings: Preferences,
+  refreshSaved = false,
+): Source[] {
   const sources = catalog.sources
     .filter((source) => source.kind === 'url')
     .map((source) => ({ ...source }));
+  const savedIds = new Set(sources.map((source) => source.id));
   const documents = new Set(sources.map(sourceDocumentKey));
   for (const provider of settings.reviewedChannelProviders ?? []) {
     if (publishedSourceTemplate(provider.location)) continue;
@@ -47,7 +52,7 @@ export function providerScanSources(catalog: CatalogRecord, settings: Preference
     );
     documents.add(key);
   }
-  return distinctSourceDocuments(sources);
+  return distinctSourceDocuments(sources, (source) => refreshSaved && savedIds.has(source.id));
 }
 
 /**

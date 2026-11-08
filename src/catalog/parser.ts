@@ -228,6 +228,13 @@ function identity(channel: ChannelCandidate): string {
   ]);
 }
 
+function gameListing(channel: ChannelCandidate): boolean {
+  return (
+    channel.category.normalize('NFKC').trim().toLowerCase() === 'live events' &&
+    / (?:at|vs\.?|v) /iu.test(channel.name.normalize('NFKC'))
+  );
+}
+
 export interface ReconciliationScope {
   sourceId: string;
   ambiguousProviderKeys: readonly string[];
@@ -421,11 +428,12 @@ export function reconcileChannels(
     if (
       !id &&
       c.providerId &&
+      !gameListing(c) &&
       providerCounts.get(providerKey(c)) === 1 &&
       !ambiguousProviders.has(providerKey(c))
     ) {
       const matching = oldProviders.get(providerKey(c));
-      if (matching?.length === 1) id = matching[0]!.id;
+      if (matching?.length === 1 && !gameListing(matching[0]!)) id = matching[0]!.id;
       else if (!matching?.length)
         id = `provider:${encodeURIComponent(c.sourceId)}:${encodeURIComponent(c.providerId)}`;
     }

@@ -33,6 +33,7 @@ import {
 import type { ReviewedGuideProvider } from '../guide/discovery';
 import { validateGeographyShape } from '../catalog/geography';
 import { migrateRefreshCadence, type RefreshCadence } from '../catalog/refresh-cadence';
+import { validateFavoriteTeams, type FavoriteTeam } from './favorite-teams';
 
 export interface PreferredRegion {
   country: string;
@@ -44,6 +45,7 @@ export interface PreferredRegion {
 export interface Preferences {
   schemaVersion: 1;
   favorites: string[];
+  favoriteTeams?: FavoriteTeam[];
   removedChannels: string[];
   volume: number;
   muted: boolean;
@@ -207,6 +209,9 @@ export function validatePreferences(input: unknown): Preferences {
     schemaVersion: 1,
     ...(channelCategoryOverrides === undefined ? {} : { channelCategoryOverrides }),
     favorites: [...input.favorites] as string[],
+    ...(input.favoriteTeams === undefined
+      ? {}
+      : { favoriteTeams: validateFavoriteTeams(input.favoriteTeams) }),
     removedChannels: [...removed] as string[],
     volume: input.volume,
     muted: input.muted,

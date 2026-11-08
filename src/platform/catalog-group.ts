@@ -27,6 +27,12 @@ export interface CatalogGroupReceipt {
   viewRevision: string;
   affectedCount: number;
 }
+/** The native transaction rejected its revision fence before changing any rows. */
+export class CatalogGroupRevisionConflict extends Error {
+  constructor() {
+    super('Saved channels changed while the edit was being saved.');
+  }
+}
 const revision = (value: unknown): value is string =>
   typeof value === 'string' &&
   /^(0|[1-9][0-9]{0,18})$/.test(value) &&
@@ -73,6 +79,10 @@ export async function mutateCatalogGroup(
     {
       signal,
       durable: true,
+      failure(error): never {
+        if (error === 'catalog-group-revision-stale') throw new CatalogGroupRevisionConflict();
+        throw new Error('The channel change could not be saved. Try again.');
+      },
       validate(value): CatalogGroupReceipt {
         if (!value || typeof value !== 'object' || Array.isArray(value))
           throw new Error('Group write acknowledgment is invalid.');

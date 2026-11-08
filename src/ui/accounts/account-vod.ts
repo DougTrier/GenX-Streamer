@@ -761,8 +761,21 @@ export function mountAccountVod(
     }
   });
   panel.addEventListener('keydown', (event) => {
-    if (event.key !== 'ArrowRight' || document.activeElement === filter) return;
     if (gallery.hidden) return;
+    const focused = document.activeElement;
+    const [movies, seriesButton] = sectionButtons;
+    const peer =
+      focused === movies && event.key === 'ArrowRight'
+        ? seriesButton
+        : focused === seriesButton && event.key === 'ArrowLeft'
+          ? movies
+          : undefined;
+    if (peer) {
+      event.preventDefault();
+      peer.focus({ preventScroll: true });
+      return;
+    }
+    if (event.key !== 'ArrowRight' || focused === filter) return;
     event.preventDefault();
     if (!focusCard(lastCard())) bannerPlay.focus({ preventScroll: true });
   });

@@ -245,7 +245,11 @@ export function sourceCleanupOutcomeText(outcome: SourceCleanupOutcome): string 
   )
     return 'Cleanup was skipped because complete refreshed source coverage could not be confirmed. Saved channels were retained.';
   if (outcome.status !== 'finished') return null;
-  const { archivedCount, deferredCount, status } = outcome.receipt;
+  const { archivedCount, deferredCount, expiredEventIds, status } = outcome.receipt;
+  const expired = expiredEventIds.length;
+  const events = expired
+    ? `${expired.toLocaleString()} expired game ${expired === 1 ? 'listing was' : 'listings were'} removed.`
+    : '';
   const removed =
     archivedCount > 0
       ? `${archivedCount.toLocaleString()} missing, unavailable ${archivedCount === 1 ? 'channel was' : 'channels were'} removed. Restore removed channels in Settings.`
@@ -254,5 +258,5 @@ export function sourceCleanupOutcomeText(outcome: SourceCleanupOutcome): string 
     status === 'budget-exhausted' || deferredCount > 0
       ? 'More cleanup checks were deferred until a later Refresh.'
       : '';
-  return [removed, deferred].filter(Boolean).join(' ') || null;
+  return [events, removed, deferred].filter(Boolean).join(' ') || null;
 }

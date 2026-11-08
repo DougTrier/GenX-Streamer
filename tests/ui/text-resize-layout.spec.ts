@@ -17,6 +17,7 @@
 import { openPlaylistImport } from './helpers/source-scan';
 import { saveReviewedSource } from './helpers/source-scan';
 import { chooseSettingsSection } from './helpers/settings-section';
+import { openChannelSearch } from './helpers/search-workflows';
 import { test, expect, type Page, type Locator } from '@playwright/test';
 
 const sizes = [
@@ -255,6 +256,7 @@ async function openScreen(page: Page, screen: Screen): Promise<Locator> {
   if (screen === 'location') {
     if (await page.getByLabel('Viewing panel').isVisible())
       await page.getByLabel('Viewing panel').selectOption('channels');
+    await openChannelSearch(page);
     await page.getByRole('button', { name: 'Location and sort', exact: true }).click();
     return page.getByRole('dialog', { name: 'Location and sort' });
   }
@@ -313,7 +315,9 @@ async function openScreen(page: Page, screen: Screen): Promise<Locator> {
     await expect(dialog.getByRole('status')).toContainText('55 possible sources found');
     return dialog;
   }
-  if (await page.getByLabel('Viewing panel').isVisible())
+  if (screen === 'watch' && (await page.locator('#phone-watch-button').isVisible()))
+    await page.locator('#phone-watch-button').click();
+  else if (await page.getByLabel('Viewing panel').isVisible())
     await page.getByLabel('Viewing panel').selectOption(screen === 'watch' ? 'watch' : 'channels');
   return page.locator('#app');
 }

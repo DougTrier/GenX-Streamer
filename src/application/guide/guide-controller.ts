@@ -120,6 +120,7 @@ export function createGuideController(env: GuideEnvironment) {
       return {
         filter: state.filter,
         query: state.query,
+        favoritesOnly: env.browser.isFavoritesOnly(),
         sports: env.browser.getSportsScope(),
         ...(state.filter === 'watched'
           ? {

@@ -38,6 +38,7 @@ export async function mountLiveViewingPane(
           'genxtra',
           'media-results',
           'tv-density',
+          'phone-portrait',
         ]
           .map((name) => `<link rel="stylesheet" href="/src/ui/${name}.css">`)
           .join('') +
@@ -172,6 +173,8 @@ export async function expectLiveVideoOnly(page: Page) {
       )
       .count(),
   ).toBe(0);
+  const watch = page.locator('#phone-watch-button');
+  if (await watch.isVisible()) await watch.click();
   await expect(page.locator('.watchhead')).toBeHidden();
   const g = await livePaneGeometry(page);
   expect(g.screen.top - g.card.top).toBeLessThanOrEqual(g.padding + 1);
@@ -181,8 +184,8 @@ export async function expectLiveVideoOnly(page: Page) {
   expect(g.video.width).toBeCloseTo(g.inner.width, 0);
   expect(g.screen.height).toBeGreaterThan(90);
   // The Guide belongs to the channel row; a phone's Watch view hides that panel.
-  const guide = page.getByRole('button', { name: 'Free TV guide', exact: true });
-  await expect(page.locator('.sidehead #guide-button')).toHaveCount(1);
+  const guide = page.locator('.sidehead #guide-button, .phone-browse-bar #guide-button');
+  await expect(guide).toHaveCount(1);
   if (await page.locator('.browser').isVisible()) await expect(guide).toBeVisible();
   return g;
 }

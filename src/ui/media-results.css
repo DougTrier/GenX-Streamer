@@ -267,6 +267,10 @@
   background: transparent;
 }
 
+:is(.channel-favorite, #favorite-button)[aria-busy='true'] {
+  opacity: 0.7;
+}
+
 #channel-rows .media-result-row button:focus-visible,
 #genxtra-library .gx-archive-result-row button:focus-visible {
   outline: 2px solid #ffc4ec;

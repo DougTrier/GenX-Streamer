@@ -20,6 +20,7 @@ import { invokeOwnedNative, type OwnedNativeRuntime } from './owned-native-comma
 import { validateGuideCategories, type GuideCategory } from '../guide/categories';
 import { validateSportsScope, type SportsScope } from '../search/sports';
 import { captureGuideHistory, type GuideHistoryScope } from '../guide/history-scope';
+import { validReplayDay, type ReplayDates } from '../search/replay-dates';
 
 /** The provider's guide as stored for one Paid TV account (native owns the address). */
 export interface AccountGuideStatus {
@@ -53,6 +54,7 @@ export interface AccountGuideProgram {
   title: string;
   description: string | null;
   categories: GuideCategory[];
+  replay?: ReplayDates;
 }
 
 const invalid = () => new Error('Paid TV guide reply is invalid.');
@@ -139,10 +141,20 @@ function validateProgram(value: unknown, epgId: string): AccountGuideProgram {
     'title',
     'description',
     'categories',
+    'replay',
   ]);
   if (row.epgId !== epgId || !Number.isSafeInteger(row.startMs)) throw invalid();
   const stopMs = row.stopMs === null ? null : count(row.stopMs);
   if (stopMs !== null && stopMs <= (row.startMs as number)) throw invalid();
+  const replay =
+    row.replay === undefined
+      ? undefined
+      : record(row.replay, ['originalAirDate', 'previousAirDate']);
+  const replayDay = (value: unknown) => {
+    if (value === null) return null;
+    if (!validReplayDay(value) || Date.parse(value) > (row.startMs as number)) throw invalid();
+    return value;
+  };
   return {
     epgId,
     startMs: row.startMs as number,
@@ -151,6 +163,14 @@ function validateProgram(value: unknown, epgId: string): AccountGuideProgram {
     title: text(row.title, 16384),
     description: row.description === null ? null : text(row.description, 65536, true),
     categories: validateGuideCategories(row.categories),
+    ...(replay
+      ? {
+          replay: {
+            originalAirDate: replayDay(replay.originalAirDate),
+            previousAirDate: replayDay(replay.previousAirDate),
+          },
+        }
+      : {}),
   };
 }
 
@@ -254,7 +274,13 @@ export function createAccountGuide(runtime?: OwnedNativeRuntime) {
           ...(watched ? { historyIds: [...watched.ids], hideAdult: watched.hideAdult } : {}),
         },
         (value) => {
-          const row = record(value, ['revision', 'epgIds', 'channelIds', 'ppvChannelIds']);
+          const row = record(value, [
+            'revision',
+            'epgIds',
+            'channelIds',
+            'ppvChannelIds',
+            'firstStartsMs',
+          ]);
           if (!Array.isArray(row.epgIds) || row.epgIds.length > 50000) throw invalid();
           if ((ppv || sportScope || watched) && row.channelIds === undefined) throw invalid();
           let channelIds: string[] | undefined;
@@ -281,11 +307,25 @@ export function createAccountGuide(runtime?: OwnedNativeRuntime) {
               throw invalid();
           }
           if ((sportScope?.includePpv || watched) && ppvChannelIds === undefined) throw invalid();
+          const rawStarts = row.firstStartsMs;
+          const start = sportScope?.windowStartMs ?? fromMs;
+          const end = sportScope?.windowEndMs ?? toMs;
+          if (
+            rawStarts !== undefined &&
+            (!Array.isArray(rawStarts) ||
+              rawStarts.length !== channelIds?.length ||
+              rawStarts.some(
+                (value) =>
+                  !Number.isSafeInteger(value) || value < start - 43_200_000 || value >= end,
+              ))
+          )
+            throw invalid();
           return {
             revision: count(row.revision),
             epgIds: row.epgIds.map((id) => text(id, 16384)),
             ...(channelIds === undefined ? {} : { channelIds }),
             ...(ppvChannelIds === undefined ? {} : { ppvChannelIds }),
+            ...(rawStarts === undefined ? {} : { firstStartsMs: rawStarts as number[] }),
           };
         },
         signal,

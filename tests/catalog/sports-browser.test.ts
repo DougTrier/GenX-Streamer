@@ -630,6 +630,53 @@ it.each([
   },
 );
 
+it('Baseball keeps dedicated channels and guide matches while excluding incidental synopsis mentions', async () => {
+  const page = await mount();
+  try {
+    await page.evaluate(() => {
+      const { browser } = Reflect.get(window, 'fixture');
+      const startMs = Date.now() - 1000;
+      const stopMs = startMs + 3600000;
+      browser.update(
+        [
+          {
+            id: 'sitcom',
+            name: 'NBC Comedy Vault',
+            category: 'Comedy',
+            cachedPrograms: [
+              {
+                title: 'Will & Grace',
+                description: 'Friends attend a baseball game.',
+                startMs,
+                stopMs,
+              },
+            ],
+          },
+          {
+            id: 'affiliate',
+            name: 'FOX 43',
+            category: 'General',
+            cachedPrograms: [
+              { title: 'Cubs at Cardinals', categories: [{ text: 'Baseball' }], startMs, stopMs },
+            ],
+          },
+          { id: 'dedicated', name: 'MLB Network', category: 'Sports' },
+        ],
+        ['sitcom'],
+        null,
+      );
+      browser.setFilter('sports');
+      browser.setSportsFacet({ sport: 'baseball' });
+    });
+    await browserExpect(page.locator('.channel')).toHaveCount(2);
+    await browserExpect(page.locator('[data-channel="affiliate"]')).toBeVisible();
+    await browserExpect(page.locator('[data-channel="dedicated"]')).toBeVisible();
+    await browserExpect(page.locator('[data-channel="sitcom"]')).toHaveCount(0);
+  } finally {
+    await close(page);
+  }
+});
+
 it('uses saved programme evidence for generic affiliates and badges only PPV-only matching rows', async () => {
   const page = await mount();
   try {
@@ -1555,6 +1602,118 @@ it('uses cached programme league evidence for full opponent names and leaves amb
     expect(await page.locator('[data-channel="known"]').getAttribute('aria-label')).toContain(
       'Bears vs Packers',
     );
+  } finally {
+    await close(page);
+  }
+});
+
+it('replaces a football headline with a scheduled basketball game when switching sports', async () => {
+  const page = await mount();
+  try {
+    await page.evaluate(() => {
+      const f = Reflect.get(window, 'fixture');
+      const now = Date.now();
+      f.browser.update(
+        [
+          {
+            id: 'mixed-network',
+            sourceId: 'fixture',
+            name: 'Local sports network',
+            category: 'Sports',
+            cachedPrograms: [
+              { title: 'College Basketball', startMs: now + 3_600_000, stopMs: now + 7_200_000 },
+            ],
+          },
+        ],
+        [],
+        null,
+      );
+      f.browser.setNowPlaying([
+        {
+          catalogSourceId: 'fixture',
+          appChannelId: 'mixed-network',
+          title: 'American Football',
+          startMs: now - 1000,
+          stopMs: now + 3_600_000,
+        },
+      ]);
+      f.browser.setFilter('sports');
+      f.browser.setSportsFacet({ sport: 'american-football' });
+    });
+    const row = page.locator('[data-channel="mixed-network"]');
+    await browserExpect(row).toContainText('American Football');
+    await page.evaluate(() =>
+      Reflect.get(window, 'fixture').browser.setSportsFacet({ sport: 'basketball' }),
+    );
+    await browserExpect(row).toContainText('Scheduled · College Basketball');
+    await browserExpect(row).not.toContainText('American Football');
+  } finally {
+    await close(page);
+  }
+});
+
+it('searches Football under All without admitting synopsis mentions or showing an unrelated current title', async () => {
+  const page = await mount();
+  try {
+    await page.evaluate(() => {
+      const { browser } = Reflect.get(window, 'fixture');
+      const now = Date.now();
+      const cartoon = {
+        title: 'The Fixies',
+        description: 'The friends watch an NFL football game.',
+        categories: [{ text: 'Children' }],
+        startMs: now - 1000,
+        stopMs: now + 3_600_000,
+      };
+      browser.update(
+        [
+          {
+            id: 'cartoon',
+            sourceId: 'fixture',
+            name: 'TG Junior',
+            category: 'Kids',
+            cachedPrograms: [cartoon],
+          },
+          { id: 'sports-coverage', sourceId: 'fixture', name: 'Sports Desk', category: 'Sports' },
+          { id: 'basketball', sourceId: 'fixture', name: 'NBA TV', category: 'Sports' },
+          { id: 'nfl', sourceId: 'fixture', name: 'NFL Network', category: 'Sports' },
+          { id: 'sailing', sourceId: 'fixture', name: 'SailGP', category: 'Sports' },
+          {
+            id: 'cheerleaders',
+            sourceId: 'fixture',
+            name: 'Dallas Cowboys Cheerleaders',
+            category: 'Series',
+          },
+          {
+            id: 'affiliate',
+            sourceId: 'fixture',
+            name: 'Local affiliate',
+            category: 'General',
+            cachedPrograms: [
+              { title: 'College Football', startMs: now + 3_600_000, stopMs: now + 7_200_000 },
+            ],
+          },
+        ],
+        ['sports-coverage'],
+        null,
+      );
+      browser.setNowPlaying([
+        { ...cartoon, catalogSourceId: 'fixture', appChannelId: 'affiliate' },
+      ]);
+      browser.search('Football');
+    });
+    await browserExpect(page.locator('[data-channel="cartoon"]')).toHaveCount(0);
+    await browserExpect(page.locator('[data-channel="basketball"]')).toHaveCount(0);
+    await browserExpect(page.locator('[data-channel="sailing"]')).toHaveCount(0);
+    await browserExpect(page.locator('[data-channel="cheerleaders"]')).toHaveCount(0);
+    expect(
+      await page
+        .locator('.channel[data-channel]')
+        .evaluateAll((rows) => rows.map((row) => (row as HTMLElement).dataset.channel)),
+    ).toEqual(['nfl', 'affiliate', 'sports-coverage']);
+    const affiliate = page.locator('[data-channel="affiliate"]');
+    await browserExpect(affiliate).toContainText('Scheduled · College Football');
+    await browserExpect(affiliate).not.toContainText('The Fixies');
   } finally {
     await close(page);
   }

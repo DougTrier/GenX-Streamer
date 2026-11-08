@@ -152,7 +152,7 @@ export interface ScanScreenShared {
     dispose(): Promise<void>;
   } | null>;
   readonly healthPlatform: string | null;
-  readonly scanProviderSources: () => Source[];
+  readonly scanProviderSources: (refreshSaved?: boolean) => Source[];
   readonly scanCollector: ReturnType<typeof createScanSourceCollector>;
   readonly searchIndexFreshness: ReturnType<typeof createIndexFreshness>;
   readonly sourceActivation: ReturnType<typeof createSourceSnapshotActivationTransport>;
@@ -300,12 +300,13 @@ export function mountApplicationScanScreen(env: ScanEnvironment, shared: ScanScr
         throw new Error('Saved scan ownership must be recovered before refreshing sources.');
       const platform = shared.healthPlatform;
       if (!platform) throw new Error('Native channel checks are unavailable.');
+      const refreshSaved = sourceCleanupRequested(input);
       const sources = input.sources
         ? input.sources.map(({ source }) => validateSource(source))
-        : shared.scanProviderSources();
+        : shared.scanProviderSources(refreshSaved);
       if (!sources.length)
         throw new Error('Configure an authorized channel source before refreshing.');
-      const initialCatalogRevision = env.persistedCatalogRevision;
+      let catalogRevision = env.persistedCatalogRevision;
       // Existing sources retain the exact durable permission fingerprint, including
       // optional content hints. Detection may enrich a newly reviewed source only.
       const canonicalSources = new Map(env.catalog.sources.map((source) => [source.id, source]));
@@ -317,7 +318,7 @@ export function mountApplicationScanScreen(env: ScanEnvironment, shared: ScanScr
       const current = () =>
         !env.applicationClosing &&
         !signal.aborted &&
-        env.persistedCatalogRevision === initialCatalogRevision &&
+        env.persistedCatalogRevision === catalogRevision &&
         initialIdentity ===
           JSON.stringify([
             env.catalog.sources,
@@ -336,7 +337,7 @@ export function mountApplicationScanScreen(env: ScanEnvironment, shared: ScanScr
       const capturedForeground = env.foregroundGeneration;
       const cleanupStorageCurrent = () =>
         env.catalog === capturedCatalog &&
-        env.persistedCatalogRevision === initialCatalogRevision &&
+        env.persistedCatalogRevision === catalogRevision &&
         initialIdentity ===
           JSON.stringify([
             env.catalog.sources,
@@ -359,11 +360,14 @@ export function mountApplicationScanScreen(env: ScanEnvironment, shared: ScanScr
           pendingPlayback: !!(env.pendingAccountPlayback || env.pendingPublicPlayback),
           retainedPlayback: !!env.backgroundLiveChoice,
         });
-      const cleanup = sourceCleanupRequested(input)
+      // A recheck replacing unfinished work must keep its prior catalog revision
+      // valid until the new scan has been admitted.
+      const cleanupEligible = refreshSaved && !summary.unfinished;
+      const cleanup = cleanupEligible
         ? createSourceCleanupEpisode(
             {
               transport: cleanupTransport,
-              expectedCatalogRevision: initialCatalogRevision,
+              expectedCatalogRevision: catalogRevision,
               current: cleanupCurrent,
               playbackIdle: cleanupPlaybackIdle,
               observe: (changed) => {
@@ -388,12 +392,23 @@ export function mountApplicationScanScreen(env: ScanEnvironment, shared: ScanScr
                     admitted: () => cleanupCurrent() && cleanupPlaybackIdle(),
                     current: cleanupStorageCurrent,
                     acknowledge: (receipt) => {
+                      catalogRevision = receipt.catalogRevision;
                       env.persistedCatalogRevision = receipt.catalogRevision;
                       shared.scanStorageRevision = receipt.catalogRevision;
                     },
                     adopt: (settings, receipt) => {
                       env.settings = settings;
-                      if (receipt.archivedCount) {
+                      const expired = new Set(receipt.expiredEventIds);
+                      if (expired.size) {
+                        env.catalog = {
+                          ...env.catalog,
+                          channels: env.catalog.channels.filter(
+                            (channel) => !expired.has(channel.id),
+                          ),
+                        };
+                        env.catalogRevision++;
+                      }
+                      if (receipt.archivedCount || expired.size) {
                         env.catalogBrowseViewRevision++;
                         if (!env.applicationClosing) {
                           env.guide.catalogChanged(true);
@@ -474,7 +489,7 @@ export function mountApplicationScanScreen(env: ScanEnvironment, shared: ScanScr
                   : input.intent === 'slow'
                     ? 'slow'
                     : 'refresh',
-              expectedCatalogRevision: initialCatalogRevision,
+              expectedCatalogRevision: catalogRevision,
               expectedCheckpointRevision: summary.checkpointRevision,
               ...(await shared.scanCollector.discoveryHints(scope.query, ownedSignal)),
             },

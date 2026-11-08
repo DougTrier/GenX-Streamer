@@ -45,9 +45,14 @@ pub(crate) fn read_page(
         let scoped = scope(&tx, plan.as_ref())?;
         let live = &scoped.live;
         let predicate = &format!(
-            "{}{}{}",
+            "{}{}{}{}",
             scoped.predicate,
             visibility(scoped.category, request.hide_adult),
+            if request.favorites_only {
+                format!(" AND {}", scoped.favorite)
+            } else {
+                String::new()
+            },
             if request.filter == Filter::Watched {
                 if request.hide_adult {
                     format!(" AND e.channel_id IN(SELECT value FROM json_each(genx_watch_ids())) AND NOT {} AND NOT {}", history_adult_predicate("e.category"), history_adult_predicate(scoped.category))
@@ -89,6 +94,13 @@ pub(crate) fn read_page(
         } else {
             order
         };
+        let football_rank =
+            request.filter == Filter::All && plan.as_ref().is_some_and(|p| p.football_coverage());
+        let order = if football_rank {
+            format!("CASE WHEN {} THEN 0 WHEN genx_sports_cached(e.channel_id) THEN 1 ELSE 2 END,{order}", sports_channel_match(effective_category))
+        } else {
+            order
+        };
         // The stamp is read while this transaction holds its shared lock (the
         // snapshot above read the database), so no write lands in between.
         let cache_key = database_stamp(&tx).map(|stamp| {
@@ -104,6 +116,7 @@ pub(crate) fn read_page(
                 crate::catalog::sports::VOCABULARY,
                 request.category,
                 filter,
+                request.favorites_only,
                 request.history_ids,
                 request.country,
                 order,
@@ -265,8 +278,8 @@ pub(crate) fn read_page(
                     },
                 )
                 .optional())?;
-            if key.is_some() && matches!(request.sort, Sort::Country) {
-                // The country key is computed, so rank the anchor by its row
+            if key.is_some() && (football_rank || matches!(request.sort, Sort::Country)) {
+                // Computed sort keys rank the anchor by its row
                 // position under exactly the requested order.
                 let rank: i64 = sql(tx.query_row(
                     &format!("SELECT pos FROM (SELECT e.channel_id AS id,ROW_NUMBER() OVER (ORDER BY {order})-1 AS pos{live}{predicate}) WHERE id=?5"),
@@ -490,6 +503,7 @@ pub(crate) fn read_countries(
         history_ids: None,
         sort: Sort::Source,
         favorites_first: false,
+        favorites_only: false,
         country: None,
         hide_adult: request.hide_adult,
         start_index: 0,

@@ -646,7 +646,9 @@ it('keeps phone Watch and buffer buttons reachable near their edges', async () =
   try {
     await page.locator('#phone-watch-button').click();
     const buttons = await page
-      .locator('.watch-card .dock button:visible:enabled, #stream-buffer-footer button:visible:enabled')
+      .locator(
+        '.watch-card .dock button:visible:enabled, #stream-buffer-footer button:visible:enabled',
+      )
       .all();
     expect(buttons.length).toBeGreaterThan(5);
     for (const button of buttons) {
@@ -680,8 +682,8 @@ it('acknowledged fullscreen keeps the large picture and controls, then restores 
     await ui(exit).toBeInViewport({ ratio: 1 });
     await ui(page.locator('.stream-buffer-fullscreen')).toBeVisible();
     const dock = await page.locator('.dock').evaluate((element) => {
-      const buttons = [...element.querySelectorAll<HTMLElement>('button')].filter(
-        (button) => button.checkVisibility(),
+      const buttons = [...element.querySelectorAll<HTMLElement>('button')].filter((button) =>
+        button.checkVisibility(),
       );
       const buffer = element.querySelector<HTMLElement>('.stream-buffer-meter')!;
       return {

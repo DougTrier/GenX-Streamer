@@ -17,6 +17,10 @@ fn main() {
     // still reads it to link the Visual C++ runtime into the executable.
     if std::env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc") {
         std::env::set_var("STATIC_VCRUNTIME", "true");
+        // The Tauri IPC fixture links dialog code, but integration test
+        // executables do not get Tauri's application manifest.
+        println!("cargo:rustc-link-arg-tests=/MANIFEST:EMBED");
+        println!("cargo:rustc-link-arg-tests=/MANIFESTDEPENDENCY:type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'");
     }
     tauri_build::build()
 }

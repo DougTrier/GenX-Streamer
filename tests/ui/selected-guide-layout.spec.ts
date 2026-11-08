@@ -209,6 +209,8 @@ for (const mode of ['GenXtra idle', 'GenXtra playing', 'Live'] as const) {
     ]) {
       await page.setViewportSize(viewport);
       await settledLayout(page);
+      const watch = page.locator('#phone-watch-button');
+      if (await watch.isVisible()) await watch.click();
       const g = await livePaneGeometry(page);
       const dock = await dockIntegrity(page);
       await testInfo.attach(`compact-${viewport.width}x${viewport.height}`, {

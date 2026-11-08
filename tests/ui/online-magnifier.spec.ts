@@ -153,7 +153,7 @@ test('Stop during held failed directories prevents fallback to configured source
   }
 });
 
-test('fresh library acquires nothing until magnifier; all directories resolve before guarded descriptors and filtered automatic save', async ({
+test('Enter searches online and saves matching channels without a separate magnifier click', async ({
   page,
 }) => {
   await page.route('https://**', (route) => route.abort());
@@ -200,7 +200,7 @@ test('fresh library acquires nothing until magnifier; all directories resolve be
   expect(directory.requests).toEqual([]);
   expect(catalogs).toBe(0);
   expect(probes).toBe(0);
-  await page.locator('#search-programs').click();
+  await page.locator('#search').press('Enter');
   await expect(page.locator('#inline-scan-status')).toHaveText('1 channel saved.');
   expect(directory.repositories).toEqual(known.repositoryIds);
   expect(descriptorsAcknowledged).toBe(true);
@@ -216,6 +216,28 @@ test('fresh library acquires nothing until magnifier; all directories resolve be
   expect(await canonicalRecords(page)).toEqual(saved);
   expect(catalogs).toBe(1);
   expect(probes).toBe(1);
+});
+
+test('phone Search submits the Free TV query and closes Search & Filters', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 640 });
+  await page.route('https://**', (route) => route.abort());
+  await installOnlineDirectoryFixture(page, [location]);
+  await page.route(location, (route) =>
+    route.fulfill({
+      contentType: 'text/plain',
+      body: '#EXTM3U\n#EXTINF:-1,NFL fixture\nhttps://nfl-online.fixture.invalid/feed\n',
+    }),
+  );
+  await page.route('https://nfl-online.fixture.invalid/feed', (route) =>
+    route.fulfill({ contentType: 'application/vnd.apple.mpegurl', body: media }),
+  );
+  await ready(page);
+  await page.locator('#phone-filter-button').click();
+  await page.locator('#search').fill('NFL');
+  await page.locator('#search').press('Enter');
+  await expect(page.locator('#phone-filter-dialog')).toBeHidden();
+  await expect(page.locator('#inline-scan-status')).toHaveText('1 channel saved.');
+  await expect(page.locator('#channel-list .channel strong')).toHaveText('NFL fixture');
 });
 
 test('Stop during held metadata joins its owned fetch and rejects late configuration or probes', async ({

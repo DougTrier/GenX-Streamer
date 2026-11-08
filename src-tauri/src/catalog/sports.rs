@@ -108,6 +108,30 @@ pub(crate) fn tokens(text: &str) -> Vec<String> {
     }
     unicode_tokens(text)
 }
+
+/// A publisher's bracketed sport or league tag, without inferring from a title.
+pub(crate) fn has_explicit_event_tag(title: &str) -> bool {
+    let Some((tag, _)) = title
+        .trim_start()
+        .strip_prefix('[')
+        .and_then(|rest| rest.split_once(']'))
+    else {
+        return false;
+    };
+    let tag = tokens(tag);
+    !tag.is_empty()
+        && registry()
+            .sports
+            .iter()
+            .flat_map(|sport| &sport.evidence_aliases)
+            .chain(
+                registry()
+                    .leagues
+                    .iter()
+                    .flat_map(|league| &league.evidence_aliases),
+            )
+            .any(|alias| tokens(alias) == tag)
+}
 fn unicode_tokens(text: &str) -> Vec<String> {
     static TOKEN: OnceLock<regex::Regex> = OnceLock::new();
     let text = text.nfkc().collect::<String>().to_lowercase();
@@ -527,6 +551,9 @@ impl Plan {
     pub(crate) fn sports_filter(&self) -> bool {
         self.specific || !self.targets.is_empty()
     }
+    pub(crate) fn football_coverage(&self) -> bool {
+        self.literal == "football" && self.scope.sport.is_none() && self.scope.league.is_none()
+    }
     pub(crate) fn include_ppv(&self) -> bool {
         self.specific && self.scope.include_ppv
     }
@@ -590,7 +617,31 @@ impl Plan {
             fields.extend_from_slice(extra);
             return self.channel_fields(&fields, strict);
         }
-        let mut f = (*self.facts(program, true)).clone();
+        // Programme fields are title, synopsis, then structured categories.
+        // A sitcom synopsis can mention baseball without airing baseball.
+        // Keep it searchable, but don't use it as evidence for a chosen facet.
+        let facet_evidence;
+        let bare_football = self.literal == "football";
+        let evidence = if bare_football || self.scope.sport.is_some() || self.scope.league.is_some()
+        {
+            let title_facts = self.facts(&program[..program.len().min(1)], true);
+            facet_evidence = program
+                .first()
+                .into_iter()
+                .chain(program.iter().skip(2).filter(|category| {
+                    title_facts.sports.is_empty()
+                        || self
+                            .facts(std::slice::from_ref(*category), true)
+                            .sports
+                            .is_subset(&title_facts.sports)
+                }))
+                .cloned()
+                .collect::<Vec<_>>();
+            &facet_evidence
+        } else {
+            program
+        };
+        let mut f = (*self.facts(evidence, true)).clone();
         let inherited = (*self.facts(channel, false)).clone();
         // Neutral collegiate context never establishes membership by itself.
         // The whole programme term is required; direct conflicting sport or
@@ -645,7 +696,11 @@ impl Plan {
         }
         f.leagues.extend(accepted_leagues);
         contextual(&mut f);
-        let mut texts = program.to_vec();
+        let mut texts = if bare_football {
+            evidence.to_vec()
+        } else {
+            program.to_vec()
+        };
         if !conflict {
             texts.extend_from_slice(channel);
             texts.extend_from_slice(extra);
@@ -672,14 +727,19 @@ impl Plan {
         let selected_facet = self.scope.sport.is_some() || self.scope.league.is_some();
         // Explicit query intent requires independent row evidence; a literal
         // substring cannot substitute for the queried league facts.
-        // Bare football and other generic text retain their literal branch.
+        // Bare football can mean soccer, but its literal spelling alone is not evidence.
         let semantic_only = self.query_specific || (strict && !selected_facet);
         if !semantic_only
             && fields.iter().any(|text| {
-                text.nfkc()
-                    .collect::<String>()
-                    .to_lowercase()
-                    .contains(&self.literal)
+                if self.literal == "football" {
+                    f.sports.contains("soccer")
+                        && tokens(text).iter().any(|word| word == "football")
+                } else {
+                    text.nfkc()
+                        .collect::<String>()
+                        .to_lowercase()
+                        .contains(&self.literal)
+                }
             })
         {
             return true;
@@ -722,6 +782,41 @@ pub(crate) fn register_evidence(c: &Connection) -> Result<(), String> {
 }
 pub(crate) fn register(c: &Connection, plan: &Plan) -> Result<(), String> {
     let flag = FunctionFlags::SQLITE_UTF8 | FunctionFlags::SQLITE_DETERMINISTIC;
+    if plan.football_coverage() {
+        db(
+            c.create_scalar_function("genx_football_entertainment", 2, flag, |ctx| {
+                let original = ctx.get::<Option<String>>(0)?.unwrap_or_default();
+                let effective = ctx.get::<Option<String>>(1)?.unwrap_or_default();
+                Ok([original, effective].iter().any(|category| {
+                    tokens(category).iter().any(|word| {
+                        matches!(
+                            word.as_str(),
+                            "series"
+                                | "entertainment"
+                                | "movie"
+                                | "movies"
+                                | "cinema"
+                                | "kids"
+                                | "children"
+                                | "cartoons"
+                        )
+                    })
+                }))
+            }),
+        )?;
+        let p = plan.clone();
+        db(
+            c.create_scalar_function("genx_football_coverage", 3, flag, move |ctx| {
+                let fields = (0..3)
+                    .map(|i| ctx.get::<Option<String>>(i).map(Option::unwrap_or_default))
+                    .collect::<rusqlite::Result<Vec<_>>>()?;
+                Ok(p.facts(&fields, false).sports.is_empty()
+                    && tokens(&fields[0])
+                        .iter()
+                        .any(|word| word == "sports" || word == "sport"))
+            }),
+        )?;
+    }
     db(
         c.create_scalar_function("genx_sports_country", 1, flag, |ctx| {
             Ok(crate::group_country::group_country(&ctx.get::<String>(0)?)

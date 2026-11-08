@@ -51,6 +51,24 @@ it('skips included templates and redundant variants while retaining explicit cus
   expect(p.reviewedChannelProviders).toHaveLength(4);
   expect(catalog.sources).toEqual([saved]);
 });
+
+it('refreshes a saved curated playlist under its own identity when the full index is included', () => {
+  const location = 'https://dearbulut.github.io/iptv/playlists/';
+  const best = source('saved-best', `${location}best.m3u`);
+  const catalog = { ...emptyCatalog(), sources: [best] };
+  const preferences = defaultPreferences();
+  preferences.reviewedChannelProviders = ['best', 'online', 'index'].map((id) => ({
+    id,
+    name: id,
+    location: `${location}${id}.m3u`,
+    provenance: 'https://github.com/dearbulut/iptv',
+  }));
+  expect(providerScanSources(catalog, preferences).map((item) => item.id)).toEqual(['index']);
+  expect(providerScanSources(catalog, preferences, true).map((item) => item.id)).toEqual([
+    'saved-best',
+    'index',
+  ]);
+});
 const setup = () => {
   const preferences = {
     ...defaultPreferences(),

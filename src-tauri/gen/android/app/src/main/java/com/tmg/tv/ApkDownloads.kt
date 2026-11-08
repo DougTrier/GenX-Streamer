@@ -28,8 +28,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * W16 (docs/web-viewer-invariants.md): a website may hand GenX an Android app
- * (APK) to install. The viewer's click on the site's download link is the
- * consent to download (owner decision, October 19, 2026); installing always
+ * (APK) to install. GenX confirms before downloading; installing always
  * passes Android's own installer confirmation. Every other download stays
  * refused (W06). Pure rules here; unit-tested in ApkRulesTest.
  */
@@ -62,7 +61,7 @@ object ApkRules {
    * the downloaded file as an app before it is opened.
    */
   fun isApk(url: String, mime: String?, disposition: String?): Boolean {
-    if (!secure(url)) return false
+    if (!secure(url) || isBundle(url, mime, disposition)) return false
     val type = mime?.substringBefore(';')?.trim()?.lowercase()
     return type == MIME || fileName(url, disposition).lowercase().endsWith(".apk")
   }
@@ -75,10 +74,13 @@ object ApkRules {
       listOf(".xapk", ".apks", ".apkm").any { name.endsWith(it) }
   }
 
-  /** Same host (cookies are sent only there, never to a redirect elsewhere). */
-  fun sameHost(a: String, b: String): Boolean = try {
-    URI(a).host.equals(URI(b).host, ignoreCase = true)
-  } catch (_: Exception) { false }
+  /** Never forward a page path, query, fragment or credentials as a Referer. */
+  fun origin(raw: String): String? {
+    if (!secure(raw)) return null
+    val uri = URI(raw)
+    val port = if (uri.port == -1 || uri.port == 443) "" else ":${uri.port}"
+    return "https://${uri.host.lowercase()}$port"
+  }
 
   /** The first 4 bytes of an APK: it is a ZIP archive. */
   fun looksLikeZip(head: ByteArray) =
@@ -112,20 +114,26 @@ class ApkInstaller(private val activity: Activity) {
     val name = ApkRules.fileName(url, disposition).ifEmpty { "app.apk" }
     tell("Downloading $name…")
     Thread {
+      var pending: File? = null
       try {
         cleanup()
         folder.mkdirs()
-        val file = File(folder, "download.apk")
+        // Android can open the granted URI after this worker has finished.
+        // A later download must never supply different bytes at that URI.
+        val file = File.createTempFile("download-", ".apk", folder)
+        pending = file
         val failure = download(url, userAgent, referer, cookie, file)
-        if (failure != null) { file.delete(); tell(failure); return@Thread }
+        if (failure != null) { tell(failure); return@Thread }
         // Android must read it as an app; anything else is deleted unopened.
         if (activity.packageManager.getPackageArchiveInfo(file.path, 0) == null) {
-          file.delete(); tell("$name is not an Android app, so it was not opened."); return@Thread
+          tell("$name is not an Android app, so it was not opened."); return@Thread
         }
         activity.runOnUiThread { install(file, name) }
+        pending = null
       } catch (_: Exception) {
         tell("$name could not be downloaded.")
       } finally {
+        pending?.delete()
         busy.set(false)
       }
     }.also { it.name = "genx-apk-download"; it.isDaemon = true }.start()
@@ -134,6 +142,8 @@ class ApkInstaller(private val activity: Activity) {
   /** Null when the file is complete; otherwise the viewer's reason. */
   private fun download(start: String, userAgent: String?, referer: String?, cookie: String?, file: File): String? {
     var address = start
+    val pageOrigin = referer?.let(ApkRules::origin)
+    val initialOrigin = ApkRules.origin(start)
     repeat(ApkRules.MAX_REDIRECTS + 1) {
       if (!ApkRules.secure(address)) return "That download is not secure (https), so it was refused."
       val connection = (URL(address).openConnection() as HttpURLConnection).apply {
@@ -141,10 +151,11 @@ class ApkInstaller(private val activity: Activity) {
         connectTimeout = 15_000
         readTimeout = 30_000
         userAgent?.takeIf { it.length < 512 }?.let { setRequestProperty("User-Agent", it) }
-        referer?.takeIf { ApkRules.secure(it) }?.let { setRequestProperty("Referer", it) }
-        // The page's own cookies for this site (some download links need its
-        // session), only to the site the viewer clicked on.
-        cookie?.takeIf { ApkRules.sameHost(address, start) && it.length < 8192 }?.let { setRequestProperty("Cookie", it) }
+        if (pageOrigin != null && pageOrigin == initialOrigin && pageOrigin == ApkRules.origin(address)) {
+          setRequestProperty("Referer", "$pageOrigin/")
+          cookie?.takeIf { it.length < 8192 && it.none(Char::isISOControl) }
+            ?.let { setRequestProperty("Cookie", it) }
+        }
       }
       try {
         val status = connection.responseCode
@@ -179,6 +190,11 @@ class ApkInstaller(private val activity: Activity) {
   }
 
   private fun install(file: File, name: String) {
+    if (activity.isFinishing || activity.isDestroyed ||
+      (activity as? MainActivity)?.isViewingForeground() != true) {
+      file.delete()
+      return
+    }
     val uri = FileProvider.getUriForFile(activity, "${activity.packageName}.fileprovider", file)
     val intent = Intent(Intent.ACTION_VIEW).setDataAndType(uri, ApkRules.MIME)
       .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)

@@ -18,6 +18,7 @@
  * application context.
  */
 import { type Preferences, type SerializedPreferencesStore } from '../../preferences';
+import type { FavoriteTeam } from '../../preferences/favorite-teams';
 import { type createScanController } from '../discovery/scan-controller';
 import { type mountGuide } from '../../ui/guide/guide';
 import { type createDiagnostics } from '../../diagnostics/native';
@@ -88,6 +89,7 @@ export function createSettingsController(env: SettingsEnvironment) {
     mutate: (draft: Preferences) => void,
     guard?: () => Promise<boolean>,
     allowDuringScan = false,
+    apply = true,
   ): Promise<boolean> {
     if (
       (env.transferBusy && !(allowDuringScan && env.sourceScan.snapshot().busy)) ||
@@ -116,7 +118,7 @@ export function createSettingsController(env: SettingsEnvironment) {
         // Invalidate open Guide snapshots only after the preference write acknowledges.
         if (!env.applicationClosing) env.guide.catalogChanged(true);
       }
-      if (!env.applicationClosing) env.applySettings();
+      if (apply && !env.applicationClosing) env.applySettings();
       return true;
     } catch (error) {
       void env.diagnostics.emit({ operation: 'storage', level: 'error', code: 'storage-failed' });
@@ -126,6 +128,15 @@ export function createSettingsController(env: SettingsEnvironment) {
   }
   return {
     saveSettings,
+    saveFavoriteTeams: (change: (current: FavoriteTeam[]) => FavoriteTeam[]) =>
+      saveSettings(
+        (draft) => {
+          draft.favoriteTeams = change(draft.favoriteTeams ?? []);
+        },
+        undefined,
+        false,
+        false,
+      ),
     changeSound,
     soundNow,
     presentSound,

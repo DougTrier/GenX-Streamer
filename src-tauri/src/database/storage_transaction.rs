@@ -222,7 +222,7 @@ struct PairReuse<'a, 'h> {
 struct CapturedPair {
     catalog: Option<Value>,
     preferences: Option<Value>,
-    extensions: [Option<String>; 3],
+    extensions: [Option<String>; 4],
 }
 #[derive(Serialize, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]

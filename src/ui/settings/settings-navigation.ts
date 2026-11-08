@@ -22,6 +22,7 @@ export function mountSettingsNavigation(dialog: HTMLDialogElement): () => void {
   const backup = heading.find((node) => node.textContent === 'Backup and migration');
   const discovery = heading.find((node) => node.textContent === 'Find channels');
   const sharing = dialog.querySelector<HTMLElement>('#sharing-settings');
+  const teams = dialog.querySelector<HTMLElement>('#favorite-teams-settings');
   const migration = [...dialog.querySelectorAll<HTMLElement>('details')].find(
     (node) => node.querySelector('summary')?.textContent === 'Import from the previous app',
   );
@@ -53,7 +54,8 @@ export function mountSettingsNavigation(dialog: HTMLDialogElement): () => void {
     ['preferences', 'Settings backup', data, backup],
     ['data', 'Full backup', backup, migration],
     ['migration', 'Import previous app', migration, discovery],
-    ['discovery', 'Find channels', discovery, sharing],
+    ['discovery', 'Find channels', discovery, teams ?? sharing],
+    ...(teams ? [['favorite-teams', 'Favorite Teams', teams, sharing] as const] : []),
     ['sharing', 'LAN viewing and phone control', sharing, sharing.nextElementSibling],
   ] as const;
   const panels: HTMLElement[] = [];

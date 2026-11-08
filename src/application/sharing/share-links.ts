@@ -21,7 +21,7 @@
  * never gets a Share button, and the link builder refuses account addresses.
  */
 import { type CatalogRecord } from '../../catalog';
-import { type Preferences, type SerializedPreferencesStore } from '../../preferences';
+import { type Preferences } from '../../preferences';
 import { type PlaybackController } from '../../playback/controller';
 import {
   buildShareMessage,
@@ -65,17 +65,11 @@ export interface ShareLinksEnvironment {
   readonly sharingBridge: ReturnType<typeof createSharingHost>;
   readonly playbackAction: (work: Promise<unknown>) => void;
   readonly toggleChannelFavorite: (id: string) => void;
-  readonly applySettings: () => void;
+  readonly pendingChannelFavorite: (id: string) => boolean | undefined;
   readonly notice: (message: string) => void;
-  readonly preferences: SerializedPreferencesStore;
   readonly applicationClosing: boolean;
-  readonly importRunning: boolean;
-  readonly transferBusy: boolean;
-  settings: Preferences;
-  catalog: CatalogRecord;
-  catalogWrites: Promise<unknown>;
-  persistedCatalogRevision: string;
-  catalogRevision: number;
+  readonly settings: Preferences;
+  readonly catalog: CatalogRecord;
 }
 
 const ACCOUNT_ID = /^account-[a-f0-9]{32}-[a-f0-9]{64}$/u;
@@ -99,8 +93,6 @@ export function createShareLinks(env: ShareLinksEnvironment) {
     const title = env.archivePlayer?.selection;
     if (selection.playMode === 'on-demand')
       return title ? { kind: 'title', name: title.title, titleRef: title.titleRef } : null;
-    const shared = incoming.sharedItem(selection.id);
-    if (shared) return shared;
     const channel = env.catalog.channels.find((entry) => entry.id === selection.id);
     if (!channel || !env.catalog.sources.some((source) => source.id === channel.sourceId))
       return null;
@@ -175,7 +167,7 @@ export function createShareLinks(env: ShareLinksEnvironment) {
     if (!ready() || draining || env.applicationClosing) return;
     draining = (async () => {
       for (let link = await takeIncomingLink().catch(() => null); link;) {
-        await incoming.receive(link);
+        incoming.receive(link);
         link = await takeIncomingLink().catch(() => null);
       }
     })().finally(() => {
@@ -189,8 +181,6 @@ export function createShareLinks(env: ShareLinksEnvironment) {
 
   return {
     render,
-    channel: incoming.channel,
-    allowsHttp: incoming.allowsHttp,
     dispose() {
       readiness.disconnect();
       stopListening();

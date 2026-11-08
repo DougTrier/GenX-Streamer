@@ -1,6 +1,7 @@
 // Copyright 2026 Doug Trier. SPDX-License-Identifier: Apache-2.0
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { invokeOwnedNative, type OwnedNativeRuntime } from './owned-native-command';
+import { boundedUtf8Text } from './bounded-text';
 
 export interface SourceCleanupRound {
   readonly schemaVersion: 1;
@@ -12,6 +13,7 @@ export interface SourceCleanupReceipt {
   readonly committed: true;
   readonly status: 'completed' | 'coverage-incomplete' | 'budget-exhausted';
   readonly archivedCount: number;
+  readonly expiredEventIds: readonly string[];
   readonly checkedTargets: number;
   readonly deferredCount: number;
   readonly catalogRevision: string;
@@ -69,6 +71,7 @@ export function validateSourceCleanupReceipt(value: unknown): SourceCleanupRecei
     'committed',
     'status',
     'archivedCount',
+    'expiredEventIds',
     'checkedTargets',
     'deferredCount',
     'catalogRevision',
@@ -81,12 +84,23 @@ export function validateSourceCleanupReceipt(value: unknown): SourceCleanupRecei
   )
     throw refused();
   const archivedCount = count(row.archivedCount, 100000);
-  if (row.status === 'coverage-incomplete' && archivedCount !== 0) throw refused();
+  const expiredEventIds: unknown = row.expiredEventIds;
+  if (
+    !Array.isArray(expiredEventIds) ||
+    expiredEventIds.length > 256 ||
+    expiredEventIds.some(
+      (id) => typeof id !== 'string' || !id || !boundedUtf8Text(id, 16384, true),
+    ) ||
+    new Set(expiredEventIds).size !== expiredEventIds.length ||
+    (row.status === 'coverage-incomplete' && (archivedCount || expiredEventIds.length))
+  )
+    throw refused();
   return Object.freeze({
     schemaVersion: 1,
     committed: true,
     status: row.status as SourceCleanupReceipt['status'],
     archivedCount,
+    expiredEventIds: Object.freeze([...expiredEventIds] as string[]),
     checkedTargets: count(row.checkedTargets, 256),
     deferredCount: count(row.deferredCount, 1600000),
     catalogRevision: revision(row.catalogRevision),

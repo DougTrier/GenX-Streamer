@@ -320,6 +320,18 @@ impl PairStore {
                     pref["panelWidth"].as_f64()
                 ],
             ))?;
+            if let Some(teams) = pref.get("favoriteTeams") {
+                let encoded = serde_json::to_string(teams).map_err(|_| "record-encoding-failed")?;
+                sql(tx.execute_batch(
+                    "CREATE TABLE IF NOT EXISTS favorite_teams_v1(singleton INTEGER PRIMARY KEY CHECK(singleton=1),teams TEXT NOT NULL);",
+                ))?;
+                sql(tx.execute(
+                    "INSERT INTO favorite_teams_v1 VALUES(1,?1) ON CONFLICT(singleton) DO UPDATE SET teams=excluded.teams",
+                    params![encoded],
+                ))?;
+            } else if preference_extensions::favorite_teams_table(tx)? {
+                sql(tx.execute("DELETE FROM favorite_teams_v1 WHERE singleton=1", []))?;
+            }
             if sql(tx.query_row("PRAGMA user_version", [], |r| r.get::<_, i64>(0)))? >= 6 {
                 sql(tx.execute(
                     "UPDATE preference SET auto_source_refresh=?1,source_refresh_attempt_at=?2 WHERE singleton=1",

@@ -129,7 +129,7 @@ fn captured_corruption_and_oversize_keep_existing_exact_refusal_categories() {
     let captured = || CapturedPair {
         catalog: Some(catalog.clone()),
         preferences: pair.preferences.as_deref().map(parse).transpose().unwrap(),
-        extensions: [None, None, None],
+        extensions: Default::default(),
     };
     assert_eq!(
         PairStore::finish_pair(captured()).unwrap_err(),

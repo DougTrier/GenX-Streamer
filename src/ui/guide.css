@@ -693,11 +693,18 @@
 }
 
 @media (max-height: 420px) {
-  .source-scan-dialog[data-scan-state='results'] {
-    overflow-y: auto;
+  .source-scan-dialog[data-scan-state='results'] .scan-feedback {
+    max-height: 64px;
   }
   .source-scan-dialog[data-scan-state='results'] .scan-body {
-    min-height: 120px;
+    overflow-y: auto;
+  }
+  .source-scan-dialog[data-scan-state='results'] .scan-setup:not([hidden]) {
+    flex: 0 0 auto;
+    max-height: none;
+  }
+  .source-scan-dialog[data-scan-state='results'] .scan-candidates:not([hidden]) {
+    flex: 1 0 80px;
   }
 }
 

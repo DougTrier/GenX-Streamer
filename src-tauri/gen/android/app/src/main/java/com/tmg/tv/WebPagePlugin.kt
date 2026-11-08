@@ -17,6 +17,7 @@
 package com.tmg.tv
 
 import android.app.Activity
+import android.app.AlertDialog
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -117,12 +118,30 @@ class WebPagePlugin(private val activity: Activity) : Plugin(activity) {
    */
   // A downloaded app left from an earlier session is deleted at start-up (W15).
   private val apps = ApkInstaller(activity).also { it.cleanup() }
+  private var downloadPrompt: AlertDialog? = null
   private fun dispatch(name: String, detail: JSONObject?) {
     if (name == "genx-apk-offer") {
       detail ?: return
       val text = { key: String, max: Int -> detail.optString(key).take(max).ifEmpty { null } }
-      apps.start(text("url", 16_384) ?: return, text("userAgent", 512), text("referer", 2048),
-        text("disposition", 1024), text("mime", 256), text("cookie", 8192))
+      val url = text("url", 16_384) ?: return
+      val disposition = text("disposition", 1024)
+      val mime = text("mime", 256)
+      if (downloadPrompt != null || frame == null || !ApkRules.isApk(url, mime, disposition) ||
+        (activity as? MainActivity)?.isViewingForeground() != true) return
+      // The WebView's download callback can also be triggered by page script.
+      val host = java.net.URI(url).host
+      downloadPrompt = AlertDialog.Builder(activity)
+        .setTitle("Download Android app?")
+        .setMessage("This website is offering an APK from $host.")
+        .setNegativeButton("Cancel", null)
+        .setPositiveButton("Download") { _, _ ->
+          if ((activity as? MainActivity)?.isViewingForeground() == true && frame != null)
+            apps.start(url, text("userAgent", 512), text("referer", 2048),
+              disposition, mime, text("cookie", 8192))
+        }
+        .show().also { dialog ->
+          dialog.setOnDismissListener { if (downloadPrompt === dialog) downloadPrompt = null }
+        }
       return
     }
     if (name == "genx-download-refused") {
@@ -266,6 +285,7 @@ class WebPagePlugin(private val activity: Activity) : Plugin(activity) {
   }
 
   private fun closePage() {
+    downloadPrompt?.dismiss()
     local?.close()
     local = null
     if (frame != null) send(WebPageService.CLOSE)
@@ -389,6 +409,7 @@ class WebPagePlugin(private val activity: Activity) : Plugin(activity) {
   // W11: the page pauses with GenX (only the page; never global timers).
   override fun onPause() {
     activity.runOnUiThread {
+      downloadPrompt?.dismiss()
       local?.pause()
       if (separate && frame != null) send(WebPageService.PAUSE, Bundle().apply { putBoolean("value", true) })
     }

@@ -16,6 +16,7 @@
 
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { openPlaylistImport, saveReviewedSource } from './helpers/source-scan';
+import { closeChannelSearch, openChannelSearch } from './helpers/search-workflows';
 
 const channels = Array.from(
   { length: 16 },
@@ -139,10 +140,12 @@ for (const configuration of [
       expect(row.textWidth).toBeGreaterThanOrEqual(80);
       expect(row.visiblePrefix).toBe(true);
     }
+    await openChannelSearch(page);
     await visibleTarget(page, page.locator('#search-programs'), width, height, {
       width: kind === 'tv' ? 34 : 44,
       height: kind === 'tv' ? 34 : 44,
     });
+    await closeChannelSearch(page);
     for (const id of ['live-tv-button', 'genxtra-button', 'guide-button', 'settings-button'])
       await visibleTarget(page, page.locator('#' + id), width, height, {
         width: kind === 'tv' ? 34 : 44,
@@ -184,7 +187,9 @@ for (const configuration of [
       ).toBeLessThanOrEqual((await page.locator('.app-signoff').boundingBox())!.y + 0.5);
       await page.locator('#search').scrollIntoViewIfNeeded();
     }
-    if (await viewing.isVisible()) await viewing.selectOption('watch');
+    const watch = page.locator('#phone-watch-button');
+    if (await watch.isVisible()) await watch.click();
+    else if (await viewing.isVisible()) await viewing.selectOption('watch');
     const screen = await page.locator('.screen').boundingBox();
     expect(screen).not.toBeNull();
     expect(screen!.width).toBeGreaterThanOrEqual(160);

@@ -26,6 +26,7 @@ pub(crate) fn force_exit(app: tauri::AppHandle) {
 }
 
 pub(crate) async fn shutdown_owned(app: &tauri::AppHandle) -> Result<(), &'static str> {
+    app.state::<sharing::favorites::Owner>().stop(None);
     #[cfg(target_os = "android")]
     renderer_recovery::join_registration(app).await;
     app.state::<NativeState>().startup.join().await;

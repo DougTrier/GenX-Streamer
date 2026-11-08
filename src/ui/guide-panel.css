@@ -310,6 +310,9 @@ body:has(#app[data-device-kind='tv'][data-guide-panel='open'])
 #app[data-guide-panel='open']:not([data-device-kind='personal']) .gx-timeline {
   --gx-channel-width: 190px;
 }
+#app[data-guide-panel='open'][data-device-kind='tv'] .gx-timeline[data-layout='timeline'] {
+  --gx-channel-width: clamp(148px, 17vw, 190px);
+}
 /* Details float over the grid instead of squeezing it to a strip. */
 #app[data-guide-panel='open']:not([data-device-kind='personal']) .gx-timeline {
   position: relative;

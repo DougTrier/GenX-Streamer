@@ -136,3 +136,65 @@ it('binds Paid page offsets to saved Guide data and permits a fresh anchored rec
   expect(requests.at(-1)?.expectedGuideRevision).toBeUndefined();
   await owner.dispose();
 });
+
+it('recaptures Paid rows after a favorite write without reselecting the account', async () => {
+  const requests: AccountChannelQuery[] = [];
+  let preferencesRevision = '0';
+  const owner = createAccountBrowser({
+    query: {
+      query: async (q) => {
+        requests.push(q);
+        return {
+          ...page(q, '1'),
+          preferencesRevision,
+          anchorIndex: q.anchorId ? 0 : null,
+          items: [{ ...row(0), favorite: preferencesRevision === '1' }],
+        };
+      },
+    },
+  });
+  await owner.select({
+    schemaVersion: 1,
+    id: accountId,
+    name: 'Offline fixture',
+    kind: 'xtream',
+    serverOrigin: 'https://fixture.invalid',
+    allowHttp: false,
+    revision: '1',
+    requiresSignIn: false,
+  });
+  const scope = {
+    schemaVersion: 1 as const,
+    query: 'NFL',
+    sports,
+    filter: 'all' as const,
+    sort: 'source' as const,
+    favoritesFirst: false,
+    pageSize: 1,
+  };
+  const signal = owner.selectionSignal;
+  const identity = owner.identity();
+  await owner.query(scope, signal);
+  const receipt = owner.preferenceScope()!;
+  for (const [revision, favorite] of [
+    ['1', true],
+    ['2', false],
+  ] as const) {
+    preferencesRevision = revision;
+    expect(owner.acknowledgeFavorite({ ...receipt, preferencesRevision })).toBe(true);
+    expect(owner.preferenceEpoch()).toBe(Number(revision));
+    expect(owner.identity()).toBe(identity);
+    expect(signal.aborted).toBe(false);
+    expect(owner.selectionFor(row(0).id)).toBeUndefined();
+    const refreshed = await owner.query({ ...scope, anchorId: row(0).id }, signal);
+    expect(refreshed.anchorIndex).toBe(0);
+    expect(owner.selectionFor(row(0).id)).toMatchObject({ favorite });
+    expect(requests.at(-1)).toMatchObject({
+      anchorId: row(0).id,
+      expectedPreferencesRevision: preferencesRevision,
+      favoritesFirst: false,
+    });
+  }
+  expect(owner.acknowledgeFavorite(receipt)).toBe(false);
+  await owner.dispose();
+});

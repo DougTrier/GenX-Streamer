@@ -1,8 +1,62 @@
 {
   "schemaVersion": 1,
-  "vocabularyVersion": "2026-11-02.1",
-  "scope": "Shared TS/Rust query-plan golden cases. Recognized sport, league and full-team query intent requires independent evidence plus every semantic target and leftover term. Generic literal queries and ambiguous football retain their literal fallback. Programme conflicts suppress channel texts. Query intent never supplies row evidence.",
+  "vocabularyVersion": "2026-11-07.1",
+  "scope": "Shared TS/Rust query-plan golden cases. Recognized sport, league and full-team query intent requires independent evidence plus every semantic target and leftover term. Generic queries keep literal matching. Bare football requires sport evidence and ignores synopsis mentions. Programme conflicts suppress channel texts. Query intent never supplies row evidence.",
   "cases": [
+    {
+      "id": "baseball_facet_rejects_sitcom_synopsis",
+      "query": "",
+      "facet": { "sport": "baseball" },
+      "channelTexts": ["NBC Comedy Vault", "Comedy"],
+      "program": {
+        "title": "Will & Grace",
+        "description": "Will and Jack take their friends to a baseball game.",
+        "categories": [{ "text": "Comedy" }]
+      },
+      "specific": false,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "baseball_facet_admits_structured_guide_category",
+      "query": "",
+      "facet": { "sport": "baseball" },
+      "channelTexts": ["FOX 43", "General"],
+      "program": {
+        "title": "Cubs at Cardinals",
+        "description": "The clubs meet in St. Louis.",
+        "categories": [{ "text": "Baseball" }]
+      },
+      "specific": false,
+      "normalMatch": true,
+      "strictSemanticMatch": true
+    },
+    {
+      "id": "baseball_facet_admits_unambiguous_team_title",
+      "query": "",
+      "facet": { "sport": "baseball" },
+      "channelTexts": ["FOX 43", "General"],
+      "program": {
+        "title": "Chicago Cubs at St. Louis Cardinals",
+        "categories": []
+      },
+      "specific": false,
+      "normalMatch": true,
+      "strictSemanticMatch": true
+    },
+    {
+      "id": "baseball_facet_rejects_ambiguous_nickname_title",
+      "query": "",
+      "facet": { "sport": "baseball" },
+      "channelTexts": ["FOX 43", "General"],
+      "program": {
+        "title": "Cardinals at Giants",
+        "categories": []
+      },
+      "specific": false,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
     {
       "id": "multi_team_requires_both_missing_second",
       "query": "Chicago Bears New Orleans Saints",
@@ -306,13 +360,26 @@
       "strictSemanticMatch": true
     },
     {
-      "id": "bare_football_retains_literal_unknown",
+      "id": "bare_football_rejects_literal_without_evidence",
       "query": "football",
       "texts": [
         "Football roundup"
       ],
       "specific": false,
-      "normalMatch": true,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "bare_football_rejects_cartoon_with_football_synopsis",
+      "query": "football",
+      "channelTexts": ["TG Junior", "Kids"],
+      "program": {
+        "title": "The Fixies",
+        "description": "The friends watch an NFL football game.",
+        "categories": [{ "text": "Children" }]
+      },
+      "specific": false,
+      "normalMatch": false,
       "strictSemanticMatch": false
     },
     {
@@ -557,6 +624,19 @@
         ]
       },
       "specific": true,
+      "normalMatch": false,
+      "strictSemanticMatch": false
+    },
+    {
+      "id": "facet_af_rejects_basketball_title_mislabeled_as_football",
+      "query": "",
+      "facet": { "sport": "american-football" },
+      "channelTexts": ["General"],
+      "program": {
+        "title": "College Basketball: Westfield vs Central",
+        "categories": [{ "text": "American Football" }]
+      },
+      "specific": false,
       "normalMatch": false,
       "strictSemanticMatch": false
     },

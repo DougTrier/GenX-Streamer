@@ -393,11 +393,8 @@
   #app[data-device-kind='tv'] .guide-compact-page .gx-timeline-selection-hint {
     display: none;
   }
-  /* Two lines, everything on screen (owner report, October 19, 2026: on the
-     Sansui TV the toolbar needed 868 px in a 541 px guide and Close sat off
-     screen, out of the remote's reach). Line one: categories, search, time
-     buttons; line two: date, listings note, guide actions, Close at the end.
-     The visual order matches the page order, which Left/Right follow. */
+  /* Keep search and sports together above the date, time and actions.
+     The focusable controls follow the same order in the DOM. */
   #app[data-device-kind='tv'] .guide-compact-page .gx-timeline-toolbar {
     gap: 4px;
     flex-wrap: wrap;
@@ -409,15 +406,15 @@
   }
   #app[data-device-kind='tv'] .guide-compact-page .gx-timeline-toolbar > .gx-timeline-search {
     order: 2;
-    /* Starts small so the time buttons stay on line one; grows into the rest. */
     flex: 1 1 60px;
     min-width: 60px;
+    max-width: none;
   }
   #app[data-device-kind='tv']
     .guide-compact-page
     .gx-timeline-toolbar
     > .gx-timeline-time-controls {
-    order: 3;
+    order: 6;
   }
   #app[data-device-kind='tv'] .guide-compact-page .gx-timeline-toolbar::after {
     content: '';
@@ -428,9 +425,16 @@
   #app[data-device-kind='tv'] .guide-compact-page .gx-timeline-toolbar > .gx-timeline-date {
     order: 5;
   }
+  #app[data-device-kind='tv'] .guide-compact-page .gx-timeline-toolbar > .sports-filters {
+    order: 3;
+    flex: 2 1 128px;
+  }
+  #app[data-device-kind='tv'] .guide-compact-page .sports-filter-controls > label:has(+ [hidden]) {
+    grid-column: 1 / -1;
+  }
   #app[data-device-kind='tv'] .guide-compact-page .gx-timeline-toolbar > .guide-feedback {
-    order: 6;
-    flex: 1 1 100px;
+    order: 8;
+    flex: 1 1 100%;
     min-width: 0;
   }
   #app[data-device-kind='tv'] .guide-compact-page .gx-timeline-toolbar > button {
@@ -471,6 +475,43 @@
   }
   #app[data-device-kind='tv'] .guide-compact-page .gx-timeline-details {
     max-height: 45%;
+  }
+}
+
+.gx-timeline-focused-listing {
+  display: none;
+}
+@media (min-width: 850px) and (min-height: 500px) {
+  #app[data-device-kind='tv']
+    .guide-compact-page
+    .gx-timeline[data-layout='timeline']:has(.gx-timeline-cell:focus):has(
+      > .gx-timeline-status[data-state='ready']
+    )
+    > .gx-timeline-focused-listing:not([hidden]) {
+    display: block;
+    position: relative;
+    flex: 0 0 1.25em;
+    margin: 0;
+    line-height: 1.25;
+    color: var(--gx-text, #eef2f7);
+    pointer-events: none;
+  }
+  .gx-timeline-focused-listing > span {
+    position: absolute;
+    inset: 0 0 auto;
+    z-index: 1;
+    background: var(--gx-surface, #080e22);
+    overflow-wrap: anywhere;
+  }
+  #app[data-device-kind='tv']
+    .guide-compact-page
+    .gx-timeline[data-layout='timeline']:has(.gx-timeline-cell:focus):has(
+      > .gx-timeline-focused-listing:not([hidden])
+    )
+    > .gx-timeline-status[data-state='ready'] {
+    position: absolute;
+    width: 1px;
+    clip-path: inset(50%);
   }
 }
 

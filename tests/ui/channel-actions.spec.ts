@@ -115,6 +115,105 @@ test('heart changes favorites without tuning and favorites precede the chosen na
   expect(acquired()).toBe(0);
 });
 
+test('a favorite responds immediately and rolls back if its save fails', async ({ page }) => {
+  await prepare(page);
+  const star = page.getByRole('button', { name: 'Favorite Beta Documentary', exact: true });
+  const before = await canonicalRecords(page);
+  const pending = await star.evaluate((button: HTMLButtonElement) => {
+    const put = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (value: unknown, key?: IDBValidKey) {
+      if (key === 'preferences') {
+        IDBObjectStore.prototype.put = put;
+        throw new DOMException('Fixture write failed', 'QuotaExceededError');
+      }
+      return put.call(this, value, key);
+    };
+    button.click();
+    return [
+      button.textContent,
+      button.getAttribute('aria-pressed'),
+      button.getAttribute('aria-busy'),
+    ];
+  });
+  expect(pending).toEqual(['★', 'true', 'true']);
+  await expect(star).toHaveAttribute('aria-pressed', 'false');
+  await expect(star).not.toHaveAttribute('aria-busy');
+  expect(await canonicalRecords(page)).toEqual(before);
+  await star.click();
+  await expect(star).not.toHaveAttribute('aria-busy');
+  await expect(star).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('rapid favorite taps save the last choice even during an in-flight write', async ({
+  page,
+}) => {
+  await prepare(page);
+  const star = page.getByRole('button', { name: 'Favorite Beta Documentary', exact: true });
+  const before = await canonicalRecords(page);
+  await star.evaluate((button: HTMLButtonElement) => {
+    const put = IDBObjectStore.prototype.put;
+    IDBObjectStore.prototype.put = function (value: unknown, key?: IDBValidKey) {
+      if (key === 'preferences') {
+        IDBObjectStore.prototype.put = put;
+        for (let tap = 0; tap < 19; tap++) button.click();
+      }
+      return put.call(this, value, key);
+    };
+    button.click();
+  });
+  await expect(star).not.toHaveAttribute('aria-busy');
+  await expect(star).toHaveAttribute('aria-pressed', 'false');
+  expect(await canonicalRecords(page)).toEqual(before);
+
+  await star.evaluate((button: HTMLButtonElement) => {
+    for (let tap = 0; tap < 21; tap++) button.click();
+  });
+  await expect(star).not.toHaveAttribute('aria-busy');
+  await expect(star).toHaveAttribute('aria-pressed', 'true');
+  await page.reload();
+  await expect(star).toHaveAttribute('aria-pressed', 'true');
+});
+
+test('Favorites and All Channels keep independent sort choices', async ({ page }) => {
+  await prepare(page);
+  for (const name of ['Zulu News', 'Alpha Sports']) {
+    const star = page.getByRole('button', { name: `Favorite ${name}`, exact: true });
+    await star.click();
+    await expect(star).toHaveAttribute('aria-pressed', 'true');
+  }
+  const rows = page.locator('.channel strong');
+  const favorites = page.locator('button[data-filter="favorites"]');
+  const location = page.getByRole('button', { name: 'Location and sort', exact: true });
+  const sort = page.getByLabel('Channel sort', { exact: true });
+
+  await favorites.click();
+  await expect(rows).toHaveText(['Zulu News', 'Alpha Sports']);
+  await location.click();
+  await sort.selectOption('name');
+  await page.keyboard.press('Escape');
+  await expect(rows).toHaveText(['Alpha Sports', 'Zulu News']);
+
+  await favorites.click();
+  await expect(page.locator('#channel-count')).toHaveText('80 channels');
+  await expect(rows.first()).toHaveText('Zulu News');
+  await location.click();
+  await expect(sort).toHaveValue('source');
+  await sort.selectOption('name');
+  await page.keyboard.press('Escape');
+  await expect(rows.first()).toHaveText('Alpha Sports');
+
+  await favorites.click();
+  await location.click();
+  await expect(sort).toHaveValue('name');
+  await sort.selectOption('source');
+  await page.keyboard.press('Escape');
+  await expect(rows).toHaveText(['Zulu News', 'Alpha Sports']);
+  await favorites.click();
+  await expect(rows.first()).toHaveText('Alpha Sports');
+  await location.click();
+  await expect(sort).toHaveValue('name');
+});
+
 for (const viewport of [
   { width: 960, height: 540 },
   { width: 390, height: 844 },

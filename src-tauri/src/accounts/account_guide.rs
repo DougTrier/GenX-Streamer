@@ -47,7 +47,20 @@ pub(crate) const SCHEMA: &str = "CREATE TABLE IF NOT EXISTS account_guide_v1(
  epg_id TEXT NOT NULL,start_ms INTEGER NOT NULL,stop_ms INTEGER,ordinal INTEGER NOT NULL,
  title TEXT NOT NULL,description TEXT,categories TEXT NOT NULL,
  PRIMARY KEY(account_id,epg_id,start_ms,ordinal)) WITHOUT ROWID;
- CREATE INDEX IF NOT EXISTS account_guide_program_time_v1 ON account_guide_program_v1(account_id,start_ms);";
+ CREATE INDEX IF NOT EXISTS account_guide_program_time_v1 ON account_guide_program_v1(account_id,start_ms);
+ CREATE TABLE IF NOT EXISTS account_guide_replay_v1(
+ owner_id TEXT NOT NULL,listing_epg_id TEXT NOT NULL,listing_start_ms INTEGER NOT NULL,listing_ordinal INTEGER NOT NULL,
+ original_air_date TEXT,previous_air_date TEXT,
+ PRIMARY KEY(owner_id,listing_epg_id,listing_start_ms,listing_ordinal),
+ FOREIGN KEY(owner_id,listing_epg_id,listing_start_ms,listing_ordinal)
+ REFERENCES account_guide_program_v1(account_id,epg_id,start_ms,ordinal) ON DELETE CASCADE) WITHOUT ROWID;";
+
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct ReplayDates {
+    original_air_date: Option<String>,
+    previous_air_date: Option<String>,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -59,6 +72,8 @@ pub(crate) struct Program {
     pub title: String,
     pub description: Option<String>,
     pub categories: Vec<GuideCategory>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub replay: Option<ReplayDates>,
 }
 #[derive(Debug)]
 pub(crate) struct Parsed {
@@ -146,9 +161,32 @@ struct Pending {
     title: String,
     description: Option<String>,
     categories: Vec<GuideCategory>,
+    replay: Option<ReplayDates>,
     /// Kept only if wanted, in the window, and every field admitted.
     keep: bool,
     bad: bool,
+}
+
+fn replay_day(value: &str, airing: i64) -> Option<String> {
+    let value = value.trim();
+    let day = if value.len() == 10 && value.as_bytes().get(4) == Some(&b'-') {
+        chrono::NaiveDate::parse_from_str(value, "%Y-%m-%d").ok()?
+    } else if value.len() == 8 {
+        chrono::NaiveDate::parse_from_str(value, "%Y%m%d").ok()?
+    } else if let Ok(time) = chrono::DateTime::parse_from_rfc3339(value) {
+        if time.timestamp_millis() >= airing {
+            return None;
+        }
+        time.date_naive()
+    } else {
+        if crate::guide::parser::parse_timestamp(value).ok()? >= airing {
+            return None;
+        }
+        chrono::NaiveDate::parse_from_str(value.get(..8)?, "%Y%m%d").ok()?
+    };
+    let airing_day = chrono::DateTime::from_timestamp_millis(airing)?.date_naive();
+    (day <= airing_day && day >= chrono::NaiveDate::from_ymd_opt(1900, 1, 1)?)
+        .then(|| day.format("%Y-%m-%d").to_string())
 }
 
 /// Streaming XMLTV read. XML structure stays strict (malformed XML, a DTD
@@ -225,11 +263,11 @@ pub(crate) fn parse(
                     root_seen = true;
                 } else if depth == 1 && name == "programme" {
                     let mut pending = Pending::default();
-                    let (mut channel, mut start, mut stop) = (None, None, None);
+                    let (mut channel, mut start, mut stop, mut original) = (None, None, None, None);
                     for attr in node.attributes() {
                         let attr = attr.map_err(malformed)?;
                         let key = attr.key.as_ref();
-                        if !matches!(key, b"channel" | b"start" | b"stop") {
+                        if !matches!(key, b"channel" | b"start" | b"stop" | b"original-air-date") {
                             continue;
                         }
                         let value = attr
@@ -239,7 +277,8 @@ pub(crate) fn parse(
                         match key {
                             b"channel" => channel = Some(value),
                             b"start" => start = Some(value),
-                            _ => stop = Some(value),
+                            b"stop" => stop = Some(value),
+                            _ => original = Some(value),
                         }
                     }
                     let channel = channel.unwrap_or_default();
@@ -261,10 +300,33 @@ pub(crate) fn parse(
                             _ => pending.bad = true,
                         }
                     }
+                    if pending.keep {
+                        if let Some(date) = original.and_then(|v| replay_day(&v, pending.start_ms))
+                        {
+                            pending.replay = Some(ReplayDates {
+                                original_air_date: Some(date),
+                                previous_air_date: None,
+                            });
+                        }
+                    }
                     program = Some(pending);
+                } else if depth == 2 && name == "previously-shown" {
+                    if let Some(p) = program.as_mut().filter(|p| p.keep && !p.bad) {
+                        let previous = node
+                            .attributes()
+                            .flatten()
+                            .find(|a| a.key.as_ref() == b"start")
+                            .and_then(|a| a.normalized_value(XmlVersion::Explicit1_0).ok())
+                            .and_then(|v| replay_day(&v, p.start_ms));
+                        let dates = p.replay.get_or_insert_with(ReplayDates::default);
+                        if dates.previous_air_date.is_none() {
+                            dates.previous_air_date = previous;
+                        }
+                    }
                 } else if depth == 2
                     && program.as_ref().is_some_and(|p| p.keep && !p.bad)
-                    && matches!(name, "title" | "desc" | "category")
+                    && matches!(name, "title" | "desc" | "category" | "original-air-date")
+                    && (name != "original-air-date" || !empty)
                 {
                     let language = if name == "category" {
                         node.attributes()
@@ -282,8 +344,13 @@ pub(crate) fn parse(
                     field = Some((name.to_owned(), language));
                 } else if field.is_some() {
                     // Markup inside a text field: this listing only.
-                    if let Some(p) = program.as_mut() {
-                        p.bad = true;
+                    if field
+                        .as_ref()
+                        .is_some_and(|(name, _)| name != "original-air-date")
+                    {
+                        if let Some(p) = program.as_mut() {
+                            p.bad = true;
+                        }
                     }
                     field = None;
                 }
@@ -321,6 +388,14 @@ pub(crate) fn parse(
                             }
                             "desc" if p.description.is_none() && !text.is_empty() => {
                                 p.description = Some(text)
+                            }
+                            "original-air-date" => {
+                                if let Some(date) = replay_day(&text, p.start_ms) {
+                                    p.replay
+                                        .get_or_insert_with(ReplayDates::default)
+                                        .original_air_date
+                                        .get_or_insert(date);
+                                }
                             }
                             "category"
                                 if category::admit(&mut p.categories, text, language).is_err() =>
@@ -379,11 +454,21 @@ pub(crate) fn parse(
         (&a.epg_id, a.start_ms, a.ordinal).cmp(&(&b.epg_id, b.start_ms, b.ordinal))
     });
     programs.dedup_by(|b, a| {
-        a.epg_id == b.epg_id
+        let duplicate = a.epg_id == b.epg_id
             && a.start_ms == b.start_ms
             && a.stop_ms == b.stop_ms
             && a.title == b.title
-            && a.description == b.description
+            && a.description == b.description;
+        if duplicate {
+            if let Some(extra) = b.replay.take() {
+                let dates = a.replay.get_or_insert_with(ReplayDates::default);
+                dates.original_air_date =
+                    dates.original_air_date.take().or(extra.original_air_date);
+                dates.previous_air_date =
+                    dates.previous_air_date.take().or(extra.previous_air_date);
+            }
+        }
+        duplicate
     });
     let mut previous: Option<(String, i64)> = None;
     let mut ordinal = 0;
@@ -441,6 +526,7 @@ fn settle(
         title: p.title,
         description: p.description,
         categories,
+        replay: p.replay,
     });
     Ok(())
 }
@@ -604,6 +690,8 @@ fn commit_with_policy(
             "INSERT INTO account_guide_program_v1(account_id,epg_id,start_ms,stop_ms,ordinal,title,description,categories)
              VALUES(?1,?2,?3,?4,?5,?6,?7,?8)",
         ))?;
+        let mut insert_replay =
+            sql(tx.prepare("INSERT INTO account_guide_replay_v1 VALUES(?1,?2,?3,?4,?5,?6)"))?;
         for (index, p) in parsed.programs.iter().enumerate() {
             if index % 4096 == 0 {
                 check()?;
@@ -620,6 +708,16 @@ fn commit_with_policy(
                 p.description,
                 categories
             ]))?;
+            if let Some(replay) = &p.replay {
+                sql(insert_replay.execute(params![
+                    account,
+                    p.epg_id,
+                    p.start_ms,
+                    p.ordinal,
+                    replay.original_air_date,
+                    replay.previous_air_date
+                ]))?;
+            }
         }
     }
     check()?;
@@ -729,6 +827,7 @@ pub(crate) struct ListedMembership {
     pub epg_ids: Vec<String>,
     pub channel_ids: Vec<String>,
     pub ppv_channel_ids: Vec<String>,
+    pub first_starts_ms: Vec<i64>,
 }
 
 #[cfg(test)]
@@ -820,6 +919,7 @@ pub(crate) fn listed_channels_history(
             epg_ids: Vec::new(),
             channel_ids: Vec::new(),
             ppv_channel_ids: Vec::new(),
+            first_starts_ms: Vec::new(),
         });
     }
     crate::account_catalog_query::register_functions(c)?;
@@ -878,7 +978,12 @@ pub(crate) fn listed_channels_history(
     // Materialize authorized channel classification once. Programme lookup uses
     // the (account_id,epg_id,start_ms,ordinal) primary key, not a live-account
     // correlated scan for every programme. Shared EPG IDs never merge channels.
-    let statement = format!("WITH ppv_live_channels AS MATERIALIZED(SELECT e.channel_id,e.epg_id,{marker} AS ppv,e.name AS name,e.category AS original,{} AS effective,COALESCE(e.provider_id,'')||char(10)||COALESCE(e.epg_id,'')||char(10)||COALESCE(genx_group_country_name(e.category),'') AS extra{} AND e.epg_id IS NOT NULL AND e.epg_id<>''{} ) SELECT l.channel_id,l.epg_id,{badge} FROM ppv_live_channels l WHERE EXISTS(SELECT 1 FROM account_guide_program_v1 g WHERE g.account_id=?1 AND g.epg_id=l.epg_id AND {OVERLAP} AND {visibility} AND {search_clause}) ORDER BY l.channel_id", live.category, live.from, history_clause(live.category, history_ids, hide_adult));
+    let statement = format!("WITH ppv_live_channels AS MATERIALIZED(SELECT e.channel_id,e.epg_id,{marker} AS ppv,e.name AS name,e.category AS original,{} AS effective,COALESCE(e.provider_id,'')||char(10)||COALESCE(e.epg_id,'')||char(10)||COALESCE(genx_group_country_name(e.category),'') AS extra{} AND e.epg_id IS NOT NULL AND e.epg_id<>''{} ),
+    matching AS MATERIALIZED(SELECT l.*, (SELECT g.start_ms FROM account_guide_program_v1 g
+        WHERE g.account_id=?1 AND g.epg_id=l.epg_id AND {OVERLAP} AND {visibility} AND {search_clause}
+        ORDER BY g.start_ms LIMIT 1) AS first_start FROM ppv_live_channels l)
+    SELECT l.channel_id,l.epg_id,{badge},l.first_start FROM matching l
+        WHERE l.first_start IS NOT NULL ORDER BY l.channel_id", live.category, live.from, history_clause(live.category, history_ids, hide_adult));
     let mut statement = sql(c.prepare(&statement))?;
     let rows = sql(statement.query_map(
         params![
@@ -891,23 +996,27 @@ pub(crate) fn listed_channels_history(
                 r.get::<_, String>(0)?,
                 r.get::<_, String>(1)?,
                 r.get::<_, bool>(2)?,
+                r.get::<_, i64>(3)?,
             ))
         },
     ))?;
     let mut channel_ids = Vec::new();
     let mut ppv_channel_ids = Vec::new();
+    let mut first_starts_ms = Vec::new();
     let mut epg_ids = std::collections::BTreeSet::new();
     for row in rows {
-        let (channel, epg, ppv) = sql(row)?;
+        let (channel, epg, ppv, first_start) = sql(row)?;
         if ppv {
             ppv_channel_ids.push(channel.clone());
         }
         channel_ids.push(channel);
+        first_starts_ms.push(first_start);
         epg_ids.insert(epg);
     }
     Ok(ListedMembership {
         channel_ids,
         ppv_channel_ids,
+        first_starts_ms,
         epg_ids: epg_ids.into_iter().collect(),
     })
 }
@@ -1031,8 +1140,15 @@ pub(crate) fn programs_history(
         ""
     };
     let (after_start, after_ordinal) = after.unwrap_or((i64::MIN, i64::MIN));
+    let replay_table = crate::catalog::sports::present(c, "account_guide_replay_v1")?;
+    let (replay_columns, replay_join) = if replay_table {
+        ("r.owner_id,r.original_air_date,r.previous_air_date",
+         "LEFT JOIN account_guide_replay_v1 r ON (r.owner_id,r.listing_epg_id,r.listing_start_ms,r.listing_ordinal)=(g.account_id,g.epg_id,g.start_ms,g.ordinal)")
+    } else {
+        ("NULL,NULL,NULL", "")
+    };
     let mut statement = sql(c.prepare(&format!(
-        "{context} SELECT epg_id,start_ms,stop_ms,ordinal,title,description,categories FROM account_guide_program_v1 g CROSS JOIN live_context lc
+        "{context} SELECT epg_id,start_ms,stop_ms,ordinal,title,description,categories,{replay_columns} FROM account_guide_program_v1 g CROSS JOIN live_context lc {replay_join}
          WHERE account_id=?1 AND {OVERLAP}{visibility}{semantic} AND epg_id=?4 AND (start_ms>?5 OR (start_ms=?5 AND ordinal>?6))
          ORDER BY start_ms,ordinal LIMIT ?7"
     )))?;
@@ -1057,6 +1173,14 @@ pub(crate) fn programs_history(
                 title: r.get(4)?,
                 description: r.get(5)?,
                 categories: serde_json::from_str(&categories).unwrap_or_default(),
+                replay: if r.get::<_, Option<String>>(7)?.is_some() {
+                    Some(ReplayDates {
+                        original_air_date: r.get(8)?,
+                        previous_air_date: r.get(9)?,
+                    })
+                } else {
+                    None
+                },
             })
         },
     ))?;

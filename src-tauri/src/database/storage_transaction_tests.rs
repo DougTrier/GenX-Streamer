@@ -119,6 +119,7 @@ pub(super) fn catalog_query() -> crate::catalog_query::Query {
         geography: serde_json::Map::new(),
         sort: crate::catalog_query::Sort::Source,
         favorites_first: false,
+        favorites_only: false,
         hide_adult: false,
         after: None,
         start_index: None,

@@ -93,6 +93,18 @@ describe('playlist limits and identity', () => {
     );
     expect(next[0]!.id).toBe(initial[0]!.id);
   });
+  it('does not transfer a game identity to a permanent feed with the same provider ID', () => {
+    const initial = reconcileChannels(
+      parseM3u(
+        playlist('tvg-id="news" group-title="Live Events"', '[NBA] Boston at Philadelphia'),
+        'source',
+      ).channels,
+      [],
+      () => 'game',
+    );
+    const next = reconcileChannels(parseM3u(playlist(), 'source').channels, initial, () => 'new');
+    expect(next[0]!.id).toBe('new');
+  });
   it('reconciles uniquely matching missing IDs using persisted metadata, never URL/index', () => {
     const c = parseM3u(playlist('', 'Independent'), 'source').channels;
     const old = reconcileChannels(c, [], () => 'persisted');

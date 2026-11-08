@@ -1,5 +1,6 @@
 // Copyright 2026 Doug Trier. SPDX-License-Identifier: Apache-2.0
 import { isTauri } from '@tauri-apps/api/core';
+import { getVersion } from '@tauri-apps/api/app';
 import { save } from '@tauri-apps/plugin-dialog';
 import { writeTextFile } from '@tauri-apps/plugin-fs';
 import {
@@ -14,6 +15,7 @@ import {
   type PlaybackTraceReport,
 } from '../../diagnostics/playback-trace';
 import { readVideoQuality } from '../../platform/browser-engine';
+import { appIdentity } from '../../platform/app-identity';
 import type { PlaybackSnapshot } from '../../playback/controller';
 export function installPlaybackDiagnostics(host: {
   button: HTMLButtonElement;
@@ -28,6 +30,8 @@ export function installPlaybackDiagnostics(host: {
   dialog.setAttribute('aria-label', 'Playback diagnostics');
   const title = doc.createElement('h2');
   title.textContent = 'Playback diagnostics';
+  const installed = doc.createElement('p');
+  installed.hidden = !isTauri();
   const explanation = doc.createElement('p');
   explanation.textContent =
     'Record Free TV, Paid TV, GenXtra and Web Stream for up to 15 minutes. Start replaces the previous capture. Reports include playback quality, errors and measured player bounds. Account details and stream addresses are excluded.';
@@ -66,7 +70,10 @@ export function installPlaybackDiagnostics(host: {
       : report.active
         ? 'Recording. Reproduce the problem, then Stop and export.'
         : 'Recording stopped. The latest report stays on this device.';
-    summary.textContent = `Version ${report.version} · build ${report.build}\n${report.records.length} retained observations · ${report.droppedEvents} older observations removed\n${errors} error/recovery observations · ${buffering} buffering transitions · ${mismatches} measured view-bound mismatches\nNative surface bounds are measured; final composited video pixels require visual confirmation.\nBrowser-only frame metrics are unavailable for third-party Web Stream pages.`;
+    const capture = report.startedAtMs
+      ? `Capture version ${report.version} · build ${report.build}`
+      : 'No capture recorded.';
+    summary.textContent = `${capture}\n${report.records.length} retained observations · ${report.droppedEvents} older observations removed\n${errors} error/recovery observations · ${buffering} buffering transitions · ${mismatches} measured view-bound mismatches\nNative surface bounds are measured; final composited video pixels require visual confirmation.\nBrowser-only frame metrics are unavailable for third-party Web Stream pages.`;
   };
   const run = (operation: () => Promise<void>) => {
     if (closed || busy) return;
@@ -142,12 +149,27 @@ export function installPlaybackDiagnostics(host: {
     dialog.close();
     host.button.focus();
   });
-  dialog.append(title, explanation, actions, status, summary);
+  dialog.append(title, installed, explanation, actions, status, summary);
   doc.body.append(dialog);
   const open = () => {
     if (closed) return;
     dialog.showModal();
     close.focus({ preventScroll: true });
+    if (isTauri() && !installed.textContent) {
+      void appIdentity()
+        .catch(() => null)
+        .then(async (identity) => {
+          const version = identity?.version ?? (await getVersion().catch(() => ''));
+          if (closed || !version) return;
+          const parts = /^(\d+)\.(\d+)\.(\d+)/u.exec(version);
+          const build =
+            identity?.versionCode ??
+            (parts
+              ? Number(parts[1]) * 1_000_000 + Number(parts[2]) * 1000 + Number(parts[3])
+              : undefined);
+          installed.textContent = `Installed version ${version}${build === undefined ? '' : ` · build ${build}`}`;
+        });
+    }
     run(async () => render(await playbackTrace.read()));
   };
   host.button.addEventListener('click', open);

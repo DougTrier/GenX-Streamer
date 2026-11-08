@@ -24,6 +24,8 @@
  */
 import '../send-app.css';
 import { mountNearbyShare } from './send-app-nearby';
+import { mountFavoriteShare } from './send-app-favorites';
+import type { FavoriteTransfer } from '../../application/sharing/favorite-transfer';
 import { mountSendToTv } from './send-app-tv';
 import { appIdentity, maySendAppFile } from '../../platform/app-identity';
 import { qrSvg } from '../../sharing/qr-code';
@@ -73,6 +75,7 @@ function failure(code: string): string {
 export function mountSendApp(
   root: HTMLElement,
   openers: readonly (HTMLButtonElement | null)[],
+  favorites?: FavoriteTransfer,
 ): () => void {
   const android = androidApp();
   const desktop = isTauri() && !android;
@@ -99,6 +102,7 @@ export function mountSendApp(
         </section>
         <section class="send-app-option send-app-tv" hidden></section>
         <section class="send-app-option send-app-nearby" hidden></section>
+        <section class="send-app-option send-app-favorites" hidden></section>
         <p class="send-app-development" hidden>Sending the app itself works from official releases. This copy is a development build, so send the link or the QR code instead.</p>
         <section class="send-app-option">
           <h3>Send a download link</h3>
@@ -187,6 +191,11 @@ export function mountSendApp(
   const nearby = mountNearbyShare(dialog.querySelector<HTMLElement>('.send-app-nearby')!);
   const toTv = mountSendToTv(dialog.querySelector<HTMLElement>('.send-app-tv')!);
   const removers: (() => void)[] = [nearby.dispose, toTv.dispose];
+  if (favorites) {
+    const section = dialog.querySelector<HTMLElement>('.send-app-favorites')!;
+    section.hidden = false;
+    removers.push(mountFavoriteShare(section, dialog, favorites));
+  }
   const listen = (button: HTMLButtonElement, handler: () => void) => {
     button.addEventListener('click', handler);
     removers.push(() => button.removeEventListener('click', handler));

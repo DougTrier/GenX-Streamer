@@ -3,6 +3,12 @@
   "note": "Line fingerprints (file + trimmed line) a person reviewed; an edited line needs a new review. No values are stored here.",
   "reviewed": [
     {
+      "file": "src/ui/settings/send-app-favorites.ts",
+      "label": "private network address",
+      "sha256": "f4029ac79ca74b47127fd8c09ddfa023baaac543ef46057d1c366413f1a4c156",
+      "reason": "Reviewed 2026-11-08. This is a generic address shown as an input example."
+    },
+    {
       "file": "src-tauri/gen/android/app/src/test/java/com/tmg/tv/ApkRulesTest.kt",
       "label": "address with a password",
       "sha256": "24780784dd2fbcd49ae128aa4b992ade8d050799baea3629faf7157d9462e981",

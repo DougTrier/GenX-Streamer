@@ -86,6 +86,7 @@ function input(value: CatalogQueryInput): CatalogQueryInput {
     'expectedGuideRevision',
     'geography',
     'favoritesFirst',
+    'favoritesOnly',
     'hideAdult',
     'sports',
     'historyIds',
@@ -109,6 +110,7 @@ function input(value: CatalogQueryInput): CatalogQueryInput {
         value.startIndex > 100_000)) ||
     (value.anchorId != null && value.startIndex !== undefined) ||
     (value.favoritesFirst !== undefined && typeof value.favoritesFirst !== 'boolean') ||
+    (value.favoritesOnly !== undefined && typeof value.favoritesOnly !== 'boolean') ||
     (value.hideAdult !== undefined && typeof value.hideAdult !== 'boolean')
   )
     throw invalid();
@@ -191,6 +193,7 @@ export function createAccountBrowser(options: AccountBrowserOptions = {}) {
   let preferencesRevision: string | null = null;
   let guideRevision: string | null = null;
   let selectionEpoch = 0;
+  let preferenceEpoch = 0;
   let scopeEpoch = 0;
   let scopeKey = '';
   let closed = false;
@@ -251,6 +254,29 @@ export function createAccountBrowser(options: AccountBrowserOptions = {}) {
     },
     identity(): string {
       return selected ? `account/${selected.id}/${selected.revision}/${selectionEpoch}` : 'public';
+    },
+    preferenceEpoch(): number {
+      return preferenceEpoch;
+    },
+    acknowledgeFavorite(receipt: AccountBrowserPreferencesScope): boolean {
+      if (
+        closed ||
+        !selected ||
+        !capturedFence ||
+        selected.id !== receipt.accountId ||
+        selected.revision !== receipt.accountRevision ||
+        capturedFence.mediaRevision !== receipt.mediaRevision ||
+        preferencesRevision === null ||
+        BigInt(receipt.preferencesRevision) < BigInt(preferencesRevision)
+      )
+        return false;
+      if (preferencesRevision === receipt.preferencesRevision) return true;
+      preferencesRevision = receipt.preferencesRevision;
+      preferenceEpoch++;
+      scopeEpoch++;
+      abortReads();
+      clearPages();
+      return true;
     },
     preferenceScope(): Readonly<AccountBrowserPreferencesScope> | undefined {
       if (
@@ -333,6 +359,7 @@ export function createAccountBrowser(options: AccountBrowserOptions = {}) {
         admitted.sports ?? null,
         admitted.sort,
         admitted.favoritesFirst ?? true,
+        admitted.favoritesOnly ?? false,
         nativeCountry ?? null,
         admitted.hideAdult ?? false,
       ]);
@@ -406,6 +433,7 @@ export function createAccountBrowser(options: AccountBrowserOptions = {}) {
                   ? 'country'
                   : 'source',
             favoritesFirst: admitted.favoritesFirst ?? true,
+            ...(admitted.favoritesOnly ? { favoritesOnly: true } : {}),
             ...(nativeCountry === undefined ? {} : { country: nativeCountry }),
             ...(admitted.hideAdult ? { hideAdult: true } : {}),
             startIndex: admitted.startIndex ?? 0,

@@ -54,6 +54,7 @@ export function createAccountPreferencesController(env: AccountPreferencesEnviro
         ? accountPreferenceWork
         : Promise.reject(new Error('Wait for the current channel change to finish.'));
     const owner = new AbortController();
+    const selection = env.accountBrowser.selectionSignal;
     accountPreferenceOwner = owner;
     accountPreferenceKey = key;
     const work = accountPreferences
@@ -75,8 +76,15 @@ export function createAccountPreferencesController(env: AccountPreferencesEnviro
           account.revision === receipt.accountRevision &&
           !env.applicationClosing
         ) {
-          await env.accountBrowser.select(account);
-          env.renderCatalog();
+          // Channel edits refresh once the queued favorite presses have settled.
+          if (mutation.kind !== 'favorite' || !env.accountBrowser.acknowledgeFavorite(receipt)) {
+            await env.accountBrowser.select(account);
+            env.renderCatalog();
+          } else if (selection.aborted) {
+            // The old edit no longer owns a refresh, but its receipt can still
+            // update a newly reopened selection of the same account.
+            env.renderCatalog();
+          }
         }
         if (receipt.cleanupPending)
           env.notice('Channel changes were saved. Playback cleanup needs a retry.');

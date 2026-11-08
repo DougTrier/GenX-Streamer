@@ -419,6 +419,47 @@ fn batch_removal_takes_every_group_in_one_write() {
 }
 
 #[test]
+fn sports_football_priority_follows_a_matching_alias_across_pages() {
+    let (_root, store) = fixture();
+    let pair = store.read_pair().unwrap();
+    let mut catalog: Value = serde_json::from_str(&pair.catalog.unwrap()).unwrap();
+    catalog["channels"][1]["name"] = json!("NFL alternate label");
+    catalog["channels"].as_array_mut().unwrap().push(json!({
+        "id":"desk","sourceId":"legacy","name":"AAA Sports Desk","category":"Sports",
+        "urls":["https://example.invalid/desk"]
+    }));
+    store
+        .write_pair(&catalog.to_string(), &pair.preferences.unwrap())
+        .unwrap();
+    let mut q = query("Football");
+    q.sort = crate::catalog_query::Sort::Name;
+    q.page_size = 1;
+    q.sports = Some(crate::catalog::sports::Scope {
+        sport: None,
+        league: None,
+        include_ppv: false,
+        window_start_ms: 1000,
+        window_end_ms: 2000,
+        vocabulary_version: serde_json::from_str::<Value>(crate::catalog::sports::VOCABULARY)
+            .unwrap()["vocabularyVersion"]
+            .as_str()
+            .unwrap()
+            .into(),
+    });
+    let cancel = Arc::new(AtomicBool::new(false));
+    let first = store.query_catalog_page(&q, &cancel).unwrap();
+    assert_eq!(first.total_count, 2);
+    assert_eq!(first.rows[0].id, "a");
+    q.expected_catalog_revision = Some(first.catalog_revision);
+    q.expected_view_revision = Some(first.view_revision);
+    q.after = first.after;
+    assert_eq!(
+        store.query_catalog_page(&q, &cancel).unwrap().rows[0].id,
+        "desk"
+    );
+}
+
+#[test]
 fn watched_history_returns_only_exact_watched_alias_and_recaptures_order() {
     let (_root, store) = fixture();
     let mut q = query("");

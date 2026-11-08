@@ -18,7 +18,20 @@ import { expect, type Page } from '@playwright/test';
 import { openPlaylistImport, saveReviewedSource } from './source-scan';
 import { chooseSettingsSection } from './settings-section';
 
-/** User-imported saved channels: typing/Enter must filter without online acquisition. */
+export async function openChannelSearch(page: Page) {
+  const opener = page.locator('#phone-filter-button');
+  if (await opener.isVisible()) await opener.click();
+  const search = page.locator('#search');
+  await expect(search).toBeVisible();
+  return search;
+}
+
+export async function closeChannelSearch(page: Page) {
+  const close = page.locator('#phone-filter-close');
+  if (await close.isVisible()) await close.click();
+}
+
+/** User-imported saved channels: typing must filter without online acquisition. */
 export async function seedSavedSearchChannels(page: Page): Promise<void> {
   await openPlaylistImport(page);
   await page.locator('#playlist-file').setInputFiles({

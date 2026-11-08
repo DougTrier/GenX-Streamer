@@ -112,6 +112,16 @@ fn actual_ts_complete_publication_output_parity() {
     }
 }
 #[test]
+fn a_permanent_feed_cannot_inherit_a_game_id_from_a_shared_provider_id() {
+    let mut case = vectors()["cases"][0].clone();
+    case["catalog"]["channels"][0]["name"] = json!("[NBA] Boston at Philadelphia");
+    case["catalog"]["channels"][0]["category"] = json!("Live Events");
+    let prepared = run(&case).unwrap();
+    assert_eq!(prepared.next_preferences["favorites"], json!(["old"]));
+    assert_ne!(prepared.catalog_patch.channels[0]["id"], "old");
+}
+
+#[test]
 fn full_review_ambiguity_outside_selected_page_preserves_existing_variant() {
     let oracle = vectors();
     let case = oracle["cases"]

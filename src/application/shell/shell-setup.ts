@@ -34,6 +34,7 @@ import {
   mountSettingsNavigation,
 } from '../../ui/settings/settings-navigation';
 import { mountAbout } from '../../ui/settings/about';
+import type { FavoriteTransfer } from '../sharing/favorite-transfer';
 import { installCategoryMenu } from '../../ui/channels/category-menu';
 import { type mountStorageRecovery } from '../../ui/settings/storage-recovery';
 import { installViewport } from '../../ui/shell/viewport';
@@ -52,7 +53,7 @@ export interface ShellSetupEnvironment {
   readonly clearBrowseFilters: () => void;
 }
 
-export function createShellSetup(env: ShellSetupEnvironment) {
+export function createShellSetup(env: ShellSetupEnvironment, favorites: FavoriteTransfer) {
   const playbackDiagnostics = env.bootstrapBoundary.run('shell', () =>
     installPlaybackDiagnostics({
       button: env.element<HTMLButtonElement>('playback-diagnostics-button'),
@@ -109,7 +110,7 @@ export function createShellSetup(env: ShellSetupEnvironment) {
     mountLocationDialog(env.element('geography-controls')),
   );
   const removeAbout = env.bootstrapBoundary.run('settings', () =>
-    mountAbout(env.element('app'), env.element<HTMLButtonElement>('about-button')),
+    mountAbout(env.element('app'), env.element<HTMLButtonElement>('about-button'), favorites),
   );
   env.element('app').inert = true;
   // TV and Windows: All | Movies | News | Sports fold into one button in the channel row.
